@@ -44,8 +44,13 @@
         android:paddingRight="12dp"
         android:layout_height="wrap_content"
         app:flexWrap="wrap"
-        app:justifyContent="space_between">
+        app:justifyContent="flex_start">
 
+        <io.legado.app.lib.theme.view.ThemeCheckBox
+            android:id="@+id/check_domain"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/domain" />
         <io.legado.app.lib.theme.view.ThemeCheckBox
             android:id="@+id/check_search"
             android:layout_width="wrap_content"

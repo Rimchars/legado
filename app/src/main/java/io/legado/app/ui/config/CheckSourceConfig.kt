@@ -30,13 +30,18 @@ class CheckSourceConfig : BaseDialogFragment(R.layout.dialog_check_source_config
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         binding.toolBar.setBackgroundColor(primaryColor)
         binding.run {
+            checkDomain.onClick {
+                if (!checkSearch.isChecked && !checkDiscovery.isChecked && !checkDomain.isChecked) {
+                    checkSearch.isChecked = true
+                }
+            }
             checkSearch.onClick {
-                if (!checkSearch.isChecked && !checkDiscovery.isChecked) {
+                if (!checkSearch.isChecked && !checkDiscovery.isChecked && !checkDomain.isChecked) {
                     checkDiscovery.isChecked = true
                 }
             }
             checkDiscovery.onClick {
-                if (!checkSearch.isChecked && !checkDiscovery.isChecked) {
+                if (!checkSearch.isChecked && !checkDiscovery.isChecked && !checkDomain.isChecked) {
                     checkSearch.isChecked = true
                 }
             }
@@ -61,6 +66,7 @@ class CheckSourceConfig : BaseDialogFragment(R.layout.dialog_check_source_config
         }
         CheckSource.run {
             binding.checkSourceTimeout.setText((timeout / 1000).toString())
+            binding.checkDomain.isChecked = checkDomain
             binding.checkSearch.isChecked = checkSearch
             binding.checkDiscovery.isChecked = checkDiscovery
             binding.checkInfo.isChecked = checkInfo
@@ -90,6 +96,7 @@ class CheckSourceConfig : BaseDialogFragment(R.layout.dialog_check_source_config
                     }
                     else -> timeout = text.toLong() * 1000
                 }
+                checkDomain = binding.checkDomain.isChecked
                 checkSearch = binding.checkSearch.isChecked
                 checkDiscovery = binding.checkDiscovery.isChecked
                 checkInfo = binding.checkInfo.isChecked

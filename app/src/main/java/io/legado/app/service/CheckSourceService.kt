@@ -43,6 +43,9 @@ import kotlinx.coroutines.withTimeout
 import org.mozilla.javascript.WrappedException
 import splitties.init.appCtx
 import splitties.systemservices.notificationManager
+import java.net.InetSocketAddress
+import java.net.Socket
+import java.net.URI
 import java.util.concurrent.Executors
 import kotlin.coroutines.coroutineContext
 import kotlin.math.min
@@ -151,10 +154,36 @@ class CheckSourceService : BaseService() {
         source.respondTime = Debug.getRespondTime(source.bookSourceUrl)
     }
 
+    private suspend fun isDomainReachable(domain: String): Boolean {
+        return kotlin.runCatching {
+            withTimeout(2000) {
+                val url = URI(domain.substringBefore("#"))
+                val port = url.port.takeIf { it > 0 } ?: 80
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(url.host, port), 1600)
+                    true
+                }
+            }
+        }.getOrDefault(false)
+    }
+
     private suspend fun doCheckSource(source: BookSource) {
         Debug.startChecking(source)
         source.removeInvalidGroups()
         source.removeErrorComment()
+        //检测源地址可访问性
+        if (CheckSource.checkDomain) {
+            val domain = source.bookSourceUrl
+            if (!domain.startsWith("http", ignoreCase = true)) {
+                throw NoStackTraceException("源地址不是http链接")
+            }
+            else if (isDomainReachable(domain)) {
+                source.removeGroup("域名失效")
+            } else {
+                source.addGroup("域名失效")
+                throw NoStackTraceException("源地址不可访问")
+            }
+        }
         //校验搜索书籍
         if (CheckSource.checkSearch) {
             val searchWord = source.getCheckKeyword(CheckSource.keyword)

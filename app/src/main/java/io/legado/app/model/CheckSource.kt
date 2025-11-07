@@ -15,6 +15,7 @@ object CheckSource {
 
     //校验设置
     var timeout = CacheManager.getLong("checkSourceTimeout") ?: 180000L
+    var checkDomain = CacheManager.get("checkDomain")?.toBoolean() ?: false
     var checkSearch = CacheManager.get("checkSearch")?.toBoolean() ?: true
     var checkDiscovery = CacheManager.get("checkDiscovery")?.toBoolean() ?: true
     var checkInfo = CacheManager.get("checkInfo")?.toBoolean() ?: true
@@ -46,6 +47,7 @@ object CheckSource {
 
     fun putConfig() {
         CacheManager.put("checkSourceTimeout", timeout)
+        CacheManager.put("checkDomain", checkDomain)
         CacheManager.put("checkSearch", checkSearch)
         CacheManager.put("checkDiscovery", checkDiscovery)
         CacheManager.put("checkInfo", checkInfo)

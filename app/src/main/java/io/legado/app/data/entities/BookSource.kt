@@ -212,7 +212,7 @@ data class BookSource(
 
     fun getCheckKeyword(default: String): String {
         ruleSearch?.checkKeyWord?.let {
-            if (it.isNotBlank()) {
+            if (it.isNotBlank() && !it.contains("http")  && !it.contains("::") && !it.contains("++") && !it.contains("--")) {
                 return it
             }
         }
