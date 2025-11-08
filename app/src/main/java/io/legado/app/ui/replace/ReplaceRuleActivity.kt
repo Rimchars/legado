@@ -210,6 +210,14 @@ class ReplaceRuleActivity : VMBaseActivity<ActivityReplaceRuleBinding, ReplaceRu
                     appDb.replaceRuleDao.flowAll()
                 }
 
+                searchKey == getString(R.string.enabled) -> {
+                    appDb.replaceRuleDao.flowEnabled()
+                }
+
+                searchKey == getString(R.string.disabled) -> {
+                    appDb.replaceRuleDao.flowDisabled()
+                }
+
                 searchKey == getString(R.string.no_group) -> {
                     appDb.replaceRuleDao.flowNoGroup()
                 }
@@ -249,6 +257,13 @@ class ReplaceRuleActivity : VMBaseActivity<ActivityReplaceRuleBinding, ReplaceRu
             R.id.menu_add_replace_rule ->
                 editActivity.launch(ReplaceEditActivity.startIntent(this))
             R.id.menu_group_manage -> showDialogFragment<GroupManageDialog>()
+            R.id.menu_enabled_group -> {
+                searchView.setQuery(getString(R.string.enabled), true)
+            }
+
+            R.id.menu_disabled_group -> {
+                searchView.setQuery(getString(R.string.disabled), true)
+            }
             R.id.menu_del_selection -> viewModel.delSelection(adapter.selection)
             R.id.menu_import_onLine -> showImportDialog()
             R.id.menu_import_local -> importDoc.launch {

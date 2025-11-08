@@ -25,6 +25,12 @@ interface ReplaceRuleDao {
     @Query("SELECT * FROM replace_rules where `group` like :key or name like :key ORDER BY sortOrder ASC")
     fun flowSearch(key: String): Flow<List<ReplaceRule>>
 
+    @Query("SELECT * FROM replace_rules WHERE isEnabled = 1 ORDER BY sortOrder ASC")
+    fun flowEnabled(): Flow<List<ReplaceRule>>
+
+    @Query("SELECT * FROM replace_rules WHERE isEnabled = 0 ORDER BY sortOrder ASC")
+    fun flowDisabled(): Flow<List<ReplaceRule>>
+
     @Query("SELECT * FROM replace_rules where `group` like :key ORDER BY sortOrder ASC")
     fun flowGroupSearch(key: String): Flow<List<ReplaceRule>>
 

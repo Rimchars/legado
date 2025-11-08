@@ -32,11 +32,18 @@
 
     </io.legado.app.ui.widget.text.TextInputLayout>
 
+    <io.legado.app.lib.theme.view.ThemeCheckBox
+        android:id="@+id/w_source_comment"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/write_source_comment" />
+
     <io.legado.app.ui.widget.text.AccentTextView
-        android:paddingLeft="12dp"
+        android:paddingStart="12dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/check_source_item" />
+        android:text="@string/check_source_item"
+        tools:ignore="RtlSymmetry" />
 
     <com.google.android.flexbox.FlexboxLayout
         android:layout_width="match_parent"

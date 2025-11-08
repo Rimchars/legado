@@ -26,6 +26,7 @@ import io.legado.app.utils.applyTint
 import io.legado.app.utils.requestInputMethod
 import io.legado.app.utils.setLayout
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 
 
@@ -43,20 +44,24 @@ class GroupManageDialog : BaseDialogFragment(R.layout.dialog_recycler_view),
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         view.setBackgroundColor(backgroundColor)
-        binding.toolBar.setBackgroundColor(primaryColor)
-        binding.toolBar.title = getString(R.string.group_manage)
-        binding.toolBar.inflateMenu(R.menu.group_manage)
-        binding.toolBar.menu.applyTint(requireContext())
-        binding.toolBar.setOnMenuItemClickListener(this)
-        binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
-        binding.recyclerView.addItemDecoration(VerticalDivider(requireContext()))
-        binding.recyclerView.adapter = adapter
+        initView()
         initData()
+    }
+
+    private fun initView() = binding.run {
+        toolBar.setBackgroundColor(primaryColor)
+        toolBar.title = getString(R.string.group_manage)
+        toolBar.inflateMenu(R.menu.group_manage)
+        toolBar.menu.applyTint(requireContext())
+        toolBar.setOnMenuItemClickListener(this@GroupManageDialog)
+        recyclerView.layoutManager = LinearLayoutManager(requireContext())
+        recyclerView.addItemDecoration(VerticalDivider(requireContext()))
+        recyclerView.adapter = adapter
     }
 
     private fun initData() {
         lifecycleScope.launch {
-            appDb.bookSourceDao.flowGroups().collect {
+            appDb.bookSourceDao.flowGroups().conflate().collect {
                 adapter.setItems(it)
             }
         }

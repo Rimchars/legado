@@ -148,7 +148,9 @@ class CheckSourceService : BaseService() {
                 is ScriptException, is WrappedException -> source.addGroup("js失效")
                 !is NoStackTraceException -> source.addGroup("网站失效")
             }
-            source.addErrorComment(it)
+            if (CheckSource.wSourceComment) {
+                source.addErrorComment(it)
+            }
             Debug.updateFinalMessage(source.bookSourceUrl, "校验失败:${it.localizedMessage}")
         }
         source.respondTime = Debug.getRespondTime(source.bookSourceUrl)
@@ -170,7 +172,9 @@ class CheckSourceService : BaseService() {
     private suspend fun doCheckSource(source: BookSource) {
         Debug.startChecking(source)
         source.removeInvalidGroups()
-        source.removeErrorComment()
+        if (CheckSource.wSourceComment) {
+            source.removeErrorComment()
+        }
         //检测源地址可访问性
         if (CheckSource.checkDomain) {
             val domain = source.bookSourceUrl
