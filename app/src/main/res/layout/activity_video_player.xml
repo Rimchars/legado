@@ -9,8 +9,7 @@
     <io.legado.app.ui.widget.TitleBar
         android:id="@+id/title_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:themeMode="dark" />
+        android:layout_height="wrap_content" />
 
     <io.legado.app.help.gsyVideo.VideoPlayer
         android:id="@+id/playerView"

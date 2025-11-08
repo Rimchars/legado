@@ -59,6 +59,7 @@ object CheckSource {
 
     private fun upSummary(): String {
         var checkItem = ""
+        if (checkDomain) checkItem = "$checkItem ${appCtx.getString(R.string.domain)}"
         if (checkSearch) checkItem = "$checkItem ${appCtx.getString(R.string.search)}"
         if (checkDiscovery) checkItem = "$checkItem ${appCtx.getString(R.string.discovery)}"
         if (checkInfo) checkItem = "$checkItem ${appCtx.getString(R.string.source_tab_info)}"

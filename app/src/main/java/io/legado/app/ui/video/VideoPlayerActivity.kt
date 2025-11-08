@@ -104,6 +104,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
 
     @OptIn(UnstableApi::class)
     override fun onActivityCreated(savedInstanceState: Bundle?) {
+        playerView.enlargeImageRes = R.drawable.ic_fullscreen
         isNew = intent.getBooleanExtra("isNew", true)
         intent.getStringExtra("videoUrl")?.apply {
             VideoPlay.videoUrl = this
@@ -161,7 +162,9 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
         binding.run {
             showCover(book)
             tvName.text = book.name
-            tvAuthor.text = book.getRealAuthor()
+            book.getRealAuthor().takeIf { it.isNotEmpty() }?.let {
+                tvAuthor.text = it
+            } ?: tvAuthor.gone()
             tvIntro.text = book.getDisplayIntro()
         }
     }
@@ -315,6 +318,10 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
                         val layoutParams = playerView.layoutParams
                         val parentWidth = playerView.width
                         val aspectRatio = videoHeight.toFloat() / videoWidth.toFloat()
+                        if (aspectRatio > 1.2) {
+                            //如何提前进入了横全屏，纠正回竖屏
+                            orientationUtils?.backToProtVideo()
+                        }
                         val height = (parentWidth * aspectRatio).toInt()
                         val displayMetrics = resources.displayMetrics
                         val screenHeight = displayMetrics.heightPixels

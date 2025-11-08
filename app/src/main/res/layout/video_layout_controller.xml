@@ -24,7 +24,7 @@
     <LinearLayout
         android:id="@+id/layout_bottom"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="50dp"
         android:layout_alignParentBottom="true"
         android:background="#99000000"
         android:gravity="center_vertical"
@@ -66,7 +66,7 @@
             android:id="@+id/fullscreen"
             android:layout_width="wrap_content"
             android:layout_height="fill_parent"
-            android:paddingEnd="16dp"
+            android:padding="16dp"
             android:scaleType="center"
             android:src="@drawable/video_enlarge" />
     </LinearLayout>
