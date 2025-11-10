@@ -163,7 +163,7 @@ class VideoPlayService : BaseService() {
             val sourceType = intent.getIntExtra("sourceType", 0)
             val bookUrl = intent.getStringExtra("bookUrl")
             if (isNew) {
-                VideoPlay.initSource(sourceKey, sourceType, bookUrl) ?: stopSelf()
+                VideoPlay.initSource(sourceKey, sourceType, bookUrl).takeIf { it } ?: stopSelf()
                 VideoPlay.saveRead()
                 VideoPlay.startPlay(playerView)
             } else {

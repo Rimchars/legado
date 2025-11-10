@@ -2,9 +2,12 @@ package io.legado.app.model
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Context.MODE_PRIVATE
+import android.content.SharedPreferences
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import androidx.core.content.edit
 import com.shuyu.gsyvideoplayer.listener.GSYMediaPlayerListener
 import com.shuyu.gsyvideoplayer.utils.CommonUtil
 import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
@@ -31,6 +34,20 @@ import splitties.init.appCtx
 import java.io.File
 
 object VideoPlay : CoroutineScope by MainScope(){
+    const val VIDEO_PREF_NAME = "video_config"
+    private val videoPrefs: SharedPreferences by lazy { appCtx.getSharedPreferences(VIDEO_PREF_NAME, MODE_PRIVATE) }
+    /**  是否自动播放  **/
+    var autoPlay
+        get() = videoPrefs.getBoolean("autoPlay", true)
+        set(value) {
+            videoPrefs.edit { putBoolean("autoPlay", value) }
+        }
+    /**  直接全屏，需先启用自动播放  **/
+    var startFull
+        get() = videoPrefs.getBoolean("startFull", false)
+        set(value) {
+            videoPrefs.edit { putBoolean("startFull", value) }
+        }
     val videoManager by lazy { ExoVideoManager() }
     var videoUrl: String? = null //直接的播放链接
     var chapterContent: String? = null //章节内容->播放链接
@@ -54,6 +71,7 @@ object VideoPlay : CoroutineScope by MainScope(){
      * 开始播放
      */
     fun startPlay(player: StandardGSYVideoPlayer) {
+        if (source == null) return
         val player = player.getCurrentPlayer()
         durChapterPos.takeIf { it > 0 }?.toLong()?.let { player.seekOnStart = it }
         if (videoUrl != null) {
@@ -65,7 +83,9 @@ object VideoPlay : CoroutineScope by MainScope(){
                 chapter = null
             )
             player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"),analyzeUrl.headerMap.toMap(), videoTitle)
-            player.startPlayLogic()
+            if (autoPlay) {
+                player.startPlayLogic()
+            }
             return
         }
         if (book == null) {
@@ -104,7 +124,9 @@ object VideoPlay : CoroutineScope by MainScope(){
                     )
                     player.mapHeadData = analyzeUrl.headerMap
                     player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"), videoTitle)
-                    player.startPlayLogic()
+                    if (autoPlay) {
+                        player.startPlayLogic()
+                    }
                 }
             }.onError {
                 AppLog.put("获取资源链接出错\n$it", it, true)
@@ -206,7 +228,7 @@ object VideoPlay : CoroutineScope by MainScope(){
         sMediaPlayerListener = null
     }
 
-    fun initSource(sourceKey: String?, sourceType: Int?, bookUrl: String?): BaseSource? {
+    fun initSource(sourceKey: String?, sourceType: Int?, bookUrl: String?): Boolean {
         source = sourceKey?.let {
             when (sourceType) {
                 SourceType.book -> appDb.bookSourceDao.getBookSource(it)
@@ -230,8 +252,14 @@ object VideoPlay : CoroutineScope by MainScope(){
             source = appDb.bookSourceDao.getBookSource(b.origin)
         }
         upEpisodes()
-        return source
+        if (source == null) {
+            appCtx.toastOnUi("未找到源")
+            return false
+        } else {
+            return true
+        }
     }
+
     fun upSource() {
         when (source) {
             is BookSource -> {

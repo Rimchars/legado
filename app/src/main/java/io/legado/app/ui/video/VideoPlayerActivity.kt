@@ -36,6 +36,7 @@ import io.legado.app.service.VideoPlayService
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.book.source.edit.BookSourceEditActivity
 import io.legado.app.ui.book.toc.TocActivityResult
+import io.legado.app.ui.video.config.SettingsDialog
 import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.rss.source.edit.RssSourceEditActivity
 import io.legado.app.utils.StartActivityContract
@@ -47,7 +48,8 @@ import io.legado.app.utils.toggleSystemBar
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
 
-class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlayerViewModel>() {
+class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlayerViewModel>(),
+    SettingsDialog.CallBack {
     override val binding by viewBinding(ActivityVideoPlayerBinding::inflate)
     override val viewModel by viewModels<VideoPlayerViewModel>()
     private var orientationUtils: OrientationUtils? = null
@@ -106,16 +108,17 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         playerView.enlargeImageRes = R.drawable.ic_fullscreen
         isNew = intent.getBooleanExtra("isNew", true)
-        intent.getStringExtra("videoUrl")?.apply {
-            VideoPlay.videoUrl = this
-        }
+        intent.getStringExtra("videoUrl")?.apply { VideoPlay.videoUrl = this }
         VideoPlay.videoTitle = intent.getStringExtra("videoTitle")
         val sourceKey = intent.getStringExtra("sourceKey")
         val sourceType = intent.getIntExtra("sourceType", 0)
         val bookUrl = intent.getStringExtra("bookUrl")
         VideoPlay.inBookshelf = intent.getBooleanExtra("inBookshelf", true)
         if (isNew) {
-            VideoPlay.initSource(sourceKey, sourceType, bookUrl)
+            if (!VideoPlay.initSource(sourceKey, sourceType, bookUrl)) {
+                finish()
+                return
+            }
             VideoPlay.saveRead()
             VideoPlay.startPlay(playerView)
         } else {
@@ -126,6 +129,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
         setupPlayerView()
         initView()
         upView()
+        orientationUtils = OrientationUtils(this, playerView) //旋转辅助
         onBackPressedDispatcher.addCallback(this) {
             if (isFullScreen) {
                 toggleFullScreen()
@@ -133,7 +137,6 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             }
             finish()
         }
-        orientationUtils = OrientationUtils(this, playerView) //旋转辅助
     }
 
     private fun initView() {
@@ -311,6 +314,10 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             override fun onStartPrepared(url: String?, vararg objects: Any?) {}
             override fun onPrepared(url: String?, vararg objects: Any?) {
                 playerView.post {
+                    if (VideoPlay.startFull && VideoPlay.autoPlay && !isFullScreen) {
+                        toggleFullScreen()
+                        return@post
+                    }
                     //根据实际视频比例再次调整
                     val videoWidth = playerView.currentVideoWidth
                     val videoHeight = playerView.currentVideoHeight
@@ -319,7 +326,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
                         val parentWidth = playerView.width
                         val aspectRatio = videoHeight.toFloat() / videoWidth.toFloat()
                         if (aspectRatio > 1.2) {
-                            //如何提前进入了横全屏，纠正回竖屏
+                            //如果提前进入了横全屏，纠正回竖屏
                             orientationUtils?.backToProtVideo()
                         }
                         val height = (parentWidth * aspectRatio).toInt()
@@ -377,6 +384,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_float_window -> startFloatingWindow()
+            R.id.menu_config_settings -> showDialogFragment(SettingsDialog(this))
             R.id.menu_login -> VideoPlay.source?.let {s ->
                 val type = when (s) {
                     is BookSource -> "bookSource"
