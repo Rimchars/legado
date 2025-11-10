@@ -22,4 +22,16 @@ data class RssReadRecord(
     /**阅读进度**/
     @ColumnInfo(defaultValue = "0")
     var durPos: Int = 0
-)
+) {
+    fun toRssArticle(): RssArticle {
+        return RssArticle(
+            title = title ?: "",
+            origin = origin,
+            link = record,
+            sort = sort,
+            image = image,
+            type = type,
+            durPos = durPos
+        )
+    }
+}

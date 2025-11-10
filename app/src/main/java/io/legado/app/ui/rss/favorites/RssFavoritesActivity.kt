@@ -17,7 +17,9 @@ import io.legado.app.data.appDb
 import io.legado.app.databinding.ActivityRssFavoritesBinding
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.ui.rss.article.ReadRecordDialog
 import io.legado.app.utils.gone
+import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
 import kotlinx.coroutines.Dispatchers.IO
@@ -103,6 +105,7 @@ class RssFavoritesActivity : BaseActivity<ActivityRssFavoritesBinding>() {
             binding.viewPager.setCurrentItem(item.order)
         } else {
             when (item.itemId) {
+                R.id.menu_read_record -> showDialogFragment<ReadRecordDialog>()
                 R.id.menu_del_group -> deleteGroup()
                 R.id.menu_del_all -> deleteAll()
             }

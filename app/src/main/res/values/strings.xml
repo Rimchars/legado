@@ -1292,4 +1292,5 @@
     <string name="start_full">直接全屏播放</string>
     <string name="video_setting">视频设置</string>
     <string name="video_setting_summary">自动播放、全屏播放等配置</string>
+    <string name="history">历史记录</string>
 </resources>
