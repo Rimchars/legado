@@ -8,6 +8,7 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.RssArticle
 import io.legado.app.data.entities.RssReadRecord
 import io.legado.app.data.entities.RssSource
+import io.legado.app.exception.ContentEmptyException
 import io.legado.app.help.source.SourceHelp.openVideoPlayer
 import io.legado.app.model.rss.Rss
 import io.legado.app.ui.widget.dialog.PhotoDialog
@@ -46,6 +47,7 @@ object ReadRss {
     }
 
     private fun readNoHtml(fragment: Fragment, rssArticle: RssArticle, rssSource: RssSource? = null, type: Int) {
+        val rssSource = rssSource ?: appDb.rssSourceDao.getByKey(rssArticle.origin)
         rssSource?.let { s ->
             val ruleContent = s.ruleContent
             if (ruleContent.isNullOrBlank()) {
@@ -56,6 +58,9 @@ object ReadRss {
             } else {
                 Rss.getContent(fragment.viewLifecycleOwner.lifecycleScope, rssArticle, ruleContent, s)
                     .onSuccess(IO) { body ->
+                        if (body.isBlank()) {
+                            throw ContentEmptyException("正文为空")
+                        }
                         val url = NetworkUtils.getAbsoluteURL(rssArticle.link, body)
                         when (type) {
                             1 -> fragment.showDialogFragment(PhotoDialog(url))

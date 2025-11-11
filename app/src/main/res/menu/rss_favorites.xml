@@ -5,12 +5,6 @@
     tools:ignore="AlwaysShowAction">
 
     <item
-        android:id="@+id/menu_read_record"
-        android:icon="@drawable/ic_history"
-        android:title="@string/history"
-        app:showAsAction="always" />
-
-    <item
         android:id="@+id/menu_group"
         android:title="@string/group"
         android:icon="@drawable/ic_groups"
