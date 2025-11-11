@@ -53,13 +53,6 @@ class RssSortViewModel(application: Application) : BaseViewModel(application) {
         }
     }
 
-    fun read(rssArticle: RssArticle) {
-        execute {
-            val rssReadRecord = rssArticle.toRecord()
-            appDb.rssReadRecordDao.insertRecord(rssReadRecord)
-        }
-    }
-
     fun clearArticles() {
         execute {
             url?.let {

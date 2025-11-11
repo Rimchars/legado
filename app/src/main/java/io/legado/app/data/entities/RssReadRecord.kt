@@ -37,4 +37,17 @@ data class RssReadRecord(
             pubDate = pubDate
         )
     }
+
+    fun toStar(): RssStar {
+        return RssStar(
+            title = title ?: "",
+            origin = origin,
+            link = record,
+            sort = sort,
+            image = image,
+            type = type,
+            durPos = durPos,
+            pubDate = pubDate
+        )
+    }
 }

@@ -15,6 +15,12 @@ interface RssReadRecordDao {
     @Query("select * from rssReadRecords where origin = :origin order by readTime desc")
     fun getRecordsByOrigin(origin: String): List<RssReadRecord>
 
+    @Query("select * from rssReadRecords where record = :record and origin = :origin")
+    fun getRecord( record: String, origin: String): RssReadRecord?
+
+    @Update
+    fun update(vararg rssRecord: RssReadRecord)
+
     @get:Query("select count(1) from rssReadRecords")
     val countRecords: Int
 

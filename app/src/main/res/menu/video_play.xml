@@ -5,6 +5,13 @@
     tools:ignore="AlwaysShowAction">
 
     <item
+        android:id="@+id/menu_rss_star"
+        android:icon="@drawable/ic_star_border"
+        android:title="@string/favorite"
+        android:visible="false"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/menu_float_window"
         android:icon="@drawable/ic_float_window"
         android:title="@string/float_window"
