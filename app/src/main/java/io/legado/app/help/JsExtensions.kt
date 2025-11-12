@@ -346,10 +346,12 @@ interface JsExtensions : JsEncodeUtils {
     /**
      *js实现读取cookie
      */
+    @JavascriptInterface
     fun getCookie(tag: String): String {
         return getCookie(tag, null)
     }
 
+    @JavascriptInterface
     fun getCookie(tag: String, key: String?): String {
         return if (key != null) {
             CookieStore.getKey(tag, key)
@@ -483,23 +485,19 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     /* Str转ByteArray */
-    @JavascriptInterface
     fun strToBytes(str: String): ByteArray {
         return str.toByteArray(charset("UTF-8"))
     }
 
-    @JavascriptInterface
     fun strToBytes(str: String, charset: String): ByteArray {
         return str.toByteArray(charset(charset))
     }
 
     /* ByteArray转Str */
-    @JavascriptInterface
     fun bytesToStr(bytes: ByteArray): String {
         return String(bytes, charset("UTF-8"))
     }
 
-    @JavascriptInterface
     fun bytesToStr(bytes: ByteArray, charset: String): String {
         return String(bytes, charset(charset))
     }
@@ -522,7 +520,6 @@ interface JsExtensions : JsEncodeUtils {
         return EncoderUtils.base64Decode(str, flags)
     }
 
-    @JavascriptInterface
     fun base64DecodeToByteArray(str: String?): ByteArray? {
         if (str.isNullOrBlank()) {
             return null
@@ -530,7 +527,6 @@ interface JsExtensions : JsEncodeUtils {
         return EncoderUtils.base64DecodeToByteArray(str, 0)
     }
 
-    @JavascriptInterface
     fun base64DecodeToByteArray(str: String?, flags: Int): ByteArray? {
         if (str.isNullOrBlank()) {
             return null
@@ -549,7 +545,6 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     /* HexString 解码为字节数组 */
-    @JavascriptInterface
     fun hexDecodeToByteArray(hex: String): ByteArray? {
         return HexUtil.decodeHex(hex)
     }
@@ -631,7 +626,6 @@ interface JsExtensions : JsEncodeUtils {
      * @param path 相对路径
      * @return File
      */
-    @JavascriptInterface
     fun getFile(path: String): File {
         val cachePath = appCtx.externalCache.absolutePath
         val aPath = if (path.startsWith(File.separator)) {
@@ -647,7 +641,6 @@ interface JsExtensions : JsEncodeUtils {
         return file
     }
 
-    @JavascriptInterface
     fun readFile(path: String): ByteArray? {
         val file = getFile(path)
         if (file.exists()) {
@@ -815,7 +808,6 @@ interface JsExtensions : JsEncodeUtils {
      * @param path 所需获取文件在zip内的路径
      * @return zip指定文件的数据
      */
-    @JavascriptInterface
     fun getZipByteArrayContent(url: String, path: String): ByteArray? {
         val bytes = if (url.isAbsUrl()) {
             AnalyzeUrl(url, source = getSource(), coroutineContext = context).getByteArray()
@@ -844,7 +836,6 @@ interface JsExtensions : JsEncodeUtils {
      * @param path 所需获取文件在Rar内的路径
      * @return Rar指定文件的数据
      */
-    @JavascriptInterface
     fun getRarByteArrayContent(url: String, path: String): ByteArray? {
         val bytes = if (url.isAbsUrl()) {
             AnalyzeUrl(url, source = getSource(), coroutineContext = context).getByteArray()
@@ -863,7 +854,6 @@ interface JsExtensions : JsEncodeUtils {
      * @param path 所需获取文件在7zip内的路径
      * @return 7zip指定文件的数据
      */
-    @JavascriptInterface
     fun get7zByteArrayContent(url: String, path: String): ByteArray? {
         val bytes = if (url.isAbsUrl()) {
             AnalyzeUrl(url, source = getSource(), coroutineContext = context).getByteArray()

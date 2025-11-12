@@ -8,11 +8,22 @@ import io.legado.app.data.entities.BaseSource
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
+import io.legado.app.utils.GSON
 import io.legado.app.utils.escapeForJs
+import io.legado.app.utils.fromJsonObject
 
 class WebJsExtensions(private val source: BaseSource, private val activity: AppCompatActivity, private val webView: WebView): JsExtensions {
     override fun getSource(): BaseSource {
         return source
+    }
+    @JavascriptInterface
+    fun put(key: String, value: String): String {
+        getSource().put(key, value)
+        return value
+    }
+    @JavascriptInterface
+    fun get(key: String): String {
+        return getSource().get(key)
     }
     @JavascriptInterface
     fun request(jsCode: String, id: String) {
@@ -43,7 +54,25 @@ class WebJsExtensions(private val source: BaseSource, private val activity: AppC
     fun ajax(url: String): String? {
         return super.ajax(url)
     }
-
+    @JavascriptInterface
+    fun connect(urlStr: String, header: String): String {
+        return super.connect(urlStr, header).toString()
+    }
+    @JavascriptInterface
+    fun get(urlStr: String, headers: String): String {
+        val headerMap = GSON.fromJsonObject<Map<String, String>>(headers).getOrNull() ?: emptyMap()
+        return super.get(urlStr, headerMap).body()
+    }
+    @JavascriptInterface
+    fun post(urlStr: String, body: String, headers: String): String {
+        val headerMap = GSON.fromJsonObject<Map<String, String>>(headers).getOrNull() ?: emptyMap()
+        return super.post(urlStr, body, headerMap).body()
+    }
+    @JavascriptInterface
+    fun head(urlStr: String, headers: String): String {
+        val headerMap = GSON.fromJsonObject<Map<String, String>>(headers).getOrNull() ?: emptyMap()
+        return GSON.toJson(super.head(urlStr, headerMap).headers())
+    }
 
     companion object{
         const val JS_INJECTION = """
