@@ -283,13 +283,12 @@ result = "https://example.mp3" + "\n" + "[00:00.00][by:花丸的蜜柑面包]"
 ```
 
 * 网页JS
-> 本地html中的额外支持的js函数
-
 > `window.close()` 关闭浏览器界面  
 > `screen.orientation.lock()` 全屏后可控制屏幕方向  
 
-> 异步执行阅读函数，并返回字符串结果
+> 本地html中的额外支持的js函数  
 
+> 异步执行阅读函数，并返回字符串结果
 ```js
 window.run("java.toast('执行成功');'成功'")
 .then(r=>alert(r))
@@ -309,14 +308,4 @@ https://www.baidu.com/img/flexible/logo/pc/result.png,{
   "js": "if (book) java.toast('这是'+book.name+'的图');result",
   "style": "right"
 }
-```
-
-* 订阅源
-> 内置浏览器额外支持的函数和超链  
-
-```js
-`opensorturl://${encodeURIComponent("https://example.com")}` //超链接打开分类界面
-`openrssurl://${encodeURIComponent("https://example.com")}` //超链接打开正文界面
-window.openui("sort", {"分类":"https://example.com"}) //函数打开分类界面
-window.openui("rss", {"正文":"https://example.com"}) //函数打开正文界面
 ```

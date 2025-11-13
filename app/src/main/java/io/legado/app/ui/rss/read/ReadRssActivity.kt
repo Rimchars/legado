@@ -361,7 +361,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                 window.close = function() {
                     window.AndroidComm?.onCloseRequested();
                 };
-                window.openui = function(name,object) {
+                window.openUi = function(name,object) {
                     return new Promise((resolve, reject) => {
                         window.AndroidComm?.openUI(name, JSON.stringify(object))
                         resolve()
@@ -652,7 +652,6 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
 
         private fun shouldOverrideUrlLoading(url: Uri): Boolean {
             viewModel.rssSource?.let { source ->
-                handleSpecialSchemes(source, url)?.let { return it }
                 source.shouldOverrideUrlLoading?.takeUnless(String::isNullOrBlank)?.let { js ->
                     val startTime = SystemClock.uptimeMillis()
                     val result = kotlin.runCatching {
@@ -674,25 +673,6 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
             return handleCommonSchemes(url)
         }
 
-        private fun handleSpecialSchemes(source: RssSource, url: Uri): Boolean? {
-            return when (url.scheme) {
-                "opensorturl" -> {
-                    val decodedUrl = decodeUrl(url, "sorturl://")
-                    RssSortActivity.start(this@ReadRssActivity, decodedUrl, source.sourceUrl)
-                    true
-                }
-
-                "openrssurl" -> {
-                    val decodedUrl = decodeUrl(url, "rssurl://")
-                    viewModel.readRss(source.sourceName, decodedUrl, viewModel.origin)
-                    start(this@ReadRssActivity, source.sourceName, decodedUrl, source.sourceUrl)
-                    true
-                }
-
-                else -> null
-            }
-        }
-
         private fun handleCommonSchemes(url: Uri): Boolean {
             return when (url.scheme) {
                 "http", "https", "jsbridge" -> false
@@ -708,10 +688,6 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                     true
                 }
             }
-        }
-
-        private fun decodeUrl(url: Uri, prefix: String): String {
-            return URLDecoder.decode(url.toString().substringAfter(prefix), "UTF-8")
         }
 
         @SuppressLint("WebViewClientOnReceivedSslError")

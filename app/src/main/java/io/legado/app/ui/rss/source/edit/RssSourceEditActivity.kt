@@ -99,7 +99,7 @@ class RssSourceEditActivity :
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         if (!LocalConfig.ruleHelpVersionIsLast) {
-            showHelp("ruleHelp")
+            showHelp("rssRuleHelp")
         }
     }
 
@@ -199,7 +199,7 @@ class RssSourceEditActivity :
             )
 
             R.id.menu_log -> showDialogFragment<AppLogDialog>()
-            R.id.menu_help -> showHelp("ruleHelp")
+            R.id.menu_help -> showHelp("rssRuleHelp")
         }
         return super.onCompatOptionsItemSelected(item)
     }
@@ -465,7 +465,7 @@ class RssSourceEditActivity :
                 sendText(it)
             }.show()
 
-            "ruleHelp" -> showHelp("ruleHelp")
+            "ruleHelp" -> showHelp("rssRuleHelp")
             "jsHelp" -> showHelp("jsHelp")
             "regexHelp" -> showHelp("regexHelp")
             "selectFile" -> selectDoc.launch {

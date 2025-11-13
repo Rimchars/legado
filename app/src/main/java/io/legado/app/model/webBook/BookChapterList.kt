@@ -239,6 +239,10 @@ object BookChapterList {
                         AppPattern.wordCountRegex.find(info)?.let { match ->
                             bookChapter.apply {
                                 wordCount = match.groupValues[1].trim()
+                                Debug.log(
+                                    bookSource.bookSourceUrl,
+                                    "⇒已从章节信息提取出字数信息：${wordCount}"
+                                )
                                 tag = info.replaceFirst(match.value, "")
                             }
                         } ?: run { bookChapter.tag = info }

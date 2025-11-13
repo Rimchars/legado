@@ -95,12 +95,16 @@ interface JsExtensions : JsEncodeUtils {
      * 访问网络,返回String
      */
     fun ajax(url: Any): String? {
+        return ajax(url, null)
+    }
+
+    fun ajax(url: Any, callTimeout: Long?): String? {
         val urlStr = if (url is List<*>) {
             url.firstOrNull().toString()
         } else {
             url.toString()
         }
-        val analyzeUrl = AnalyzeUrl(urlStr, source = getSource(), coroutineContext = context)
+        val analyzeUrl = AnalyzeUrl(urlStr, source = getSource(), callTimeout = callTimeout, coroutineContext = context)
         return kotlin.runCatching {
             analyzeUrl.getStrResponse().body
         }.onFailure {
@@ -164,18 +168,23 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     fun connect(urlStr: String, header: String?): StrResponse {
+        return connect(urlStr, header, null)
+    }
+
+    fun connect(urlStr: String, header: String?, callTimeout: Long?): StrResponse {
         val headerMap = GSON.fromJsonObject<Map<String, String>>(header).getOrNull()
         val analyzeUrl = AnalyzeUrl(
             urlStr,
             headerMapF = headerMap,
             source = getSource(),
+            callTimeout = callTimeout,
             coroutineContext = context
         )
         return kotlin.runCatching {
             analyzeUrl.getStrResponse()
         }.onFailure {
             rhinoContextOrNull?.ensureActive()
-            AppLog.put("ajax($urlStr,$header) error\n${it.localizedMessage}", it)
+            AppLog.put("connect($urlStr,$header) error\n${it.localizedMessage}", it)
         }.getOrElse {
             StrResponse(analyzeUrl.url, it.stackTraceStr)
         }
@@ -424,6 +433,10 @@ interface JsExtensions : JsEncodeUtils {
      * js实现重定向拦截,网络访问get
      */
     fun get(urlStr: String, headers: Map<String, String>): Connection.Response {
+        return get(urlStr, headers, null)
+    }
+
+    fun get(urlStr: String, headers: Map<String, String>, timeout: Int?): Connection.Response {
         val requestHeaders = if (getSource()?.enabledCookieJar == true) {
             headers.toMutableMap().apply { put(cookieJarHeader, "1") }
         } else headers
@@ -432,6 +445,7 @@ interface JsExtensions : JsEncodeUtils {
             rhinoContextOrNull?.ensureActive()
             Jsoup.connect(urlStr)
                 .sslSocketFactory(SSLHelper.unsafeSSLSocketFactory)
+                .timeout(timeout ?: 30000)
                 .ignoreContentType(true)
                 .followRedirects(false)
                 .headers(requestHeaders)
@@ -445,6 +459,10 @@ interface JsExtensions : JsEncodeUtils {
      * js实现重定向拦截,网络访问head,不返回Response Body更省流量
      */
     fun head(urlStr: String, headers: Map<String, String>): Connection.Response {
+        return head(urlStr, headers, null)
+    }
+
+    fun head(urlStr: String, headers: Map<String, String>, timeout: Int?): Connection.Response {
         val requestHeaders = if (getSource()?.enabledCookieJar == true) {
             headers.toMutableMap().apply { put(cookieJarHeader, "1") }
         } else headers
@@ -453,6 +471,7 @@ interface JsExtensions : JsEncodeUtils {
             rhinoContextOrNull?.ensureActive()
             Jsoup.connect(urlStr)
                 .sslSocketFactory(SSLHelper.unsafeSSLSocketFactory)
+                .timeout(timeout ?: 30000)
                 .ignoreContentType(true)
                 .followRedirects(false)
                 .headers(requestHeaders)
@@ -466,6 +485,10 @@ interface JsExtensions : JsEncodeUtils {
      * 网络访问post
      */
     fun post(urlStr: String, body: String, headers: Map<String, String>): Connection.Response {
+        return post(urlStr, body, headers, null)
+    }
+
+    fun post(urlStr: String, body: String, headers: Map<String, String>, timeout: Int?): Connection.Response {
         val requestHeaders = if (getSource()?.enabledCookieJar == true) {
             headers.toMutableMap().apply { put(cookieJarHeader, "1") }
         } else headers
@@ -474,6 +497,7 @@ interface JsExtensions : JsEncodeUtils {
             rhinoContextOrNull?.ensureActive()
             Jsoup.connect(urlStr)
                 .sslSocketFactory(SSLHelper.unsafeSSLSocketFactory)
+                .timeout(timeout ?: 30000)
                 .ignoreContentType(true)
                 .followRedirects(false)
                 .requestBody(body)
