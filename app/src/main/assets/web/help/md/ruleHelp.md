@@ -295,17 +295,15 @@ window.run("java.toast('执行成功');'成功'")
 .catch(e=>alert("执行出错:"+e));
 ```
 
-* 图片控制
-> 在线书籍的图片链接中含有"js"键时，点击图片会执行一次键值的函数  
+* 书源控制图片
+> 图片链接中含有"js"键时，点击图片会执行一次键值的函数  
 > 加载图片时，执行结果作为图片链接  
 
 > "style"键值控制单个图片的样式  
 > 目前支持"text"、"full"、"single"、"left"、"right"  
 > "TEXT"且处于段尾时，占1.5个字符位  
 
-```
-https://www.baidu.com/img/flexible/logo/pc/result.png,{
-  "js": "if (book) java.toast('这是'+book.name+'的图');result",
-  "style": "right"
-}
+```js
+var url = `https://www.baidu.com/img/flexible/logo/pc/result.png,{"js": "if (book) java.toast('这是'+book.name+'正文的图被点击了');result", "style": "right"}`;
+result = `<img src = "${url}">`;
 ```

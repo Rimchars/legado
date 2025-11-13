@@ -6,6 +6,12 @@ import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 
 class TextMateColorScheme2(themeRegistry: ThemeRegistry, themeModel: ThemeModel) : TextMateColorScheme(themeRegistry, themeModel) {
+    companion object {
+        fun create(themeRegistry: ThemeRegistry): TextMateColorScheme {
+            return create(ThemeRegistry.getInstance(), themeRegistry.currentThemeModel)
+        }
+    }
+
     override fun applyDefault() {
         super.applyDefault()
         if (isDark)
@@ -13,6 +19,9 @@ class TextMateColorScheme2(themeRegistry: ThemeRegistry, themeModel: ThemeModel)
         else
             applyLightThemeColors()
     }
+
+
+
 
     private fun applyDarkThemeColors() {
         setColor(HIGHLIGHTED_DELIMITERS_FOREGROUND, "#60FFFFFF".toColorInt()) // 选中括号
