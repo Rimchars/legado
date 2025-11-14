@@ -239,10 +239,6 @@ object BookChapterList {
                         AppPattern.wordCountRegex.find(info)?.let { match ->
                             bookChapter.apply {
                                 wordCount = match.groupValues[1].trim()
-                                Debug.log(
-                                    bookSource.bookSourceUrl,
-                                    "⇒已从章节信息提取出字数信息：${wordCount}"
-                                )
                                 tag = info.replaceFirst(match.value, "")
                             }
                         } ?: run { bookChapter.tag = info }
@@ -284,7 +280,7 @@ object BookChapterList {
                 Debug.log(bookSource.bookSourceUrl, "≡首章信息", log)
                 Debug.log(bookSource.bookSourceUrl, "◇章节名称:${chapterList[0].title}", log)
                 Debug.log(bookSource.bookSourceUrl, "◇章节链接:${chapterList[0].url}", log)
-                Debug.log(bookSource.bookSourceUrl, "◇章节信息:${chapterList[0].tag}", log)
+                Debug.log(bookSource.bookSourceUrl, "◇章节信息:${chapterList[0].tag} ${chapterList[0]?.wordCount ?: ' '}", log)
                 Debug.log(bookSource.bookSourceUrl, "◇是否VIP:${chapterList[0].isVip}", log)
                 Debug.log(bookSource.bookSourceUrl, "◇是否购买:${chapterList[0].isPay}", log)
             }
