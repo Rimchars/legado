@@ -1297,4 +1297,11 @@
     <string name="about_description_sigma">\u3000\u3000阅读Σ继承自legado，旨在原版基础上完善和增加功能，欢迎您的加入。</string>
     <string name="contributors_summary_sigma">gedoor、Luoyacheng、Horis和 Xwite 等，详情请在 GitHub 中查看</string>
     <string name="sure_cache_book">是否确认开始缓存？</string>
+    <string name="non_printable_set">不可视字符设定</string>
+    <string name="whitespace_leading">行首</string>
+    <string name="whitespace_inner">行中</string>
+    <string name="whitespace_trailing">行尾</string>
+    <string name="whitespace_empty">空行</string>
+    <string name="line_separator">换行</string>
+    <string name="whitespace_selection">选中</string>
 </resources>

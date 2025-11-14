@@ -9,7 +9,6 @@ import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
 import io.github.rosemoe.sora.widget.CodeEditor
-import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.legado.app.base.BaseViewModel
 import io.legado.app.constant.AppPattern.JS_PATTERN
 import io.legado.app.exception.NoStackTraceException
@@ -18,7 +17,6 @@ import io.legado.app.help.http.BackstageWebView
 import io.legado.app.utils.escapeForJs
 import io.legado.app.utils.printOnDebug
 import io.legado.app.utils.toastOnUi
-import okhttp3.internal.platform.PlatformRegistry.applicationContext
 import org.eclipse.tm4e.core.registry.IThemeSource
 import org.jsoup.Jsoup
 import splitties.init.appCtx
@@ -40,10 +38,10 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
     var initialText = ""
     var cursorPosition = 0
     var language: TextMateLanguage? = null
-    var colorScheme: EditorColorScheme? = null
     var languageName = "source.js"
     val themeRegistry: ThemeRegistry = ThemeRegistry.getInstance()
     var writable = true
+    var title: String? = null
 
     fun initSora() {
         //初始化sora加载
@@ -68,6 +66,7 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
             language = TextMateLanguage.create(languageName, AppConfig.editAutoComplete)
             cursorPosition = intent.getIntExtra("cursorPosition", 0)
             writable = intent.getBooleanExtra("writable", true)
+            title = intent.getStringExtra("title")
         }.onSuccess {
             success.invoke()
         }.onError {
