@@ -7,8 +7,11 @@ import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 
 class TextMateColorScheme2(themeRegistry: ThemeRegistry, themeModel: ThemeModel) : TextMateColorScheme(themeRegistry, themeModel) {
     companion object {
-        fun create(themeRegistry: ThemeRegistry): TextMateColorScheme {
+        fun create(themeRegistry: ThemeRegistry): TextMateColorScheme2 {
             return create(ThemeRegistry.getInstance(), themeRegistry.currentThemeModel)
+        }
+        fun create(themeRegistry: ThemeRegistry, themeModel: ThemeModel): TextMateColorScheme2 {
+            return TextMateColorScheme2(themeRegistry, themeModel)
         }
     }
 
