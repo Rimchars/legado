@@ -21,6 +21,7 @@ object AppUpdateGitee : AppUpdate.AppUpdateInterface {
             "official_version" -> AppVariant.OFFICIAL
             "beta_release_version" -> AppVariant.BETA_RELEASE
             "beta_releaseA_version" -> AppVariant.BETA_RELEASEA
+            "beta_releaseS_version" -> AppVariant.BETA_RELEASES
             else -> AppConst.appInfo.appVariant
         }
 
