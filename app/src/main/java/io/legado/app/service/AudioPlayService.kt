@@ -235,7 +235,7 @@ class AudioPlayService : BaseService(),
             exoPlayer.setMediaItem(analyzeUrl.getMediaItem())
             exoPlayer.playWhenReady = true
             //获取片头设定
-            val skipStartMs = (book?.getopencredits() ?: 0) * 1000L
+            val skipStartMs = (book?.getOpenCredits() ?: 0) * 1000L
             val playtime = if (position == 0) skipStartMs else position.toLong()
             exoPlayer.seekTo(playtime)
             exoPlayer.prepare()
@@ -439,7 +439,7 @@ class AudioPlayService : BaseService(),
     private fun upPlayProgress() {
         upPlayProgressJob?.cancel()
         upPlayProgressJob = lifecycleScope.launch {
-            val skipEnds = AudioPlay.book?.getclosecredits() ?: 0
+            val skipEnds = AudioPlay.book?.getCloseCredits() ?: 0
             var isOnetime = true
             while (isActive) {
                 val durP = exoPlayer.currentPosition

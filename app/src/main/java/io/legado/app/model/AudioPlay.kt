@@ -71,6 +71,7 @@ object AudioPlay : CoroutineScope by MainScope() {
 
     fun changePlayMode() {
         playMode = playMode.next()
+        book?.setPlayMode(playMode.ordinal)
         postEvent(EventBus.PLAY_MODE_CHANGED, playMode)
     }
 
@@ -105,6 +106,10 @@ object AudioPlay : CoroutineScope by MainScope() {
         bookSource = book.getBookSource()
         durChapterIndex = book.durChapterIndex
         durChapterPos = book.durChapterPos
+        PlayMode.entries.getOrNull(book.getPlayMode())?.let{
+            playMode = it
+            postEvent(EventBus.PLAY_MODE_CHANGED, it)
+        }
         durPlayUrl = ""
         durLyric = null
         durAudioSize = 0
