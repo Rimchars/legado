@@ -56,6 +56,18 @@ object VideoPlay : CoroutineScope by MainScope(){
         set(value) {
             videoPrefs.edit { putBoolean("startFull", value) }
         }
+    /**  长按倍速  **/
+    var longPressSpeed
+        get() = videoPrefs.getInt("longPressSpeed", 30)
+        set(value) {
+            videoPrefs.edit { putInt("longPressSpeed", value) }
+        }
+    /**  全屏底部进度条  **/
+    var fullBottomProgressBar
+        get() = videoPrefs.getBoolean("fullBottomProgressBar", true)
+        set(value) {
+            videoPrefs.edit { putBoolean("fullBottomProgressBar", value) }
+        }
     val videoManager by lazy { ExoVideoManager() }
     var videoUrl: String? = null //直接的播放链接
     var chapterContent: String? = null //章节内容->播放链接
