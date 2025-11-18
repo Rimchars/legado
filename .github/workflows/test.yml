@@ -28,7 +28,7 @@ jobs:
 
   prepare:
     runs-on: ubuntu-latest
-    if: ${{ !startsWith(github.event.head_commit.message, 'Merge pull request') }}
+    if: ${{ !startsWith(github.event.head_commit.message, 'Merge pull request') }} && !(github.event_name == 'pull_request' && github.event.pull_request.user.login == 'Luoyacheng')
     outputs:
       version: ${{ steps.set-ver.outputs.version }}
       versionL: ${{ steps.set-ver.outputs.versionL }}
@@ -63,9 +63,20 @@ jobs:
           fi
       - id: updateLog
         run: |
-          git fetch origin main
+          if ! git fetch origin main 2>/dev/null; then
+            echo "Warning: git fetch failed, continuing with local data"
+          fi
           UPDATED_CONTENT=""
-          if git diff --name-only HEAD~1 HEAD | grep -q "app/src/main/assets/updateLog.md"; then
+          IS_MERGE_PR=false
+          COMMIT_MSG="${GITHUB_EVENT_HEAD_COMMIT_MESSAGE:-}"
+          if [[ -n "$COMMIT_MSG" ]]; then
+            if [[ "$COMMIT_MSG" =~ ^"Merge pull request" ]] || 
+              [[ "$COMMIT_MSG" =~ ^"Merge branch" ]] || 
+              [[ "$COMMIT_MSG" =~ ^"Sync upstream" ]]; then
+              IS_MERGE_PR=true
+            fi
+          fi
+          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q "app/src/main/assets/updateLog.md"; then
             echo "updated=yes" >> $GITHUB_OUTPUT
             if [ -f "app/src/main/assets/updateLog.md" ]; then
               UPDATED_CONTENT=$(awk '
@@ -74,10 +85,8 @@ jobs:
                 print
                 next
               }
-              found {
-                if (NF == 0) exit
-                print
-              }
+              found && NF == 0 { exit }
+              found { print }
               END {
                 if (!found) {
                   system("head -n 10 app/src/main/assets/updateLog.md")
@@ -85,11 +94,27 @@ jobs:
               }
               ' app/src/main/assets/updateLog.md)
             fi
+          elif [ "$IS_MERGE_PR" = true ]; then
+              UPDATED_CONTENT="$COMMIT_MSG"
+          else
+            if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+              COMMIT_RANGE="${{ github.event.before }}..${{ github.event.after }}"
+              if git rev-parse "$COMMIT_RANGE" >/dev/null 2>&1; then
+                COMMIT_COUNT=$(git rev-list --count $COMMIT_RANGE 2>/dev/null || echo "1")
+                if [ "$COMMIT_COUNT" -eq 1 ]; then
+                  UPDATED_CONTENT=$(git log -1 --pretty=%B)
+                else
+                  UPDATED_CONTENT=$(git log $COMMIT_RANGE --pretty=format:"• %s" --reverse 2>/dev/null || git log -5 --pretty=format:"• %s (%h)" --reverse)
+                fi
+              else
+                UPDATED_CONTENT=$(git log -5 --pretty=format:"• %s (%h)" --reverse)
+              fi
+            fi
           fi
           if [ -z "$UPDATED_CONTENT" ]; then
             UPDATED_CONTENT=$(git log -1 --pretty=%B)
           fi
-          CONTENT_JSON=$(echo "$UPDATED_CONTENT" | jq -Rs .)
+          CONTENT_JSON=$(echo "$UPDATED_CONTENT" | jq -Rs . 2>/dev/null || echo "\"Error generating update content\"")
           echo "body=$CONTENT_JSON" >> $GITHUB_OUTPUT
       - id: set-matrix
         run: |
@@ -145,7 +170,7 @@ jobs:
           else
             typeName="共存"
             sed "s/'.release'/'.releaseS'/" $GITHUB_WORKSPACE/app/build.gradle  -i
-            sed 's/.release/.releaseS/'     $GITHUB_WORKSPACE/app/google-services.json -i
+            # sed 's/.release/.releaseS/'     $GITHUB_WORKSPACE/app/google-services.json -i
           fi
           echo "统一版本号"
           sed "/def version/c def version = \"${{ env.VERSION }}\"" $GITHUB_WORKSPACE/app/build.gradle  -i
@@ -312,17 +337,26 @@ jobs:
       - uses: actions/download-artifact@v5
         with:
           path: apk/
-      - working-directory: apk/
+      - id: set-tags
+        working-directory: apk/
         run: |
           mv */*.apk .
           rm -rf */
+          has_plus=false
           for file in `ls *.apk`; do
             if [[ "$file" == *原包名* ]]; then
-              mv "$file" $(echo $file | sed s/原包名/release/)
+              mv "$file" $(echo $file | sed s/原包名/beta/)
             else
-              mv "$file" $(echo $file | sed s/共存/releaseS/)
+              mv "$file" $(echo $file | sed s/共存/plus/)
+              has_plus=true
             fi
           done
+          tags=""
+          if [ "$has_plus" = true ]; then
+            tags="#beta #plus"
+          else
+            tags="#beta"
+          fi
       - name: Post to channel
         uses: xireiki/channel-post@v1
         with:
@@ -332,7 +366,7 @@ jobs:
             版本号：${{ needs.prepare.outputs.versionL }}
             更新内容：
             ${{ fromJSON(needs.prepare.outputs.updateLog_content) }}
-            #阅读 #Legado #阅读Sigma
+            #阅读 #Legado #阅读Sigma ${{ steps.set-tags.outputs.TAGS }}
           path: apk/*
           method: sendFile
 

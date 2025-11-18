@@ -1308,4 +1308,6 @@
     <string name="whitespace_selection">选中</string>
     <string name="press_speed">长按倍数</string>
     <string name="full_bottom_progress">全屏时显示底部进度条</string>
+    <string name="json_format">json格式</string>
+    <string name="open_other_video_player">其它播放器打开</string>
 </resources>

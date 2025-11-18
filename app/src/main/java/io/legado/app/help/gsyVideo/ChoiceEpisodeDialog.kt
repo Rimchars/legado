@@ -57,6 +57,7 @@ class ChoiceEpisodeDialog(private val mContext: Context) : Dialog(
         val lp = dialogWindow!!.attributes
         val d = mContext.resources.displayMetrics // 获取屏幕宽、高用
         lp.width = (d.widthPixels * 0.4).toInt() // 宽度设置为屏幕的0.4
+        lp.height = d.heightPixels
         lp.gravity = android.view.Gravity.END // 设置靠右对齐
         dialogWindow.setAttributes(lp)
     }
