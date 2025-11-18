@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -39,6 +40,7 @@ import splitties.init.appCtx
 import java.io.File
 import java.io.FileOutputStream
 import androidx.core.graphics.scale
+import io.legado.app.utils.normalizeFileName
 
 /**
  * 封面
@@ -116,13 +118,13 @@ class CoverImageView @JvmOverloads constructor(
 
     private fun drawNameAuthor(canvas: Canvas) {
         if (!BookCover.drawBookName) return
-        var pathName = name.toString()
+        var pathName = name ?: return
         if (isSaveBook) {
             if (BookCover.drawBookAuthor) {
                 pathName += author.toString()
             }
             pathName += ".png"
-            val filePath =FileUtils.getPath(rootPath, "covers_bitmap", pathName)
+            val filePath =FileUtils.getPath(rootPath, "covers_bitmap", pathName.normalizeFileName())
             val vFile = File(filePath)
             if (vFile.exists()) {
                 val cacheBitmap = BitmapUtils.decodeBitmap(vFile.absolutePath, width, height)?.scale(width, height) //先近似缩放再精确缩放
@@ -132,6 +134,9 @@ class CoverImageView @JvmOverloads constructor(
                 }
             }
         }
+        val isSmallSave = width < 300 && isSaveBook
+        val width = if (isSmallSave) width * 3 else width
+        val height = if (isSmallSave) height * 3 else height
         viewWidth = width.toFloat()
         viewHeight = height.toFloat()
         val bitmap = createBitmap(width, height)
@@ -170,8 +175,15 @@ class CoverImageView @JvmOverloads constructor(
             }
         }
         if (!BookCover.drawBookAuthor){
-            if (isSaveBook) { saveBitmapToFileAsPng(bitmap, pathName) }
-            canvas.drawBitmap(bitmap, 0f, 0f, null)
+            if (isSaveBook) { saveBitmapToFileAsPng(bitmap, pathName.normalizeFileName()) }
+            if (isSmallSave) {
+                canvas.drawBitmap(
+                    bitmap,
+                    Matrix().apply { setScale(1/3f, 1/3f) },
+                    null)
+            } else {
+                canvas.drawBitmap(bitmap, 0f, 0f, null)
+            }
             return
         }
         author?.toStringArray()?.let { author ->
@@ -193,8 +205,15 @@ class CoverImageView @JvmOverloads constructor(
                 }
             }
         }
-        if (isSaveBook) { saveBitmapToFileAsPng(bitmap, pathName) }
-        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        if (isSaveBook) { saveBitmapToFileAsPng(bitmap, pathName.normalizeFileName()) }
+        if (isSmallSave) {
+            canvas.drawBitmap(
+                bitmap,
+                Matrix().apply { setScale(1/3f, 1/3f) },
+                null)
+        } else {
+            canvas.drawBitmap(bitmap, 0f, 0f, null)
+        }
     }
 
     private fun saveBitmapToFileAsPng(bitmap: Bitmap, pathName: String) {
