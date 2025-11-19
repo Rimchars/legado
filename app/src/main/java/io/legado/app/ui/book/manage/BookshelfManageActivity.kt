@@ -304,14 +304,6 @@ class BookshelfManageActivity :
                     )
                 }
             }
-            R.id.menu_clear_bitmap_covers ->  {
-                val path = FileUtils.getPath(externalFiles, "covers_bitmap")
-                if (FileUtils.delete(path)) {
-                    toastOnUi("清理完成")
-                } else {
-                    toastOnUi("清理失败")
-                }
-            }
 
             else -> if (item.groupId == R.id.menu_group) {
                 viewModel.groupName = item.title.toString()
