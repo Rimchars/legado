@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          fetch-depth: 20
       - id: set-ver
         run: |
           echo "version=$(date -d "8 hour" -u +3.%y.%m%d%H)" >> $GITHUB_OUTPUT
@@ -100,14 +100,9 @@ jobs:
             if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
               COMMIT_RANGE="${{ github.event.before }}..${{ github.event.after }}"
               if git rev-parse "$COMMIT_RANGE" >/dev/null 2>&1; then
-                COMMIT_COUNT=$(git rev-list --count $COMMIT_RANGE 2>/dev/null || echo "1")
-                if [ "$COMMIT_COUNT" -eq 1 ]; then
-                  UPDATED_CONTENT=$(git log -1 --pretty=%B)
-                else
-                  UPDATED_CONTENT=$(git log $COMMIT_RANGE --pretty=format:"• %s" --reverse 2>/dev/null || git log -5 --pretty=format:"• %s (%h)" --reverse)
-                fi
+                UPDATED_CONTENT=$(git log $COMMIT_RANGE --pretty=format:"• %s" --reverse 2>/dev/null | grep -v "^• Merge" || echo "• $COMMIT_MSG")
               else
-                UPDATED_CONTENT=$(git log -5 --pretty=format:"• %s (%h)" --reverse)
+                UPDATED_CONTENT=$(git log -10 --pretty=format:"• %s (%h)" --reverse 2>/dev/null | grep -v "^• Merge" || echo "• $COMMIT_MSG")
               fi
             fi
           fi
