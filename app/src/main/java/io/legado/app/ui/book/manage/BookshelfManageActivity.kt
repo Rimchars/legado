@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import android.view.MotionEvent
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import androidx.activity.viewModels
@@ -43,12 +42,9 @@ import io.legado.app.utils.FileUtils
 import io.legado.app.utils.applyTint
 import io.legado.app.utils.cnCompare
 import io.legado.app.utils.dpToPx
-import io.legado.app.utils.externalFiles
-import io.legado.app.utils.hideSoftInput
 import io.legado.app.utils.isAbsUrl
 import io.legado.app.utils.sendToClip
 import io.legado.app.utils.setEdgeEffectColor
-import io.legado.app.utils.shouldHideSoftInput
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
@@ -120,20 +116,6 @@ class BookshelfManageActivity :
         initOtherView()
         initGroupData()
         upBookDataByGroupId()
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.action == MotionEvent.ACTION_DOWN) {
-            currentFocus?.let {
-                if (it.shouldHideSoftInput(ev)) {
-                    it.post {
-                        it.clearFocus()
-                        it.hideSoftInput()
-                    }
-                }
-            }
-        }
-        return super.dispatchTouchEvent(ev)
     }
 
     override fun observeLiveBus() {
