@@ -94,27 +94,27 @@ class VideoPlayer: StandardGSYVideoPlayer {
     }
 
     private fun initView() {
-        episodeList = findViewById(R.id.episode_list)
         playbackSpeed = findViewById(R.id.playback_speed)
-        btnNext = findViewById(R.id.next)
+        playbackSpeed?.setOnClickListener {
+            if (mHadPlay && !isChanging) {
+                showSpeedDialog()
+            }
+        }
         tipView = findViewById(R.id.tip_view)
         if (mIfCurrentIsFullscreen && !VideoPlay.fullBottomProgressBar) {
             mBottomProgressBar = null
         }
+        //切换选集
+        episodeList = findViewById(R.id.episode_list)
+        btnNext = findViewById(R.id.next)
         if (VideoPlay.episodes == null) {
             episodeList?.visibility = GONE
             btnNext?.visibility = GONE
             return
         }
-        //切换选集
         episodeList?.setOnClickListener {
             if (mHadPlay && !isChanging) {
                 showEpisodeDialog()
-            }
-        }
-        playbackSpeed?.setOnClickListener {
-            if (mHadPlay && !isChanging) {
-                showSpeedDialog()
             }
         }
         btnNext?.setOnClickListener {
