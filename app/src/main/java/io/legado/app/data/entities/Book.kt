@@ -326,6 +326,15 @@ data class Book(
         return config.playMode
     }
 
+    // 播放速度 的 setter 和 getter
+    fun setPlaySpeed(playSpeed: Float) {
+        config.playSpeed = playSpeed
+    }
+
+    fun getPlaySpeed(): Float {
+        return config.playSpeed
+    }
+
     fun getDelTag(tag: Long): Boolean {
         return config.delTag and tag == tag
     }
@@ -437,7 +446,8 @@ data class Book(
         var dailyChapters: Int = 3,    // 用户设置的每日更新章节数
         var openCredits: Int = 0,       //音频片头
         var closeCredits: Int = 0,       //音频片尾
-        var playMode: Int = 0           //音频播放模式
+        var playMode: Int = 0,           //音频播放模式
+        var playSpeed: Float = 1.0f      //音频播放速度
     ) : Parcelable
 
     class Converters {

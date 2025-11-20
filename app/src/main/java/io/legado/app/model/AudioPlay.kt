@@ -110,6 +110,9 @@ object AudioPlay : CoroutineScope by MainScope() {
             playMode = it
             postEvent(EventBus.PLAY_MODE_CHANGED, it)
         }
+        val playSpeed = book.getPlaySpeed()
+        AudioPlayService.playSpeed = playSpeed
+        postEvent(EventBus.AUDIO_SPEED, playSpeed)
         durPlayUrl = ""
         durLyric = null
         durAudioSize = 0
@@ -253,6 +256,7 @@ object AudioPlay : CoroutineScope by MainScope() {
 
     fun setSpeed(speed: Float) {
         if (AudioPlayService.isRun) {
+            book?.setPlaySpeed(speed)
             val clampedSpeed = speed.coerceIn(0.5f, 2.0f)
             context.startService<AudioPlayService> {
                 action = IntentAction.setSpeed

@@ -156,6 +156,9 @@ class AudioPlayService : BaseService(),
                         else -> AudioPlay.book?.durChapterPos ?: 0
                     }
                     url = AudioPlay.durPlayUrl
+                    if (playSpeed != 1f) {
+                        upSpeed(playSpeed)
+                    }
                     upMediaSessionPlaybackState(PlaybackStateCompat.STATE_BUFFERING)
                     play()
                 }

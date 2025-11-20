@@ -366,8 +366,12 @@ class AudioPlayActivity :
             binding.playerProgress.secondaryProgress = it
         }
         observeEventSticky<Float>(EventBus.AUDIO_SPEED) {
-            binding.tvSpeed.text = String.format(Locale.ROOT, "%.1fX", it)
-            binding.tvSpeed.visible()
+            if (it == 1f) {
+                binding.tvSpeed.invisible()
+            } else {
+                binding.tvSpeed.text = String.format(Locale.ROOT, "%.1fX", it)
+                binding.tvSpeed.visible()
+            }
         }
         observeEventSticky<Int>(EventBus.AUDIO_DS) {
             binding.tvTimer.text = "${it}m"
