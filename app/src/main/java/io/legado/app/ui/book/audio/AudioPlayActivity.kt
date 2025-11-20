@@ -52,10 +52,10 @@ import kotlinx.coroutines.withContext
 import splitties.views.onLongClick
 import java.util.Locale
 import io.legado.app.ui.book.audio.config.AudioSkipCredits
-import android.view.View
 import com.dirror.lyricviewx.OnPlayClickListener
 import io.legado.app.lib.theme.ThemeStore.Companion.accentColor
 import io.legado.app.ui.book.source.SourceCallBack
+import io.legado.app.utils.gone
 
 /**
  * 音频播放
@@ -111,8 +111,9 @@ class AudioPlayActivity :
             upCover(it)
         }
         viewModel.customBtnListData.observe(this) { menuCustomBtn?.isVisible = it }
-        viewModel.initData(intent)
-        initView()
+        viewModel.initData(intent) {
+            initView()
+        }
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
@@ -236,11 +237,11 @@ class AudioPlayActivity :
 
     override fun upLyric(lyric: String?) {
         if(lyric.isNullOrBlank()) {
-            binding.lyricViewX.visibility = View.GONE
+            binding.lyricViewX.gone()
             return
         }
-        binding.lyricViewX.visibility = View.VISIBLE
         lyricViewX.loadLyric(lyric)
+        binding.lyricViewX.visible()
         if (lyricOn) {
             upLyricP(AudioPlay.durChapterPos)
         } else {
