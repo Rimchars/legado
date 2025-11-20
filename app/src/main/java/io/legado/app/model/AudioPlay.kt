@@ -12,12 +12,15 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.BookSource
+import io.legado.app.data.entities.ReadRecord
 import io.legado.app.help.book.ContentProcessor
 import io.legado.app.help.book.getBookSource
 import io.legado.app.help.book.readSimulating
 import io.legado.app.help.book.simulatedTotalChapterNum
 import io.legado.app.help.book.update
+import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.help.globalExecutor
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.service.AudioPlayService
 import io.legado.app.utils.postEvent
@@ -68,6 +71,9 @@ object AudioPlay : CoroutineScope by MainScope() {
     var inBookshelf = false
     var bookSource: BookSource? = null
     val loadingChapters = arrayListOf<Int>()
+    private val readRecord = ReadRecord()
+    var readStartTime: Long = System.currentTimeMillis()
+    val executor = globalExecutor
 
     fun changePlayMode() {
         playMode = playMode.next()
@@ -97,6 +103,8 @@ object AudioPlay : CoroutineScope by MainScope() {
     fun resetData(book: Book) {
         stop()
         AudioPlay.book = book
+        readRecord.bookName = book.name
+        readRecord.readTime = appDb.readRecordDao.getReadTime(book.name) ?: 0
         chapterSize = appDb.bookChapterDao.getChapterCount(book.bookUrl)
         simulatedChapterSize = if (book.readSimulating()) {
             book.simulatedTotalChapterNum()
@@ -118,6 +126,18 @@ object AudioPlay : CoroutineScope by MainScope() {
         durAudioSize = 0
         upDurChapter()
         postEvent(EventBus.AUDIO_BUFFER_PROGRESS, 0)
+    }
+
+    fun upReadTime() {
+        if (!AppConfig.enableReadRecord) {
+            return
+        }
+        executor.execute {
+            readRecord.readTime = readRecord.readTime + System.currentTimeMillis() - readStartTime
+            readStartTime = System.currentTimeMillis()
+            readRecord.lastRead = System.currentTimeMillis()
+            appDb.readRecordDao.insert(readRecord)
+        }
     }
 
     private fun addLoading(index: Int): Boolean {
@@ -232,6 +252,7 @@ object AudioPlay : CoroutineScope by MainScope() {
 
     fun pause(context: Context) {
         if (AudioPlayService.isRun) {
+            readStartTime = System.currentTimeMillis()
             context.startService<AudioPlayService> {
                 action = IntentAction.pause
             }
@@ -306,6 +327,7 @@ object AudioPlay : CoroutineScope by MainScope() {
 
     fun next() {
         stopPlay()
+        upReadTime()
         when (playMode) {
             PlayMode.LIST_END_STOP -> {
                 if (durChapterIndex + 1 < simulatedChapterSize) {

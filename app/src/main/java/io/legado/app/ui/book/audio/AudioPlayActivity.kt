@@ -74,6 +74,7 @@ class AudioPlayActivity :
     private var playMode = AudioPlay.PlayMode.LIST_END_STOP
     private val lyricViewX by lazy { binding.lyricViewX }
     private var lyricOn = false
+    private var oldLyric: String? = null
     private var menuCustomBtn: MenuItem? = null
 
     private val progressTimeFormat by lazy {
@@ -236,6 +237,8 @@ class AudioPlayActivity :
     }
 
     override fun upLyric(lyric: String?) {
+        if (oldLyric == lyric) return
+        oldLyric = lyric
         if(lyric.isNullOrBlank()) {
             binding.lyricViewX.gone()
             return
