@@ -80,6 +80,7 @@ object PreferKey {
     const val readBodyToLh = "readBodyToLh"
     const val textFullJustify = "textFullJustify"
     const val textBottomJustify = "textBottomJustify"
+    const val adaptSpecialStyle = "adaptSpecialStyle"
     const val autoReadSpeed = "autoReadSpeed"
     const val barElevation = "barElevation"
     const val transparentStatusBar = "transparentStatusBar"

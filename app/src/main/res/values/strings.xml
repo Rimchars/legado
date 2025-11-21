@@ -1310,4 +1310,5 @@
     <string name="json_format">json格式</string>
     <string name="open_other_video_player">其它播放器打开</string>
     <string name="show_source_comment">显示源注释</string>
+    <string name="adapt_special_style">适配特殊样式</string>
 </resources>
