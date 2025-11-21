@@ -18,6 +18,7 @@
 		<item>单列</item>
 		<item>双列</item>
 		<item>瀑布</item>
+        <item>三列</item>
 	</string-array>
 
 	<string-array name="rss_type">
