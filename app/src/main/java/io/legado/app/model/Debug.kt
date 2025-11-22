@@ -11,6 +11,7 @@ import io.legado.app.help.source.sortUrls
 import io.legado.app.model.rss.Rss
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.utils.HtmlFormatter
+import io.legado.app.utils.NetworkUtils
 import io.legado.app.utils.isAbsUrl
 import io.legado.app.utils.stackTraceStr
 import kotlinx.coroutines.CoroutineScope
@@ -177,7 +178,7 @@ object Debug {
                 }
                 log(rssSource.sourceUrl, "⇒开始搜索关键字:$key")
                 log(debugSource, "︾开始解析搜索页")
-                sortDebug(scope, rssSource, "搜索", searchUrl, key)
+                sortDebug(scope, rssSource, "搜索", NetworkUtils.getAbsoluteURL(rssSource.sourceUrl, searchUrl), key)
             }
         }
     }
