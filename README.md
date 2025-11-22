@@ -8,16 +8,16 @@
 <div align="center">
 <img width="125" height="125" src="https://github.com/gedoor/legado/raw/master/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="legado"/>
 <br>
-LegadoΣ / 开源阅读Σ
+阅读Sigma
 <br>
 <a href="https://loyc.xyz/c/legado.html" target="_blank">软件介绍页</a>
 <br>
-LegadoΣ 是一款免费的 Android 平台开源小说阅读器。
+阅读Sigma继承自<a href="https://github.com/gedoor/legado" target="_blank">Legado</a>，在其基础上新增更多功能。
 </div>
 
 ## 版本说明
-- 测试版：包名与原版相同，可覆盖更新，版本更新频繁
-- 正式版：新的共存包名，安装后是一个新软件，不会覆盖原版，每到一个稳定阶段进行一次更新
+- 测试版(beta)：包名与原版相同，可覆盖更新，版本更新频繁
+- 正式版(plus)：新的共存包名，安装后是一个新软件，不会覆盖原版，每到一个稳定阶段进行一次更新
 #### 找不到下载地址可以去这里 [下载软件](https://gitee.com/lyc486/legado/releases)
 
 [![](https://img.shields.io/badge/-Contents:-696969.svg)](#contents) [![](https://img.shields.io/badge/-Function-F5F5F5.svg)](#Function-主要功能-) [![](https://img.shields.io/badge/-Community-F5F5F5.svg)](#Community-交流社区-) [![](https://img.shields.io/badge/-API-F5F5F5.svg)](#API-) [![](https://img.shields.io/badge/-Other-F5F5F5.svg)](#Other-其他-) [![](https://img.shields.io/badge/-Grateful-F5F5F5.svg)](#Grateful-感谢-) [![](https://img.shields.io/badge/-Interface-F5F5F5.svg)](#Interface-界面-)

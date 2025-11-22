@@ -172,7 +172,7 @@ object Debug {
             else -> {
                 val searchUrl = rssSource.searchUrl
                 if (searchUrl.isNullOrEmpty()) {
-                    log(debugSource, "⇒搜索URL为空")
+                    log(debugSource, "⇒搜索URL为空", state = -1)
                     return
                 }
                 log(rssSource.sourceUrl, "⇒开始搜索关键字:$key")

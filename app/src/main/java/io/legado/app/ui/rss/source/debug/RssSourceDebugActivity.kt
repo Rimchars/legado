@@ -37,10 +37,9 @@ class RssSourceDebugActivity : VMBaseActivity<ActivityRssSourceDebugBinding, Rss
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         initRecyclerView()
-
+        initSearchView()
         viewModel.initData(intent.getStringExtra("key")) {
             initHelpView()
-            initSearchView()
         }
         viewModel.observe { state, msg ->
             lifecycleScope.launch {
@@ -130,7 +129,7 @@ class RssSourceDebugActivity : VMBaseActivity<ActivityRssSourceDebugBinding, Rss
             @Suppress("USELESS_ELVIS")
             sortKinds?.map { it.first ?: "" }?.let { sortKindTitles ->
                 binding.textFl.onLongClick {
-                    selector("选择发现", sortKindTitles) { _, index ->
+                    selector("选择分类", sortKindTitles) { _, index ->
                         val sort = sortKinds[index]
                         binding.textFl.text = "${sort.first}::${sort.second}"
                         searchView.setQuery(binding.textFl.text, true)
