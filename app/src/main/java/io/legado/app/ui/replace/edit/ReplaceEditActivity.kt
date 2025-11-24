@@ -185,6 +185,8 @@ class ReplaceEditActivity :
             val edit = view.editableText
             if (start < 0 || start >= edit.length) {
                 edit.append(text)
+            } else if (start > end) {
+                edit.replace(end, start, text)
             } else {
                 //光标所在位置插入文字
                 edit.replace(start, end, text)
