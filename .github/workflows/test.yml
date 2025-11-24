@@ -249,7 +249,7 @@ jobs:
 
           for file in `ls *.apk`; do
             if [[ "$file" == *原包名* ]]; then
-              mv "$file" $(echo $file | sed -e s/原包名/release/ -e s/测试版/bata/)
+              mv "$file" $(echo $file | sed -e s/原包名/release/ -e s/测试版/beta/)
             else
               mv "$file" $(echo $file | sed -e s/共存/releaseS/ -e s/正式版/plus/)
             fi
