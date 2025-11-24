@@ -257,7 +257,7 @@ jobs:
 
       - name: Publish Official Release
         if: needs.prepare.outputs.updateLog_updated == 'yes'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: legado_app_${{ env.VERSION }}
           tag_name: ${{ env.VERSION }}
@@ -287,7 +287,7 @@ jobs:
 
       - name: Publish Pre-Release
         if: needs.prepare.outputs.updateLog_updated != 'yes'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: legado_app_${{ env.VERSION }}
           tag_name: beta
