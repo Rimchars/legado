@@ -35,14 +35,14 @@ class Exo2MediaPlayer(context: Context) : IjkExo2MediaPlayer(context) {
     private val window = Timeline.Window()
 
 
-    override fun onPositionDiscontinuity(
-        oldPosition: PositionInfo,
-        newPosition: PositionInfo,
-        reason: @DiscontinuityReason Int
-    ) {
-        super.onPositionDiscontinuity(oldPosition, newPosition, reason)
-        notifyOnInfo(POSITION_DISCONTINUITY, reason)
-    }
+//    override fun onPositionDiscontinuity(
+//        oldPosition: PositionInfo,
+//        newPosition: PositionInfo,
+//        reason: @DiscontinuityReason Int
+//    ) {
+//        super.onPositionDiscontinuity(oldPosition, newPosition, reason)
+//        notifyOnInfo(POSITION_DISCONTINUITY, reason)
+//    }
 
     fun setDataSource(
         uris: List<BookChapter>?,
@@ -124,8 +124,9 @@ class Exo2MediaPlayer(context: Context) : IjkExo2MediaPlayer(context) {
                         DefaultMediaSourceFactory(
                             ResolvingDataSource.Factory(ExoPlayerHelper.cacheDataSourceFactory){ it }
                         )
-                            .setLiveTargetOffsetMs(5000)
-                    ).build()
+                            .setLiveTargetOffsetMs(5000) //直播时延5秒
+                    )
+                    .build()
             mInternalPlayer.addListener(this@Exo2MediaPlayer)
             mInternalPlayer.addAnalyticsListener(this@Exo2MediaPlayer)
             mInternalPlayer.addListener(mEventLogger)

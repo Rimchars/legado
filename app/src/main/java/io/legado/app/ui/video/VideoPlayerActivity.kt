@@ -48,6 +48,7 @@ import io.legado.app.utils.sendToClip
 import io.legado.app.utils.setTintMutate
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
+import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.toggleSystemBar
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
@@ -423,10 +424,22 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
                 }
             }
 
-            R.id.menu_copy_video_url -> VideoPlay.videoUrl?.let { sendToClip(it) }
-            R.id.menu_open_other_video_player -> VideoPlay.videoUrl?.let {
+            R.id.menu_copy_video_url -> {
+                val url = VideoPlay.videoUrl
+                if (url.isNullOrBlank()){
+                    this.toastOnUi("暂无播放地址")
+                    return true
+                }
+                sendToClip(url)
+            }
+            R.id.menu_open_other_video_player -> {
+                val url = VideoPlay.videoUrl
+                if (url.isNullOrBlank()){
+                    this.toastOnUi("暂无播放地址")
+                    return true
+                }
                 val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(it.toUri(), "video/*")
+                    setDataAndType(url.toUri(), "video/*")
                 }
                 startActivity(intent)
             }

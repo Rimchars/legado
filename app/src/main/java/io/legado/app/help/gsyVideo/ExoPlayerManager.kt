@@ -24,14 +24,8 @@ import tv.danmaku.ijk.media.player.IMediaPlayer
  */
 @UnstableApi
 class ExoPlayerManager : BasePlayerManager() {
-    companion object {
-        private const val SURFACE_CONTROL_NAME = "surfacedemo"
-    }
-
     private var surface: Surface? = null
-
     private var dummySurface: PlaceholderSurface? = null
-    private var surfaceControl: SurfaceControl? = null
     private var videoSurface: Surface? = null
     private var mediaPlayer: Exo2MediaPlayer? = null
     override fun getMediaPlayer(): IMediaPlayer? {
@@ -47,7 +41,7 @@ class ExoPlayerManager : BasePlayerManager() {
         mediaPlayer = Exo2MediaPlayer(context)
         mediaPlayer!!.setAudioStreamType(AudioManager.STREAM_MUSIC)
         if (dummySurface == null) {
-            dummySurface = PlaceholderSurface.newInstanceV17(context, false)
+            dummySurface = PlaceholderSurface.newInstance(context, false)
         }
         val model = msg.obj as GSYModel
         try {
@@ -82,16 +76,16 @@ class ExoPlayerManager : BasePlayerManager() {
                 mediaPlayer!!.setSpeed(model.getSpeed(), 1f)
             }
             // 仅在 API 29+ 使用 SurfaceControl
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                surfaceControl = SurfaceControl.Builder()
-                    .setName(SURFACE_CONTROL_NAME)
-                    .setBufferSize(0, 0)
-                    .build()
-                videoSurface = Surface(surfaceControl!!)
-                mediaPlayer!!.setSurface(videoSurface)
-            } else {
-                mediaPlayer!!.setSurface(dummySurface)
-            }
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+//                surfaceControl = SurfaceControl.Builder()
+//                    .setName(SURFACE_CONTROL_NAME)
+//                    .setBufferSize(0, 0)
+//                    .build()
+//                videoSurface = Surface(surfaceControl!!)
+//                mediaPlayer!!.setSurface(videoSurface)
+//            } else {
+//                mediaPlayer!!.setSurface(dummySurface)
+//            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -103,33 +97,9 @@ class ExoPlayerManager : BasePlayerManager() {
         if (msg.obj == null) {
             mediaPlayer!!.setSurface(dummySurface)
         } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && msg.obj is SurfaceView) {
-                reparent(msg.obj as SurfaceView?)
-            } else {
-                val holder: Surface? = msg.obj as Surface?
-                surface = holder
-                mediaPlayer!!.setSurface(holder)
-            }
-        }
-    }
-
-
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun reparent(surfaceView: SurfaceView?) {
-        if (surfaceControl == null) return
-        if (surfaceView == null) {
-            SurfaceControl.Transaction()
-                .reparent(surfaceControl!!,  /* newParent= */null)
-                .setBufferSize(surfaceControl!!,  /* w= */0,  /* h= */0)
-                .setVisibility(surfaceControl!!,  /* visible= */false)
-                .apply()
-        } else {
-            val newParentSurfaceControl = surfaceView.surfaceControl
-            SurfaceControl.Transaction()
-                .reparent(surfaceControl!!, newParentSurfaceControl)
-                .setBufferSize(surfaceControl!!, surfaceView.width, surfaceView.height)
-                .setVisibility(surfaceControl!!,  /* visible= */true)
-                .apply()
+            val holder: Surface? = msg.obj as? Surface
+            surface = holder
+            mediaPlayer!!.setSurface(holder)
         }
     }
 
@@ -174,32 +144,13 @@ class ExoPlayerManager : BasePlayerManager() {
     @RequiresApi(Build.VERSION_CODES.Q)
     override fun release() {
         if (mediaPlayer != null) {
-            val mm: IjkExo2MediaPlayer? = mediaPlayer
-            /** todo 测试异步，可能会收到警告
-             * todo Player is accessed on the wrong thread. See https://exoplayer.dev/issues/player-accessed-on-wrong-thread */
-            /*new Thread(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            mm.setSurface(null);
-                            mm.release();
-
-                        }
-
-                    }
-            ).start();*/
-            mm!!.setSurface(null)
-            mm.release()
+            mediaPlayer!!.setSurface(null)
+            mediaPlayer!!.release()
             mediaPlayer = null
         }
         if (dummySurface != null) {
             dummySurface!!.release()
             dummySurface = null
-        }
-
-        if (surfaceControl != null) {
-            surfaceControl!!.release()
-            surfaceControl = null
         }
         if (videoSurface != null) {
             videoSurface!!.release()
