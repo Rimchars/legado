@@ -36,7 +36,6 @@ import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.AppConst
 import io.legado.app.constant.AppConst.imagePathKey
 import io.legado.app.constant.AppLog
-import io.legado.app.data.entities.RssSource
 import io.legado.app.databinding.ActivityRssReadBinding
 import io.legado.app.help.WebCacheManager
 import io.legado.app.help.WebJsExtensions
@@ -104,7 +103,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
             viewModel.saveImage(it.value, uri)
         }
     }
-    private val rssJsExtensions by lazy { RssJsExtensions(this) }
+    private val rssJsExtensions by lazy { RssJsExtensions(this, viewModel.rssSource) }
     private fun refresh() {
         viewModel.rssArticle?.let {
             start(this@ReadRssActivity, it.title, it.link, it.origin)
@@ -118,10 +117,6 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
         if (it.resultCode == RESULT_OK) {
             refresh()
         }
-    }
-
-    fun getSource(): RssSource? {
-        return viewModel.rssSource
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -360,12 +355,6 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                 };
                 window.close = function() {
                     window.AndroidComm?.onCloseRequested();
-                };
-                window.openUi = function(name,object) {
-                    return new Promise((resolve, reject) => {
-                        window.AndroidComm?.openUI(name, JSON.stringify(object))
-                        resolve()
-                    });
                 };
             })();
         """.trimIndent()
@@ -678,7 +667,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
 
         private fun handleCommonSchemes(url: Uri): Boolean {
             return when (url.scheme) {
-                "http", "https", "jsbridge" -> false
+                "http", "https" -> false
                 "legado", "yuedu" -> {
                     startActivity<OnLineImportActivity> { data = url }
                     true
