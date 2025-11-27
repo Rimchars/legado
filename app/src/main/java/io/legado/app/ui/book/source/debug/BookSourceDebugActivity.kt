@@ -124,7 +124,7 @@ class BookSourceDebugActivity : VMBaseActivity<ActivitySourceDebugBinding, BookS
     private fun initExploreKinds() {
         lifecycleScope.launch {
             val exploreKinds = viewModel.bookSource?.exploreKinds()?.filter {
-                !it.url.isNullOrBlank()
+                !it.url.isNullOrBlank() && it.title != null //防止反序列化坑导致的null
             }
             exploreKinds?.firstOrNull()?.let {
                 binding.textFx.text = "${it.title}::${it.url}"
