@@ -153,7 +153,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
         viewModel.upStarMenuData.observe(this) { upStarMenu() }
         binding.root.setBackgroundColor(backgroundColor)
         if (VideoPlay.book != null) {
-            VideoPlay.book?.let { showBook(it) }
+            showBook(VideoPlay.book!!)
             if (VideoPlay.episodes.isNullOrEmpty()) {
                 binding.chapters.visibility = View.GONE
             } else {

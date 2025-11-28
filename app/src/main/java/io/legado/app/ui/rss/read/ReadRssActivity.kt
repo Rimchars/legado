@@ -311,25 +311,6 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
         }
 
         @JavascriptInterface
-        fun openUI(name: String, url: String) {
-            val source = viewModel.rssSource ?: return
-            val sourceUrl = source.sourceUrl
-            when (name) {
-                "sort" -> {
-                    RssSortActivity.start(this@ReadRssActivity, url, sourceUrl)
-                }
-
-                "rss" -> {
-                    GSONStrict.fromJsonObject<Map<String, String>>(url)
-                        .getOrThrow().entries.firstOrNull()?.let {
-                            viewModel.readRss(it.key, it.value, viewModel.origin)
-                            start(this@ReadRssActivity, it.key, it.value, sourceUrl)
-                        }
-                }
-            }
-        }
-
-        @JavascriptInterface
         fun onCloseRequested() {
             finish()
         }
