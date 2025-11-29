@@ -63,9 +63,7 @@ jobs:
           fi
       - id: updateLog
         run: |
-          if ! git fetch origin main 2>/dev/null; then
-            echo "Warning: git fetch failed, continuing with local data"
-          fi
+          git fetch --unshallow --depth=20 origin main 2>/dev/null || git fetch --depth=20 origin main 2>/dev/null || true
           UPDATED_CONTENT=""
           IS_MERGE_PR=false
           COMMIT_MSG="${GITHUB_EVENT_HEAD_COMMIT_MESSAGE:-}"
@@ -102,7 +100,7 @@ jobs:
               if git rev-parse "$COMMIT_RANGE" >/dev/null 2>&1; then
                 UPDATED_CONTENT=$(git log $COMMIT_RANGE --pretty=format:"• %s" --reverse 2>/dev/null | grep -v "^• Merge" || echo "• $COMMIT_MSG")
               else
-                UPDATED_CONTENT=$(git log -10 --pretty=format:"• %s (%h)" --reverse 2>/dev/null | grep -v "^• Merge" || echo "• $COMMIT_MSG")
+                UPDATED_CONTENT=$(git log -10 --pretty=format:"• %s (%h)" --reverse 2>/dev/null | grep -v "^• Merge")
               fi
             fi
           fi
@@ -354,6 +352,7 @@ jobs:
           fi
           echo "TAGS=$tags" >> $GITHUB_OUTPUT
       - name: Post to channel
+        continue-on-error: true
         uses: xireiki/channel-post@v1
         with:
           chat_id: ${{ secrets.CHANNEL_ID }}
@@ -388,6 +387,7 @@ jobs:
           done
 
       - name: Upload to Gitee Release
+        continue-on-error: true
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           GITEE_USER: "lyc486"
@@ -482,6 +482,7 @@ jobs:
           fi
 
       - name: Upload to yuedu repository
+        continue-on-error: true
         if: steps.check-apk.outputs.apk_exists == 'true'
         run: |
           # 设置Git配置
