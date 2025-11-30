@@ -226,7 +226,9 @@ let options = {
 ```js
 "shareBook" //详情页分享按钮
 "clickBookName" //详情页点击书名
+"longClickBookName" //详情页长按书名
 "clickAuthor" //详情页点击作者
+"longClickAuthor" //详情页长按作者
 "clickCustomButton" //书源自定义按钮
 "longClickCustomButton" //长按自定义按钮（只存在小说的正文界面）
 "clearCache" //详情页清理缓存

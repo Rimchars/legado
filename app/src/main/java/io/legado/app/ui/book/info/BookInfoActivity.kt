@@ -199,7 +199,6 @@ class BookInfoActivity :
         }
         viewModel.bookData.observe(this) { showBook(it) }
         viewModel.chapterListData.observe(this) { upLoading(false, it) }
-        viewModel.customBtnListData.observe(this) { menuCustomBtn?.isVisible = it }
         viewModel.waitDialogData.observe(this) { upWaitDialogStatus(it) }
         viewModel.initData(intent)
         initViewEvent()
@@ -391,6 +390,7 @@ class BookInfoActivity :
             llToc.gone()
             tvLasted.text = getString(R.string.lasted_show, "下载中...")
         }
+        menuCustomBtn?.isVisible = viewModel.hasCustomBtn
         upTvBookshelf()
         upKinds(book)
         upGroup(book.group)
@@ -562,6 +562,16 @@ class BookInfoActivity :
                 }
             }
         }
+        tvAuthor.setOnLongClickListener {
+            viewModel.getBook(false)?.let { book ->
+                SourceCallBack.callBackBtn(this@BookInfoActivity, SourceCallBack.LONG_CLICK_AUTHOR, viewModel.bookSource, book, null) {
+                    startActivity<SearchActivity> {
+                        putExtra("key", book.author)
+                    }
+                }
+            }
+            true
+        }
         tvName.setOnClickListener {
             viewModel.getBook(false)?.let { book ->
                 SourceCallBack.callBackBtn(this@BookInfoActivity, SourceCallBack.CLICK_BOOK_NAME, viewModel.bookSource, book, null) {
@@ -570,6 +580,16 @@ class BookInfoActivity :
                     }
                 }
             }
+        }
+        tvName.setOnLongClickListener {
+            viewModel.getBook(false)?.let { book ->
+                SourceCallBack.callBackBtn(this@BookInfoActivity, SourceCallBack.LONG_CLICK_BOOK_NAME, viewModel.bookSource, book, null) {
+                    startActivity<SearchActivity> {
+                        putExtra("key", book.name)
+                    }
+                }
+            }
+            true
         }
         refreshLayout?.setOnRefreshListener {
             refreshLayout.isRefreshing = false
