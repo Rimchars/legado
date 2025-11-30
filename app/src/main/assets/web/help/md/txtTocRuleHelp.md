@@ -14,7 +14,9 @@
     index //当前的章节序号（从1开始）
     prevTitle //上一章的标题，可能为null
     prevLength //上一章的内容长度，可能为-1
+    lastVolumeTitle //最新的卷标题
     book //当前的书籍对象
+    java.putVolume(title:String) //添加一个新卷
     ```
 
 ### 操作区
