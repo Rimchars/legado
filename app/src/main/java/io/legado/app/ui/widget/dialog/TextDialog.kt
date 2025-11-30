@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.textclassifier.TextClassifier
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
 import io.legado.app.databinding.DialogTextViewBinding
@@ -76,7 +77,7 @@ class TextDialog() : BaseDialogFragment(R.layout.dialog_text_view) {
                     val markwon: Markwon
                     val markdown = withContext(IO) {
                         markwon = Markwon.builder(requireContext())
-                            .usePlugin(GlideImagesPlugin.create(requireContext()))
+                            .usePlugin(GlideImagesPlugin.create(Glide.with(requireContext())))
                             .usePlugin(HtmlPlugin.create())
                             .usePlugin(TablePlugin.create(requireContext()))
                             .build()
