@@ -169,7 +169,7 @@ object BookContent {
             if (index != -1) {
                 contentStr.substring(index).trimIndent()
                     .takeIf { it.isNotEmpty() }?.let { bookChapter.putLyric(it) }
-                contentStr = contentStr.substring(0, index)
+                contentStr = contentStr.take(index)
             }
         }
         return contentStr
@@ -197,9 +197,20 @@ object BookContent {
         analyzeRule.setChapter(chapter)
         //获取正文
         var content = analyzeRule.getString(contentRule.content, unescape = false)
+        val useHtmlMap = mutableMapOf<String, String>()
+        if (AppConfig.adaptSpecialStyle) {
+            content = AppPattern.useHtmlRegex.replace(content) { matchResult ->
+                val placeholder = "{usehtml_${useHtmlMap.size}}"
+                useHtmlMap[placeholder] = matchResult.value
+                placeholder
+            }
+        }
         content = HtmlFormatter.formatKeepImg(content, rUrl)
         if (content.indexOf('&') > -1) {
             content = StringEscapeUtils.unescapeHtml4(content)
+        }
+        useHtmlMap.forEach { (placeholder, originalContent) ->
+            content = content.replace(placeholder, originalContent)
         }
         //获取下一页链接
         if (getNextPageUrl) {
