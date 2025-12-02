@@ -255,26 +255,27 @@ class TextChapterLayout(
         var isSetTypedImage = false
         var wordCount = 0
         var useHtml = false
-        var useHtmlStr = ""
+        val useHtmlStr = StringBuffer()
         contents.forEach { content ->
             currentCoroutineContext().ensureActive()
             if (adaptSpecialStyle) {
-                val text = content.trim()
+                var text = content.trim()
                 if (text == "[newpage]") {
                     prepareNextPageIfNeed()
                     return@forEach
                 } else if (text.startsWith("<usehtml>")) {
                     useHtml = true
-                    useHtmlStr += text.substringAfter(">")
+                    text = text.substringAfter(">")
                 }
                 if (useHtml) {
                     if (text.endsWith("</usehtml>")) {
                         useHtml = false
-                        useHtmlStr += text.substringBeforeLast("<")
-                        setTypeHtml(book, useHtmlStr, contentPaintTextHeight)
-                        useHtmlStr = ""
+                        text = text.substringBeforeLast("<")
+                        useHtmlStr.append(text)
+                        setTypeHtml(book, useHtmlStr.toString(), contentPaintTextHeight)
+                        useHtmlStr.setLength(0)
                     } else {
-                        useHtmlStr += text
+                        useHtmlStr.append(text)
                     }
                     return@forEach
                 }
