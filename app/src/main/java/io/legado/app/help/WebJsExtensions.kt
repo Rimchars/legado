@@ -28,22 +28,22 @@ class WebJsExtensions(private val source: BaseSource, private val activity: AppC
                     }
                 }
                 "ajaxAwait" -> {
-                    ajax(jsParam[0], jsParam[1].toInt()).toString()
+                    ajax(jsParam[0], jsParam[1].toIntOrNull()).toString()
                 }
                 "connectAwait" -> {
-                    connect(jsParam[0], jsParam[1], jsParam[2].toInt())
+                    connect(jsParam[0], jsParam[1], jsParam[2].toIntOrNull())
                 }
                 "getAwait" -> {
-                    get(jsParam[0], jsParam[1], jsParam[2].toInt())
+                    get(jsParam[0], jsParam[1], jsParam[2].toIntOrNull())
                 }
                 "headAwait" -> {
-                    head(jsParam[0], jsParam[1], jsParam[2].toInt())
+                    head(jsParam[0], jsParam[1], jsParam[2].toIntOrNull())
                 }
                 "postAwait" -> {
-                    post(jsParam[0], jsParam[1], jsParam[2], jsParam[3].toInt())
+                    post(jsParam[0], jsParam[1], jsParam[2], jsParam[3].toIntOrNull())
                 }
                 "webViewAwait" -> {
-                    webView(jsParam[0], jsParam[1], jsParam[2]).toString()
+                    webView(jsParam[0], jsParam[1], jsParam[2], jsParam[3].toBoolean()).toString()
                 }
                 "decryptStrAwait" -> {
                     createSymmetricCrypto(jsParam[0], jsParam[1], jsParam[2]).decryptStr(jsParam[3])
@@ -94,8 +94,8 @@ class WebJsExtensions(private val source: BaseSource, private val activity: AppC
         return super.ajax(url, 9000)
     }
     @JavascriptInterface
-    fun ajax(url: String, callTimeout: Int): String? {
-        return super.ajax(url, callTimeout.toLong())
+    fun ajax(url: String, callTimeout: Int?): String? {
+        return super.ajax(url, callTimeout?.toLong())
     }
     @JavascriptInterface
     fun connect(urlStr: String?): String {
@@ -107,8 +107,8 @@ class WebJsExtensions(private val source: BaseSource, private val activity: AppC
         return super.connect(urlStr, header, 9000).toString()
     }
     @JavascriptInterface
-    fun connect(urlStr: String, header: String, callTimeout: Int): String {
-        return super.connect(urlStr, header, callTimeout.toLong()).toString()
+    fun connect(urlStr: String, header: String, callTimeout: Int?): String {
+        return super.connect(urlStr, header, callTimeout?.toLong()).toString()
     }
     @JavascriptInterface
     fun get(urlStr: String, headers: String): String {
@@ -116,7 +116,7 @@ class WebJsExtensions(private val source: BaseSource, private val activity: AppC
         return super.get(urlStr, headerMap, 9000).body()
     }
     @JavascriptInterface
-    fun get(urlStr: String, headers: String, timeout: Int): String {
+    fun get(urlStr: String, headers: String, timeout: Int?): String {
         val headerMap = GSON.fromJsonObject<Map<String, String>>(headers).getOrNull() ?: emptyMap()
         return super.get(urlStr, headerMap, timeout).body()
     }
@@ -126,7 +126,7 @@ class WebJsExtensions(private val source: BaseSource, private val activity: AppC
         return super.post(urlStr, body, headerMap, 9000).body()
     }
     @JavascriptInterface
-    fun post(urlStr: String, body: String, headers: String, timeout: Int): String {
+    fun post(urlStr: String, body: String, headers: String, timeout: Int?): String {
         val headerMap = GSON.fromJsonObject<Map<String, String>>(headers).getOrNull() ?: emptyMap()
         return super.post(urlStr, body, headerMap, timeout).body()
     }
@@ -136,7 +136,7 @@ class WebJsExtensions(private val source: BaseSource, private val activity: AppC
         return GSON.toJson(super.head(urlStr, headerMap, 9000).headers())
     }
     @JavascriptInterface
-    fun head(urlStr: String, headers: String, timeout: Int): String {
+    fun head(urlStr: String, headers: String, timeout: Int?): String {
         val headerMap = GSON.fromJsonObject<Map<String, String>>(headers).getOrNull() ?: emptyMap()
         return GSON.toJson(super.head(urlStr, headerMap, timeout).headers())
     }
@@ -192,12 +192,12 @@ class WebJsExtensions(private val source: BaseSource, private val activity: AppC
                     window.java?.request("postAwait", [String(url), String(body), String(header), String(callTimeout)], id);
                 });
             };
-            window.webViewAwait = function(html, url, js) {
+            window.webViewAwait = function(html, url, js, cacheFirst) {
                 return new Promise((resolve, reject) => {
                     const id = requestId("webViewAwait");
                     window.JSBridgeCallbacks = window.JSBridgeCallbacks || {};
                     window.JSBridgeCallbacks[id] = { resolve, reject };
-                    window.java?.request("webViewAwait", [String(html), String(url), String(js)], id);
+                    window.java?.request("webViewAwait", [String(html), String(url), String(js), String(cacheFirst)], id);
                 });
             };
             window.decryptStrAwait = function(transformation, key, iv, data) {

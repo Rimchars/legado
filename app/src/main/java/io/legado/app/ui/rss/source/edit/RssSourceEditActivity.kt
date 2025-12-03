@@ -35,7 +35,6 @@ import io.legado.app.ui.rss.source.debug.RssSourceDebugActivity
 import io.legado.app.ui.widget.dialog.UrlOptionDialog
 import io.legado.app.ui.widget.dialog.VariableDialog
 import io.legado.app.ui.widget.keyboard.KeyboardToolPop
-import io.legado.app.ui.widget.recycler.NoChildScrollLinearLayoutManager
 import io.legado.app.ui.widget.text.EditEntity
 import io.legado.app.utils.GSON
 import io.legado.app.utils.imeHeight
@@ -317,6 +316,7 @@ class RssSourceEditActivity :
             add(EditEntity("startHtml", rs.startHtml, R.string.r_startHtml))
             add(EditEntity("startStyle", rs.startStyle, R.string.r_startStyle))
             add(EditEntity("startJs", rs.startJs, R.string.r_startJs))
+            add(EditEntity("preloadJs", rs.preloadJs, R.string.r_preloadJs))
         }
         listEntities.clear()
         listEntities.apply {
@@ -346,7 +346,7 @@ class RssSourceEditActivity :
                     EditEntity.ViewType.checkBox
                 )
             )
-             add(
+            add(
                  EditEntity(
                      "showWebLog",
                      rs.showWebLog.toString(),
@@ -354,6 +354,14 @@ class RssSourceEditActivity :
                      EditEntity.ViewType.checkBox
                  )
              )
+            add(
+                EditEntity(
+                    "cacheFirst",
+                    rs.cacheFirst.toString(),
+                    R.string.cache_first,
+                    EditEntity.ViewType.checkBox
+                )
+            )
             add(EditEntity("ruleContent", rs.ruleContent, R.string.r_content))
             add(EditEntity("style", rs.style, R.string.r_style))
             add(EditEntity("injectJs", rs.injectJs, R.string.r_inject_js))
@@ -405,6 +413,7 @@ class RssSourceEditActivity :
                 "startHtml" -> source.startHtml = it.value
                 "startStyle" -> source.startStyle = it.value
                 "startJs" -> source.startJs = it.value
+                "preloadJs" -> source.preloadJs = it.value
             }
         }
         listEntities.forEach {
@@ -436,6 +445,7 @@ class RssSourceEditActivity :
                 "enableJs" -> source.enableJs = it.value.isTrue()
                 "loadWithBaseUrl" -> source.loadWithBaseUrl = it.value.isTrue()
                 "showWebLog" -> source.showWebLog = it.value.isTrue()
+                "cacheFirst" -> source.cacheFirst = it.value.isTrue()
                 "ruleContent" -> source.ruleContent =
                     viewModel.ruleComplete(it.value, source.ruleArticles)
 

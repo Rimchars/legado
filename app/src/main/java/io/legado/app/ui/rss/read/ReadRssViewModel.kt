@@ -13,7 +13,6 @@ import io.legado.app.constant.AppConst
 import io.legado.app.constant.AppConst.imagePathKey
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.RssArticle
-import io.legado.app.data.entities.RssReadRecord
 import io.legado.app.data.entities.RssSource
 import io.legado.app.data.entities.RssStar
 import io.legado.app.exception.NoStackTraceException
@@ -45,12 +44,15 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
     val upStarMenuData = MutableLiveData<Boolean>()
     var headerMap: Map<String, String> = emptyMap()
     var origin: String? = null
+    var cacheFirst: Boolean = false
 
-    fun initData(intent: Intent) {
+    fun initData(intent: Intent, success: (() -> Unit)? = null) {
         execute {
             origin = intent.getStringExtra("origin") ?: return@execute
             val link = intent.getStringExtra("link")
-            rssSource = appDb.rssSourceDao.getByKey(origin!!)
+            rssSource = appDb.rssSourceDao.getByKey(origin!!)?.also{
+                cacheFirst = it.cacheFirst
+            }
             headerMap = runScriptWithContext {
                 rssSource?.getHeaderMap() ?: emptyMap()
             }
@@ -98,6 +100,8 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
                     loadContent(rssArticle, ruleContent)
                 }
             }
+        }.onSuccess {
+            success?.invoke()
         }.onFinally {
             upStarMenuData.postValue(true)
         }

@@ -41,6 +41,9 @@ import io.legado.app.help.WebCacheManager
 import io.legado.app.help.WebJsExtensions
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.http.CookieManager
+import io.legado.app.help.http.newCallResponseBody
+import io.legado.app.help.http.okHttpClient
+import io.legado.app.help.http.text
 import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
@@ -76,13 +79,11 @@ import splitties.views.bottomPadding
 import java.io.ByteArrayInputStream
 import java.net.URLDecoder
 import java.util.regex.PatternSyntaxException
-import io.legado.app.ui.rss.article.RssSortActivity
-import io.legado.app.utils.GSONStrict
-import io.legado.app.utils.fromJsonObject
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.rss.article.ReadRecordDialog
 import io.legado.app.ui.rss.source.edit.RssSourceEditActivity
 import io.legado.app.utils.StartActivityContract
+import kotlinx.coroutines.runBlocking
 
 /**
  * rss阅读界面
@@ -126,7 +127,9 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
         initView()
         initWebView()
         initLiveData()
-        viewModel.initData(intent)
+        viewModel.initData(intent) {
+            binding.webView.settings.cacheMode = if (viewModel.cacheFirst) WebSettings.LOAD_CACHE_ELSE_NETWORK else WebSettings.LOAD_DEFAULT
+        }
         onBackPressedDispatcher.addCallback(this) {
             if (binding.customWebView.size > 0) {
                 customWebViewCallback?.onCustomViewHidden()
@@ -253,7 +256,6 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
         binding.webView.addJavascriptInterface(JSInterface(), "AndroidComm")
         binding.webView.webViewClient = CustomWebViewClient()
         binding.webView.settings.apply {
-            cacheMode = WebSettings.LOAD_DEFAULT
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
@@ -566,6 +568,15 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
         ): WebResourceResponse? {
             val url = request.url.toString()
             val source = viewModel.rssSource ?: return super.shouldInterceptRequest(view, request)
+            if (request.isForMainFrame) {
+                val preloadJs = source.preloadJs
+                if (preloadJs.isNullOrEmpty() || url.startsWith("data:text/html;") || request.method == "POST") {
+                    return super.shouldInterceptRequest(view, request)
+                }
+                return runBlocking {
+                    getModifiedContentWithJs(url, preloadJs, request) ?: super.shouldInterceptRequest(view, request)
+                }
+            }
             val blacklist = source.contentBlacklist?.splitNotBlank(",")
             if (!blacklist.isNullOrEmpty()) {
                 blacklist.forEach {
@@ -594,6 +605,28 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                 }
             }
             return super.shouldInterceptRequest(view, request)
+        }
+
+        private suspend fun getModifiedContentWithJs(url: String, preloadJs: String, request: WebResourceRequest): WebResourceResponse? {
+            try {
+                val body = okHttpClient.newCallResponseBody {
+                    url(url)
+                    method(request.method, null)
+                    request.requestHeaders?.forEach { (key, value) ->
+                        addHeader(key, value)
+                    }
+                }
+                val contentType = body.contentType()
+                val mimeType = contentType?.toString()?.substringBefore(";") ?: "text/html"
+                val charset = contentType?.charset()?.name() ?: "utf-8"
+                return WebResourceResponse(
+                    mimeType,
+                    charset,
+                    ByteArrayInputStream(body.text().replaceFirst("<head>", "<head><script>$preloadJs</script>").toByteArray())
+                )
+            } catch (_: Exception) {
+                return null
+            }
         }
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -627,7 +660,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
             viewModel.rssSource?.let { source ->
                 source.shouldOverrideUrlLoading?.takeUnless(String::isNullOrBlank)?.let { js ->
                     val startTime = SystemClock.uptimeMillis()
-                    val result = kotlin.runCatching {
+                    val result = runCatching {
                         runScriptWithContext(lifecycleScope.coroutineContext) {
                             source.evalJS(js) {
                                 put("java", rssJsExtensions)

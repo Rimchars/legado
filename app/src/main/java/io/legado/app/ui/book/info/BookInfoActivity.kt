@@ -207,7 +207,9 @@ class BookInfoActivity :
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.book_info, menu)
         editMenuItem = menu.findItem(R.id.menu_edit)
-        menuCustomBtn = menu.findItem(R.id.menu_custom_btn)
+        menuCustomBtn = menu.findItem(R.id.menu_custom_btn).also {
+            it.isVisible = viewModel.hasCustomBtn
+        }
         return super.onCompatCreateOptionsMenu(menu)
     }
 
