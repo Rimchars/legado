@@ -36,12 +36,18 @@ window.run("java.toast('执行成功');'成功'")
 
 > 异步函数，函数参数和返回结果类型均为字符串    
 ```js
-window.ajaxAwait(url, callTimeout) //用java.ajax异步访问
-window.connectAwait(url, header, callTimeout) //用java.connect异步访问，返回序列化后的响应
-window.getAwait(url, header, callTimeout) //返回响应体
-window.headAwait(url, header, callTimeout) //序列化后的响应头
-window.postAwait(url, body, header, callTimeout) //返回响应体
-window.webViewAwait(html, url, js, cacheFirst) //用java.webView异步访问
+window.ajaxAwait(url, callTimeout)
+//用java.ajax异步访问
+window.connectAwait(url, header, callTimeout)
+//用java.connect异步访问，返回序列化后的响应
+window.getAwait(url, header, callTimeout)
+//返回响应体
+window.headAwait(url, header, callTimeout)
+//返回序列化后的响应头
+window.postAwait(url, body, header, callTimeout)
+//返回响应体
+window.webViewAwait(html, url, js, cacheFirst)
+//用java.webView异步访问
 window.decryptStrAwait(transformation, key, iv, data)
 //同java.createSymmetricCrypto(transformation, key, iv).decryptStr(data)
 window.encryptBase64Await(transformation, key, iv, data)
@@ -50,10 +56,14 @@ window.encryptHexAwait(transformation, key, iv, data)
 //同java.createSymmetricCrypto(transformation, key, iv).encryptHex(data)
 window.createSignHexAwait(algorithm, publicKey, privateKey, data)
 //同java.createSign(algorithm).setPublicKey(publicKey).setPrivateKey(privateKey).signHex(data)
-window.downloadFileAwait(url) //同java.downloadFile(url)
-window.readTxtFileAwait(path) //同java.readTxtFile(url)
-window.importScriptAwait(url) //同java.importScript(url)
-window.getStringAwait(ruleStr, mContent) //同java.getString(ruleStr, mContent)
+window.downloadFileAwait(url)
+//同java.downloadFile(url)
+window.readTxtFileAwait(path)
+//同java.readTxtFile(url)
+window.importScriptAwait(url)
+//同java.importScript(url)
+window.getStringAwait(ruleStr, mContent)
+//同java.getString(ruleStr, mContent)
 ```
 > 同步调用  
 

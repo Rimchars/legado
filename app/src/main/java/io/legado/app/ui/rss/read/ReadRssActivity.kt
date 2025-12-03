@@ -437,7 +437,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
 
     private fun initJavascriptInterface() {
         viewModel.rssSource?.let {
-            val webJsExtensions =WebJsExtensions(it, this, binding.webView)
+            val webJsExtensions = WebJsExtensions(it, this, binding.webView)
             binding.webView.addJavascriptInterface(webJsExtensions, "java")
             binding.webView.addJavascriptInterface(it, "source")
             binding.webView.addJavascriptInterface(WebCacheManager, "cache")

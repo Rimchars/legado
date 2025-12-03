@@ -66,7 +66,7 @@ fun View.hideSoftInput() = run {
 
 fun EditText.showSoftInput() = run {
     requestFocus()
-    inputMethodManager.showSoftInput(this, InputMethodManager.RESULT_SHOWN)
+    inputMethodManager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
 }
 
 fun View.disableAutoFill() = run {

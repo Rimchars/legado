@@ -11,6 +11,8 @@ import android.widget.TextView
 import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
 import io.legado.app.R
 import io.legado.app.model.VideoPlay
+import java.io.File
+//import master.flame.danmaku.danmaku.parser.BaseDanmakuParser
 
 
 class VideoPlayer: StandardGSYVideoPlayer {
@@ -25,6 +27,19 @@ class VideoPlayer: StandardGSYVideoPlayer {
     private var tipView: TextView? = null
     private var isChanging = false
     private var isLongPressSpeed = false
+//
+//    private var mParser: BaseDanmakuParser? = null //解析器对象
+//    private var mDanmakuView: IDanmakuView? = null //弹幕view
+//    private var mDanmakuContext: DanmakuContext? = null
+
+    private var mSendDanmaku: TextView? = null
+    var mToogleDanmaku: TextView? = null
+
+    private var mDanmakuStartSeekPosition: Long = -1
+
+    private var mDanmaKuShow = true
+
+    private var mDumakuFile: File? = null
 
     override fun getLayoutId(): Int {
         return if (mIfCurrentIsFullscreen)
