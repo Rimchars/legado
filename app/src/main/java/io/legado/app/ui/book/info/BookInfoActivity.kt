@@ -42,7 +42,6 @@ import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
 import io.legado.app.model.BookCover
-import io.legado.app.model.VideoPlay
 import io.legado.app.model.remote.RemoteBookWebDav
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.book.audio.AudioPlayActivity
@@ -95,35 +94,15 @@ class BookInfoActivity :
             viewModel.getBook(false)?.let { book ->
                 lifecycleScope.launch {
                     withContext(IO) {
-                        if (book.isVideo) {
-                            VideoPlay.volumes.clear()
-                            appDb.bookChapterDao.getChapterList(book.bookUrl).forEach { chapter ->
-                                if (chapter.isVolume) {
-                                    VideoPlay.volumes.add(chapter)
-                                }
-                            }
-                            if (VideoPlay.volumes.isEmpty()) {
-                                VideoPlay.chapterInVolumeIndex = it.first
-                            } else {
-                                for ((index, volume) in VideoPlay.volumes.reversed().withIndex()) {
-                                    if (volume.index < it.first) {
-                                        book.chapterInVolumeIndex = it.first - volume.index - 1
-                                        book.durVolumeIndex = VideoPlay.volumes.size - index - 1
-                                        VideoPlay.durVolume = volume
-                                        break
-                                    } else if (volume.index == it.first) {
-                                        book.chapterInVolumeIndex = 0
-                                        book.durVolumeIndex = VideoPlay.volumes.size - index - 1
-                                        VideoPlay.durVolume = volume
-                                        break
-                                    }
-                                }
-                            }
-                        } else {
-                            book.durChapterIndex = it.first
-                        }
-                        book.durChapterPos = it.second
-                        chapterChanged = it.third
+                        val durChapterIndex = it[0] as Int
+                        val durChapterPos = it[1] as Int
+                        val durVolumeIndex = it[3] as Int
+                        val chapterInVolumeIndex = it[4] as Int
+                        book.durChapterIndex = durChapterIndex
+                        book.durChapterPos = durChapterPos
+                        chapterChanged = it[2] as Boolean
+                        book.durVolumeIndex = durVolumeIndex
+                        book.chapterInVolumeIndex = chapterInVolumeIndex
                         appDb.bookDao.update(book)
                     }
                     startReadActivity(book)

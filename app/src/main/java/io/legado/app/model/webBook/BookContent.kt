@@ -26,6 +26,7 @@ import org.apache.commons.text.StringEscapeUtils
 import splitties.init.appCtx
 import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isOnLineTxt
+import io.legado.app.help.book.isVideo
 import kotlinx.coroutines.currentCoroutineContext
 
 /**
@@ -136,6 +137,12 @@ object BookContent {
                     contentList.add(subContent)
                 } else if (book.isAudio) { //音频作为歌词
                     bookChapter.putLyric(subContent)
+                    Debug.log(bookSource.bookSourceUrl, "┌获取副文歌词")
+                    Debug.log(bookSource.bookSourceUrl, "└\n$subContent")
+                } else if (book.isVideo) { //视频作为弹幕
+                    bookChapter.putDanmaku(subContent)
+                    Debug.log(bookSource.bookSourceUrl, "┌获取副文弹幕")
+                    Debug.log(bookSource.bookSourceUrl, "└\n$subContent")
                 }
             }
         }

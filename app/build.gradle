@@ -218,7 +218,7 @@ dependencies {
     implementation(libs.gsyVideoPlayer.java)
     implementation(libs.gsyVideoPlayer.exo2)
     //弹幕
-//    implementation (libs.danmakuFlameMaster)
+    implementation (libs.danmakuFlameMaster)
 
     //Splitties
     implementation(libs.splitties.appctx)

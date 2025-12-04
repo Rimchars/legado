@@ -24,6 +24,7 @@ import io.legado.app.data.entities.RssReadRecord
 import io.legado.app.data.entities.RssSource
 import io.legado.app.data.entities.RssStar
 import io.legado.app.exception.ContentEmptyException
+import io.legado.app.help.book.getDanmaku
 import io.legado.app.help.book.update
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.gsyVideo.ExoVideoManager
@@ -73,6 +74,8 @@ object VideoPlay : CoroutineScope by MainScope(){
         set(value) {
             videoPrefs.edit { putBoolean("fullBottomProgressBar", value) }
         }
+    /**  弹幕滚动速度  **/
+    var danmakuSpeed = 1.2f
 
     val videoManager by lazy { ExoVideoManager() }
     var videoUrl: String? = null //播放链接
@@ -97,12 +100,18 @@ object VideoPlay : CoroutineScope by MainScope(){
     var rssStar: RssStar? = null
     /**  订阅历史记录,收藏优先  **/
     var rssRecord: RssReadRecord? = null
+    /**  弹幕相关  **/
+    var danmakuFile: File? = null
+    var danmakuStr: String? = null
+    var danmakuShow = true
 
     /**
      * 开始播放
      */
     fun startPlay(player: StandardGSYVideoPlayer) {
         if (source == null) return
+        danmakuStr = null
+        danmakuFile = null
         val player = player.getCurrentPlayer()
         durChapterPos.takeIf { it > 0 }?.toLong()?.let { player.seekOnStart = it }
         if (singleUrl) {
@@ -114,7 +123,8 @@ object VideoPlay : CoroutineScope by MainScope(){
                 ruleData = book,
                 chapter = null
             )
-            player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"),analyzeUrl.headerMap.toMap(), videoTitle)
+            player.mapHeadData = analyzeUrl.headerMap
+            player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"), videoTitle)
             if (autoPlay) {
                 player.startPlayLogic()
             }
@@ -199,6 +209,10 @@ object VideoPlay : CoroutineScope by MainScope(){
                         ruleData = book,
                         chapter = chapter
                     )
+                    when (val danmaku = chapter!!.getDanmaku()) {
+                        is String -> danmakuStr = danmaku
+                        is File -> danmakuFile = danmaku
+                    }
                     withContext(Main) {
                         player.mapHeadData = analyzeUrl.headerMap
                         player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"), chapter!!.title)
@@ -330,6 +344,9 @@ object VideoPlay : CoroutineScope by MainScope(){
         }?.also { b ->
             chapterInVolumeIndex = b.chapterInVolumeIndex
             durVolumeIndex = b.durVolumeIndex
+            if (chapterInVolumeIndex == 0 && durVolumeIndex == 0) {
+                chapterInVolumeIndex = b.durChapterIndex
+            }
             durChapterPos = b.durChapterPos
             source = appDb.bookSourceDao.getBookSource(b.origin)
             SourceCallBack.callBackBook(SourceCallBack.START_READ, source as BookSource?, b, chapter)

@@ -109,7 +109,7 @@ media3-session = { module = "androidx.media3:media3-session", version.ref = "med
 
 gsyVideoPlayer-java = { module = "io.github.carguo:gsyvideoplayer-java", version.ref = "gsyvideoplayer" }
 gsyVideoPlayer-exo2 = { module = "io.github.carguo:gsyvideoplayer-exo2", version.ref = "gsyvideoplayer" }
-danmakuFlameMaster = { module = "com.github.ctiao:DanmakuFlameMaster", version.ref = "danmaku" }
+danmakuFlameMaster = { module = "com.github.CarGuo.DanmakuFlameMaster:DanmakuFlameMaster", version.ref = "danmaku" }
 
 markwon-core = { module = "io.noties.markwon:core", version.ref = "markwon" }
 markwon-image-glide = { module = "io.noties.markwon:image-glide", version.ref = "markwon" }
