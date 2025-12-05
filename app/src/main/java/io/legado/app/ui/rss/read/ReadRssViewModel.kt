@@ -93,7 +93,8 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
                     loadUrl(openUrl ?: origin!!, origin!!)
                 }
                 else if (rssSource!!.singleUrl) {
-                    htmlLiveData.postValue(ruleContent)
+                    loadUrl(origin!!, origin!!)
+//                    htmlLiveData.postValue(ruleContent)
                 }
                 else if (openUrl != null) {
                     val title = intent.getStringExtra("title") ?: rssSource!!.sourceName

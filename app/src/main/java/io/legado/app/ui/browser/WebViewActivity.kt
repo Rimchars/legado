@@ -63,6 +63,7 @@ import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
 import io.legado.app.help.http.CookieManager as AppCookieManager
 import io.legado.app.model.ReadBook
 import io.legado.app.utils.escapeForJs
+import androidx.core.net.toUri
 
 class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
     companion object {
@@ -392,7 +393,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
         @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION", "KotlinRedundantDiagnosticSuppress")
         override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
             url?.let {
-                return shouldOverrideUrlLoading(Uri.parse(it))
+                return shouldOverrideUrlLoading(it.toUri())
             }
             return true
         }

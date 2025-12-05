@@ -115,11 +115,17 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
     }
     private val rssJsExtensions by lazy { RssJsExtensions(this, viewModel.rssSource) }
     private fun refresh() {
+        isInterfaceInjected = false
+        if (viewModel.rssSource?.singleUrl == true) {
+            binding.webView.reload()
+            return
+        }
         viewModel.rssArticle?.let {
             start(this@ReadRssActivity, it.title, it.link, it.origin)
         } ?: run {
-            isInterfaceInjected = false
-            viewModel.initData(intent)
+            viewModel.initData(intent) {
+                binding.webView.settings.cacheMode = if (viewModel.cacheFirst) WebSettings.LOAD_CACHE_ELSE_NETWORK else WebSettings.LOAD_DEFAULT
+            }
         }
     }
     private val editSourceResult = registerForActivityResult(
