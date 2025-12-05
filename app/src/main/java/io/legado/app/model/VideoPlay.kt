@@ -46,6 +46,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.withContext
 import splitties.init.appCtx
 import java.io.File
+import java.io.FileOutputStream
 
 object VideoPlay : CoroutineScope by MainScope(){
     const val VIDEO_PREF_NAME = "video_config"
@@ -79,6 +80,7 @@ object VideoPlay : CoroutineScope by MainScope(){
 
     val videoManager by lazy { ExoVideoManager() }
     var videoUrl: String? = null //播放链接
+    var tempFile: File? = null //mpd临时文件,作为播放链接
     var singleUrl = false
     var videoTitle: String? = null
     var source: BaseSource? = null
@@ -112,6 +114,7 @@ object VideoPlay : CoroutineScope by MainScope(){
         if (source == null) return
         danmakuStr = null
         danmakuFile = null
+        tempFile = null
         val player = player.getCurrentPlayer()
         durChapterPos.takeIf { it > 0 }?.toLong()?.let { player.seekOnStart = it }
         if (singleUrl) {
@@ -152,11 +155,22 @@ object VideoPlay : CoroutineScope by MainScope(){
             } else {
                 Rss.getContent(this, rssArticle, ruleContent, s)
                     .onSuccess(IO) { body ->
-                        if (body.isBlank()) {
+                        val body = body.trim()
+                        val url = if (body.isEmpty()) {
                             throw ContentEmptyException("正文为空")
+                        } else if (body.startsWith("<")) { //当作mpd文本
+                            tempFile = File.createTempFile("temp", ".mpd", appCtx.cacheDir)
+                            tempFile?.deleteOnExit() // 程序退出时删除
+                            FileOutputStream(tempFile).use { outputStream ->
+                                outputStream.write(body.toByteArray(Charsets.UTF_8))
+                            }
+                            videoUrl = body
+                            rssArticle.link
+                        } else {
+                            NetworkUtils.getAbsoluteURL(rssArticle.link, body).also {
+                                videoUrl = it
+                            }
                         }
-                        val url = NetworkUtils.getAbsoluteURL(rssArticle.link, body)
-                        videoUrl = url
                         val analyzeUrl = AnalyzeUrl(
                             url,
                             source = source,
@@ -199,26 +213,36 @@ object VideoPlay : CoroutineScope by MainScope(){
         }
         WebBook.getContent(this, source as BookSource, book!!, chapter!!)
             .onSuccess(IO) { content ->
-                if (content.isEmpty()) {
-                    appCtx.toastOnUi("未获取到资源链接")
+                val content = content.trim()
+                val url = if (content.isEmpty()) {
+                    throw ContentEmptyException("正文为空")
+                } else if (content.startsWith("<")) { //当作mpd文本
+                    tempFile = File.createTempFile("temp", ".mpd", appCtx.cacheDir)
+                    tempFile?.deleteOnExit() // 程序退出时删除
+                    FileOutputStream(tempFile).use { outputStream ->
+                        outputStream.write(content.toByteArray(Charsets.UTF_8))
+                    }
+                    videoUrl = content
+                    chapter!!.url
                 } else {
                     videoUrl = content
-                    val analyzeUrl = AnalyzeUrl(
-                        content,
-                        source = source,
-                        ruleData = book,
-                        chapter = chapter
-                    )
-                    when (val danmaku = chapter!!.getDanmaku()) {
-                        is String -> danmakuStr = danmaku
-                        is File -> danmakuFile = danmaku
-                    }
-                    withContext(Main) {
-                        player.mapHeadData = analyzeUrl.headerMap
-                        player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"), chapter!!.title)
-                        if (autoPlay) {
-                            player.startPlayLogic()
-                        }
+                    content
+                }
+                val analyzeUrl = AnalyzeUrl(
+                    url,
+                    source = source,
+                    ruleData = book,
+                    chapter = chapter
+                )
+                when (val danmaku = chapter!!.getDanmaku()) {
+                    is String -> danmakuStr = danmaku
+                    is File -> danmakuFile = danmaku
+                }
+                withContext(Main) {
+                    player.mapHeadData = analyzeUrl.headerMap
+                    player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"), chapter!!.title)
+                    if (autoPlay) {
+                        player.startPlayLogic()
                     }
                 }
             }.onError {
@@ -270,6 +294,9 @@ object VideoPlay : CoroutineScope by MainScope(){
         inBookshelf = true
         rssStar = null
         rssRecord = null
+        danmakuStr = null
+        danmakuFile = null
+        tempFile = null
     }
     /**
      * 暂停播放
