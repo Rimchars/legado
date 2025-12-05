@@ -52,8 +52,11 @@ import java.net.URLDecoder
 import android.webkit.JavascriptInterface
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.constant.AppLog
-import io.legado.app.help.WebCacheManager
 import io.legado.app.help.WebJsExtensions
+import io.legado.app.help.WebJsExtensions.Companion.JSBridgeResult
+import io.legado.app.help.WebJsExtensions.Companion.basicJs
+import io.legado.app.help.WebJsExtensions.Companion.nameBasic
+import io.legado.app.help.WebJsExtensions.Companion.nameJava
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
@@ -94,10 +97,8 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
             } else {
                 if (viewModel.localHtml) {
                     viewModel.source?.let {
-                        val webJsExtensions =WebJsExtensions(it, this, binding.webView)
-                        binding.webView.addJavascriptInterface(webJsExtensions, "java")
-                        binding.webView.addJavascriptInterface(it, "source")
-                        binding.webView.addJavascriptInterface(WebCacheManager, "cache")
+                        val webJsExtensions = WebJsExtensions(it, this, binding.webView)
+                        binding.webView.addJavascriptInterface(webJsExtensions, nameJava)
                     }
                 }
                 binding.webView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
@@ -194,7 +195,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
         binding.progressBar.fontColor = accentColor
         binding.webView.webChromeClient = CustomWebChromeClient()
         // 添加 JavaScript 接口
-        binding.webView.addJavascriptInterface(JSInterface(), "AndroidComm")
+        binding.webView.addJavascriptInterface(JSInterface(), nameBasic)
         binding.webView.webViewClient = CustomWebViewClient()
         binding.webView.settings.apply {
             setDarkeningAllowed(AppConfig.isNightTheme)
@@ -267,9 +268,9 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
                     evalJS(jsCode).toString()
                 }
             }.onSuccess { data ->
-                binding.webView.evaluateJavascript("window.JSBridgeResult('$id', '${data.escapeForJs()}', null);", null)
+                binding.webView.evaluateJavascript("window.$JSBridgeResult('$id', '${data.escapeForJs()}', null);", null)
             }.onError {
-                binding.webView.evaluateJavascript("window.JSBridgeResult('$id', null, '${it.localizedMessage?.escapeForJs()}');", null)
+                binding.webView.evaluateJavascript("window.$JSBridgeResult('$id', null, '${it.localizedMessage?.escapeForJs()}');", null)
             }
         }
         @JavascriptInterface
@@ -278,32 +279,6 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
                 close()
             }
         }
-    }
-
-    private fun injectOrientationSupport() {
-        val js = """
-        (function() {
-            if (screen.orientation && !screen.orientation.__patched) {
-                screen.orientation.lock = function(orientation) {
-                    return new Promise((resolve, reject) => {
-                        window.AndroidComm?.lockOrientation(orientation) 
-                        resolve()
-                    });
-                };
-                screen.orientation.unlock = function() {
-                    return new Promise((resolve, reject) => {
-                        window.AndroidComm?.lockOrientation('unlock') 
-                        resolve()
-                    });
-                };
-                screen.orientation.__patched = true;
-            };
-            window.close = function() {
-                window.AndroidComm?.onCloseRequested();
-            };
-        })();
-        """.trimIndent()
-        binding.webView.evaluateJavascript(js, null)
     }
 
     private fun saveImage(webPic: String) {
@@ -424,7 +399,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
             super.onPageStarted(view, url, favicon)
-            injectOrientationSupport()
+            binding.webView.evaluateJavascript(basicJs, null)
         }
         
         override fun onPageFinished(view: WebView?, url: String?) {

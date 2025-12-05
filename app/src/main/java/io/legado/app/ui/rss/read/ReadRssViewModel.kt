@@ -44,7 +44,8 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
     val upStarMenuData = MutableLiveData<Boolean>()
     var headerMap: Map<String, String> = emptyMap()
     var origin: String? = null
-    var cacheFirst: Boolean = false
+    var cacheFirst = false
+    var hasPreloadJs = false
 
     fun initData(intent: Intent, success: (() -> Unit)? = null) {
         execute {
@@ -52,6 +53,7 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
             val link = intent.getStringExtra("link")
             rssSource = appDb.rssSourceDao.getByKey(origin!!)?.also{
                 cacheFirst = it.cacheFirst
+                hasPreloadJs = !it.preloadJs.isNullOrBlank()
             }
             headerMap = runScriptWithContext {
                 rssSource?.getHeaderMap() ?: emptyMap()
@@ -223,11 +225,12 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
     }
 
     fun clHtml(content: String, style: String? = rssSource?.style): String {
+        val preloadJs = rssSource?.preloadJs ?: ""
         var processedHtml = content
         processedHtml = if (processedHtml.contains("<head>")) {
-            processedHtml.replaceFirst("<head>", "<head><script>$JS_INJECTION</script>")
+            processedHtml.replaceFirst("<head>", "<head><script>(() => {$JS_INJECTION$preloadJs})();</script>")
         } else {
-            "<head><script>$JS_INJECTION</script></head>$processedHtml"
+            "<head><script>(() => {$JS_INJECTION$preloadJs})();</script></head>$processedHtml"
         }
         if (processedHtml.contains("<style>")) {
             if (!style.isNullOrBlank()) {
