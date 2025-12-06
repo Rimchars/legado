@@ -92,6 +92,8 @@ import io.legado.app.help.WebJsExtensions.Companion.nameBasic
 import io.legado.app.help.WebJsExtensions.Companion.nameCache
 import io.legado.app.help.WebJsExtensions.Companion.nameJava
 import io.legado.app.help.WebJsExtensions.Companion.nameSource
+import io.legado.app.help.http.CookieStore
+import io.legado.app.help.http.newCallResponse
 
 /**
  * rss阅读界面
@@ -147,11 +149,31 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
             binding.webView.settings.cacheMode = if (viewModel.cacheFirst) WebSettings.LOAD_CACHE_ELSE_NETWORK else WebSettings.LOAD_DEFAULT
         }
         onBackPressedDispatcher.addCallback(this) {
-            if (binding.customWebView.size > 0) {
+            if (binding.customWebView.size > 0) { //关闭全屏
                 customWebViewCallback?.onCustomViewHidden()
                 return@addCallback
-            } else if (binding.webView.canGoBack() && binding.webView.copyBackForwardList().size > 1) {
-                binding.webView.goBack()
+            } else if (binding.webView.canGoBack()) {
+                val list = binding.webView.copyBackForwardList() //获取历史列表
+                if (list.size < 2) { //到底了
+                    finish()
+                    return@addCallback
+                }
+                val currentIndex = list.currentIndex
+                val currentUrl = list.currentItem?.url ?: ""
+                //从后往前找，找到第一个不同链接的页面，计算需要回退多少步 避免刷新后导致返回不灵
+                var steps = 1
+                for (i in currentIndex - 1 downTo 0) {
+                    val item = list.getItemAtIndex(i)
+                    if (item.url != currentUrl) {
+                        break
+                    }
+                    steps++
+                }
+                if (list.size == steps) { //重复到底
+                    finish()
+                    return@addCallback
+                }
+                binding.webView.goBackOrForward(-steps) //可能会回退多步
                 return@addCallback
             }
             finish()
@@ -605,13 +627,21 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
 
         private suspend fun getModifiedContentWithJs(url: String, preloadJs: String?, request: WebResourceRequest): WebResourceResponse? {
             try {
-                val body = okHttpClient.newCallResponseBody {
+                val cookie = webCookieManager.getCookie(url)
+                val res = okHttpClient.newCallResponse {
                     url(url)
                     method(request.method, null)
+                    if (!cookie.isNullOrEmpty()) {
+                        addHeader("Cookie", cookie)
+                    }
                     request.requestHeaders?.forEach { (key, value) ->
                         addHeader(key, value)
                     }
                 }
+                res.headers("Set-Cookie").forEach { setCookie ->
+                    webCookieManager.setCookie(url, setCookie)
+                }
+                val body = res.body
                 val contentType = body.contentType()
                 val mimeType = contentType?.toString()?.substringBefore(";") ?: "text/html"
                 val charset = contentType?.charset() ?: Charsets.UTF_8
@@ -718,6 +748,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                 putExtra("openUrl", url)
             }
         }
+        private val webCookieManager by lazy { android.webkit.CookieManager.getInstance() }
     }
 
 }
