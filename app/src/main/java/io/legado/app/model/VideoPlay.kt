@@ -46,7 +46,6 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.withContext
 import splitties.init.appCtx
 import java.io.File
-import java.io.FileOutputStream
 
 object VideoPlay : CoroutineScope by MainScope(){
     const val VIDEO_PREF_NAME = "video_config"
@@ -80,7 +79,6 @@ object VideoPlay : CoroutineScope by MainScope(){
 
     val videoManager by lazy { ExoVideoManager() }
     var videoUrl: String? = null //播放链接
-    var tempFile: File? = null //mpd临时文件,作为播放链接
     var singleUrl = false
     var videoTitle: String? = null
     var source: BaseSource? = null
@@ -114,7 +112,6 @@ object VideoPlay : CoroutineScope by MainScope(){
         if (source == null) return
         danmakuStr = null
         danmakuFile = null
-        tempFile = null
         val player = player.getCurrentPlayer()
         durChapterPos.takeIf { it > 0 }?.toLong()?.let { player.seekOnStart = it }
         if (singleUrl) {
@@ -159,13 +156,9 @@ object VideoPlay : CoroutineScope by MainScope(){
                         val url = if (body.isEmpty()) {
                             throw ContentEmptyException("正文为空")
                         } else if (body.startsWith("<")) { //当作mpd文本
-                            tempFile = File.createTempFile("temp", ".mpd", appCtx.cacheDir)
-                            tempFile?.deleteOnExit() // 程序退出时删除
-                            FileOutputStream(tempFile).use { outputStream ->
-                                outputStream.write(body.toByteArray(Charsets.UTF_8))
-                            }
+                            //todo 字符串转链接
                             videoUrl = body
-                            rssArticle.link
+                            body
                         } else {
                             NetworkUtils.getAbsoluteURL(rssArticle.link, body).also {
                                 videoUrl = it
@@ -176,9 +169,13 @@ object VideoPlay : CoroutineScope by MainScope(){
                             source = source,
                             ruleData = rssArticle
                         )
+                        val playUrl = analyzeUrl.url
                         withContext(Main) {
+                            if (playUrl.endsWith(".mpd")) {
+                                player.overrideExtension = "mpd"
+                            }
                             player.mapHeadData = analyzeUrl.headerMap
-                            player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"), rssArticle.title)
+                            player.setUp(playUrl, false, File(appCtx.externalCache, "exoplayer"), rssArticle.title)
                             if (autoPlay) {
                                 player.startPlayLogic()
                             }
@@ -217,13 +214,9 @@ object VideoPlay : CoroutineScope by MainScope(){
                 val url = if (content.isEmpty()) {
                     throw ContentEmptyException("正文为空")
                 } else if (content.startsWith("<")) { //当作mpd文本
-                    tempFile = File.createTempFile("temp", ".mpd", appCtx.cacheDir)
-                    tempFile?.deleteOnExit() // 程序退出时删除
-                    FileOutputStream(tempFile).use { outputStream ->
-                        outputStream.write(content.toByteArray(Charsets.UTF_8))
-                    }
+                    //todo 字符串转链接
                     videoUrl = content
-                    chapter!!.url
+                    content
                 } else {
                     videoUrl = content
                     content
@@ -238,9 +231,13 @@ object VideoPlay : CoroutineScope by MainScope(){
                     is String -> danmakuStr = danmaku
                     is File -> danmakuFile = danmaku
                 }
+                val playUrl = analyzeUrl.url
                 withContext(Main) {
+                    if (playUrl.endsWith(".mpd")) {
+                        player.overrideExtension = "mpd"
+                    }
                     player.mapHeadData = analyzeUrl.headerMap
-                    player.setUp(analyzeUrl.url, false, File(appCtx.externalCache, "exoplayer"), chapter!!.title)
+                    player.setUp(playUrl, false, File(appCtx.externalCache, "exoplayer"), chapter!!.title)
                     if (autoPlay) {
                         player.startPlayLogic()
                     }
@@ -296,7 +293,6 @@ object VideoPlay : CoroutineScope by MainScope(){
         rssRecord = null
         danmakuStr = null
         danmakuFile = null
-        tempFile = null
     }
     /**
      * 暂停播放

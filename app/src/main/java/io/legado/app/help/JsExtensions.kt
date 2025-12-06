@@ -190,8 +190,8 @@ interface JsExtensions : JsEncodeUtils {
         }
     }
 
-    fun webView(html: String?, url: String?, js: String?) {
-        webView(html, url, js, false)
+    fun webView(html: String?, url: String?, js: String?): String? {
+        return webView(html, url, js, false)
     }
 
     /**

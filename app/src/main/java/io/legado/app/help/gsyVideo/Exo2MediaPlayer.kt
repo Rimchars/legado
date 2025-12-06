@@ -93,18 +93,7 @@ class Exo2MediaPlayer(context: Context) : IjkExo2MediaPlayer(context) {
                 mInternalPlayer.repeatMode = Player.REPEAT_MODE_ALL
             }
             if (mSurface != null) mInternalPlayer.setVideoSurface(mSurface)
-            val tempFile = VideoPlay.tempFile
-            if (tempFile != null) {
-                val mediaItem = MediaItem.fromUri(Uri.fromFile(tempFile))
-                // 创建数据源工厂
-                val dataSourceFactory = DefaultHttpDataSource.Factory()
-                // 创建 DASH 媒体源
-                val mediaSource = DashMediaSource.Factory(dataSourceFactory)
-                    .createMediaSource(mediaItem)
-                mInternalPlayer.setMediaSource(mediaSource)
-            } else {
-                mInternalPlayer.setMediaSource(mMediaSource)
-            }
+            mInternalPlayer.setMediaSource(mMediaSource)
             mInternalPlayer.prepare()
             mInternalPlayer.playWhenReady = false
         }

@@ -616,11 +616,18 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                 val mimeType = contentType?.toString()?.substringBefore(";") ?: "text/html"
                 val charset = contentType?.charset() ?: Charsets.UTF_8
                 val charsetSre = charset.name()
-                val replaceBody = body.text().replaceFirst(AppPattern.htmlHeadRegex, "$0<script>(() => {$JS_INJECTION$preloadJs})();</script>")
+                val bodyText = body.text().let { originalText ->
+                    AppPattern.htmlHeadRegex.find(originalText)?.let { match ->
+                        originalText.replaceRange(
+                            match.range,
+                            "${match.value}<script>(() => {$JS_INJECTION$preloadJs\n})();</script>"
+                        )
+                    } ?: originalText
+                }
                 return WebResourceResponse(
                     mimeType,
                     charsetSre,
-                    ByteArrayInputStream(replaceBody.toByteArray(charset))
+                    ByteArrayInputStream(bodyText.toByteArray(charset))
                 )
             } catch (_: Exception) {
                 return null
