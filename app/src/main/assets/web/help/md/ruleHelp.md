@@ -155,6 +155,11 @@ https://www.baidu.com,{"js":"java.headerMap.put('xxx', 'yyy')"}
 https://www.baidu.com,{"js":"java.url=java.url+'yyyy'"}
 ```
 
+* url添加bodyJs参数,对访问结果进行二次js处理,例
+```
+https://www.baidu.com,{"bodyJs":"if(result)'这里的文本作为访问返回的响应体body'else result"}
+```
+
 * url添加dnsIp参数,解析url时执行,强制指定链接访问的ip地址,例
 ```
 https://dns.google,{"dnsIp":"8.8.8.8"}
@@ -226,14 +231,16 @@ let options = {
 > 先启用事件监听按钮，然后软件触发事件时会执行回调规则的js代码。如果js返回true会消费事件，之后软件部分原本操作不会再执行。  
 `event`变量值对应的事件名称，目前的事件有
 ```js
-"shareBook" //详情页分享按钮
-"clickBookName" //详情页点击书名
-"longClickBookName" //详情页长按书名
-"clickAuthor" //详情页点击作者
-"longClickAuthor" //详情页长按作者
-"clickCustomButton" //书源自定义按钮
-"longClickCustomButton" //长按自定义按钮（只存在小说的正文界面）
-"clearCache" //详情页清理缓存
+"clickBookName" //点击详情页书名
+"longClickBookName" //长按详情页书名
+"clickAuthor" //点击详情页作者
+"longClickAuthor" //长按详情页作者
+"clickCustomButton" //点击书源自定义按钮
+"longClickCustomButton" //长按书源自定义按钮（只存在小说的正文界面）
+"clickShareBook" //点击详情页分享按钮
+"clickClearCache" //点击详情页清理缓存按钮
+"clickCopyBookUrl" //点击详情页拷贝书籍URl按钮
+"clickCopyTocUrl" //点击详情页拷贝目录URl按钮
 "addBookShelf" //添加到书架
 "delBookShelf" //移除书架
 "saveRead" //保存阅读进度
