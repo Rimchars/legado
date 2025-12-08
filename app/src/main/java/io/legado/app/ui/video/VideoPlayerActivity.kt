@@ -404,15 +404,17 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             R.id.menu_float_window -> startFloatingWindow()
             R.id.menu_config_settings -> showDialogFragment(SettingsDialog(this))
             R.id.menu_login -> VideoPlay.source?.let {s ->
-                val type = when (s) {
-                    is BookSource -> "bookSource"
-                    is RssSource -> "rssSource"
-                    else -> null
-                }
-                type?.let {
-                    startActivity<SourceLoginActivity> {
-                        putExtra("type", it)
-                        putExtra("key", s.getKey())
+               when (s) {
+                    is BookSource -> {
+                        startActivity<SourceLoginActivity> {
+                            putExtra("bookType", BookType.video)
+                        }
+                    }
+                    is RssSource -> {
+                        startActivity<SourceLoginActivity> {
+                            putExtra("type", "rssSource")
+                            putExtra("key", s.getKey())
+                        }
                     }
                 }
             }
