@@ -146,9 +146,7 @@ class AudioPlayActivity :
 
             R.id.menu_login -> AudioPlay.bookSource?.let {
                 startActivity<SourceLoginActivity> {
-                    putExtra("type", "bookSource")
-                    putExtra("key", it.bookSourceUrl)
-                    putExtra("bookUrl", AudioPlay.book?.bookUrl)
+                    putExtra("isReadVideo", true)
                 }
             }
 

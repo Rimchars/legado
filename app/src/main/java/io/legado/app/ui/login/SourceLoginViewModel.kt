@@ -11,6 +11,7 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.model.ReadBook
+import io.legado.app.model.VideoPlay
 import io.legado.app.utils.toastOnUi
 
 class SourceLoginViewModel(application: Application) : BaseViewModel(application) {
@@ -24,12 +25,17 @@ class SourceLoginViewModel(application: Application) : BaseViewModel(application
     fun initData(intent: Intent, success: (bookSource: BaseSource) -> Unit, error: () -> Unit) {
         execute {
             val isReadBook = intent.getBooleanExtra("isReadBook", false)
+            val isReadVideo = intent.getBooleanExtra("isReadVideo", false)
             if (isReadBook) {
                 source = ReadBook.bookSource
                 book = ReadBook.book?.also {
                     chapter = appDb.bookChapterDao.getChapter(it.bookUrl, ReadBook.durChapterIndex)
                 }
-            } else {
+            } else if (isReadVideo){
+                source = VideoPlay.source
+                book = VideoPlay.book
+                chapter = VideoPlay.chapter
+            }else {
                 val sourceKey = intent.getStringExtra("key")
                     ?: throw NoStackTraceException("没有参数")
                 val type = intent.getStringExtra("type")
