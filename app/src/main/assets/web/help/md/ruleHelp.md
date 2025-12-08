@@ -81,6 +81,12 @@
         "name": "显示书名",
         "viewName": "book?.name||'未获取到书名'",
         "type": "button"
+    },
+    {
+        "name": "选择排序",
+        "type": "select",
+        "chars": ["月票", "人气"],
+        "default": "人气"
     }
 ]
 ```
@@ -228,8 +234,8 @@ let options = {
 > 可直接填写链接或者JavaScript，如果执行结果是网络链接将会自动打开浏览器,js返回true自动刷新目录和当前章节
 
 * 回调操作
-> 先启用事件监听按钮，然后软件触发事件时会执行回调规则的js代码。如果js返回true会消费事件，之后软件部分原本操作不会再执行。  
-`event`变量值对应的事件名称，目前的事件有
+> 先启用事件监听按钮，然后软件触发事件时会执行回调规则的js代码。  
+字符串变量`event`的值对应事件名称，目前的事件有
 ```js
 "clickBookName" //点击详情页书名
 "longClickBookName" //长按详情页书名
@@ -241,6 +247,9 @@ let options = {
 "clickClearCache" //点击详情页清理缓存按钮
 "clickCopyBookUrl" //点击详情页拷贝书籍URl按钮
 "clickCopyTocUrl" //点击详情页拷贝目录URl按钮
+//上面的事件回调执行结果返回true会消费事件，原本的软件操作不会再执行
+
+//下面的事件无法被回调结果消费
 "addBookShelf" //添加到书架
 "delBookShelf" //移除书架
 "saveRead" //保存阅读进度

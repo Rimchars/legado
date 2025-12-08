@@ -388,17 +388,6 @@ object VideoPlay : CoroutineScope by MainScope(){
         return true
     }
 
-    fun upSource() {
-        when (source) {
-            is BookSource -> {
-                source = appDb.bookSourceDao.getBookSource(source!!.getKey())
-            }
-            is RssSource -> {
-                source = appDb.rssSourceDao.getByKey(source!!.getKey())
-            }
-        }
-    }
-
     fun upEpisodes() {
         if (volumes.isEmpty()) {
             durVolume = null

@@ -121,7 +121,9 @@ class AudioPlayActivity :
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.audio_play, menu)
-        menuCustomBtn = menu.findItem(R.id.menu_custom_btn)
+        menuCustomBtn = menu.findItem(R.id.menu_custom_btn)?.also {
+            it.isVisible = viewModel.customBtnListData.value == true
+        }
         return super.onCompatCreateOptionsMenu(menu)
     }
 

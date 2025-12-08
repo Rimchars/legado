@@ -18,6 +18,7 @@ import io.legado.app.data.entities.rule.RowUi
 import io.legado.app.databinding.DialogLoginBinding
 import io.legado.app.databinding.ItemFilletTextBinding
 import io.legado.app.databinding.ItemSourceEditBinding
+import io.legado.app.databinding.ItemSelectorSingleBinding
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.about.AppLogDialog
@@ -43,8 +44,14 @@ import kotlin.text.lastIndexOf
 import kotlin.text.startsWith
 import kotlin.text.substring
 import android.view.MotionEvent
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatSpinner
+import io.legado.app.data.entities.rule.RowUi.Type
 import io.legado.app.ui.widget.text.TextInputLayout
 
 
@@ -80,13 +87,22 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     is TextView -> {
                         val rowUi = rowUis?.get(index) ?: return
                         when (rowUi.type) {
-                            RowUi.Type.button -> {
+                            Type.button -> {
                                 rowView.text = value
                             }
-                            RowUi.Type.toggle -> {
+                            Type.toggle -> {
                                 rowUi.default = value
                                 rowView.text = value + rowUi.name
                             }
+                        }
+                    }
+                    is LinearLayout -> {
+                        val rowUi = rowUis?.get(index) ?: return
+                        val items = rowUi.chars ?: arrayOf("chars","is null")
+                        val index = items.indexOf(value)
+                        if (index != -1) {
+                            rowUi.default = value
+                            rowView.findViewById<AppCompatSpinner>(R.id.sp_type)?.setSelectionSafely(index)
                         }
                     }
                 }
@@ -128,7 +144,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
             val name = rowUi.name
             rowUiName.add(name)
             when (type) {
-                RowUi.Type.text -> ItemSourceEditBinding.inflate(
+                Type.text -> ItemSourceEditBinding.inflate(
                     layoutInflater,
                     binding.root,
                     false
@@ -139,7 +155,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     it.editText.setText(loginInfo[name])
                 }
 
-                RowUi.Type.password -> ItemSourceEditBinding.inflate(
+                Type.password -> ItemSourceEditBinding.inflate(
                     layoutInflater,
                     binding.root,
                     false
@@ -152,7 +168,37 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     it.editText.setText(loginInfo[name])
                 }
 
-                RowUi.Type.button -> ItemFilletTextBinding.inflate(
+                Type.select -> ItemSelectorSingleBinding.inflate(
+                    layoutInflater,
+                    binding.root,
+                    false
+                ).let {
+                    it.spName.text = name
+                    val items = rowUi.chars ?: arrayOf("chars","is null")
+                    val adapter = ArrayAdapter(
+                        requireContext(),
+                        R.layout.item_text,
+                        items
+                    )
+                    val selector = it.spType
+                    selector.adapter = adapter
+                    val char = loginInfo[name]?.takeIf { c -> c.isNotEmpty() } ?: rowUi.default.toString()
+                    rowUi.default = char
+                    val i = items.indexOf(char)
+                    selector.setSelectionSafely(i)
+                    selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                        override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                            rowUi.default = items[position]
+                        }
+                        override fun onNothingSelected(parent: AdapterView<*>?) {
+                            rowUi.default = ""
+                        }
+                    }
+                    binding.flexbox.addView(it.root)
+                    it.root.id = index + 1000
+                }
+
+                Type.button -> ItemFilletTextBinding.inflate(
                     layoutInflater,
                     binding.root,
                     false
@@ -197,7 +243,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     }
                 }
 
-                RowUi.Type.toggle -> ItemFilletTextBinding.inflate(
+                Type.toggle -> ItemFilletTextBinding.inflate(
                     layoutInflater,
                     binding.root,
                     false
@@ -339,13 +385,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
         val loginData = hashMapOf<String, String>()
         rowUis?.forEachIndexed { index, rowUi ->
             when (rowUi.type) {
-                "text", "password" -> {
+                Type.text, Type.password -> {
                     val rowView = binding.root.findViewById<View>(index + 1000)
                     ItemSourceEditBinding.bind(rowView).editText.text.let {
                         loginData[rowUi.name] = it?.toString() ?: rowUi.default ?: "" //没文本的时候存空字符串,而不是删除loginInfo
                     }
                 }
-                "toggle" -> {
+                Type.toggle, Type.select -> {
                     loginData[rowUi.name] = rowUi.default.toString()
                 }
             }
@@ -384,7 +430,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                 val loginInfo = viewModel.loginInfo.toMutableMap()
                 rowUis?.forEachIndexed { index, rowUi ->
                     when (rowUi.type) {
-                        "toggle" -> {
+                        Type.toggle, Type.select -> {
                             loginInfo[rowUi.name] = rowUi.default.toString()
                         }
                     }
@@ -398,6 +444,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
         }
         super.onDismiss(dialog)
         activity?.finish()
+    }
+
+    private fun Spinner.setSelectionSafely(position: Int) {
+        val count = adapter?.count ?: 0
+        if (count > 0) {
+            setSelection(position.coerceIn(0, count - 1))
+        }
     }
 
 }

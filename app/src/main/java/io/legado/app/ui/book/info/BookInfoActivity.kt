@@ -149,7 +149,9 @@ class BookInfoActivity :
             return@registerForActivityResult
         }
         book?.let { book ->
-            viewModel.bookSource = appDb.bookSourceDao.getBookSource(book.origin)
+            viewModel.bookSource = appDb.bookSourceDao.getBookSource(book.origin)?.also { source ->
+                viewModel.hasCustomBtn = source.customButton
+            }
             viewModel.refreshBook(book)
         }
     }

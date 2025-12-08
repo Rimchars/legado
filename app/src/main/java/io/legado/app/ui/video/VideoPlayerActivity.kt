@@ -66,16 +66,19 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
     private var isFullScreen = false
     private var isPortraitVideo = false
     private var orientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    private var menuCustomBtn: MenuItem? = null
     private val bookSourceEditResult =
         registerForActivityResult(StartActivityContract(BookSourceEditActivity::class.java)) {
             if (it.resultCode == RESULT_OK) {
-                VideoPlay.upSource()
+                viewModel.upSource {
+                    menuCustomBtn?.isVisible = (VideoPlay.source as? BookSource)?.customButton == true
+                }
             }
         }
     private val rssSourceEditResult =
         registerForActivityResult(StartActivityContract(RssSourceEditActivity::class.java)) {
             if (it.resultCode == RESULT_OK) {
-                VideoPlay.upSource()
+                viewModel.upSource()
             }
         }
     private val tocActivityResult = registerForActivityResult(TocActivityResult()) {
@@ -370,6 +373,9 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        menuCustomBtn = menu.findItem(R.id.menu_custom_btn)?.also {
+            it.isVisible = (VideoPlay.source as? BookSource)?.customButton == true
+        }
         starMenuItem = menu.findItem(R.id.menu_rss_star)
         upStarMenu()
         return super.onPrepareOptionsMenu(menu)
