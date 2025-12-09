@@ -404,6 +404,13 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
 
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.menu_custom_btn -> {
+                (VideoPlay.source as? BookSource)?.let {source ->
+                    VideoPlay.book?.let { book ->
+                        SourceCallBack.callBackBtn(this, SourceCallBack.CLICK_CUSTOM_BUTTON, source, book, VideoPlay.chapter)
+                    }
+                }
+            }
             R.id.menu_rss_star -> viewModel.addFavorite {
                 VideoPlay.rssStar?.let { showDialogFragment(RssFavoritesDialog(it)) }
             }

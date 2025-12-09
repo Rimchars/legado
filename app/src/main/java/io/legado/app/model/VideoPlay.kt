@@ -80,6 +80,7 @@ object VideoPlay : CoroutineScope by MainScope(){
     var danmakuSpeed = 1.2f
 
     val videoManager by lazy { ExoVideoManager() }
+    private var isLoading = false
     var videoUrl: String? = null //播放链接
     var singleUrl = false
     var videoTitle: String? = null
@@ -186,6 +187,7 @@ object VideoPlay : CoroutineScope by MainScope(){
             }
             return
         }
+        val book = book
         if (book == null) {
             appCtx.toastOnUi("未找到书籍")
             return
@@ -204,11 +206,12 @@ object VideoPlay : CoroutineScope by MainScope(){
                 episodes?.getOrNull(chapterInVolumeIndex)
             }
         }
+        val chapter = chapter
         if (chapter == null) {
             appCtx.toastOnUi("未找到章节")
             return
         }
-        WebBook.getContent(this, source as BookSource, book!!, chapter!!)
+        WebBook.getContent(this, source as BookSource, book, chapter)
             .onSuccess(IO) { content ->
                 val content = content.trim()
                 videoUrl = if (content.isEmpty()) {
@@ -244,6 +247,7 @@ object VideoPlay : CoroutineScope by MainScope(){
             }.onError {
                 AppLog.put("获取资源链接出错\n$it", it, true)
             }
+        isLoading = true
     }
 
     /**
@@ -273,25 +277,27 @@ object VideoPlay : CoroutineScope by MainScope(){
             videoManager.listener().onCompletion()
         }
         videoManager.releaseMediaPlayer()
-        //还原所有状态
-        videoUrl = null
-        singleUrl = false
-        videoTitle = null
-        source = null
-        book = null
-        toc = null
-        chapter = null
-        volumes.clear()
-        episodes = null
-        chapterInVolumeIndex = 0
-        durVolumeIndex = 0
-        durVolume = null
-        durChapterPos = 0
-        inBookshelf = true
-        rssStar = null
-        rssRecord = null
-        danmakuStr = null
-        danmakuFile = null
+        if (!isLoading) {
+            //还原所有状态
+            videoUrl = null
+            singleUrl = false
+            videoTitle = null
+            source = null
+            book = null
+            toc = null
+            chapter = null
+            volumes.clear()
+            episodes = null
+            chapterInVolumeIndex = 0
+            durVolumeIndex = 0
+            durVolume = null
+            durChapterPos = 0
+            inBookshelf = true
+            rssStar = null
+            rssRecord = null
+            danmakuStr = null
+            danmakuFile = null
+        }
     }
     /**
      * 暂停播放
@@ -347,6 +353,7 @@ object VideoPlay : CoroutineScope by MainScope(){
     }
 
     fun initSource(sourceKey: String?, sourceType: Int?, bookUrl: String?, record:String?): Boolean {
+        isLoading = true
         source = sourceKey?.let {
             when (sourceType) {
                 SourceType.book -> appDb.bookSourceDao.getBookSource(it)

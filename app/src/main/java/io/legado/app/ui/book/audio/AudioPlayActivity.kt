@@ -136,9 +136,9 @@ class AudioPlayActivity :
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_custom_btn -> {
-                AudioPlay.bookSource?.customButton?.let {
+                AudioPlay.bookSource?.let {source ->
                     AudioPlay.book?.let { book ->
-                        SourceCallBack.callBackBtn(this,SourceCallBack.CLICK_CUSTOM_BUTTON, AudioPlay.bookSource, book, AudioPlay.durChapter)
+                        SourceCallBack.callBackBtn(this,SourceCallBack.CLICK_CUSTOM_BUTTON, source, book, AudioPlay.durChapter)
                     }
                 }
             }
