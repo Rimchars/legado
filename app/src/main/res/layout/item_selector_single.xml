@@ -6,8 +6,9 @@
 
     <io.legado.app.ui.widget.text.AccentTextView
         android:id="@+id/sp_name"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:padding="3dp"
         android:text="@string/book_type" />
 

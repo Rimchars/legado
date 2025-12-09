@@ -151,6 +151,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     false
                 ).let {
                     binding.flexbox.addView(it.root)
+                    rowUi.style().apply(it.root)
                     it.root.id = index + 1000
                     if (viewName == null) {
                         it.textInputLayout.hint = name
@@ -179,6 +180,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     false
                 ).let {
                     binding.flexbox.addView(it.root)
+                    rowUi.style().apply(it.root)
                     it.root.id = index + 1000
                     if (viewName == null) {
                         it.textInputLayout.hint = name
@@ -247,6 +249,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                         }
                     }
                     binding.flexbox.addView(it.root)
+                    rowUi.style().apply(it.root)
                     it.root.id = index + 1000
                 }
 
