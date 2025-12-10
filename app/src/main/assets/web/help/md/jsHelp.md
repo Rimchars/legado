@@ -73,6 +73,7 @@ java.open(name: String, url: String?, title: String?, origin: String?)
 ```js
 java.copyText(text: String) //复制文本到剪贴板
 java.upLoginData(data: Map<String, String>) //实时更新登录界面信息，参数是键值对对象对象，例如{"telephone":"123"}
+java.refreshBookInfo() //刷新书籍详情页
 ```
 
 ### [AnalyzeUrl](https://github.com/gedoor/legado/blob/master/app/src/main/java/io/legado/app/model/analyzeRule/AnalyzeUrl.kt) 部分函数
