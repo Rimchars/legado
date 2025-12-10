@@ -4,7 +4,7 @@ data class RowUi(
     var name: String = "",
     var type: String = "text",
     var action: String? = null,
-    var chars: Array<String>? = null,
+    var chars: Array<String?>? = null,
     var default: String? = null,
     var viewName: String? = null,
     var style: FlexChildStyle? = null

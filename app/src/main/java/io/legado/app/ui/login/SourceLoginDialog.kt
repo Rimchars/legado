@@ -66,7 +66,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
     private val sourceLoginJsExtensions by lazy {
         SourceLoginJsExtensions(activity as AppCompatActivity, viewModel.source,
             object : SourceLoginJsExtensions.Callback {
-                override fun upUiData(data: Map<String, String>) {
+                override fun upUiData(data: Map<String, String?>) {
                     activity?.runOnUiThread { // 在主线程中更新 UI
                         handleUIDataUpdate(data)
                     }
@@ -75,35 +75,32 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
     }
 
     @SuppressLint("SetTextI18n")
-    private fun handleUIDataUpdate(data: Map<String, String>) {
+    private fun handleUIDataUpdate(data: Map<String, String?>) {
         data.forEach { (key, value) ->
             val index = rowUiName.indexOf(key)
             if (index != -1) {
                 when (val rowView = binding.root.findViewById<View>(index + 1000)) {
                     is TextInputLayout -> {
-                        val text = value
-                        rowView.editText?.setText(text)
+                        rowView.editText?.setText(value ?: "")
                     }
                     is TextView -> {
                         val rowUi = rowUis?.get(index) ?: return
                         when (rowUi.type) {
                             Type.button -> {
-                                rowView.text = value
+                                rowView.text = value ?: rowUi.default
                             }
                             Type.toggle -> {
-                                rowUi.default = value
-                                rowView.text = value + rowUi.name
+                                rowUi.default = value ?: rowUi.default
+                                rowView.text = rowUi.default + (rowUi.viewName ?: rowUi.name)
                             }
                         }
                     }
                     is LinearLayout -> {
                         val rowUi = rowUis?.get(index) ?: return
-                        val items = rowUi.chars ?: arrayOf("chars","is null")
-                        val index = items.indexOf(value)
-                        if (index != -1) {
-                            rowUi.default = value
-                            rowView.findViewById<AppCompatSpinner>(R.id.sp_type)?.setSelectionSafely(index)
-                        }
+                        val items = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
+                        val index = items.indexOf(value ?: rowUi.default)
+                        rowUi.default = value ?: rowUi.default
+                        rowView.findViewById<AppCompatSpinner>(R.id.sp_type)?.setSelectionSafely(index)
                     }
                 }
             }
@@ -228,7 +225,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                             it.spName.text = "err"
                         }
                     }
-                    val items = rowUi.chars ?: arrayOf("chars","is null")
+                    val items = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
                     val adapter = ArrayAdapter(
                         requireContext(),
                         R.layout.item_text_common,
@@ -313,13 +310,16 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     binding.flexbox.addView(it.root)
                     rowUi.style().apply(it.root)
                     it.root.id = index + 1000
-                    val chars = rowUi.chars ?: arrayOf("chars is null")
+                    val chars = rowUi.chars?.filterNotNull() ?: listOf("chars is null")
                     var char = loginInfo[name]?.takeIf { c -> c.isNotEmpty() } ?: rowUi.default ?: chars.getOrNull(0) ?: "chars is []"
                     rowUi.default = char
                     if (viewName == null) {
                         it.textView.text = char + name
                     } else if (viewName.length in 3..9 && viewName.first() == '\'' && viewName.last() == '\'') {
-                        it.textView.text = char + viewName.substring(1, viewName.length - 1)
+                        val n = viewName.substring(1, viewName.length - 1)
+                        rowUi.viewName = n
+                        name = n
+                        it.textView.text = char + n
                     } else {
                         it.textView.text = char + name
                         execute {
@@ -328,7 +328,8 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                             if (n.isNullOrEmpty()) {
                                 it.textView.text = char + "null"
                             } else {
-                                name = n
+                                rowUi.viewName = n //存放新名字，在回调handleUIDataUpdate时用
+                                name = n //下面切换时用
                                 it.textView.text = char + n
                             }
                         }.onError{ _ ->
