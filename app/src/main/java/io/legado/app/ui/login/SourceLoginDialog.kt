@@ -53,6 +53,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSpinner
 import io.legado.app.data.entities.rule.RowUi.Type
 import io.legado.app.ui.widget.text.TextInputLayout
+import kotlin.text.isNotEmpty
 
 
 class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
@@ -62,11 +63,12 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
     private var lastClickTime: Long = 0
     private var oKToClose = false
     private var rowUis: List<RowUi>? = null
+    private var loginUiJson: String? = null
     private var rowUiName = arrayListOf<String>()
     private val sourceLoginJsExtensions by lazy {
         SourceLoginJsExtensions(activity as AppCompatActivity, viewModel.source,
             object : SourceLoginJsExtensions.Callback {
-                override fun upUiData(data: Map<String, String?>) {
+                override fun upUiData(data: Map<String, String?>?) {
                     activity?.runOnUiThread { // 在主线程中更新 UI
                         handleUIDataUpdate(data)
                     }
@@ -75,31 +77,83 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
     }
 
     @SuppressLint("SetTextI18n")
-    private fun handleUIDataUpdate(data: Map<String, String?>) {
-        data.forEach { (key, value) ->
-            val index = rowUiName.indexOf(key)
-            if (index != -1) {
+    private fun handleUIDataUpdate(data: Map<String, String?>?) {
+        if (data == null) {
+            val newRowUis = loginUi(loginUiJson) ?: return
+            newRowUis.forEachIndexed { index, newRowUi ->
+                val default = newRowUi.default
                 when (val rowView = binding.root.findViewById<View>(index + 1000)) {
                     is TextInputLayout -> {
-                        rowView.editText?.setText(value ?: "")
+                        rowView.editText?.setText(default ?: "")
                     }
+
                     is TextView -> {
-                        val rowUi = rowUis?.get(index) ?: return
+                        val rowUi = rowUis?.getOrNull(index) ?: return@forEachIndexed
                         when (rowUi.type) {
                             Type.button -> {
-                                rowView.text = value ?: rowUi.default
+                                rowView.text = newRowUi.name
                             }
                             Type.toggle -> {
-                                rowUi.default = value ?: rowUi.default
+                                rowUi.default = default ?: run{
+                                    val chars = rowUi.chars?.filterNotNull() ?: listOf("chars is null")
+                                    chars.getOrNull(0) ?: ""
+                                }
                                 rowView.text = rowUi.default + (rowUi.viewName ?: rowUi.name)
                             }
                         }
                     }
+
                     is LinearLayout -> {
-                        val rowUi = rowUis?.get(index) ?: return
+                        val rowUi = rowUis?.getOrNull(index) ?: return@forEachIndexed
                         val items = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
-                        val index = items.indexOf(value ?: rowUi.default)
-                        rowUi.default = value ?: rowUi.default
+                        val index = items.indexOf(default)
+                        rowUi.default = default ?: run{
+                            items.getOrNull(0) ?: ""
+                        }
+                        rowView.findViewById<AppCompatSpinner>(R.id.sp_type)?.setSelectionSafely(index)
+                    }
+                }
+            }
+            return
+        }
+
+        data.forEach { (key, value) ->
+            val index = rowUiName.indexOf(key)
+            val value = value
+            if (index != -1) {
+                when (val rowView = binding.root.findViewById<View>(index + 1000)) {
+                    is TextInputLayout -> {
+                        val value = value ?: run {
+                            val rowUi = rowUis?.getOrNull(index) ?: return@forEach
+                            rowUi.default ?: ""
+                        }
+                        rowView.editText?.setText(value)
+                    }
+
+                    is TextView -> {
+                        val rowUi = rowUis?.getOrNull(index) ?: return@forEach
+                        when (rowUi.type) {
+                            Type.button -> {
+                                rowView.text = value ?: key
+                            }
+
+                            Type.toggle -> {
+                                rowUi.default = value ?: run{
+                                    val chars = rowUi.chars?.filterNotNull() ?: listOf("chars is null")
+                                    chars.getOrNull(0) ?: ""
+                                }
+                                rowView.text = rowUi.default + (rowUi.viewName ?: rowUi.name)
+                            }
+                        }
+                    }
+
+                    is LinearLayout -> {
+                        val rowUi = rowUis?.getOrNull(index) ?: return@forEach
+                        val items = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
+                        val index = items.indexOf(value)
+                        rowUi.default = value ?: run{
+                            items.getOrNull(0) ?: ""
+                        }
                         rowView.findViewById<AppCompatSpinner>(R.id.sp_type)?.setSelectionSafely(index)
                     }
                 }
@@ -401,20 +455,21 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         val source = viewModel.source ?: return
         val loginUiStr = source.loginUi ?: return
-        val jsCode = loginUiStr.let {
+        val codeStr = loginUiStr.let {
             when {
                 it.startsWith("@js:") -> it.substring(4)
                 it.startsWith("<js>") -> it.substring(4, it.lastIndexOf("<"))
                 else -> null
             }
         }
-        if (jsCode != null) {
+        if (codeStr != null) {
             lifecycleScope.launch(Main) {
-                rowUis = loginUi(evalUiJs(jsCode))
+                loginUiJson = evalUiJs(codeStr)
+                rowUis = loginUi(loginUiJson)
                 buttonUi(source, rowUis)
             }
-        }
-        else {
+        } else {
+            loginUiJson = loginUiStr
             rowUis = loginUi(loginUiStr)
             buttonUi(source, rowUis)
         }
@@ -461,7 +516,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     }
                 }
                 Type.toggle, Type.select -> {
-                    loginData[rowUi.name] = rowUi.default.toString()
+                    loginData[rowUi.name] = rowUi.default ?: ""
                 }
             }
         }
@@ -497,10 +552,10 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
         if (!oKToClose) {
             lifecycleScope.launch(IO) {
                 val loginInfo = viewModel.loginInfo.toMutableMap()
-                rowUis?.forEachIndexed { index, rowUi ->
+                rowUis?.forEach{ rowUi ->
                     when (rowUi.type) {
                         Type.toggle, Type.select -> {
-                            loginInfo[rowUi.name] = rowUi.default.toString()
+                            loginInfo[rowUi.name] = rowUi.default ?: ""
                         }
                     }
                 }

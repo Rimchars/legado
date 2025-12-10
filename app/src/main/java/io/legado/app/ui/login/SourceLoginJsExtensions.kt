@@ -13,10 +13,10 @@ class SourceLoginJsExtensions(
 ) : RssJsExtensions(activity, source) {
 
     interface Callback {
-        fun upUiData(data: Map<String, String?>)
+        fun upUiData(data: Map<String, String?>?)
     }
 
-    fun upLoginData(data: Map<String, String?>) {
+    fun upLoginData(data: Map<String, String?>?) {
         callback?.upUiData(data)
     }
 

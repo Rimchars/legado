@@ -1,8 +1,8 @@
 package io.legado.app.data.entities.rule
 
 data class RowUi(
-    var name: String = "",
-    var type: String = "text",
+    val name: String = "",
+    val type: String = "text",
     var action: String? = null,
     var chars: Array<String?>? = null,
     var default: String? = null,
