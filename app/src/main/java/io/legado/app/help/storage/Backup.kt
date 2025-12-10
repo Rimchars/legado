@@ -180,7 +180,7 @@ object Backup {
             FileUtils.createFileIfNotExist(backupPath + File.separator + BookCover.configFileName)
                 .writeText(GSON.toJson(it))
         }
-        currentCurrentCoroutineContext().ensureActive()
+        currentCoroutineContext().ensureActive()
         appCtx.getSharedPreferences(backupPath, "config")?.let { sp ->
             val edit = sp.edit()
             appCtx.defaultSharedPreferences.all.forEach { (key, value) ->
