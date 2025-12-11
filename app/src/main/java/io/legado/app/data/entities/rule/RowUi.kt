@@ -5,7 +5,7 @@ data class RowUi(
     val type: String = "text",
     var action: String? = null,
     var chars: Array<String?>? = null,
-    var default: String? = null,
+    val default: String? = null,
     var viewName: String? = null,
     var style: FlexChildStyle? = null
 ) {

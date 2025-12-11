@@ -184,7 +184,7 @@ interface BaseSource : JsExtensions {
         put("chapter", null)
     }
 
-    fun getLoginInfoMap(): Map<String, String> {
+    fun getLoginInfoMap(): MutableMap<String, String> {
         val json = getLoginInfo() ?: if (loginUi.isNullOrBlank()) {
             return mutableMapOf()
         } else {
@@ -208,9 +208,9 @@ interface BaseSource : JsExtensions {
                 ?.associate { it.name to (it.default ?: "") }?.also {
                     putLoginInfo(GSON.toJson(it))
                 }
-            return longinInfo ?: mutableMapOf()
+            return longinInfo?.toMutableMap() ?: mutableMapOf()
         }
-        return GSON.fromJsonObject<Map<String, String>>(json).getOrNull() ?: mutableMapOf()
+        return GSON.fromJsonObject<MutableMap<String, String>>(json).getOrNull() ?: mutableMapOf()
     }
 
     /**
