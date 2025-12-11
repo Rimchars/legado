@@ -426,7 +426,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
             when (item.itemId) {
                 R.id.menu_ok -> {
                     oKToClose = true
-                    val loginData = getLoginData(rowUis)
+                    val loginData = getLoginData(rowUis, true)
                     login(source, loginData)
                 }
 
@@ -499,19 +499,22 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
         }
     }
 
-    private fun getLoginData(rowUis: List<RowUi>?): MutableMap<String, String> {
-        val loginInfo = viewModel.loginInfo
+    private fun getLoginData(rowUis: List<RowUi>?, save: Boolean = false): MutableMap<String, String> {
+        val loginData = hashMapOf<String, String>()
         rowUis?.forEachIndexed { index, rowUi ->
             when (rowUi.type) {
                 Type.text, Type.password -> {
                     val rowView = binding.root.findViewById<View>(index + 1000)
                     ItemSourceEditBinding.bind(rowView).editText.text.let {
-                        loginInfo[rowUi.name] = it?.toString() ?: rowUi.default ?: "" //没文本的时候存空字符串,而不是删除loginInfo
+                        loginData[rowUi.name] = it?.toString() ?: rowUi.default ?: "" //没文本的时候存空字符串,而不是删除loginInfo
                     }
                 }
             }
         }
-        return loginInfo
+        if (save) {
+            return viewModel.loginInfo.apply { putAll(loginData) }
+        }
+        return viewModel.loginInfo.toMutableMap().apply { putAll(loginData) }
     }
 
     private fun login(source: BaseSource, loginData: MutableMap<String, String>) {
