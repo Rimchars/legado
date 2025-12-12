@@ -191,12 +191,12 @@ interface BaseSource : JsExtensions {
             val loginUiJson = loginUi?.let {
                 when {
                     it.startsWith("@js:") -> evalJS(
-                        (getLoginJs() ?: "") + it.substring(4),
+                        "${getLoginJs() ?: ""}\n${it.substring(4)}",
                         configureScriptBindings()
                     ).toString()
 
                     it.startsWith("<js>") -> evalJS(
-                        (getLoginJs() ?: "") + it.substring(4, it.lastIndexOf("<")),
+                        "${getLoginJs() ?: ""}\n${it.substring(4, it.lastIndexOf("<"))}",
                         configureScriptBindings()
                     ).toString()
 
@@ -205,7 +205,8 @@ interface BaseSource : JsExtensions {
             }
             val longinInfo = GSON.fromJsonArray<RowUi>(loginUiJson).getOrNull()
                 ?.filter { it.type != "button" }
-                ?.associate { it.name to (it.default ?: "") }?.also {
+                ?.associate { it.name to (it.default ?: "") }
+                ?.takeIf { it.isNotEmpty() }?.also {
                     putLoginInfo(GSON.toJson(it))
                 }
             return longinInfo?.toMutableMap() ?: mutableMapOf()
