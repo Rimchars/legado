@@ -72,7 +72,7 @@ import io.legado.app.utils.applyNavigationBarPadding
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.gone
 import io.legado.app.utils.longToastOnUi
-import io.legado.app.utils.observeEventSticky
+import io.legado.app.utils.observeEvent
 import io.legado.app.utils.openFileUri
 import io.legado.app.utils.sendToClip
 import io.legado.app.utils.showDialogFragment
@@ -327,7 +327,7 @@ class BookInfoActivity :
             }
         }
 
-        observeEventSticky<Boolean>(EventBus.REFRESH_BOOK_INFO) { //书源js函数触发刷新
+        observeEvent<Boolean>(EventBus.REFRESH_BOOK_INFO) { //书源js函数触发刷新
             refreshBook()
         }
     }

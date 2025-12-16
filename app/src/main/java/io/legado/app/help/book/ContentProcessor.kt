@@ -147,7 +147,7 @@ class ContentProcessor private constructor(
             val useHtmlMap = mutableMapOf<String, String>()
             if (AppConfig.adaptSpecialStyle) { //html处理
                 mContent = AppPattern.useHtmlRegex.replace(mContent) { matchResult ->
-                    val placeholder = "使用html_${useHtmlMap.size}。"
+                    val placeholder = "特殊格式的占位不应该被看见${useHtmlMap.size}。"
                     useHtmlMap[placeholder] = "\n${matchResult.value.replace("\n","")}\n"
                     placeholder
                 }
