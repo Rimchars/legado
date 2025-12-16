@@ -94,8 +94,8 @@ android {
             }
             manifestPlaceholders.put("app_name", "@string/app_name")
 
-            applicationIdSuffix '.debug'
-            versionNameSuffix 'debug'
+            applicationIdSuffix '.debuga'
+            versionNameSuffix 'debuga'
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'cronet-proguard-rules.pro'
         }
