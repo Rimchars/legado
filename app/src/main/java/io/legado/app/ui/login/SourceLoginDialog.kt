@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.DialogInterface
 import android.os.Bundle
 import android.text.InputType
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.setPadding
@@ -93,11 +94,14 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                                 rowView.text = rowUi.name
                             }
                             Type.toggle -> {
-                                loginInfo[rowUi.name] = default ?: run{
+                                val char = default ?: run{
                                     val chars = rowUi.chars?.filterNotNull() ?: listOf("chars is null")
                                     chars.getOrNull(0) ?: ""
                                 }
-                                rowView.text = rowUi.default + (rowUi.viewName ?: rowUi.name)
+                                loginInfo[rowUi.name] = char
+                                val name =  rowUi.viewName ?: rowUi.name
+                                val left = rowUi.style?.layout_justifySelf != "right"
+                                rowView.text = if (left) char + name else name + char
                             }
                         }
                     }
@@ -136,11 +140,14 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                             }
 
                             Type.toggle -> {
-                                loginInfo[rowUi.name] = value ?: run{
+                                val char = value ?: run{
                                     val chars = rowUi.chars?.filterNotNull() ?: listOf("chars is null")
                                     chars.getOrNull(0) ?: ""
                                 }
-                                rowView.text = rowUi.default + (rowUi.viewName ?: rowUi.name)
+                                loginInfo[rowUi.name] = char
+                                val name =  rowUi.viewName ?: rowUi.name
+                                val left = rowUi.style?.layout_justifySelf != "right"
+                                rowView.text = if (left) char + name else name + char
                             }
                         }
                     }
@@ -201,7 +208,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     false
                 ).let {
                     binding.flexbox.addView(it.root)
-                    rowUi.style().apply(it.root)
+                    rowUi.style().apply {
+                        when (this.layout_justifySelf) {
+                            "center" -> it.editText.gravity = Gravity.CENTER
+                            "flex_end" -> it.editText.gravity = Gravity.END
+                        }
+                        apply(it.root)
+                    }
                     it.root.id = index + 1000
                     if (viewName == null) {
                         it.textInputLayout.hint = name
@@ -230,7 +243,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     false
                 ).let {
                     binding.flexbox.addView(it.root)
-                    rowUi.style().apply(it.root)
+                    rowUi.style().apply {
+                        when (this.layout_justifySelf) {
+                            "center" -> it.editText.gravity = Gravity.CENTER
+                            "flex_end" -> it.editText.gravity = Gravity.END
+                        }
+                        apply(it.root)
+                    }
                     it.root.id = index + 1000
                     if (viewName == null) {
                         it.textInputLayout.hint = name
@@ -300,7 +319,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                         }
                     }
                     binding.flexbox.addView(it.root)
-                    rowUi.style().apply(it.root)
+                    rowUi.style().apply {
+                        when (this.layout_justifySelf) {
+                            "flex_start" -> selector.gravity = Gravity.START
+                            "flex_end" -> selector.gravity = Gravity.END
+                        }
+                        apply(it.root)
+                    }
                     it.root.id = index + 1000
                 }
 
@@ -310,7 +335,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     false
                 ).let {
                     binding.flexbox.addView(it.root)
-                    rowUi.style().apply(it.root)
+                    rowUi.style().apply {
+                        when (this.layout_justifySelf) {
+                            "flex_start" -> it.textView.gravity = Gravity.START
+                            "flex_end" -> it.textView.gravity = Gravity.END
+                        }
+                        apply(it.root)
+                    }
                     it.root.id = index + 1000
                     if (viewName == null) {
                         it.textView.text = name
@@ -361,21 +392,29 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     false
                 ).let {
                     var newName = name
+                    var left = true
                     binding.flexbox.addView(it.root)
-                    rowUi.style().apply(it.root)
+                    rowUi.style().apply {
+                        when (this.layout_justifySelf) {
+                            "flex_start" -> it.textView.gravity = Gravity.START
+                            "flex_end" -> it.textView.gravity = Gravity.END
+                            "right" -> left = false
+                        }
+                        apply(it.root)
+                    }
                     it.root.id = index + 1000
                     val chars = rowUi.chars?.filterNotNull() ?: listOf("chars is null")
                     var char = loginInfo[name]?.takeIf { c -> c.isNotEmpty() } ?: rowUi.default ?: chars.getOrNull(0) ?: "chars is []"
                     loginInfo[name] = char
                     if (viewName == null) {
-                        it.textView.text = char + name
+                        it.textView.text = if (left) char + name else name + char
                     } else if (viewName.length in 3..9 && viewName.first() == '\'' && viewName.last() == '\'') {
                         val n = viewName.substring(1, viewName.length - 1)
                         rowUi.viewName = n
                         newName = n
-                        it.textView.text = char + n
+                        it.textView.text = if (left) char + n else n + char
                     } else {
-                        it.textView.text = char + name
+                        it.textView.text = if (left) char + name else name + char
                         execute {
                             evalUiJs(viewName)
                         }.onSuccess { n ->
@@ -384,7 +423,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                             } else {
                                 rowUi.viewName = n //存放新名字，在回调handleUIDataUpdate时用
                                 newName = n //下面切换时用
-                                it.textView.text = char + n
+                                it.textView.text = if (left) char + n else n + char
                             }
                         }.onError{ _ ->
                             it.textView.text = char + "err"
@@ -410,7 +449,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                                 char = chars.getOrNull(nextIndex) ?: ""
                                 hasChange = true
                                 loginInfo[name] = char
-                                it.textView.text = char + newName
+                                it.textView.text = if (left) char + newName else newName + char
                                 handleButtonClick(source, rowUi, rowUis, upTime > downTime + 666)
                             }
                             MotionEvent.ACTION_CANCEL -> {

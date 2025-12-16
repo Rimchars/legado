@@ -589,6 +589,10 @@ class TextChapterLayout(
                         linkUrl)
                 )
                 charIndex++
+                if (charIndex == lineEnd && lineIndex == staticLayout.lineCount - 1) {
+                    textLine.isParagraphEnd = true
+                    durY += lineHeight * paragraphSpacing / 10f //段距
+                }
             }
             if (textFullJustify && !textLine.isParagraphEnd) {
                 justifyHtmlLine(columns, textLine, visibleWidth)
