@@ -38,7 +38,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import splitties.init.appCtx
@@ -55,9 +58,10 @@ class CoverImageView @JvmOverloads constructor(
     companion object {
         private val nameBitmapCache by lazy { LruCache<String, Bitmap>(1024 * 1024 * 99) }
     }
+    private val cacheMutex = Mutex()
     private var viewWidth: Float = 0f
     private var viewHeight: Float = 0f
-    private var defaultCover = false
+    private var drawName = false
     private var cachedBitmap: SoftReference<Bitmap>? = null
     private var currentJob: Job? = null
     private val triggerChannel = Channel<Unit>(Channel.CONFLATED)
@@ -119,8 +123,7 @@ class CoverImageView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        if (defaultCover && !isInEditMode) {
-            if (width <= 0 || height <= 0) return
+        if (drawName && !isInEditMode) {
             val cacheBitmap = cachedBitmap?.get()
             if (cacheBitmap != null) {
                 canvas.drawBitmap(cacheBitmap, 0f, 0f, null)
@@ -132,21 +135,13 @@ class CoverImageView @JvmOverloads constructor(
 
     private fun drawNameAuthor() {
         if (!BookCover.drawBookName) return
+        var pathName = name ?: return
         if (cachedBitmap != null) {
             invalidate()
             return
         }
-        var pathName = name ?: return
         if (BookCover.drawBookAuthor) {
             pathName += author.toString()
-        }
-        if (isSaveBook) {
-            nameBitmapCache[pathName + width]?.also {
-                cachedBitmap = SoftReference(it)
-                defaultCover = true
-                invalidate()
-                return
-            }
         }
         generateCoverAsync(pathName)
     }
@@ -154,15 +149,26 @@ class CoverImageView @JvmOverloads constructor(
         currentJob?.cancel()
         val executeTask: suspend () -> Unit = {
             try {
-                val bitmap = generateCoverBitmap(pathName).also {
-                        if (isSaveBook) {
-                            nameBitmapCache.put(pathName + width, it)
+                var bitmap: Bitmap? = null
+                if (isSaveBook) {
+                    cacheMutex.withLock {
+                        bitmap = nameBitmapCache[pathName + width]
+                    }
+                }
+                if (bitmap == null) {
+                    bitmap = generateCoverBitmap(pathName)
+                    if (isSaveBook && bitmap != null) {
+                        cacheMutex.withLock {
+                            nameBitmapCache.put(pathName + width, bitmap)
                         }
                     }
-                cachedBitmap = SoftReference(bitmap)
-                defaultCover = true
-                withContext(Dispatchers.Main) {
-                    invalidate()
+                }
+                if (bitmap != null) {
+                    cachedBitmap = SoftReference(bitmap)
+                    drawName = true
+                    withContext(Dispatchers.Main) {
+                        invalidate()
+                    }
                 }
             } catch (e: CancellationException) {
                 // 正常取消处理
@@ -175,12 +181,16 @@ class CoverImageView @JvmOverloads constructor(
         currentJob = CoroutineScope(Dispatchers.IO).launch {
             withTimeoutOrNull(1000) {
                 triggerChannel.receive()
+                while (width <= 0 || height <= 0) {
+                    delay(10)
+                }
             }
             executeTask()
         }
     }
 
-    private fun generateCoverBitmap(pathName: String): Bitmap {
+    private fun generateCoverBitmap(pathName: String): Bitmap? {
+        if (width <= 0 || height <= 0) return null
         viewWidth = width.toFloat()
         viewHeight = height.toFloat()
         val bitmap = createBitmap(width, height)
@@ -257,8 +267,10 @@ class CoverImageView @JvmOverloads constructor(
                 target: Target<Drawable>,
                 isFirstResource: Boolean
             ): Boolean {
-                defaultCover = true
-                triggerChannel.trySend(Unit)
+                if (!drawName && name != null) {
+                    drawName = true
+                    triggerChannel.trySend(Unit)
+                }
                 return false
             }
 
@@ -269,7 +281,7 @@ class CoverImageView @JvmOverloads constructor(
                 dataSource: DataSource,
                 isFirstResource: Boolean
             ): Boolean {
-                defaultCover = false
+                drawName = false
                 currentJob?.cancel()
                 return false
             }
@@ -307,18 +319,20 @@ class CoverImageView @JvmOverloads constructor(
         lifecycle: Lifecycle? = null,
         onLoadFinish: (() -> Unit)? = null
     ) {
-        drawNameAuthor()
+        if (author != null) {
+            this.author = author.replace(AppPattern.bdRegex, "").trim()
+        }
+        if (name != null) {
+            this.name = name.replace(AppPattern.bdRegex, "").trim()
+            drawNameAuthor()
+        }
         this.bitmapPath = path
-        this.name = name?.replace(AppPattern.bdRegex, "")?.trim()
-        this.author = author?.replace(AppPattern.bdRegex, "")?.trim()
-//        defaultCover = true
-//        invalidate() 测试发现调用load后会自动刷新
-        if (AppConfig.useDefaultCover || path.isNullOrEmpty()) {
-            defaultCover = true
-            triggerChannel.trySend(Unit)
+        if (AppConfig.useDefaultCover) {
             ImageLoader.load(context, BookCover.defaultDrawable)
                 .centerCrop()
                 .into(this)
+            drawName = true
+            triggerChannel.trySend(Unit)
         } else {
             var options = RequestOptions().set(OkHttpModelLoader.loadOnlyWifiOption, loadOnlyWifi)
             if (sourceOrigin != null) {

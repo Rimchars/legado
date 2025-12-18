@@ -106,7 +106,6 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
 //                    val layoutManager = binding.rvBookshelf.layoutManager
 //                    if (positionStart == 0 && layoutManager is LinearLayoutManager) {
 //                        val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
-//                        println("fuck i " + scrollTo)
 //                        if (scrollTo > 0) {
 //                        binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
 //                        }
@@ -117,7 +116,6 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
 //                    val layoutManager = binding.rvBookshelf.layoutManager
 //                    if (toPosition == 0 && layoutManager is LinearLayoutManager) {
 //                        val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
-//                        println("fuck m " + scrollTo)
 //                        if (scrollTo > 0) {
 //                            binding.rvBookshelf.scrollToPosition( scrollTo)
 //                        }
