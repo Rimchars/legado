@@ -60,10 +60,10 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
     private val binding by viewBinding(FragmentBookshelf2Binding::bind)
     private val bookshelfLayout by lazy { AppConfig.bookshelfLayout }
     private val booksAdapter: BaseBooksAdapter<*> by lazy {
-        if (bookshelfLayout < 2) {
-            BooksAdapterList(requireContext(), this)
-        } else {
+        if (bookshelfLayout >= 2) {
             BooksAdapterGrid(requireContext(), this)
+        } else {
+            BooksAdapterList(requireContext(), this)
         }
     }
     private var bookGroups: List<BookGroup> = emptyList()
@@ -94,23 +94,35 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         }
         binding.rvBookshelf.itemAnimator = null
         binding.rvBookshelf.adapter = booksAdapter
-        booksAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                val layoutManager = binding.rvBookshelf.layoutManager
-                if (positionStart == 0 && layoutManager is LinearLayoutManager) {
-                    val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
-                    binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
-                }
-            }
-
-            override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
-                val layoutManager = binding.rvBookshelf.layoutManager
-                if (toPosition == 0 && layoutManager is LinearLayoutManager) {
-                    val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
-                    binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
-                }
-            }
-        })
+        /**
+         * 采用 layoutManager?.onRestoreInstanceState(layoutState)
+         * 恢复滚动位置,注释掉下方代码
+         * **/
+//        if (bookshelfLayout >= 2) {
+//            booksAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+//                override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+//                    val layoutManager = binding.rvBookshelf.layoutManager
+//                    if (positionStart == 0 && layoutManager is LinearLayoutManager) {
+//                        val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
+//                        println("fuck i " + scrollTo)
+//                        if (scrollTo > 0) {
+//                        binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
+//                        }
+//                    }
+//                }
+//
+//                override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
+//                    val layoutManager = binding.rvBookshelf.layoutManager
+//                    if (toPosition == 0 && layoutManager is LinearLayoutManager) {
+//                        val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
+//                        println("fuck m " + scrollTo)
+//                        if (scrollTo > 0) {
+//                            binding.rvBookshelf.scrollToPosition( scrollTo)
+//                        }
+//                    }
+//                }
+//            })
+//        }
         binding.rvBookshelf.addItemDecoration( object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(
                 outRect: Rect,

@@ -120,23 +120,30 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         }
         booksAdapter.stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY
         binding.rvBookshelf.adapter = booksAdapter
-        booksAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                val layoutManager = binding.rvBookshelf.layoutManager
-                if (positionStart == 0 && itemCount == 1 && layoutManager is LinearLayoutManager) {
-                    val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
-                    binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
-                }
-            }
-
-            override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
-                val layoutManager = binding.rvBookshelf.layoutManager
-                if (toPosition == 0 && itemCount == 1 && layoutManager is LinearLayoutManager) {
-                    val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
-                    binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
-                }
-            }
-        })
+        /**
+         * 应该是当初没有使用override val keepScrollPosition = true 加的代码
+         * 最近阅读插入顶部时会造成滚动
+         * 但是采用keepScrollPosition = true复原滚动后,代码就多余了
+         * 采用下面代码反而会向上多滚动一个行
+         * 再加上2025/12/19代码,因为下面的代码会出现很奇怪的自动滚动到顶部现象,没理出原因,注释掉下面代码
+         * **/
+//        booksAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+//            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+//                val layoutManager = binding.rvBookshelf.layoutManager
+//                if (positionStart == 0 && itemCount == 1 && layoutManager is LinearLayoutManager) {
+//                    val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
+//                    binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
+//                }
+//            }
+//
+//            override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
+//                val layoutManager = binding.rvBookshelf.layoutManager
+//                if (toPosition == 0 && itemCount == 1 && layoutManager is LinearLayoutManager) {
+//                    val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
+//                    binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
+//                }
+//            }
+//        })
         binding.rvBookshelf.addItemDecoration( object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(
                 outRect: Rect,

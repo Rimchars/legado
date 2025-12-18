@@ -37,8 +37,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import splitties.init.appCtx
 import java.lang.ref.SoftReference
 
@@ -52,14 +54,13 @@ class CoverImageView @JvmOverloads constructor(
 ) : AppCompatImageView(context, attrs) {
     companion object {
         private val nameBitmapCache by lazy { LruCache<String, Bitmap>(1024 * 1024 * 99) }
-        private val backgroundColor by lazy { appCtx.backgroundColor }
-        private val accentColor by lazy { appCtx.accentColor }
     }
     private var viewWidth: Float = 0f
     private var viewHeight: Float = 0f
     private var defaultCover = false
     private var cachedBitmap: SoftReference<Bitmap>? = null
     private var currentJob: Job? = null
+    private val triggerChannel = Channel<Unit>(Channel.CONFLATED)
     var bitmapPath: String? = null
         private set
     private var isSaveBook = false
@@ -81,6 +82,9 @@ class CoverImageView @JvmOverloads constructor(
         textPaint.textAlign = Paint.Align.CENTER
         textPaint
     }
+
+    private val backgroundColor by lazy { appCtx.backgroundColor }
+    private val accentColor by lazy { appCtx.accentColor }
 
     override fun setLayoutParams(params: ViewGroup.LayoutParams?) {
         if (params != null) {
@@ -116,25 +120,31 @@ class CoverImageView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (defaultCover && !isInEditMode) {
-            drawNameAuthor(canvas)
+            if (width <= 0 || height <= 0) return
+            val cacheBitmap = cachedBitmap?.get()
+            if (cacheBitmap != null) {
+                canvas.drawBitmap(cacheBitmap, 0f, 0f, null)
+            } else if (currentJob == null) {
+                drawNameAuthor()
+            }
         }
     }
 
-    private fun drawNameAuthor(canvas: Canvas) {
+    private fun drawNameAuthor() {
         if (!BookCover.drawBookName) return
-        if (width <= 0 || height <= 0) return
-        var pathName = name ?: return
-        cachedBitmap?.get()?.let {
-            canvas.drawBitmap(it, 0f, 0f, null)
+        if (cachedBitmap != null) {
+            invalidate()
             return
         }
+        var pathName = name ?: return
+        if (BookCover.drawBookAuthor) {
+            pathName += author.toString()
+        }
         if (isSaveBook) {
-            if (BookCover.drawBookAuthor) {
-                pathName += author.toString()
-            }
-            val cacheBitmap = nameBitmapCache[pathName + width]
-            if (cacheBitmap != null) {
-                canvas.drawBitmap(cacheBitmap, 0f, 0f, null)
+            nameBitmapCache[pathName + width]?.also {
+                cachedBitmap = SoftReference(it)
+                defaultCover = true
+                invalidate()
                 return
             }
         }
@@ -150,6 +160,7 @@ class CoverImageView @JvmOverloads constructor(
                         }
                     }
                 cachedBitmap = SoftReference(bitmap)
+                defaultCover = true
                 withContext(Dispatchers.Main) {
                     invalidate()
                 }
@@ -162,9 +173,13 @@ class CoverImageView @JvmOverloads constructor(
             }
         }
         currentJob = CoroutineScope(Dispatchers.IO).launch {
+            withTimeoutOrNull(1000) {
+                triggerChannel.receive()
+            }
             executeTask()
         }
     }
+
     private fun generateCoverBitmap(pathName: String): Bitmap {
         viewWidth = width.toFloat()
         viewHeight = height.toFloat()
@@ -243,6 +258,7 @@ class CoverImageView @JvmOverloads constructor(
                 isFirstResource: Boolean
             ): Boolean {
                 defaultCover = true
+                triggerChannel.trySend(Unit)
                 return false
             }
 
@@ -254,6 +270,7 @@ class CoverImageView @JvmOverloads constructor(
                 isFirstResource: Boolean
             ): Boolean {
                 defaultCover = false
+                currentJob?.cancel()
                 return false
             }
 
@@ -261,37 +278,44 @@ class CoverImageView @JvmOverloads constructor(
     }
 
     fun load(
-        path: String? = null,
-        searchBook: SearchBook? = null,
+        searchBook: SearchBook,
         loadOnlyWifi: Boolean = false,
-        sourceOrigin: String? = null,
         fragment: Fragment? = null,
         lifecycle: Lifecycle? = null
     ) {
-        this.name = searchBook?.name?.replace(AppPattern.bdRegex, "")?.trim()
-        this.author = searchBook?.author?.replace(AppPattern.bdRegex, "")?.trim()
-        load(path, null, loadOnlyWifi, sourceOrigin, fragment, lifecycle, null)
+        load(searchBook.coverUrl, searchBook.name, searchBook.author, loadOnlyWifi, searchBook.origin, fragment, lifecycle)
+    }
+
+    fun load(
+        book: Book,
+        loadOnlyWifi: Boolean = false,
+        fragment: Fragment? = null,
+        lifecycle: Lifecycle? = null,
+        onLoadFinish: (() -> Unit)? = null
+    ) {
+        isSaveBook = true
+       load(book.getDisplayCover(), book.name, book.author, loadOnlyWifi, book.origin, fragment, lifecycle, onLoadFinish)
     }
 
     fun load(
         path: String? = null,
-        book: Book? = null,
+        name: String? = null,
+        author: String? = null,
         loadOnlyWifi: Boolean = false,
         sourceOrigin: String? = null,
         fragment: Fragment? = null,
         lifecycle: Lifecycle? = null,
         onLoadFinish: (() -> Unit)? = null
     ) {
+        drawNameAuthor()
         this.bitmapPath = path
-        book?.let{
-            isSaveBook = true
-            this.name = it.name.replace(AppPattern.bdRegex, "").trim()
-            this.author = it.author.replace(AppPattern.bdRegex, "").trim()
-        }
+        this.name = name?.replace(AppPattern.bdRegex, "")?.trim()
+        this.author = author?.replace(AppPattern.bdRegex, "")?.trim()
 //        defaultCover = true
 //        invalidate() 测试发现调用load后会自动刷新
-        if (AppConfig.useDefaultCover) {
+        if (AppConfig.useDefaultCover || path.isNullOrEmpty()) {
             defaultCover = true
+            triggerChannel.trySend(Unit)
             ImageLoader.load(context, BookCover.defaultDrawable)
                 .centerCrop()
                 .into(this)
