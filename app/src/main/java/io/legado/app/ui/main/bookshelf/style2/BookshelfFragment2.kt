@@ -94,7 +94,6 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         } else {
             binding.rvBookshelf.layoutManager = LinearLayoutManager(context)
         }
-        binding.rvBookshelf.itemAnimator = null
         binding.rvBookshelf.adapter = booksAdapter
         /**
          * 采用 layoutManager?.onRestoreInstanceState(layoutState)

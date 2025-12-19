@@ -38,7 +38,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -57,6 +56,8 @@ class CoverImageView @JvmOverloads constructor(
 ) : AppCompatImageView(context, attrs) {
     companion object {
         private val nameBitmapCache by lazy { LruCache<String, Bitmap>(1024 * 1024 * 99) }
+        private val backgroundColor by lazy { appCtx.backgroundColor }
+        private val accentColor by lazy { appCtx.accentColor }
     }
     private val cacheMutex = Mutex()
     private var viewWidth: Float = 0f
@@ -86,9 +87,6 @@ class CoverImageView @JvmOverloads constructor(
         textPaint.textAlign = Paint.Align.CENTER
         textPaint
     }
-
-    private val backgroundColor by lazy { appCtx.backgroundColor }
-    private val accentColor by lazy { appCtx.accentColor }
 
     override fun setLayoutParams(params: ViewGroup.LayoutParams?) {
         if (params != null) {
@@ -127,13 +125,13 @@ class CoverImageView @JvmOverloads constructor(
             val cacheBitmap = cachedBitmap?.get()
             if (cacheBitmap != null) {
                 canvas.drawBitmap(cacheBitmap, 0f, 0f, null)
-            } else if (currentJob == null) {
-                drawNameAuthor()
+            } else if (AppConfig.useDefaultCover) {
+                drawNameAuthor(false)
             }
         }
     }
 
-    private fun drawNameAuthor() {
+    private fun drawNameAuthor(asyncAwait: Boolean = true) {
         if (!BookCover.drawBookName) return
         var pathName = name ?: return
         if (cachedBitmap != null) {
@@ -143,9 +141,9 @@ class CoverImageView @JvmOverloads constructor(
         if (BookCover.drawBookAuthor) {
             pathName += author.toString()
         }
-        generateCoverAsync(pathName)
+        generateCoverAsync(pathName, asyncAwait)
     }
-    private fun generateCoverAsync(pathName: String) {
+    private fun generateCoverAsync(pathName: String, asyncAwait: Boolean) {
         currentJob?.cancel()
         val executeTask: suspend () -> Unit = {
             try {
@@ -164,8 +162,8 @@ class CoverImageView @JvmOverloads constructor(
                     }
                 }
                 if (bitmap != null) {
-                    cachedBitmap = SoftReference(bitmap)
                     drawName = true
+                    cachedBitmap = SoftReference(bitmap)
                     withContext(Dispatchers.Main) {
                         invalidate()
                     }
@@ -179,10 +177,9 @@ class CoverImageView @JvmOverloads constructor(
             }
         }
         currentJob = CoroutineScope(Dispatchers.IO).launch {
-            withTimeoutOrNull(1000) {
-                triggerChannel.receive()
-                while (width <= 0 || height <= 0) {
-                    delay(10)
+            if (asyncAwait) {
+                withTimeoutOrNull(1000) {
+                    triggerChannel.receive()
                 }
             }
             executeTask()
@@ -267,10 +264,7 @@ class CoverImageView @JvmOverloads constructor(
                 target: Target<Drawable>,
                 isFirstResource: Boolean
             ): Boolean {
-                if (!drawName && name != null) {
-                    drawName = true
-                    triggerChannel.trySend(Unit)
-                }
+                triggerChannel.trySend(Unit)
                 return false
             }
 
@@ -324,16 +318,15 @@ class CoverImageView @JvmOverloads constructor(
         }
         if (name != null) {
             this.name = name.replace(AppPattern.bdRegex, "").trim()
-            drawNameAuthor()
         }
         this.bitmapPath = path
         if (AppConfig.useDefaultCover) {
+            drawName = true
             ImageLoader.load(context, BookCover.defaultDrawable)
                 .centerCrop()
                 .into(this)
-            drawName = true
-            triggerChannel.trySend(Unit)
         } else {
+            drawNameAuthor()
             var options = RequestOptions().set(OkHttpModelLoader.loadOnlyWifiOption, loadOnlyWifi)
             if (sourceOrigin != null) {
                 options = options.set(OkHttpModelLoader.sourceOriginOption, sourceOrigin)
