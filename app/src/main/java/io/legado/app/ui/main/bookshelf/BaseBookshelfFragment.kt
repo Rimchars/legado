@@ -3,6 +3,7 @@ package io.legado.app.ui.main.bookshelf
 import android.annotation.SuppressLint
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import androidx.core.view.indices
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -167,7 +168,7 @@ abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfVi
         alert(titleResource = R.string.bookshelf_layout) {
             var bookshelfLayout = AppConfig.bookshelfLayout
             var bookshelfSort = AppConfig.bookshelfSort
-            val showBookname = AppConfig.showBookname
+            var showBookname = AppConfig.showBookname
             val alertBinding =
                 DialogBookshelfConfigBinding.inflate(layoutInflater)
                     .apply {
@@ -181,6 +182,10 @@ abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfVi
                         if (bookshelfSort !in rgSort.indices) {
                             bookshelfSort = 0
                             AppConfig.bookshelfSort = 0
+                        }
+                        if (showBookname !in rgbLayout.indices) {
+                            showBookname = 0
+                            AppConfig.showBookname = 0
                         }
                         spGroupStyle.setSelection(AppConfig.bookGroupStyle)
                         swShowUnread.isChecked = AppConfig.showUnread
