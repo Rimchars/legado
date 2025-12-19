@@ -74,7 +74,10 @@ jobs:
               IS_MERGE_PR=true
             fi
           fi
-          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q "app/src/main/assets/updateLog.md"; then
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null)
+          UPDATE_LOG_CHANGED=$(echo "$CHANGED_FILES" | grep -q "app/src/main/assets/updateLog.md" && echo "yes" || echo "no")
+          CRONET_JSON_CHANGED=$(echo "$CHANGED_FILES" | grep -q "app/src/main/assets/cronet.json" && echo "yes" || echo "no")
+          if [ "$UPDATE_LOG_CHANGED" = "yes" ] && [ "$CRONET_JSON_CHANGED" = "no" ]; then
             echo "updated=yes" >> $GITHUB_OUTPUT
             if [ -f "app/src/main/assets/updateLog.md" ]; then
               UPDATED_CONTENT=$(awk '
