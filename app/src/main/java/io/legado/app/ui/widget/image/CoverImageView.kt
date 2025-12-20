@@ -282,6 +282,8 @@ class CoverImageView @JvmOverloads constructor(
             ): Boolean {
                 drawName = false
                 currentJob?.cancel()
+                currentJob = null
+                cachedBitmap = null
                 return false
             }
 

@@ -71,6 +71,7 @@ data class BookGroup(
                     && other.cover == cover
                     && other.bookSort == bookSort
                     && other.enableRefresh == enableRefresh
+                    && other.onlyUpdateRead == onlyUpdateRead
                     && other.show == show
                     && other.order == order
         }

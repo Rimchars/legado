@@ -71,6 +71,7 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
     override var groupId = BookGroup.IdRoot
     override var books: List<Book> = emptyList()
     private var enableRefresh = true
+    override var onlyUpdateRead = false
     private val bookshelfMargin by lazy { AppConfig.bookshelfMargin }
     private var itemCount = 0
     private var totalRows = 0
@@ -87,7 +88,7 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         binding.refreshLayout.setColorSchemeColors(accentColor)
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
-            activityViewModel.upToc(books)
+            activityViewModel.upToc(books, onlyUpdateRead)
         }
         if (bookshelfLayout >= 2) {
             binding.rvBookshelf.layoutManager = GridLayoutManager(context, bookshelfLayout)
@@ -193,6 +194,7 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
                 binding.titleBar.title = "${getString(R.string.bookshelf)}(${it.groupName})"
                 binding.refreshLayout.isEnabled = it.enableRefresh
                 enableRefresh = it.enableRefresh
+                onlyUpdateRead = it.onlyUpdateRead
             }
         }
         booksFlowJob?.cancel()
