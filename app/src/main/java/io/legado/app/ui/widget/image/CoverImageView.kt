@@ -38,6 +38,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -148,25 +149,30 @@ class CoverImageView @JvmOverloads constructor(
         val executeTask: suspend () -> Unit = {
             try {
                 var bitmap: Bitmap? = null
-                if (isSaveBook) {
+                if (isSaveBook && width != 0) {
                     cacheMutex.withLock {
                         bitmap = nameBitmapCache[pathName + width]
                     }
                 }
                 if (bitmap == null) {
+                    if (width == 0) {
+                        var attempts = 0
+                        do {
+                            delay(2L)
+                            attempts++
+                        } while (width == 0 && attempts < 100)
+                    }
                     bitmap = generateCoverBitmap(pathName)
-                    if (isSaveBook && bitmap != null) {
+                    if (isSaveBook) {
                         cacheMutex.withLock {
                             nameBitmapCache.put(pathName + width, bitmap)
                         }
                     }
                 }
-                if (bitmap != null) {
-                    drawName = true
-                    cachedBitmap = SoftReference(bitmap)
-                    withContext(Dispatchers.Main) {
-                        invalidate()
-                    }
+                drawName = true
+                cachedBitmap = SoftReference(bitmap)
+                withContext(Dispatchers.Main) {
+                    invalidate()
                 }
             } catch (e: CancellationException) {
                 // 正常取消处理
@@ -186,8 +192,7 @@ class CoverImageView @JvmOverloads constructor(
         }
     }
 
-    private fun generateCoverBitmap(pathName: String): Bitmap? {
-        if (width <= 0 || height <= 0) return null
+    fun generateCoverBitmap(pathName: String): Bitmap {
         viewWidth = width.toFloat()
         viewHeight = height.toFloat()
         val bitmap = createBitmap(width, height)

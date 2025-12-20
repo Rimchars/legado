@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.os.Build
 import android.text.TextPaint
 import androidx.annotation.Keep
+import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.ui.book.read.page.ContentTextView
 import io.legado.app.ui.book.read.page.entities.TextLine
@@ -51,7 +52,7 @@ data class TextHtmlColumn(
         if (linkUrl != null) {
             val textPaint = TextPaint(ChapterProvider.contentPaint).apply {
                 textSize = mTextSize
-                color = ThemeStore.accentColor
+                color = ReadBookConfig.textAccentColor
                 isUnderlineText = true
             }
             drawText(view, canvas, y, textPaint)

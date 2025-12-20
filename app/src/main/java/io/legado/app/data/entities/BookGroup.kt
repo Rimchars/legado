@@ -23,7 +23,10 @@ data class BookGroup(
     @ColumnInfo(defaultValue = "1")
     var show: Boolean = true,
     @ColumnInfo(defaultValue = "-1")
-    var bookSort: Int = -1
+    var bookSort: Int = -1,
+    // 只更新已读
+    @ColumnInfo(defaultValue = "0")
+    var onlyUpdateRead: Boolean = false
 ) : Parcelable {
 
     companion object {
