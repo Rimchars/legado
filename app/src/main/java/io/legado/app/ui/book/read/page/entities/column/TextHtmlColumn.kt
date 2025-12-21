@@ -61,7 +61,7 @@ data class TextHtmlColumn(
         val textPaint = TextPaint(ChapterProvider.contentPaint).apply {
             textSize = mTextSize
             color = if (textLine.isReadAloud || isSearchResult) {
-                ThemeStore.accentColor
+                ReadBookConfig.textAccentColor
             } else {
                 mTextColor
             }
