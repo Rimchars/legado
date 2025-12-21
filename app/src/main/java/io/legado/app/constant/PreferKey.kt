@@ -180,6 +180,9 @@ object PreferKey {
     const val paddingDisplayCutouts = "paddingDisplayCutouts"
     const val autoCheckNewBackup = "autoCheckNewBackup"
 
+    const val dThemeName = "durThemeName"
+    const val dNThemeName = "durThemeNameNight"
+
     const val cPrimary = "colorPrimary"
     const val cAccent = "colorAccent"
     const val cBackground = "colorBackground"

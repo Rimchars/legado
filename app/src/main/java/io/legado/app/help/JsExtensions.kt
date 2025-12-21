@@ -75,6 +75,8 @@ import java.util.zip.ZipInputStream
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import androidx.core.net.toUri
+import io.legado.app.help.config.ReadBookConfig
+import io.legado.app.help.config.ThemeConfig
 
 /**
  * js扩展类, 在js中通过java变量调用
@@ -1126,6 +1128,53 @@ interface JsExtensions : JsEncodeUtils {
             putExtra("sourceOrigin", source.getKey())
             putExtra("sourceName", source.getTag())
             putExtra("sourceType", source.getSourceType())
+        }
+    }
+
+    /**
+     * 获取阅读配置
+     */
+    @JavascriptInterface
+    fun getReadBookConfig(): String {
+        return GSON.toJson(ReadBookConfig.durConfig)
+    }
+
+    fun getReadBookConfigMap(): Map<String, Any> {
+        return ReadBookConfig.durConfig.let {
+            val map = mutableMapOf<String, Any>()
+            it::class.java.declaredFields.forEach { field ->
+                field.isAccessible = true
+                map[field.name] = field.get(it) ?: ""
+            }
+            map
+        }
+    }
+
+    /**
+     * 获取主题模式
+     */
+    @JavascriptInterface
+    fun getThemeMode(): String {
+        return AppConfig.themeMode ?: "0"
+    }
+
+    /**
+     * 获取主题配置
+     */
+    @JavascriptInterface
+    fun getThemeConfig(): String {
+        val themeConfig = ThemeConfig.getDurConfig(appCtx)
+        return GSON.toJson(themeConfig)
+    }
+
+    fun getThemeConfigMap(): Map<String, Any> {
+        return ThemeConfig.getDurConfig(appCtx).let {
+            val map = mutableMapOf<String, Any>()
+            it::class.java.declaredFields.forEach { field ->
+                field.isAccessible = true
+                map[field.name] = field.get(it) ?: ""
+            }
+            map
         }
     }
 
