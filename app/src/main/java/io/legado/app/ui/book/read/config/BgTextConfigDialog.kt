@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.SeekBar
 import androidx.appcompat.widget.TooltipCompat
+import androidx.core.graphics.toColorInt
 import androidx.core.view.isGone
 import com.jaredrummler.android.colorpicker.ColorPickerDialog
 import io.legado.app.R
@@ -40,7 +41,6 @@ import io.legado.app.utils.FileDoc
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.MD5Utils
-import io.legado.app.utils.SelectImageContract
 import io.legado.app.utils.compress.ZipUtils
 import io.legado.app.utils.createFileIfNotExist
 import io.legado.app.utils.createFileReplace
@@ -51,7 +51,6 @@ import io.legado.app.utils.externalFiles
 import io.legado.app.utils.find
 import io.legado.app.utils.getFile
 import io.legado.app.utils.inputStream
-import io.legado.app.utils.launch
 import io.legado.app.utils.longToast
 import io.legado.app.utils.openInputStream
 import io.legado.app.utils.openOutputStream
@@ -82,7 +81,7 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
     private var primaryTextColor = 0
     private var secondaryTextColor = 0
     private val importFormNet = "网络导入"
-    private val selectBgImage = registerForActivityResult(SelectImageContract()) {
+    private val selectBgImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
             setBgFromUri(uri)
         }
@@ -155,7 +154,9 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
                 ivBg.setImageResource(R.drawable.ic_image)
                 ivBg.setColorFilter(primaryTextColor, PorterDuff.Mode.SRC_IN)
                 root.setOnClickListener {
-                    selectBgImage.launch()
+                    selectBgImage.launch {
+                        mode = HandleFileContract.IMAGE
+                    }
                 }
             }
         }
