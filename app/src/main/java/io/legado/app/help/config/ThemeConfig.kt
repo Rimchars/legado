@@ -169,10 +169,10 @@ object ThemeConfig {
 
     fun applyConfig(context: Context, config: Config) {
         try {
-            val primary = Color.parseColor(config.primaryColor)
-            val accent = Color.parseColor(config.accentColor)
-            val background = Color.parseColor(config.backgroundColor)
-            val bBackground = Color.parseColor(config.bottomBackground)
+            val primary = config.primaryColor.toColorInt()
+            val accent = config.accentColor.toColorInt()
+            val background = config.backgroundColor.toColorInt()
+            val bBackground = config.bottomBackground.toColorInt()
             if (config.isNightTheme) {
                 context.putPrefString(PreferKey.dNThemeName, config.themeName)
                 context.putPrefInt(PreferKey.cNPrimary, primary)
@@ -360,6 +360,15 @@ object ThemeConfig {
             }
             return false
         }
+
+        fun toMap() = mapOf(
+            "themeName" to themeName,
+            "isNightTheme" to isNightTheme,
+            "primaryColor" to primaryColor,
+            "accentColor" to accentColor,
+            "backgroundColor" to backgroundColor,
+            "bottomBackground" to bottomBackground
+        )
 
     }
 

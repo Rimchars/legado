@@ -1140,14 +1140,7 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     fun getReadBookConfigMap(): Map<String, Any> {
-        return ReadBookConfig.durConfig.let {
-            val map = mutableMapOf<String, Any>()
-            it::class.java.declaredFields.forEach { field ->
-                field.isAccessible = true
-                map[field.name] = field.get(it) ?: ""
-            }
-            map
-        }
+【        return ReadBookConfig.durConfig.toMap()
     }
 
     /**
@@ -1168,14 +1161,7 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     fun getThemeConfigMap(): Map<String, Any> {
-        return ThemeConfig.getDurConfig(appCtx).let {
-            val map = mutableMapOf<String, Any>()
-            it::class.java.declaredFields.forEach { field ->
-                field.isAccessible = true
-                map[field.name] = field.get(it) ?: ""
-            }
-            map
-        }
+        return ThemeConfig.getDurConfig(appCtx).toMap()
     }
 
 }

@@ -184,7 +184,7 @@ class CoverImageView @JvmOverloads constructor(
         }
         currentJob = CoroutineScope(Dispatchers.IO).launch {
             if (asyncAwait) {
-                withTimeoutOrNull(1000) {
+                withTimeoutOrNull(1200) {
                     triggerChannel.receive()
                 }
             }
@@ -280,10 +280,10 @@ class CoverImageView @JvmOverloads constructor(
                 dataSource: DataSource,
                 isFirstResource: Boolean
             ): Boolean {
-                drawName = false
                 currentJob?.cancel()
                 currentJob = null
                 cachedBitmap = null
+                drawName = false
                 return false
             }
 

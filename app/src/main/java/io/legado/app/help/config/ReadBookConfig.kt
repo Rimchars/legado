@@ -764,7 +764,7 @@ object ReadBookConfig {
                     1 -> {
                         val path = "bg" + File.separator + curBgStr()
                         val bitmap = BitmapUtils.decodeAssetsBitmap(appCtx, path, width, height)
-                        BitmapDrawable(resources, bitmap?.resizeAndRecycle(width, height))
+                        bitmap?.resizeAndRecycle(width, height)?.toDrawable(resources)
                     }
 
                     else -> {
@@ -773,7 +773,7 @@ object ReadBookConfig {
                             else FileUtils.getPath(appCtx.externalFiles, "bg", curBgStr())
                         }
                         val bitmap = BitmapUtils.decodeBitmap(path, width, height)
-                        BitmapDrawable(resources, bitmap?.resizeAndRecycle(width, height))
+                        bitmap?.resizeAndRecycle(width, height)?.toDrawable(resources)
                     }
                 }
             } catch (e: OutOfMemoryError) {
@@ -807,5 +807,71 @@ object ReadBookConfig {
             }
             return path
         }
+
+        fun toMap() = mapOf(
+            "name" to name,
+            "bgStr" to bgStr,
+            "bgStrNight" to bgStrNight,
+            "bgStrEInk" to bgStrEInk,
+            "bgAlpha" to bgAlpha,
+            "bgType" to bgType,
+            "bgTypeNight" to bgTypeNight,
+            "bgTypeEInk" to bgTypeEInk,
+            "darkStatusIcon" to darkStatusIcon,
+            "darkStatusIconNight" to darkStatusIconNight,
+            "darkStatusIconEInk" to darkStatusIconEInk,
+            "textColor" to textColor,
+            "textColorNight" to textColorNight,
+            "textColorEInk" to textColorEInk,
+            "textColorInt" to textColorInt,
+            "textColorIntNight" to textColorIntNight,
+            "textColorIntEInk" to textColorIntEInk,
+            "textAccentColor" to textAccentColor,
+            "textAccentColorNight" to textAccentColorNight,
+            "textAccentColorEInk" to textAccentColorEInk,
+            "textAccentColorInt" to textAccentColorInt,
+            "textAccentColorIntNight" to textAccentColorIntNight,
+            "textAccentColorIntEInk" to textAccentColorIntEInk,
+            "pageAnim" to pageAnim,
+            "pageAnimEInk" to pageAnimEInk,
+            "textFont" to textFont,
+            "textBold" to textBold,
+            "textSize" to textSize,
+            "letterSpacing" to letterSpacing,
+            "lineSpacingExtra" to lineSpacingExtra,
+            "paragraphSpacing" to paragraphSpacing,
+            "titleMode" to titleMode,
+            "titleSize" to titleSize,
+            "titleTopSpacing" to titleTopSpacing,
+            "titleBottomSpacing" to titleBottomSpacing,
+            "paragraphIndent" to paragraphIndent,
+            "underline" to underline,
+            "paddingBottom" to paddingBottom,
+            "paddingLeft" to paddingLeft,
+            "paddingRight" to paddingRight,
+            "paddingTop" to paddingTop,
+            "headerPaddingBottom" to headerPaddingBottom,
+            "headerPaddingLeft" to headerPaddingLeft,
+            "headerPaddingRight" to headerPaddingRight,
+            "headerPaddingTop" to headerPaddingTop,
+            "footerPaddingBottom" to footerPaddingBottom,
+            "footerPaddingLeft" to footerPaddingLeft,
+            "footerPaddingRight" to footerPaddingRight,
+            "footerPaddingTop" to footerPaddingTop,
+            "showHeaderLine" to showHeaderLine,
+            "showFooterLine" to showFooterLine,
+            "tipHeaderLeft" to tipHeaderLeft,
+            "tipHeaderMiddle" to tipHeaderMiddle,
+            "tipHeaderRight" to tipHeaderRight,
+            "tipFooterLeft" to tipFooterLeft,
+            "tipFooterMiddle" to tipFooterMiddle,
+            "tipFooterRight" to tipFooterRight,
+            "tipColor" to tipColor,
+            "tipDividerColor" to tipDividerColor,
+            "headerMode" to headerMode,
+            "footerMode" to footerMode
+        )
+
     }
+
 }
