@@ -54,7 +54,8 @@
     },
     {
         "name": "password",
-        "type": "password"
+        "type": "password",
+        "action": "checkPassword()"
     },
     {
         "name": "注册",
@@ -86,9 +87,15 @@
     },
     {
         "name": "选择排序",
+        "viewName": "'排序按钮别名'",
         "type": "select",
         "chars": ["月票", "人气"],
-        "default": "人气"
+        "default": "人气",
+        "style": {
+            "layout_flexGrow": 0,
+            "layout_flexBasisPercent": -1,
+            "layout_justifySelf": "flex_end"
+        }
     }
 ]
 ```
