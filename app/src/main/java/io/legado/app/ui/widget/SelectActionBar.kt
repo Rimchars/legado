@@ -46,8 +46,8 @@ class SelectActionBar @JvmOverloads constructor(
                 setBackgroundColor(Color.TRANSPARENT)
             } else {
                 setBackgroundColor(context.bottomBackground)
+                elevation = context.elevation
             }
-            elevation = context.elevation
             binding.cbSelectedAll.setTextColor(primaryTextColor)
             TintHelper.setTint(binding.cbSelectedAll, context.accentColor, !bgIsLight)
             binding.ivMenuMore.setColorFilter(disabledColor, PorterDuff.Mode.SRC_IN)
