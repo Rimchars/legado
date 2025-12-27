@@ -340,9 +340,13 @@ class ThemeConfigFragment : PreferenceFragment(),
         readUri(uri) { fileDoc, inputStream ->
             kotlin.runCatching {
                 var file = requireContext().externalFiles
-                val suffix = fileDoc.name.substringAfterLast(".")
+                val suffix = if (fileDoc.name.contains(".9.")) {
+                    ".9." + fileDoc.name.substringAfterLast(".9.")
+                } else {
+                    "." + fileDoc.name.substringAfterLast(".")
+                }
                 val fileName = uri.inputStream(requireContext()).getOrThrow().use {
-                    MD5Utils.md5Encode(it) + ".$suffix"
+                    MD5Utils.md5Encode(it) + suffix
                 }
                 file = FileUtils.createFileIfNotExist(file, preferenceKey, fileName)
                 FileOutputStream(file).use {

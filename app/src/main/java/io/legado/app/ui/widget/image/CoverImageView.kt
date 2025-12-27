@@ -56,7 +56,7 @@ class CoverImageView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : AppCompatImageView(context, attrs) {
     companion object {
-        private val nameBitmapCache by lazy { LruCache<String, Bitmap>(1024 * 1024 * 99) }
+        private val nameBitmapCache by lazy { LruCache<String, Bitmap>(1024 * 1024 * 50) }
         private val backgroundColor by lazy { appCtx.backgroundColor }
         private val accentColor by lazy { appCtx.accentColor }
     }
@@ -184,7 +184,7 @@ class CoverImageView @JvmOverloads constructor(
         }
         currentJob = CoroutineScope(Dispatchers.IO).launch {
             if (asyncAwait) {
-                withTimeoutOrNull(1200) {
+                withTimeoutOrNull(2000) {
                     triggerChannel.receive()
                 }
             }
@@ -320,6 +320,7 @@ class CoverImageView @JvmOverloads constructor(
         lifecycle: Lifecycle? = null,
         onLoadFinish: (() -> Unit)? = null
     ) {
+        drawName = false
         if (author != null) {
             this.author = author.replace(AppPattern.bdRegex, "").trim()
         }
@@ -378,10 +379,11 @@ class CoverImageView @JvmOverloads constructor(
     }
 
     override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
         currentJob?.cancel()
         currentJob = null
         cachedBitmap = null
+        drawName = false
+        super.onDetachedFromWindow()
     }
 
 }

@@ -1,8 +1,8 @@
 package io.legado.app.help.config
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.Drawable
 import android.util.DisplayMetrics
 import androidx.annotation.Keep
 import androidx.appcompat.app.AppCompatDelegate
@@ -34,6 +34,7 @@ import io.legado.app.utils.putPrefString
 import io.legado.app.utils.stackBlur
 import splitties.init.appCtx
 import java.io.File
+import androidx.core.graphics.drawable.toDrawable
 
 @Keep
 object ThemeConfig {
@@ -77,7 +78,7 @@ object ThemeConfig {
         AppCompatDelegate.setDefaultNightMode(targetMode)
     }
 
-    fun getBgImage(context: Context, metrics: DisplayMetrics): Bitmap? {
+    fun getBgImage(context: Context, metrics: DisplayMetrics): Drawable? {
         val bgCfg = when (getTheme()) {
             Theme.Light -> Pair(
                 context.getPrefString(PreferKey.bgImage),
@@ -91,13 +92,18 @@ object ThemeConfig {
 
             else -> null
         } ?: return null
-        if (bgCfg.first.isNullOrBlank()) return null
-        val bgImage = BitmapUtils
-            .decodeBitmap(bgCfg.first!!, metrics.widthPixels, metrics.heightPixels)
-        if (bgCfg.second == 0) {
-            return bgImage
+        val path = bgCfg.first
+        if (path.isNullOrBlank()) return null
+        if (path.endsWith(".9.png")) {
+            val bgDrawable = BitmapUtils.decodeNinePatchDrawable(path, metrics.widthPixels, metrics.heightPixels)
+            return bgDrawable
         }
-        return bgImage?.stackBlur(bgCfg.second)
+        val bgImage = BitmapUtils
+            .decodeBitmap(path, metrics.widthPixels, metrics.heightPixels)
+        if (bgCfg.second == 0) {
+            return bgImage?.toDrawable(context.resources)
+        }
+        return bgImage?.stackBlur(bgCfg.second)?.toDrawable(context.resources)
     }
 
     fun upConfig() {
