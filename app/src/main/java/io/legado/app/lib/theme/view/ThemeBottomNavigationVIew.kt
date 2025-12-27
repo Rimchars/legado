@@ -14,6 +14,7 @@ import io.legado.app.lib.theme.Selector
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getSecondaryTextColor
+import io.legado.app.lib.theme.transparentNavBar
 import io.legado.app.ui.widget.text.BadgeView
 import io.legado.app.utils.ColorUtils
 
@@ -21,8 +22,13 @@ class ThemeBottomNavigationVIew(context: Context, attrs: AttributeSet) :
     BottomNavigationView(context, attrs) {
 
     init {
+        val transparentNavBar = context.transparentNavBar
         val bgColor = context.bottomBackground
-        setBackgroundColor(bgColor)
+        if (transparentNavBar) {
+            setBackgroundColor(Color.TRANSPARENT)
+        } else {
+            setBackgroundColor(bgColor)
+        }
         val textIsDark = ColorUtils.isColorLight(bgColor)
         val textColor = context.getSecondaryTextColor(textIsDark)
         val colorStateList = Selector.colorBuild()

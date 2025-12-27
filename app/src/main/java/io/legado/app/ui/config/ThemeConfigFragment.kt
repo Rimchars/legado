@@ -144,14 +144,16 @@ class ThemeConfigFragment : PreferenceFragment(),
             PreferKey.cPrimary,
             PreferKey.cAccent,
             PreferKey.cBackground,
-            PreferKey.cBBackground -> {
+            PreferKey.cBBackground,
+            PreferKey.tNavBar-> {
                 upTheme(false)
             }
 
             PreferKey.cNPrimary,
             PreferKey.cNAccent,
             PreferKey.cNBackground,
-            PreferKey.cNBBackground -> {
+            PreferKey.cNBBackground,
+            PreferKey.tNavBarN -> {
                 upTheme(true)
             }
 

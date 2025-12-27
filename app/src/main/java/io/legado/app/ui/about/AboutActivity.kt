@@ -52,7 +52,7 @@ class AboutActivity : BaseActivity<ActivityAboutBinding>() {
         when (item.itemId) {
             R.id.menu_scoring -> openUrl("market://details?id=$packageName")
             R.id.menu_share_it -> share(
-                getString(R.string.app_share_description),
+                getString(R.string.app_share_description_sigma),
                 getString(R.string.app_name)
             )
         }
