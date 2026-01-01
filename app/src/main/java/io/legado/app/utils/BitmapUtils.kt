@@ -43,7 +43,8 @@ object BitmapUtils {
     /**
      * 解析点九图片
      */
-    fun decodeNinePatchDrawable(path: String, width: Int, height: Int): Drawable? {
+    @Throws(IOException::class)
+    fun decodeNinePatchDrawable(path: String): Drawable? {
         val fis = FileInputStream(path)
         return fis.use {
             NinePatchDrawable.createFromStream(fis, null)

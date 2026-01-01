@@ -342,8 +342,8 @@ class ThemeConfigFragment : PreferenceFragment(),
         readUri(uri) { fileDoc, inputStream ->
             kotlin.runCatching {
                 var file = requireContext().externalFiles
-                val suffix = if (fileDoc.name.contains(".9.")) {
-                    ".9." + fileDoc.name.substringAfterLast(".9.")
+                val suffix = if (fileDoc.name.endsWith(".9.png", true)) {
+                    ".9.png"
                 } else {
                     "." + fileDoc.name.substringAfterLast(".")
                 }

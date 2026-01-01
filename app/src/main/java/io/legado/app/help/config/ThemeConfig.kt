@@ -97,7 +97,7 @@ object ThemeConfig {
         val path = bgCfg.first
         if (path.isNullOrBlank()) return null
         if (path.endsWith(".9.png")) {
-            val bgDrawable = BitmapUtils.decodeNinePatchDrawable(path, metrics.widthPixels, metrics.heightPixels)
+            val bgDrawable = BitmapUtils.decodeNinePatchDrawable(path)
             return bgDrawable
         }
         val bgImage = BitmapUtils
