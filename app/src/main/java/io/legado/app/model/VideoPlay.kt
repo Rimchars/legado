@@ -80,6 +80,8 @@ object VideoPlay : CoroutineScope by MainScope(){
     var danmakuSpeed = 1.2f
     /**  锁屏  **/
     var lockCurScreen = false
+    /**  竖屏视频  **/
+    var isPortraitVideo = false
 
     val videoManager by lazy { ExoVideoManager() }
     private var isLoading = false
@@ -300,6 +302,7 @@ object VideoPlay : CoroutineScope by MainScope(){
             danmakuStr = null
             danmakuFile = null
             lockCurScreen = false
+            isPortraitVideo = false
         }
     }
     /**
