@@ -388,7 +388,7 @@ class VideoPlayer: StandardGSYVideoPlayer {
             override fun finishDialog() {
                 isChanging = false
             }
-        })
+        }, VideoPlay.chapterInVolumeIndex)
         choiceEpisodeDialog.show()
     }
 
