@@ -331,6 +331,10 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             override fun onPrepared(url: String?, vararg objects: Any?) {
                 super.onPrepared(url, *objects)
                 playerView.post {
+                    val player = playerView.getCurrentPlayer()
+                    if (VideoPlay.lockCurScreen &&  !player.getLockCurScreen()) {
+                        player.lockTouchLogic()
+                    }
                     //根据实际视频比例再次调整
                     val videoWidth = playerView.currentVideoWidth
                     val videoHeight = playerView.currentVideoHeight
