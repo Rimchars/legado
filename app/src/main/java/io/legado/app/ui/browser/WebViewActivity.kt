@@ -52,11 +52,11 @@ import java.net.URLDecoder
 import android.webkit.JavascriptInterface
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.constant.AppLog
-import io.legado.app.help.WebJsExtensions
-import io.legado.app.help.WebJsExtensions.Companion.JSBridgeResult
-import io.legado.app.help.WebJsExtensions.Companion.basicJs
-import io.legado.app.help.WebJsExtensions.Companion.nameBasic
-import io.legado.app.help.WebJsExtensions.Companion.nameJava
+import io.legado.app.help.webView.WebJsExtensions
+import io.legado.app.help.webView.WebJsExtensions.Companion.JSBridgeResult
+import io.legado.app.help.webView.WebJsExtensions.Companion.basicJs
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameBasic
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameJava
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
