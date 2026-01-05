@@ -16,7 +16,9 @@ import io.legado.app.utils.longSnackbar
 import io.legado.app.utils.setDarkeningAllowed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import splitties.init.appCtx
@@ -27,7 +29,8 @@ import kotlin.random.Random
 
 object WebViewPool {
     const val BLANK_HTML = "about:blank"
-    // 未使用的、已预初始化的WebView池 (使用栈结构，后进先出，利用缓存)
+    const val DATA_HTML = "data:text/html;charset=utf-8;base64,"
+    // 未使用的、已预初始化的WebView池 (使用栈结构，后进先出，复用缓存)
     private val idlePool = Stack<PooledWebView>()
     // 正在使用的WebView集合
     private val inUsePool = mutableMapOf<String, PooledWebView>()
@@ -36,33 +39,31 @@ object WebViewPool {
     private val CACHED_WEB_VIEW_MAX_NUM = max(AppConfig.threadCount / 10, 5) // 池子总容量（闲置+使用）
     private const val IDLE_TIME_OUT: Long = 5 * 60 * 1000 // 闲置5分钟后销毁
     private const val IDLE_TIME_OUT_LAST: Long = 30 * 60 * 1000 // 最后一个闲置30分钟后销毁
-
     private val cleanupScope by lazy { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
+    private var cleanupJob: Job? = null
 
     // 获取一个WebView
     @Synchronized
     fun acquire(context: Context): PooledWebView {
-        if (needInitialize) {
-            needInitialize = false
-            startCleanupTimer()
-        }
         val pooledWebView = if (idlePool.isNotEmpty()) {
             idlePool.pop().upContext(context) // 复用闲置实例
         } else {
+            if (needInitialize) {
+                needInitialize = false
+                startCleanupTimer()
+            }
             createNewWebView().upContext(context) // 创建新实例
         }
         pooledWebView.let {
             it.isInUse = true
             inUsePool[it.id] = it
         }
-        println("fuck get ${pooledWebView.id}")
         return pooledWebView
     }
 
     // 释放WebView回池
     @Synchronized
     fun release(pooledWebView: PooledWebView) {
-        println("fuck release ${pooledWebView.id}")
         if (inUsePool.remove(pooledWebView.id) == null) {
             pooledWebView.realWebView.destroy()
             return
@@ -80,6 +81,7 @@ object WebViewPool {
         }
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
     private fun resetWebView(webView: WebView) {
         try {
             val parent = webView.parent
@@ -87,23 +89,23 @@ object WebViewPool {
                 parent.removeView(webView)
             }
             webView.stopLoading()
-            webView.loadUrl(BLANK_HTML)
-            webView.clearHistory() //清除浏览历史
+            webView.clearFocus() //清除焦点
+            webView.setOnLongClickListener(null)
+            webView.webChromeClient = null
+            webView.webViewClient = WebViewClient()
+
             webView.clearCache(false) //清除缓存,应该为true?
+            webView.clearHistory() //清除历史记录
             webView.clearFormData() //清除表单数据
             webView.clearMatches() //清除查找匹配项
             webView.clearSslPreferences() //清除SSL首选项
             webView.clearDisappearingChildren() //清除消失中的子视图
             webView.clearAnimation() //清除动画
-            webView.clearFocus() //清除焦点
-//            webView.pauseTimers() //暂停定时器
-//            webView.onPause() //暂停WebView
             webView.settings.apply {
                 javaScriptEnabled = false
                 javaScriptEnabled = true // 禁用再启用来重置js环境，清理注入的接口，注意需要禁用的订阅源需要再次执行
             }
-            webView.webChromeClient = null
-            webView.webViewClient = WebViewClient()
+            webView.loadUrl(BLANK_HTML)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -119,7 +121,7 @@ object WebViewPool {
         return "web_${System.currentTimeMillis()}_${Random.nextLong()}"
     }
 
-    // 预初始化
+    // 初始化
     @SuppressLint("SetJavaScriptEnabled")
     private fun preInitWebView(webView: WebView) {
         webView.settings.apply {
@@ -139,17 +141,17 @@ object WebViewPool {
                 Download.start(appCtx, url, fileName)
             }
         }
-        // 加载空白页，触发内核初始化
-        webView.loadUrl(BLANK_HTML)
     }
 
     // 定时清理闲置过久的WebView
     private fun startCleanupTimer() {
-        cleanupScope.launch {
+        if (cleanupJob?.isActive == true) return
+        cleanupJob = cleanupScope.launch {
             while (true) {
                 delay(30_000) // 每30秒执行一次清理
                 val now = System.currentTimeMillis()
                 val toRemove = mutableListOf<PooledWebView>()
+                var shouldCancel = false
                 synchronized(this@WebViewPool) {
                     for ((index, pooled) in idlePool.withIndex()) {
                         val timeout = if (index == 0) {
@@ -169,8 +171,16 @@ object WebViewPool {
                             e.printStackTrace()
                         }
                     }
+                    if (idlePool.isEmpty()) {
+                        shouldCancel = true
+                    }
+                }
+                if (shouldCancel) {
+                    needInitialize = true
+                    this@launch.cancel()
                 }
             }
         }
     }
+
 }

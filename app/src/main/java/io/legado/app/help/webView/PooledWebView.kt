@@ -2,8 +2,6 @@ package io.legado.app.help.webView
 
 import android.content.Context
 import android.content.MutableContextWrapper
-import android.webkit.WebView
-import androidx.annotation.UiContext
 import io.legado.app.ui.rss.read.VisibleWebView
 
 class PooledWebView(
