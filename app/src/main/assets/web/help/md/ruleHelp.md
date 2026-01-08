@@ -155,7 +155,7 @@ getResponse(): Response //返回访问结果,网络朗读引擎采用的是这�
 > 正确格式 User-Agent Referer  
 > 错误格式 user-agent referer
 ```
-socks5代理
+socks5代理    不支持需要验证的socks5代理
 { "proxy":"socks5://127.0.0.1:1080" }
 http代理
 { "proxy":"http://127.0.0.1:1080" }
