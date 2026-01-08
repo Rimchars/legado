@@ -330,7 +330,7 @@ window.run("java.toast('执行成功');'成功'")
 
 > "style"键值控制单个图片的样式  
 > 目前支持"text"、"full"、"single"、"left"、"right"  
-> "TEXT"且处于段尾时，占1.5个字符位  
+> 大写"TEXT"时，占1.5个字符位  
 
 ```js
 var url = `https://www.baidu.com/img/flexible/logo/pc/result.png,{"js": "if (book) java.toast('这是'+book.name+'正文的图被点击了');result", "style": "right"}`;

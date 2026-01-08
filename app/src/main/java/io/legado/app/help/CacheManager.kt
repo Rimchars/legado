@@ -95,6 +95,17 @@ object CacheManager {
         return null
     }
 
+    fun get(key: String, onlyDisk: Boolean): String? {
+        if (!onlyDisk) {
+            return get(key)
+        }
+        val cache = appDb.cacheDao.get(key)
+        if (cache != null && (cache.deadline == 0L || cache.deadline > System.currentTimeMillis())) {
+            return cache.value
+        }
+        return null
+    }
+
     fun getInt(key: String): Int? {
         return get(key)?.toIntOrNull()
     }
@@ -150,6 +161,10 @@ object WebCacheManager {
     @JavascriptInterface
     fun get(key: String): String? {
         return CacheManager.get(key)
+    }
+    @JavascriptInterface
+    fun get(key: String, onlyDisk: Boolean): String? {
+        return CacheManager.get(key, onlyDisk)
     }
     @JavascriptInterface
     fun putFile(key: String, value: String, saveTime: Int = 0) {

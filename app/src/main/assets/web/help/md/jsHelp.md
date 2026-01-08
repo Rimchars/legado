@@ -532,6 +532,8 @@ cookie.setWebCookie(url,cookie)
 cache.put(key: String, value: String, saveTime: Int)
 读取数据库
 cache.get(key: String): String?
+读取数据库,onlyDisk为true时只从磁盘读取
+cache.get(key: String, onlyDisk: Boolean): String?
 删除
 cache.delete(key: String)
 缓存文件内容
