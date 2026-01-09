@@ -345,7 +345,9 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
         fun onCloseRequested() {
             val ctx = activityRef.get()
             if (ctx != null && !ctx.isFinishing && !ctx.isDestroyed) {
-                ctx.finish()
+                ctx.runOnUiThread {
+                    ctx.close()
+                }
             }
         }
     }
