@@ -202,9 +202,9 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
             R.id.menu_export -> {
                 if (currentSelect == -1) {
                     toastOnUi(R.string.is_system_tts_no_export)
-                    return@onMenuItemClick true
+                    return true
                 }
-                val tts = adapter.getItem(currentSelect) ?: return@onMenuItemClick true
+                val tts = adapter.getItem(currentSelect) ?: return true
                 exportDirResult.launch {
                     mode = HandleFileContract.EXPORT
                     fileData = HandleFileContract.FileData(
@@ -227,7 +227,6 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
             }
             toastOnUi(R.string.clear_cache_success)
         }
-
     }
 
     private fun importAlert() {

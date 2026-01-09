@@ -25,23 +25,24 @@ import java.lang.ref.WeakReference
 
 
 @Suppress("unused")
-open class RssJsExtensions(activity: AppCompatActivity, private val source: BaseSource?) : JsExtensions {
+open class RssJsExtensions(activity: AppCompatActivity, source: BaseSource?) : JsExtensions {
 
     val activityRef: WeakReference<AppCompatActivity> = WeakReference(activity)
+    val sourceRef: WeakReference<BaseSource?> = WeakReference(source)
 
     override fun getSource(): BaseSource? {
-        return source
+        return sourceRef.get()
     }
 
     @JavascriptInterface
     fun put(key: String, value: String): String {
-        source?.put(key, value)
+        getSource()?.put(key, value)
         return value
     }
 
     @JavascriptInterface
     fun get(key: String): String {
-        return source?.get(key) ?: ""
+        return getSource()?.get(key) ?: ""
     }
 
     @JavascriptInterface
