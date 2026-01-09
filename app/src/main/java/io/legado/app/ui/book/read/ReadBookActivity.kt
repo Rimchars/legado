@@ -140,7 +140,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.core.net.toUri
-import kotlinx.coroutines.cancel
 
 /**
  * 阅读界面
@@ -1694,7 +1693,6 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.readView.onDestroy()
         ReadBook.unregister(this)
         handler.removeCallbacksAndMessages(null) // 清理Handler消息
-        lifecycleScope.cancel() // 取消所有协程
         if (!ReadBook.inBookshelf && !isChangingConfigurations) {
             viewModel.removeFromBookshelf(null)
         }

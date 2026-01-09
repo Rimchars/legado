@@ -435,24 +435,31 @@ jobs:
             fi
           fi
 
-          # 创建新Release
-          RELEASE_JSON=$(curl -sX POST \
-            -H "Content-Type: application/json" \
-            -H "$AUTH_HEADER" \
-            -d '{
-              "tag_name": "'"$TAG_NAME"'",
-              "name": "'"$RELEASE_NAME"'",
-              "body": "'"$UPDATE_CONTENT"'",
-              "target_commitish": "main",
-              "prerelease": '"$PRERELEASE"'
-            }' \
-            "$API_BASE/releases")
-
-          if ! RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id // empty'); then
-            echo "❌ Release创建失败"
-            echo "$RELEASE_JSON"
-            exit 1
-          fi
+          # 创建新Release，带重试机制
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          RELEASE_CREATED=false
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$RELEASE_CREATED" = "false" ]; do
+            RELEASE_JSON=$(curl -X POST --max-time 30 --retry 2 --retry-delay 5 \
+              -H "Content-Type: application/json" \
+              -H "$AUTH_HEADER" \
+              -d '{
+                "tag_name": "'"$TAG_NAME"'",
+                "name": "'"$RELEASE_NAME"'",
+                "body": "'"${UPDATE_CONTENT//\"/\\\"}"'",
+                "target_commitish": "main",
+                "prerelease": '"$PRERELEASE"'
+              }' \
+              "$API_BASE/releases" 2>/dev/null)
+            
+            if [ $? -eq 0 ]; then
+              RELEASE_CREATED=true
+            else
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "⚠️  第 $RETRY_COUNT 次重试创建Release..."
+              sleep 5
+            fi
+          done
 
           # 上传所有APK文件
           for APK_FILE in apk/*.apk; do
