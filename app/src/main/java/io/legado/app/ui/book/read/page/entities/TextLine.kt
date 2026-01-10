@@ -229,7 +229,7 @@ data class TextLine(
      */
     private fun drawUnderline(canvas: Canvas, underlineMode: Int) {
         val paint = ChapterProvider.contentPaint
-        val lineY = height - 1.dpToPx()
+        val lineY = height + (ChapterProvider.lineSpacingExtra * 10 - 11).dpToPx()
         if (underlineMode == 1) {
             canvas.drawLine(
                 lineStart + indentWidth,

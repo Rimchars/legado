@@ -63,6 +63,10 @@ class PageView(context: Context) : FrameLayout(context) {
             val h2 = if (binding.llHeader.isGone) 0 else binding.llHeader.height
             return h1 + h2 + binding.vwRoot.paddingTop
         }
+    val imgBgPaddingStart: Int
+        get() {
+            return binding.vwRoot.paddingStart
+        }
 
     init {
         if (!isInEditMode) {
@@ -399,7 +403,7 @@ class PageView(context: Context) : FrameLayout(context) {
      * @return true:已处理, false:未处理
      */
     fun onClick(x: Float, y: Float): Boolean {
-        return binding.contentTextView.click(x, y - headerHeight)
+        return binding.contentTextView.click(x - imgBgPaddingStart, y - headerHeight)
     }
 
     /**
@@ -409,7 +413,7 @@ class PageView(context: Context) : FrameLayout(context) {
         x: Float, y: Float,
         select: (textPos: TextPos) -> Unit,
     ) {
-        return binding.contentTextView.longPress(x, y - headerHeight, select)
+        return binding.contentTextView.longPress(x - imgBgPaddingStart, y - headerHeight, select)
     }
 
     /**
@@ -419,7 +423,7 @@ class PageView(context: Context) : FrameLayout(context) {
         x: Float, y: Float,
         select: (textPos: TextPos) -> Unit,
     ) {
-        return binding.contentTextView.selectText(x, y - headerHeight, select)
+        return binding.contentTextView.selectText(x - imgBgPaddingStart, y - headerHeight, select)
     }
 
     fun getCurVisiblePage(): TextPage {
@@ -436,7 +440,7 @@ class PageView(context: Context) : FrameLayout(context) {
     }
 
     fun selectStartMove(x: Float, y: Float) {
-        binding.contentTextView.selectStartMove(x, y - headerHeight)
+        binding.contentTextView.selectStartMove(x - imgBgPaddingStart, y - headerHeight)
     }
 
     fun selectStartMoveIndex(
@@ -452,7 +456,7 @@ class PageView(context: Context) : FrameLayout(context) {
     }
 
     fun selectEndMove(x: Float, y: Float) {
-        binding.contentTextView.selectEndMove(x, y - headerHeight)
+        binding.contentTextView.selectEndMove(x - imgBgPaddingStart, y - headerHeight)
     }
 
     fun selectEndMoveIndex(
