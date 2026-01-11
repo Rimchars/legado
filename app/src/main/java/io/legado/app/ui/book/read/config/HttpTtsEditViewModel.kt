@@ -39,6 +39,7 @@ class HttpTtsEditViewModel(app: Application) : BaseViewModel(app) {
 
     fun save(httpTTS: HttpTTS, success: (() -> Unit)? = null) {
         id = httpTTS.id
+        this.httpTTS = httpTTS
         execute {
             appDb.httpTTSDao.insert(httpTTS)
             concurrentRecordMap.remove(httpTTS.getKey()) //删除并发限制缓存

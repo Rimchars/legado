@@ -118,7 +118,7 @@ class DictRuleEditDialog() : BaseDialogFragment(R.layout.dialog_dict_rule_edit, 
     }
 
     private fun isSame(): Boolean{
-        val dictRule = viewModel.dictRule ?: return true
+        val dictRule = viewModel.dictRule ?: return binding.tvRuleName.text.toString().isEmpty()
         return dictRule.name == binding.tvRuleName.text.toString() &&
         dictRule.urlRule == binding.tvUrlRule.text.toString() &&
         dictRule.showRule == binding.tvShowRule.text.toString()

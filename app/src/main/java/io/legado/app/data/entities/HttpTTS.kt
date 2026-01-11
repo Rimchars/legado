@@ -40,8 +40,7 @@ data class HttpTTS(
         return "httpTts:$id"
     }
 
-    fun equal(source: HttpTTS?): Boolean {
-        if (source == null) return false
+    fun equal(source: HttpTTS): Boolean {
         return name == source.name &&
                 url == source.url &&
                 contentType == source.contentType &&

@@ -133,6 +133,7 @@ class HttpTtsEditDialog() : BaseDialogFragment(R.layout.dialog_http_tts_edit, tr
         when (item?.itemId) {
             R.id.menu_fullscreen_edit -> onFullEditClicked()
             R.id.menu_save -> viewModel.save(dataFromView()) {
+                dismissAllowingStateLoss()
                 toastOnUi("保存成功")
             }
             R.id.menu_login -> dataFromView().let { httpTts ->
@@ -181,8 +182,13 @@ class HttpTtsEditDialog() : BaseDialogFragment(R.layout.dialog_http_tts_edit, tr
         )
     }
 
+    private fun isSame(): Boolean{
+        val httpTTS = viewModel.httpTTS ?: return binding.tvName.text.toString().isEmpty()
+        return dataFromView().equal(httpTTS)
+    }
+
     override fun dismiss() {
-        if (!dataFromView().equal(viewModel.httpTTS)) {
+        if (!isSame()) {
             alert(R.string.exit) {
                 setMessage(R.string.exit_no_save)
                 positiveButton(R.string.yes)

@@ -64,7 +64,7 @@ class TxtTocRuleEditDialog() : BaseDialogFragment(R.layout.dialog_toc_regex_edit
             R.id.menu_save -> {
                 val tocRule = getRuleFromView()
                 if (checkValid(tocRule)) {
-                    callback?.saveTxtTocRule(getRuleFromView())
+                    callback?.saveTxtTocRule(tocRule)
                     dismissAllowingStateLoss()
                 }
             }
@@ -117,7 +117,7 @@ class TxtTocRuleEditDialog() : BaseDialogFragment(R.layout.dialog_toc_regex_edit
     }
 
     private fun isSame(): Boolean{
-        val tocRule = viewModel.tocRule ?: return true
+        val tocRule = viewModel.tocRule ?: return binding.tvRuleName.text.toString().isEmpty()
         return binding.run {
             tocRule.name == tvRuleName.text.toString() &&
             tocRule.rule == tvRuleRegex.text.toString() &&
