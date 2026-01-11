@@ -386,7 +386,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
                     val selector = it.spType
                     selector.adapter = adapter
-                    val char = loginInfo[name]?.takeIf { c -> c.isNotEmpty() } ?: rowUi.default.toString()
+                    val infoV = loginInfo[name]
+                    val char = if (infoV.isNullOrEmpty()) {
+                        hasChange = true
+                        rowUi.default.toString()
+                    } else {
+                        infoV
+                    }
                     loginInfo[name] = char
                     val i = items.indexOf(char)
                     selector.setSelectionSafely(i)
@@ -499,7 +505,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     }
                     it.root.id = index + 1000
                     val chars = rowUi.chars?.filterNotNull() ?: listOf("chars is null")
-                    var char = loginInfo[name]?.takeIf { c -> c.isNotEmpty() } ?: rowUi.default ?: chars.getOrNull(0) ?: "chars is []"
+                    val infoV = loginInfo[name]
+                    var char = if (infoV.isNullOrEmpty()) {
+                        hasChange = true
+                        rowUi.default ?: chars.getOrNull(0) ?: "chars is []"
+                    } else {
+                        infoV
+                    }
                     loginInfo[name] = char
                     if (viewName == null) {
                         it.textView.text = if (left) char + name else name + char
