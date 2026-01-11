@@ -26,7 +26,7 @@ class RssArticlesAdapter3(context: Context, callBack: CallBack) :
     companion object {
         private val imageAspectRatio = LruCache<String, Float>(399)
         private const val KEY_NAME = "img_ar_"
-        private const val SAVE_TIME = 60 * 24 * 20 //20天
+        private const val SAVE_TIME = 60 * 60 * 24 * 20 //20天
         private fun getImageAspectRatio(url: String): Float {
             imageAspectRatio[url]?.let {
                 return it
