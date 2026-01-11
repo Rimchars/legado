@@ -383,7 +383,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                         R.layout.item_text_common,
                         items
                     )
-                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                    adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
                     val selector = it.spType
                     selector.adapter = adapter
                     val char = loginInfo[name]?.takeIf { c -> c.isNotEmpty() } ?: rowUi.default.toString()
@@ -414,7 +414,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     rowUi.style().apply {
                         when (this.layout_justifySelf) {
                             "flex_start" -> selector.gravity = Gravity.START
-                            "center" -> selector.gravity = Gravity.CENTER
+                            "flex_end" -> selector.gravity = Gravity.END
                         }
                         apply(it.root)
                     }
