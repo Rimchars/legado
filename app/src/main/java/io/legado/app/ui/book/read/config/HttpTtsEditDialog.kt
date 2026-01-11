@@ -10,7 +10,6 @@ import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.Toolbar
 import androidx.fragment.app.viewModels
-import com.google.android.material.textfield.TextInputLayout
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
 import io.legado.app.data.entities.HttpTTS
@@ -180,6 +179,20 @@ class HttpTtsEditDialog() : BaseDialogFragment(R.layout.dialog_http_tts_edit, tr
             header = binding.tvHeaders.text?.toString(),
             jsLib = binding.tvJsLib.text?.toString()
         )
+    }
+
+    override fun dismiss() {
+        if (!dataFromView().equal(viewModel.httpTTS)) {
+            alert(R.string.exit) {
+                setMessage(R.string.exit_no_save)
+                positiveButton(R.string.yes)
+                negativeButton(R.string.no) {
+                    super.dismiss()
+                }
+            }
+        } else {
+            super.dismiss()
+        }
     }
 
 }
