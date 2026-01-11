@@ -404,28 +404,41 @@ class AnalyzeUrl(
         jsStr: String? = null,
         sourceRegex: String? = null,
         useWebView: Boolean = true,
+        isTest: Boolean = false
     ): StrResponse {
         if (type != null) {
             return StrResponse(url, HexUtil.encodeHexStr(getByteArrayAwait()))
         }
         concurrentRateLimiter.withLimit {
             setCookie()
+            val startTime = System.currentTimeMillis()
             val strResponse: StrResponse
-            if (this.useWebView && useWebView) {
-                strResponse = when (method) {
-                    RequestMethod.POST -> {
-                        val res = getClient().newCallStrResponse(retry) {
-                            addHeaders(headerMap)
-                            url(urlNoQuery)
-                            if (!encodedForm.isNullOrEmpty() || body.isNullOrBlank()) {
-                                postForm(encodedForm ?: "")
-                            } else {
-                                postJson(body)
+            try {
+                if (this.useWebView && useWebView) {
+                    strResponse = when (method) {
+                        RequestMethod.POST -> {
+                            val res = getClient().newCallStrResponse(retry) {
+                                addHeaders(headerMap)
+                                url(urlNoQuery)
+                                if (!encodedForm.isNullOrEmpty() || body.isNullOrBlank()) {
+                                    postForm(encodedForm ?: "")
+                                } else {
+                                    postJson(body)
+                                }
                             }
+                            BackstageWebView(
+                                url = res.url,
+                                html = res.body,
+                                tag = source?.getKey(),
+                                javaScript = webJs ?: jsStr,
+                                sourceRegex = sourceRegex,
+                                headerMap = headerMap,
+                                delayTime = webViewDelayTime
+                            ).getStrResponse()
                         }
-                        BackstageWebView(
-                            url = res.url,
-                            html = res.body,
+
+                        else -> BackstageWebView(
+                            url = url,
                             tag = source?.getKey(),
                             javaScript = webJs ?: jsStr,
                             sourceRegex = sourceRegex,
@@ -433,77 +446,44 @@ class AnalyzeUrl(
                             delayTime = webViewDelayTime
                         ).getStrResponse()
                     }
-
-                    else -> BackstageWebView(
-                        url = url,
-                        tag = source?.getKey(),
-                        javaScript = webJs ?: jsStr,
-                        sourceRegex = sourceRegex,
-                        headerMap = headerMap,
-                        delayTime = webViewDelayTime
-                    ).getStrResponse()
-                }
-            } else {
-                strResponse = getClient().newCallStrResponse(retry) {
-                    addHeaders(headerMap)
-                    when (method) {
-                        RequestMethod.POST -> {
-                            url(urlNoQuery)
-                            val contentType = headerMap["Content-Type"]
-                            val body = body
-                            if (!encodedForm.isNullOrEmpty() || body.isNullOrBlank()) {
-                                postForm(encodedForm ?: "")
-                            } else if (!contentType.isNullOrBlank()) {
-                                val requestBody = body.toRequestBody(contentType.toMediaType())
-                                post(requestBody)
-                            } else {
-                                postJson(body)
+                } else {
+                    strResponse = getClient().newCallStrResponse(retry) {
+                        addHeaders(headerMap)
+                        when (method) {
+                            RequestMethod.POST -> {
+                                url(urlNoQuery)
+                                val contentType = headerMap["Content-Type"]
+                                val body = body
+                                if (!encodedForm.isNullOrEmpty() || body.isNullOrBlank()) {
+                                    postForm(encodedForm ?: "")
+                                } else if (!contentType.isNullOrBlank()) {
+                                    val requestBody = body.toRequestBody(contentType.toMediaType())
+                                    post(requestBody)
+                                } else {
+                                    postJson(body)
+                                }
                             }
+
+                            else -> get(urlNoQuery, encodedQuery)
                         }
-
-                        else -> get(urlNoQuery, encodedQuery)
+                    }.let {
+                        val isXml = it.raw.body.contentType()?.toString()
+                            ?.matches(AppPattern.xmlContentTypeRegex) == true
+                        if (isXml && it.body?.trim()?.startsWith("<?xml", true) == false) {
+                            StrResponse(it.raw, "<?xml version=\"1.0\"?>" + it.body)
+                        } else if (bodyJs != null) {
+                            val body = evalJS(bodyJs!!, it.body).toString()
+                            StrResponse(it.raw, body)
+                        } else it
                     }
-                }.let {
-                    val isXml = it.raw.body.contentType()?.toString()
-                        ?.matches(AppPattern.xmlContentTypeRegex) == true
-                    if (isXml && it.body?.trim()?.startsWith("<?xml", true) == false) {
-                        StrResponse(it.raw, "<?xml version=\"1.0\"?>" + it.body)
-                    } else if (bodyJs != null) {
-                        val body = evalJS(bodyJs!!,it.body).toString()
-                        StrResponse(it.raw, body)
-                    } else it
                 }
-            }
-            return strResponse
-        }
-    }
-
-    /**
-     * 测试网址连接,返回带响应时间的StrResponse
-     * 只有get请求,用来测试网站可用性
-     */
-    suspend fun getStrResponseAwait2(): StrResponse {
-        if (type != null) {
-            return StrResponse(url, HexUtil.encodeHexStr(getByteArrayAwait()))
-        }
-        concurrentRateLimiter.withLimit {
-            setCookie()
-            val startTime = System.currentTimeMillis()
-            return try {
-                val strResponse: StrResponse = getClient().newCallStrResponse(retry) {
-                    addHeaders(headerMap)
-                    get(urlNoQuery, encodedQuery)
-                }.let {
-                    val connectionTime = System.currentTimeMillis() - startTime
-                    it.putCallTime(connectionTime.toInt())
-                    val isXml = it.raw.body.contentType()?.toString()
-                        ?.matches(AppPattern.xmlContentTypeRegex) == true
-                    if (isXml && it.body?.trim()?.startsWith("<?xml", true) == false) {
-                        StrResponse(it.raw, "<?xml version=\"1.0\"?>" + it.body)
-                    } else it
-                }
-                strResponse
+                val connectionTime = System.currentTimeMillis() - startTime
+                strResponse.putCallTime(connectionTime.toInt())
+                return strResponse
             } catch (e: Exception) {
+                if (!isTest) {
+                    throw e
+                }
                 val errorCode = when (e) {
                     is java.net.SocketTimeoutException -> -2  // 超时错误
                     is java.net.UnknownHostException -> -3   // 未找到域名

@@ -144,12 +144,12 @@ java.getWebViewUA(): String
 java.ajax(urlStr): String
 java.ajax(urlStr, callTimeout): String
 java.ajaxAll(urlList: Array<String>): Array<StrResponse>
-java.ajaxTestAll(urlList: Array<String>, timeout: Int): Array<StrResponse> //仅支持get连接
-//仅ajaxTestAll支持callTime()获取响应时间，对应的错误码值（-1超过设定时间，-2超时，-3域名错误，-4连接被拒绝，-5连接被重置，-6SSL证书错误，-7其它错误）
-//返回StrResponse 方法body() code() message() headers() raw() toString() 
+//ajaxTestAll会忽略网络访问错误，错误类型由callTime()获取，对应的错误码值（-1超过设定时间，-2超时，-3域名错误，-4连接被拒绝，-5连接被重置，-6SSL证书错误，-7其它错误），无错误时callTime()为响应时间
+java.ajaxTestAll(urlList: Array<String>, timeout: Int): Array<StrResponse>
 java.connect(urlStr): StrResponse
 java.connect(urlStr, header): StrResponse
 java.connect(urlStr, header, callTimeout): StrResponse
+//返回的StrResponse对象具有的方法 body() code() message() headers() raw() toString() callTime()
 
 java.post(url: String, body: String, headerMap: Map<String, String>): Connection.Response
 java.post(url: String, body: String, headerMap: Map<String, String>, timeout: Int?): Connection.Response

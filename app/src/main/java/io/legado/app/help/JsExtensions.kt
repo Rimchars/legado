@@ -145,7 +145,7 @@ interface JsExtensions : JsEncodeUtils {
                     coroutineContext = coroutineContext,
                     callTimeout = timeout.toLong()
                 )
-                analyzeUrl.getStrResponseAwait2()
+                analyzeUrl.getStrResponseAwait(isTest = true)
             }.flowOn(IO).toList().toTypedArray()
         }
     }
