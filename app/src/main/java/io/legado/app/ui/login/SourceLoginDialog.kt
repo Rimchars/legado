@@ -57,7 +57,6 @@ import io.legado.app.ui.widget.text.TextInputLayout
 import io.legado.app.utils.isTrue
 import io.legado.app.utils.setSelectionSafely
 import kotlin.math.abs
-import kotlin.text.isNotEmpty
 
 
 class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
