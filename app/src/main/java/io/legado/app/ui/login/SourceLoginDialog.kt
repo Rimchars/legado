@@ -81,6 +81,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
 
     @SuppressLint("SetTextI18n")
     private fun handleUIDataUpdate(data: Map<String, String?>?) {
+        hasChange = true
         if (data == null) {
             val newLoginInfo: MutableMap<String, String> = mutableMapOf()
             rowUis?.forEachIndexed { index, rowUi ->
@@ -120,13 +121,11 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                 }
             }
             viewModel.loginInfo = newLoginInfo
-            hasChange = true
             return
         }
         val loginInfo = viewModel.loginInfo
         data.forEach { (key, value) ->
             val index = rowUiName.indexOf(key)
-            val value = value
             if (index != -1) {
                 when (val rowView = binding.root.findViewById<View>(index + 1000)) {
                     is TextInputLayout -> {
@@ -167,6 +166,8 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                         rowView.findViewById<AppCompatSpinner>(R.id.sp_type)?.setSelectionSafely(index)
                     }
                 }
+            } else {
+                loginInfo[key] = value ?: ""
             }
         }
     }

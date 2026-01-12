@@ -115,18 +115,18 @@ class ReadView(context: Context, attrs: AttributeSet) :
     val isAutoPage get() = autoPager.isRunning
 
     init {
-        addView(nextPage)
-        addView(curPage)
-        addView(prevPage)
-        prevPage.invisible()
-        nextPage.invisible()
-        curPage.markAsMainView()
         if (!isInEditMode) {
             upBg()
             setWillNotDraw(false)
             upPageAnim()
             upPageSlopSquare()
         }
+        addView(nextPage)
+        addView(curPage)
+        addView(prevPage)
+        prevPage.invisible()
+        nextPage.invisible()
+        curPage.markAsMainView()
         upPageTouchClick()
     }
 

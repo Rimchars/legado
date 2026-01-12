@@ -138,6 +138,10 @@ class PageView(context: Context) : FrameLayout(context) {
     }
 
     fun upPaddingDisplayCutouts() {
+        if (ReadBookConfig.isNineBgImg) {
+            ViewCompat.setOnApplyWindowInsetsListener(binding.vwRoot, null)
+            return
+        }
         if (AppConfig.paddingDisplayCutouts) {
             binding.vwRoot.setOnApplyWindowInsetsListenerCompat { _, windowInsets ->
                 val insets = windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout())
