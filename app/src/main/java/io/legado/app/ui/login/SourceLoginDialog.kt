@@ -388,7 +388,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     val infoV = loginInfo[name]
                     val char = if (infoV.isNullOrEmpty()) {
                         hasChange = true
-                        rowUi.default.toString()
+                        rowUi.default ?: items[0]
                     } else {
                         infoV
                     }
@@ -507,7 +507,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     val infoV = loginInfo[name]
                     var char = if (infoV.isNullOrEmpty()) {
                         hasChange = true
-                        rowUi.default ?: chars.getOrNull(0) ?: "chars is []"
+                        rowUi.default ?: chars[0]
                     } else {
                         infoV
                     }

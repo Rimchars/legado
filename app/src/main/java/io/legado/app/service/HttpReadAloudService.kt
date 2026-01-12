@@ -351,7 +351,9 @@ class HttpReadAloudService : BaseReadAloudService(),
                             .message("Error Response")
                             .body(e.stackTraceStr.toResponseBody(null))
                             .build()
-                        analyzeUrl.evalJS(checkJs, errResponse) as Response
+                        try {
+                            analyzeUrl.evalJS(checkJs, errResponse)
+                        } catch (_: Exception) { }
                     }
                     throw e
                 }
