@@ -406,7 +406,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                             loginInfo[name] = items[position]
                             if (action != null) {
                                 execute {
-                                    evalUiJs(action)
+                                    handleButtonClick(source, action, name, rowUis, false)
                                 }.onError { e ->
                                     AppLog.put("LoginUI Select $name JavaScript error", e)
                                 }
