@@ -23,10 +23,15 @@ class SourceLoginJsExtensions(
 
     interface Callback {
         fun upUiData(data: Map<String, String?>?)
+        fun reUiView()
     }
 
     fun upLoginData(data: Map<String, String?>?) {
         callback?.upUiData(data)
+    }
+
+    fun reLoginView() {
+        callback?.reUiView()
     }
 
     fun refreshBookInfo() {

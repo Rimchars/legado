@@ -73,14 +73,44 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
             object : SourceLoginJsExtensions.Callback {
                 override fun upUiData(data: Map<String, String?>?) {
                     activity?.runOnUiThread { // 在主线程中更新 UI
-                        handleUIDataUpdate(data)
+                        handleUpUiData(data)
+                    }
+                }
+
+                override fun reUiView() {
+                    activity?.runOnUiThread {
+                        handleReUiView()
                     }
                 }
             })
     }
 
+    private fun handleReUiView() {
+        val source = viewModel.source ?: return
+        val loginUiStr = source.loginUi ?: return
+        val codeStr = loginUiStr.let {
+            when {
+                it.startsWith("@js:") -> it.substring(4)
+                it.startsWith("<js>") -> it.substring(4, it.lastIndexOf("<"))
+                else -> null
+            }
+        }
+        if (codeStr != null) {
+            lifecycleScope.launch(Main) {
+                val loginUiJson = evalUiJs(codeStr)
+                rowUis = loginUi(loginUiJson)
+                binding.flexbox.removeAllViews()
+                rowUiBuilder(source, rowUis)
+            }
+        } else {
+            rowUis = loginUi(loginUiStr)
+            binding.flexbox.removeAllViews()
+            rowUiBuilder(source, rowUis)
+        }
+    }
+
     @SuppressLint("SetTextI18n")
-    private fun handleUIDataUpdate(data: Map<String, String?>?) {
+    private fun handleUpUiData(data: Map<String, String?>?) {
         hasChange = true
         if (data == null) {
             val newLoginInfo: MutableMap<String, String> = mutableMapOf()
@@ -202,7 +232,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
     }
 
     @SuppressLint("ClickableViewAccessibility", "SetTextI18n")
-    private fun buttonUi(source: BaseSource, rowUis: List<RowUi>?) {
+    private fun rowUiBuilder(source: BaseSource, rowUis: List<RowUi>?) {
         val loginInfo = viewModel.loginInfo
         rowUiName.clear()
         rowUis?.forEachIndexed { index, rowUi ->
@@ -568,6 +598,10 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                 }
             }
         }
+    }
+
+    private fun buttonUi(source: BaseSource, rowUis: List<RowUi>?) {
+        rowUiBuilder(source, rowUis)
         binding.toolBar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_ok -> {
