@@ -564,7 +564,7 @@ class AnalyzeUrl(
     /**
      * 返回一个errResponse
      */
-    fun getErrResponse(e: Exception): Response = Response.Builder()
+    fun getErrResponse(e: Throwable): Response = Response.Builder()
         .request(Request.Builder().url(url).build())
         .protocol(okhttp3.Protocol.HTTP_1_1)
         .code(500)
@@ -575,7 +575,7 @@ class AnalyzeUrl(
     /**
      * 返回一个errStrResponse
      */
-    fun getErrStrResponse(e: Exception): StrResponse =
+    fun getErrStrResponse(e: Throwable): StrResponse =
         StrResponse(getErrResponse(e), e.stackTraceStr)
 
     private fun getClient(): OkHttpClient {
