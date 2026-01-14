@@ -1,39 +1,63 @@
 package io.legado.app.ui.main.explore
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import androidx.appcompat.widget.AppCompatSpinner
+import androidx.collection.LruCache
 import androidx.core.view.children
 import com.google.android.flexbox.FlexboxLayout
 import io.legado.app.R
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.base.adapter.RecyclerAdapter
+import io.legado.app.data.appDb
 import io.legado.app.data.entities.BookSourcePart
 import io.legado.app.data.entities.rule.ExploreKind
+import io.legado.app.data.entities.rule.ExploreKind.Type
 import io.legado.app.databinding.ItemFilletTextBinding
 import io.legado.app.databinding.ItemFindBookBinding
+import io.legado.app.databinding.ItemSelectorSingleBinding
+import io.legado.app.databinding.ItemSourceEditBinding
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.source.clearExploreKindsCache
 import io.legado.app.help.source.exploreKinds
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.widget.dialog.TextDialog
+import io.legado.app.ui.widget.text.AccentTextView
+import io.legado.app.ui.widget.text.TextInputLayout
 import io.legado.app.utils.activity
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.gone
 import io.legado.app.utils.removeLastElement
+import io.legado.app.utils.setSelectionSafely
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.visible
 import kotlinx.coroutines.CoroutineScope
 import splitties.views.onLongClick
+import kotlin.collections.set
+import kotlin.text.isNullOrEmpty
 
 class ExploreAdapter(context: Context, val callBack: CallBack) :
     RecyclerAdapter<BookSourcePart, ItemFindBookBinding>(context) {
+    companion object {
+        val exploreInfoMapList = LruCache<String, MutableMap<String, String>>(99)
+    }
+    private val recycler = arrayListOf<TextView>()
+    private val textRecycler = arrayListOf<TextInputLayout>()
+    private val selectRecycler = arrayListOf<LinearLayout>()
 
-    private val recycler = arrayListOf<View>()
     private var exIndex = -1
     private var scrollTo = -1
     private var lastClickTime: Long = 0
@@ -84,33 +108,319 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
         }
     }
 
+    @SuppressLint("SetTextI18n", "ClickableViewAccessibility")
     private fun upKindList(flexbox: FlexboxLayout, sourceUrl: String, kinds: List<ExploreKind>) {
         if (kinds.isNotEmpty()) kotlin.runCatching {
             recyclerFlexbox(flexbox)
             flexbox.visible()
+            val source by lazy { appDb.bookSourceDao.getBookSource(sourceUrl) }
+            val result by lazy {
+                exploreInfoMapList[sourceUrl] ?:  mutableMapOf<String, String>().also {
+                    exploreInfoMapList.put(sourceUrl, it)
+                }
+            }
             kinds.forEach { kind ->
-                val tv = getFlexboxChild(flexbox)
-                flexbox.addView(tv)
-                tv.text = kind.title
-                kind.style().apply(tv)
-                if (kind.url.isNullOrBlank()) {
-                    tv.setOnClickListener(null)
-                } else {
-                    tv.setOnClickListener {
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastClickTime < 200) {
-                            return@setOnClickListener // 按钮200ms防抖
-                        }
-                        lastClickTime = currentTime
-                        it.isSelected = true
-                        it.postDelayed({
-                            it.isSelected = false
-                            if (kind.title.startsWith("ERROR:")) {
-                                it.activity?.showDialogFragment(TextDialog("ERROR", kind.url))
-                            } else {
-                                callBack.openExplore(sourceUrl, kind.title, kind.url)
+                val type = kind.type
+                val title = kind.title
+                val viewName = kind.viewName
+                when (type) {
+                    Type.url -> {
+                        val tv = getFlexboxChild(flexbox)
+                        flexbox.addView(tv)
+                        kind.style().apply {
+                            when (this.layout_justifySelf) {
+                                "flex_start" -> tv.gravity = Gravity.START
+                                "flex_end" -> tv.gravity = Gravity.END
+                                else -> tv.gravity = Gravity.CENTER
                             }
-                        }, 100) // 点击动效,期间展示动画,不响应动作
+                            apply(tv)
+                        }
+                        if (viewName == null) {
+                            tv.text = title
+                        } else if (viewName.length in 3..19 && viewName.first() == '\'' && viewName.last() == '\'') {
+                            val n = viewName.substring(1, viewName.length - 1)
+                            tv.text = n
+                        } else {
+                            tv.text = title
+                            Coroutine.async(callBack.scope) {
+                                source?.evalJS(viewName)?.toString()
+                            }.onSuccess { n ->
+                                if (n.isNullOrEmpty()) {
+                                    tv.text = "null"
+                                } else {
+                                    tv.text = n
+                                }
+                            }.onError{ _ ->
+                                tv.text = "err"
+                            }
+                        }
+                        tv.setOnTouchListener { view, event ->
+                            when (event.action) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    view.isSelected = true
+                                }
+                                MotionEvent.ACTION_UP -> {
+                                    view.isSelected = false
+                                    val upTime = System.currentTimeMillis()
+                                    if (upTime - lastClickTime < 200) {
+                                        return@setOnTouchListener true
+                                    }
+                                    lastClickTime = upTime
+                                    val url = kind.url?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener false
+                                    if (kind.title.startsWith("ERROR:")) {
+                                        view.activity?.showDialogFragment(TextDialog("ERROR", url))
+                                    } else {
+                                        callBack.openExplore(sourceUrl, kind.title, url)
+                                    }
+                                }
+                                MotionEvent.ACTION_CANCEL -> {
+                                    view.isSelected = false
+                                }
+                            }
+                            return@setOnTouchListener true
+                        }
+                    }
+
+                    Type.button -> {
+                        val tv = getFlexboxChild(flexbox)
+                        flexbox.addView(tv)
+                        kind.style().apply {
+                            when (this.layout_justifySelf) {
+                                "flex_start" -> tv.gravity = Gravity.START
+                                "flex_end" -> tv.gravity = Gravity.END
+                                else -> tv.gravity = Gravity.CENTER
+                            }
+                            apply(tv)
+                        }
+                        if (viewName == null) {
+                            tv.text = title
+                        } else if (viewName.length in 3..19 && viewName.first() == '\'' && viewName.last() == '\'') {
+                            val n = viewName.substring(1, viewName.length - 1)
+                            tv.text = n
+                        } else {
+                            tv.text = title
+                            Coroutine.async(callBack.scope) {
+                                source?.evalJS(viewName)?.toString()
+                            }.onSuccess { n ->
+                                if (n.isNullOrEmpty()) {
+                                    tv.text = "null"
+                                } else {
+                                    tv.text = n
+                                }
+                            }.onError{ _ ->
+                                tv.text = "err"
+                            }
+                        }
+                        tv.setOnTouchListener { view, event ->
+                            when (event.action) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    view.isSelected = true
+                                }
+                                MotionEvent.ACTION_UP -> {
+                                    view.isSelected = false
+                                    val upTime = System.currentTimeMillis()
+                                    if (upTime - lastClickTime < 200) {
+                                        return@setOnTouchListener true
+                                    }
+                                    lastClickTime = upTime
+                                    val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener false
+                                    Coroutine.async(callBack.scope) {
+                                        source?.evalJS(action)
+                                    }
+                                }
+                                MotionEvent.ACTION_CANCEL -> {
+                                    view.isSelected = false
+                                }
+                            }
+                            return@setOnTouchListener true
+                        }
+                    }
+
+                    Type.text -> {
+                        val name = kind.name ?: return@forEach
+                        val ti = getFlexboxChildText(flexbox)
+                        flexbox.addView(ti)
+                        kind.style().apply {
+                            when (this.layout_justifySelf) {
+                                "center" -> ti.gravity = Gravity.CENTER
+                                "flex_end" -> ti.gravity = Gravity.END
+                                else -> ti.gravity = Gravity.START
+                            }
+                            apply(ti)
+                        }
+                        val inputLayout = ti.findViewById<TextInputLayout>(R.id.text_input_layout)
+                        if (viewName == null) {
+                            inputLayout.hint = title
+                        } else if (viewName.length in 3..19 && viewName.first() == '\'' && viewName.last() == '\'') {
+                            val n = viewName.substring(1, viewName.length - 1)
+                            inputLayout.hint = n
+                        } else {
+                            inputLayout.hint = title
+                            Coroutine.async(callBack.scope) {
+                                source?.evalJS(viewName)?.toString()
+                            }.onSuccess { n ->
+                                if (n.isNullOrEmpty()) {
+                                    inputLayout.hint = "null"
+                                } else {
+                                    inputLayout.hint = n
+                                }
+                            }.onError{ _ ->
+                                inputLayout.hint = "err"
+                            }
+                        }
+                        ti.editText?.setText(result[name])
+                        ti.editText?.addTextChangedListener(object : TextWatcher {
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+                            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+                            override fun afterTextChanged(s: Editable?) {
+                                result[name] = s.toString()
+                            }
+                        })
+                    }
+
+                    Type.toggle -> {
+                        val name = kind.name ?: return@forEach
+                        var newName = name
+                        var left = true
+                        val tv = getFlexboxChild(flexbox)
+                        flexbox.addView(tv)
+                        kind.style().apply {
+                            when (this.layout_justifySelf) {
+                                "flex_start" -> tv.gravity = Gravity.START
+                                "flex_end" -> tv.gravity = Gravity.END
+                                "right" -> left = false
+                                else -> tv.gravity = Gravity.CENTER
+                            }
+                            apply(tv)
+                        }
+                        val chars = kind.chars?.filterNotNull() ?: listOf("chars","is null")
+                        val infoV = result[name]
+                        var char = if (infoV.isNullOrEmpty()) {
+                            kind.default ?: chars[0]
+                        } else {
+                            infoV
+                        }
+                        result[name] = char
+                        if (viewName == null) {
+                            tv.text = if (left) char + title else title + char
+                        } else if (viewName.length in 3..19 && viewName.first() == '\'' && viewName.last() == '\'') {
+                            val n = viewName.substring(1, viewName.length - 1)
+                            newName = n
+                            tv.text = if (left) char + n else n + char
+                        } else {
+                            tv.text = if (left) char + title else title + char
+                            Coroutine.async(callBack.scope) {
+                                source?.evalJS(viewName)?.toString()
+                            }.onSuccess { n ->
+                                if (n.isNullOrEmpty()) {
+                                    tv.text = char + "null"
+                                } else {
+                                    newName = n
+                                    tv.text = if (left) char + n else n + char
+                                }
+                            }.onError{ _ ->
+                                tv.text = char + "err"
+                            }
+                        }
+                        tv.setOnTouchListener { view, event ->
+                            when (event.action) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    view.isSelected = true
+                                }
+                                MotionEvent.ACTION_UP -> {
+                                    view.isSelected = false
+                                    val upTime = System.currentTimeMillis()
+                                    if (upTime - lastClickTime < 200) {
+                                        return@setOnTouchListener true
+                                    }
+                                    lastClickTime = upTime
+                                    val currentIndex = chars.indexOf(char)
+                                    val nextIndex = (currentIndex + 1) % chars.size
+                                    char = chars.getOrNull(nextIndex) ?: ""
+                                    result[name] = char
+                                    tv.text = if (left) char + newName else newName + char
+                                    val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener false
+                                    Coroutine.async(callBack.scope) {
+                                        source?.evalJS(action)
+                                    }
+                                }
+                                MotionEvent.ACTION_CANCEL -> {
+                                    view.isSelected = false
+                                }
+                            }
+                            return@setOnTouchListener true
+                        }
+                    }
+
+                    Type.select -> {
+                        val name = kind.name ?: return@forEach
+                        val sl = getFlexboxChildSelect(flexbox)
+                        flexbox.addView(sl)
+                        kind.style().apply {
+                            when (this.layout_justifySelf) {
+                                "flex_start" -> sl.gravity = Gravity.START
+                                "flex_end" -> sl.gravity = Gravity.END
+                                else -> sl.gravity = Gravity.CENTER
+                            }
+                            apply(sl)
+                        }
+                        val spName = sl.findViewById<AccentTextView>(R.id.sp_name)
+                        if (viewName == null) {
+                            spName.text = title
+                        } else if (viewName.length in 3..19 && viewName.first() == '\'' && viewName.last() == '\'') {
+                            val n = viewName.substring(1, viewName.length - 1)
+                            spName.text = n
+                        } else {
+                            spName.text = title
+                            Coroutine.async(callBack.scope) {
+                                source?.evalJS(viewName)?.toString()
+                            }.onSuccess { n ->
+                                if (n.isNullOrEmpty()) {
+                                    spName.text = "null"
+                                } else {
+                                    spName.text = n
+                                }
+                            }.onError{ _ ->
+                                spName.text = "err"
+                            }
+                        }
+                        val chars = kind.chars?.filterNotNull() ?: listOf("chars","is null")
+                        val adapter = ArrayAdapter(
+                            context,
+                            R.layout.item_text_common,
+                            chars
+                        )
+                        adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
+                        val selector = sl.findViewById<AppCompatSpinner>(R.id.sp_type)
+                        selector.adapter = adapter
+                        val infoV = result[name]
+                        val char = if (infoV.isNullOrEmpty()) {
+                            kind.default ?: chars[0]
+                        } else {
+                            infoV
+                        }
+                        result[name] = char
+                        val i = chars.indexOf(char)
+                        selector.setSelectionSafely(i)
+                        selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                            var isInitializing = true
+                            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                                if (isInitializing) { //忽略初始化选择
+                                    isInitializing = false
+                                    return
+                                }
+                                result[name] = chars[position]
+                                if (kind.action != null) {
+                                    Coroutine.async(callBack.scope) {
+                                        source?.evalJS(kind.action)?.toString()
+                                    }
+                                }
+                            }
+                            override fun onNothingSelected(parent: AdapterView<*>?) {
+                            }
+                        }
                     }
                 }
             }
@@ -122,13 +432,37 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
         return if (recycler.isEmpty()) {
             ItemFilletTextBinding.inflate(inflater, flexbox, false).root
         } else {
-            recycler.removeLastElement() as TextView
+            recycler.removeLastElement()
+        }
+    }
+
+    @Synchronized
+    private fun getFlexboxChildText(flexbox: FlexboxLayout): TextInputLayout {
+        return if (textRecycler.isEmpty()) {
+            ItemSourceEditBinding.inflate(inflater, flexbox, false).root
+        } else {
+            textRecycler.removeLastElement()
+        }
+    }
+
+    @Synchronized
+    private fun getFlexboxChildSelect(flexbox: FlexboxLayout): LinearLayout {
+        return if (selectRecycler.isEmpty()) {
+            ItemSelectorSingleBinding.inflate(inflater, flexbox, false).root
+        } else {
+            selectRecycler.removeLastElement()
         }
     }
 
     @Synchronized
     private fun recyclerFlexbox(flexbox: FlexboxLayout) {
-        recycler.addAll(flexbox.children)
+        flexbox.children.forEach { child ->
+            when (child) {
+                is TextView -> recycler.add(child)
+                is TextInputLayout -> textRecycler.add(child)
+                is LinearLayout -> selectRecycler.add(child)
+            }
+        }
         flexbox.removeAllViews()
     }
 

@@ -96,6 +96,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
             }
         }
         if (codeStr != null) {
+            hasChange = true
             lifecycleScope.launch(Main) {
                 val loginUiJson = evalUiJs(codeStr)
                 rowUis = loginUi(loginUiJson)
@@ -141,10 +142,10 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     }
 
                     is LinearLayout -> {
-                        val items = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
-                        val index = items.indexOf(default)
+                        val chars = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
+                        val index = chars.indexOf(default)
                         newLoginInfo[rowUi.name] = default ?: run{
-                            items.getOrNull(0) ?: ""
+                            chars.getOrNull(0) ?: ""
                         }
                         rowView.findViewById<AppCompatSpinner>(R.id.sp_type)?.setSelectionSafely(index)
                     }
@@ -407,11 +408,11 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                             it.spName.text = "err"
                         }
                     }
-                    val items = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
+                    val chars = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
                     val adapter = ArrayAdapter(
                         requireContext(),
                         R.layout.item_text_common,
-                        items
+                        chars
                     )
                     adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
                     val selector = it.spType
@@ -419,12 +420,12 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                     val infoV = loginInfo[name]
                     val char = if (infoV.isNullOrEmpty()) {
                         hasChange = true
-                        rowUi.default ?: items[0]
+                        rowUi.default ?: chars[0]
                     } else {
                         infoV
                     }
                     loginInfo[name] = char
-                    val i = items.indexOf(char)
+                    val i = chars.indexOf(char)
                     selector.setSelectionSafely(i)
                     selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                         var isInitializing = true
@@ -434,7 +435,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                                 return
                             }
                             hasChange = true
-                            loginInfo[name] = items[position]
+                            loginInfo[name] = chars[position]
                             if (action != null) {
                                 execute {
                                     handleButtonClick(source, action, name, rowUis, false)

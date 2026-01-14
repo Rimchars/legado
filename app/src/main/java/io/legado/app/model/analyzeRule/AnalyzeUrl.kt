@@ -91,7 +91,8 @@ class AnalyzeUrl(
     private val callTimeout: Long? = null,
     private var coroutineContext: CoroutineContext = EmptyCoroutineContext,
     headerMapF: Map<String, String>? = null,
-    hasLoginHeader: Boolean = true
+    hasLoginHeader: Boolean = true,
+    private val infoMap: Map<String, String>? = null
 ) : JsExtensions {
 
     var ruleUrl = ""
@@ -367,6 +368,7 @@ class AnalyzeUrl(
             bindings["book"] = ruleData as? Book
             bindings["source"] = source
             bindings["result"] = result
+            bindings["infoMap"] = infoMap
         }
         val sharedScope = source?.getShareScope(coroutineContext)
         val scope = if (sharedScope == null) {
