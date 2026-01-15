@@ -58,10 +58,10 @@ java.addBook(bookUrl: String)
 
 * 打开源界面  
 ```js
-* @param name 为"sort"打开订阅源分类界面、为"rss"打开订阅源正文界面、为"explore"打开书源发现界面、"search"打开书籍搜索界面
-* @param url 为传递到界面的链接，"sort"时为分类链接、"rss"时为正文链接、"explore"时为发现链接、"search"时该参数无意义
+* @param name 为"sort"打开订阅源分类界面、为"rss"打开订阅源正文界面、为"explore"打开书源发现界面、"search"打开书籍搜索界面、"login"打开源登录界面
+* @param url 为传递到界面的链接，"sort"时为分类链接、"rss"时为正文链接、"explore"时为发现链接，"search"、"login"时该参数无意义
 //特别说明，"sort"时url可以传序列化后的键值对用来打开多个分类界面
-* @param title 为对应界面的标题，"search"时为搜索关键词
+* @param title 为对应界面的标题，"search"时为搜索关键词，"login"时该参数无意义
 * @param origin 打开指定源界面的源地址
 java.open(name: String, url: String)
 java.open(name: String, url: String?, title: String?)
