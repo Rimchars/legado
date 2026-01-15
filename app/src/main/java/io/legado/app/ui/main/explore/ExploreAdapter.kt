@@ -101,7 +101,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                 Coroutine.async(callBack.scope) {
                     item.exploreKinds()
                 }.onSuccess { kindList ->
-                    upKindList(flexbox, item.bookSourceUrl, kindList)
+                    upKindList(flexbox, item, kindList, exIndex)
                 }.onFinally {
                     rotateLoading.gone()
                     if (scrollTo >= 0) {
@@ -119,7 +119,8 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
     }
 
     @SuppressLint("SetTextI18n", "ClickableViewAccessibility")
-    private fun upKindList(flexbox: FlexboxLayout, sourceUrl: String, kinds: List<ExploreKind>) {
+    private fun upKindList(flexbox: FlexboxLayout, item: BookSourcePart, kinds: List<ExploreKind>, exIndex: Int) {
+        val sourceUrl = item.bookSourceUrl
         if (kinds.isNotEmpty()) kotlin.runCatching {
             recyclerFlexbox(flexbox)
             flexbox.visible()
@@ -136,6 +137,10 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         }
 
                         override fun reUiView() {
+                        }
+
+                        override fun reExploreView() {
+                            refreshExplore(item, exIndex)
                         }
                     })
             }
@@ -170,7 +175,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                 } else {
                                     tv.text = n
                                 }
-                            }.onError{ _ ->
+                            }.onError { _ ->
                                 tv.text = "err"
                             }
                         }
@@ -509,7 +514,10 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
 
     @Synchronized
     private fun recyclerFlexbox(flexbox: FlexboxLayout) {
-        flexbox.children.forEach { child ->
+        val childrenToRecycle = arrayListOf<View>()
+        childrenToRecycle.addAll(flexbox.children)
+        flexbox.removeAllViews()
+        childrenToRecycle.forEach { child ->
             when (child) {
                 is AutoCompleteTextView -> {
                     child.removeTextChangedListener(null)
@@ -523,7 +531,6 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                 }
             }
         }
-        flexbox.removeAllViews()
     }
 
     override fun registerListener(holder: ItemViewHolder, binding: ItemFindBookBinding) {
@@ -556,6 +563,14 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
         }
     }
 
+    private fun refreshExplore(source: BookSourcePart, position: Int) {
+        Coroutine.async(callBack.scope) {
+            source.clearExploreKindsCache()
+        }.onSuccess {
+            notifyItemChanged(position)
+        }
+    }
+
     private fun showMenu(view: View, position: Int): Boolean {
         val source = getItem(position) ?: return true
         val popupMenu = PopupMenu(context, view)
@@ -571,11 +586,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                     putExtra("key", source.bookSourceUrl)
                 }
 
-                R.id.menu_refresh -> Coroutine.async(callBack.scope) {
-                    source.clearExploreKindsCache()
-                }.onSuccess {
-                    notifyItemChanged(position)
-                }
+                R.id.menu_refresh -> refreshExplore(source, position)
 
                 R.id.menu_del -> callBack.deleteSource(source)
             }

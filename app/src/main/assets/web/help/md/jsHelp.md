@@ -81,6 +81,8 @@ java.reLoginView()
 java.refreshBookInfo()
 //清除tts源的缓存，仅限tts源的登录界面
 java.clearTtsCache()
+//刷新发现，仅限发现按钮
+java.refreshExplore()
 ```
 
 ### [AnalyzeUrl](https://github.com/gedoor/legado/blob/master/app/src/main/java/io/legado/app/model/analyzeRule/AnalyzeUrl.kt) 部分函数

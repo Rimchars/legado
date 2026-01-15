@@ -24,6 +24,7 @@ class SourceLoginJsExtensions(
     interface Callback {
         fun upUiData(data: Map<String, String?>?)
         fun reUiView()
+        fun reExploreView()
     }
 
     fun upLoginData(data: Map<String, String?>?) {
@@ -32,6 +33,10 @@ class SourceLoginJsExtensions(
 
     fun reLoginView() {
         callback?.reUiView()
+    }
+
+    fun refreshExplore() {
+        callback?.reExploreView()
     }
 
     fun refreshBookInfo() {

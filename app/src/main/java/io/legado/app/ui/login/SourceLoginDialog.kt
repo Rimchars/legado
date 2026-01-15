@@ -82,6 +82,8 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                         handleReUiView()
                     }
                 }
+
+                override fun reExploreView() {}
             })
     }
 
