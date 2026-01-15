@@ -10,9 +10,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSpinner
 import androidx.collection.LruCache
 import androidx.core.view.children
@@ -20,22 +22,25 @@ import com.google.android.flexbox.FlexboxLayout
 import io.legado.app.R
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.base.adapter.RecyclerAdapter
+import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
+import io.legado.app.data.entities.BaseSource
+import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.BookSourcePart
 import io.legado.app.data.entities.rule.ExploreKind
 import io.legado.app.data.entities.rule.ExploreKind.Type
 import io.legado.app.databinding.ItemFilletTextBinding
 import io.legado.app.databinding.ItemFindBookBinding
-import io.legado.app.databinding.ItemSelectorSingleBinding
-import io.legado.app.databinding.ItemSourceEditBinding
+import io.legado.app.databinding.ItemFilletSelectorSingleBinding
+import io.legado.app.databinding.ItemFilletCompleteTextBinding
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.source.clearExploreKindsCache
 import io.legado.app.help.source.exploreKinds
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.ui.login.SourceLoginActivity
+import io.legado.app.ui.login.SourceLoginJsExtensions
 import io.legado.app.ui.widget.dialog.TextDialog
 import io.legado.app.ui.widget.text.AccentTextView
-import io.legado.app.ui.widget.text.TextInputLayout
 import io.legado.app.utils.activity
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.gone
@@ -45,6 +50,11 @@ import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.visible
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import splitties.views.onLongClick
 import kotlin.collections.set
 import kotlin.text.isNullOrEmpty
@@ -55,7 +65,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
         val exploreInfoMapList = LruCache<String, MutableMap<String, String>>(99)
     }
     private val recycler = arrayListOf<TextView>()
-    private val textRecycler = arrayListOf<TextInputLayout>()
+    private val textRecycler = arrayListOf<AutoCompleteTextView>()
     private val selectRecycler = arrayListOf<LinearLayout>()
 
     private var exIndex = -1
@@ -114,10 +124,20 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
             recyclerFlexbox(flexbox)
             flexbox.visible()
             val source by lazy { appDb.bookSourceDao.getBookSource(sourceUrl) }
-            val result by lazy {
+            val infoMap by lazy {
                 exploreInfoMapList[sourceUrl] ?:  mutableMapOf<String, String>().also {
                     exploreInfoMapList.put(sourceUrl, it)
                 }
+            }
+            val sourceJsExtensions by lazy {
+                SourceLoginJsExtensions(context as? AppCompatActivity, source,
+                    object : SourceLoginJsExtensions.Callback {
+                        override fun upUiData(data: Map<String, String?>?) {
+                        }
+
+                        override fun reUiView() {
+                        }
+                    })
             }
             kinds.forEach { kind ->
                 val type = kind.type
@@ -143,7 +163,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         } else {
                             tv.text = title
                             Coroutine.async(callBack.scope) {
-                                source?.evalJS(viewName)?.toString()
+                                evalUiJs(viewName, source, infoMap)
                             }.onSuccess { n ->
                                 if (n.isNullOrEmpty()) {
                                     tv.text = "null"
@@ -200,7 +220,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         } else {
                             tv.text = title
                             Coroutine.async(callBack.scope) {
-                                source?.evalJS(viewName)?.toString()
+                                evalUiJs(viewName, source, infoMap)
                             }.onSuccess { n ->
                                 if (n.isNullOrEmpty()) {
                                     tv.text = "null"
@@ -224,8 +244,8 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                     }
                                     lastClickTime = upTime
                                     val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener false
-                                    Coroutine.async(callBack.scope) {
-                                        source?.evalJS(action)
+                                    callBack.scope.launch {
+                                        evalButtonClick(action, source, infoMap, title, sourceJsExtensions)
                                     }
                                 }
                                 MotionEvent.ACTION_CANCEL -> {
@@ -237,7 +257,6 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                     }
 
                     Type.text -> {
-                        val name = kind.name ?: return@forEach
                         val ti = getFlexboxChildText(flexbox)
                         flexbox.addView(ti)
                         kind.style().apply {
@@ -248,41 +267,52 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                             }
                             apply(ti)
                         }
-                        val inputLayout = ti.findViewById<TextInputLayout>(R.id.text_input_layout)
                         if (viewName == null) {
-                            inputLayout.hint = title
+                            ti.hint = title
                         } else if (viewName.length in 3..19 && viewName.first() == '\'' && viewName.last() == '\'') {
                             val n = viewName.substring(1, viewName.length - 1)
-                            inputLayout.hint = n
+                            ti.hint = n
                         } else {
-                            inputLayout.hint = title
+                            ti.hint = title
                             Coroutine.async(callBack.scope) {
-                                source?.evalJS(viewName)?.toString()
+                                evalUiJs(viewName, source, infoMap)
                             }.onSuccess { n ->
                                 if (n.isNullOrEmpty()) {
-                                    inputLayout.hint = "null"
+                                    ti.hint = "null"
                                 } else {
-                                    inputLayout.hint = n
+                                    ti.hint = n
                                 }
                             }.onError{ _ ->
-                                inputLayout.hint = "err"
+                                ti.hint = "err"
                             }
                         }
-                        ti.editText?.setText(result[name])
-                        ti.editText?.addTextChangedListener(object : TextWatcher {
-                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                        ti.setText(infoMap[title])
+                        var actionJob: Job? = null
+                        ti.addTextChangedListener(object : TextWatcher {
+                            var content: String? = null
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                                content = s.toString()
+                            }
 
                             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
                             override fun afterTextChanged(s: Editable?) {
-                                result[name] = s.toString()
+                                val reContent = s.toString()
+                                infoMap[title] = reContent
+                                if (reContent != content && kind.action != null) {
+                                    actionJob?.cancel()
+                                    actionJob = callBack.scope.launch {
+                                        delay(500) //防抖
+                                        evalButtonClick(kind.action, source, infoMap, title, sourceJsExtensions)
+                                        content = reContent
+                                    }
+                                }
                             }
                         })
                     }
 
                     Type.toggle -> {
-                        val name = kind.name ?: return@forEach
-                        var newName = name
+                        var newName = title
                         var left = true
                         val tv = getFlexboxChild(flexbox)
                         flexbox.addView(tv)
@@ -296,13 +326,13 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                             apply(tv)
                         }
                         val chars = kind.chars?.filterNotNull() ?: listOf("chars","is null")
-                        val infoV = result[name]
+                        val infoV = infoMap[title]
                         var char = if (infoV.isNullOrEmpty()) {
                             kind.default ?: chars[0]
                         } else {
                             infoV
                         }
-                        result[name] = char
+                        infoMap[title] = char
                         if (viewName == null) {
                             tv.text = if (left) char + title else title + char
                         } else if (viewName.length in 3..19 && viewName.first() == '\'' && viewName.last() == '\'') {
@@ -312,7 +342,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         } else {
                             tv.text = if (left) char + title else title + char
                             Coroutine.async(callBack.scope) {
-                                source?.evalJS(viewName)?.toString()
+                                evalUiJs(viewName, source, infoMap)
                             }.onSuccess { n ->
                                 if (n.isNullOrEmpty()) {
                                     tv.text = char + "null"
@@ -339,11 +369,11 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                     val currentIndex = chars.indexOf(char)
                                     val nextIndex = (currentIndex + 1) % chars.size
                                     char = chars.getOrNull(nextIndex) ?: ""
-                                    result[name] = char
+                                    infoMap[title] = char
                                     tv.text = if (left) char + newName else newName + char
                                     val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener false
-                                    Coroutine.async(callBack.scope) {
-                                        source?.evalJS(action)
+                                    callBack.scope.launch {
+                                        evalButtonClick(action, source, infoMap, title, sourceJsExtensions)
                                     }
                                 }
                                 MotionEvent.ACTION_CANCEL -> {
@@ -355,7 +385,6 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                     }
 
                     Type.select -> {
-                        val name = kind.name ?: return@forEach
                         val sl = getFlexboxChildSelect(flexbox)
                         flexbox.addView(sl)
                         kind.style().apply {
@@ -375,7 +404,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         } else {
                             spName.text = title
                             Coroutine.async(callBack.scope) {
-                                source?.evalJS(viewName)?.toString()
+                                evalUiJs(viewName, source, infoMap)
                             }.onSuccess { n ->
                                 if (n.isNullOrEmpty()) {
                                     spName.text = "null"
@@ -395,13 +424,13 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
                         val selector = sl.findViewById<AppCompatSpinner>(R.id.sp_type)
                         selector.adapter = adapter
-                        val infoV = result[name]
+                        val infoV = infoMap[title]
                         val char = if (infoV.isNullOrEmpty()) {
                             kind.default ?: chars[0]
                         } else {
                             infoV
                         }
-                        result[name] = char
+                        infoMap[title] = char
                         val i = chars.indexOf(char)
                         selector.setSelectionSafely(i)
                         selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -411,10 +440,10 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                     isInitializing = false
                                     return
                                 }
-                                result[name] = chars[position]
+                                infoMap[title] = chars[position]
                                 if (kind.action != null) {
-                                    Coroutine.async(callBack.scope) {
-                                        source?.evalJS(kind.action)?.toString()
+                                    callBack.scope.launch {
+                                        evalButtonClick(kind.action, source, infoMap, title, sourceJsExtensions)
                                     }
                                 }
                             }
@@ -424,6 +453,30 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun evalUiJs(jsStr: String, source: BookSource?, infoMap: MutableMap<String, String>?): String? = withContext(IO) {
+        val source = source ?: return@withContext null
+        try {
+            source.evalJS(jsStr) {
+                put("infoMap", infoMap)
+            }.toString()
+        } catch (e: Exception) {
+            AppLog.put(source.getTag() + " exploreUi err:" + (e.localizedMessage ?: e.toString()), e)
+            null
+        }
+    }
+
+    private suspend fun evalButtonClick(jsStr: String, source: BaseSource?, infoMap: MutableMap<String, String>?, name: String, java: SourceLoginJsExtensions) = withContext(IO) {
+        val source = source ?: return@withContext null
+        try {
+            source.evalJS(jsStr) {
+                put("java", java)
+                put("infoMap", infoMap)
+            }
+        } catch (e: Exception) {
+            AppLog.put("ExploreUI Button $name JavaScript error", e)
         }
     }
 
@@ -437,9 +490,9 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
     }
 
     @Synchronized
-    private fun getFlexboxChildText(flexbox: FlexboxLayout): TextInputLayout {
+    private fun getFlexboxChildText(flexbox: FlexboxLayout): AutoCompleteTextView {
         return if (textRecycler.isEmpty()) {
-            ItemSourceEditBinding.inflate(inflater, flexbox, false).root
+            ItemFilletCompleteTextBinding.inflate(inflater, flexbox, false).root
         } else {
             textRecycler.removeLastElement()
         }
@@ -448,7 +501,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
     @Synchronized
     private fun getFlexboxChildSelect(flexbox: FlexboxLayout): LinearLayout {
         return if (selectRecycler.isEmpty()) {
-            ItemSelectorSingleBinding.inflate(inflater, flexbox, false).root
+            ItemFilletSelectorSingleBinding.inflate(inflater, flexbox, false).root
         } else {
             selectRecycler.removeLastElement()
         }
@@ -458,9 +511,16 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
     private fun recyclerFlexbox(flexbox: FlexboxLayout) {
         flexbox.children.forEach { child ->
             when (child) {
+                is AutoCompleteTextView -> {
+                    child.removeTextChangedListener(null)
+                    textRecycler.add(child)
+                }
                 is TextView -> recycler.add(child)
-                is TextInputLayout -> textRecycler.add(child)
-                is LinearLayout -> selectRecycler.add(child)
+                is LinearLayout -> {
+                   val ss= child.findViewById<AppCompatSpinner>(R.id.sp_type)
+                       ss?.onItemSelectedListener = null
+                    selectRecycler.add(child)
+                }
             }
         }
         flexbox.removeAllViews()

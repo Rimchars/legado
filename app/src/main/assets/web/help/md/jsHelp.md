@@ -69,7 +69,7 @@ java.open(name: String, url: String?, title: String?, origin: String?)
 ```
 
 ### [SourceLoginJsExtensions](https://github.com/Luoyacheng/legado/blob/main/app/src/main/java/io/legado/app/ui/login/SourceLoginJsExtensions.kt)独有函数
-> 只在`登录界面按钮`被触发时或`按钮的回调`事件中有效  
+> 只在`登录界面按钮`被触发、`按钮的回调`事件、`发现按钮`函数中有效  
 ```js
 //复制文本到剪贴板
 java.copyText(text: String)
@@ -77,7 +77,7 @@ java.copyText(text: String)
 java.upLoginData(data: Map<String, String?>?)
 //刷新登录界面
 java.reLoginView()
-//刷新书籍详情页，仅限详情页的登录界面
+//刷新书籍详情页
 java.refreshBookInfo()
 //清除tts源的缓存，仅限tts源的登录界面
 java.clearTtsCache()

@@ -6,7 +6,6 @@ package io.legado.app.data.entities.rule
 data class ExploreKind(
     val title: String = "",
     val url: String? = null,
-    val name: String? = null,
     val type: String = "url",
     val action: String? = null,
     val chars: Array<String?>? = null,
@@ -34,7 +33,6 @@ data class ExploreKind(
         if (other is ExploreKind) {
             return other.title == title
                     && other.url == url
-                    && other.name == name
                     && other.type == type
                     && other.action == action
                     && other.default == default
@@ -45,7 +43,6 @@ data class ExploreKind(
 
     override fun hashCode(): Int {
         var result = title.hashCode()
-        result = 31 * result + name.hashCode()
         result = 31 * result + (url?.hashCode() ?: 0)
         result = 31 * result + type.hashCode()
         result = 31 * result + (action?.hashCode() ?: 0)

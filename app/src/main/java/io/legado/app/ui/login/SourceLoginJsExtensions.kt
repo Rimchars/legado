@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 class SourceLoginJsExtensions(
-    private val activity: AppCompatActivity, source: BaseSource?,
+    activity: AppCompatActivity?, source: BaseSource?,
     private val callback: Callback? = null
 ) : RssJsExtensions(activity, source) {
 
@@ -39,7 +39,7 @@ class SourceLoginJsExtensions(
     }
 
     fun copyText(text: String) {
-        activity.sendToClip(text)
+        activityRef.get()?.sendToClip(text)
     }
 
     fun clearTtsCache() {

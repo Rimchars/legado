@@ -25,7 +25,7 @@ import java.lang.ref.WeakReference
 
 
 @Suppress("unused")
-open class RssJsExtensions(activity: AppCompatActivity, source: BaseSource?) : JsExtensions {
+open class RssJsExtensions(activity: AppCompatActivity?, source: BaseSource?) : JsExtensions {
 
     val activityRef: WeakReference<AppCompatActivity> = WeakReference(activity)
     val sourceRef: WeakReference<BaseSource?> = WeakReference(source)
