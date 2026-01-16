@@ -92,7 +92,7 @@ class AnalyzeUrl(
     private var coroutineContext: CoroutineContext = EmptyCoroutineContext,
     headerMapF: Map<String, String>? = null,
     hasLoginHeader: Boolean = true,
-    private val infoMap: Map<String, String>? = null
+    private val infoMap: MutableMap<String, String>? = null
 ) : JsExtensions {
 
     var ruleUrl = ""

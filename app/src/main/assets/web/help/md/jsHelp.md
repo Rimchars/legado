@@ -63,9 +63,7 @@ java.addBook(bookUrl: String)
 //特别说明，"sort"时url可以传序列化后的键值对用来打开多个分类界面
 * @param title 为对应界面的标题，"search"时为搜索关键词，"login"时该参数无意义
 * @param origin 打开指定源界面的源地址
-java.open(name: String, url: String)
-java.open(name: String, url: String?, title: String?)
-java.open(name: String, url: String?, title: String?, origin: String?)
+java.open(name: String, url: String? = null, title: String? = null, origin: String? = null)
 ```
 
 ### [SourceLoginJsExtensions](https://github.com/Luoyacheng/legado/blob/main/app/src/main/java/io/legado/app/ui/login/SourceLoginJsExtensions.kt)独有函数

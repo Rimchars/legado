@@ -65,17 +65,8 @@ open class RssJsExtensions(activity: AppCompatActivity?, source: BaseSource?) : 
     }
 
     @JavascriptInterface
-    fun open(name: String, url: String) {
-        return open(name, url, null)
-    }
-
-    @JavascriptInterface
-    fun open(name: String, url: String?, title: String?) {
-        return open(name, url, title, null)
-    }
-
-    @JavascriptInterface
-    fun open(name: String, url: String?, title: String?, origin: String?) {
+    @JvmOverloads
+    fun open(name: String, url: String? = null, title: String? = null, origin: String? = null) {
         val activity = activityRef.get() ?: return
         activity.lifecycleScope.launch(IO) {
             val source = getSource() ?: return@launch

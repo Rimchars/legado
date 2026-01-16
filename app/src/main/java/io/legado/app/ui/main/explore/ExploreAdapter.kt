@@ -56,6 +56,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import splitties.views.onLongClick
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.set
 import kotlin.text.isNullOrEmpty
 
@@ -71,6 +72,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
     private var exIndex = -1
     private var scrollTo = -1
     private var lastClickTime: Long = 0
+    private val sourceKinds = ConcurrentHashMap<String, List<ExploreKind>>()
 
     override fun getViewBinding(parent: ViewGroup): ItemFindBookBinding {
         return ItemFindBookBinding.inflate(inflater, parent, false)
@@ -93,6 +95,10 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
             }
             if (exIndex == holder.layoutPosition) {
                 ivStatus.setImageResource(R.drawable.ic_arrow_down)
+                sourceKinds[item.bookSourceUrl]?.also {
+                    upKindList(flexbox, item, it, exIndex)
+                    return
+                }
                 rotateLoading.loadingColor = context.accentColor
                 rotateLoading.visible()
                 if (scrollTo >= 0) {
@@ -101,6 +107,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                 Coroutine.async(callBack.scope) {
                     item.exploreKinds()
                 }.onSuccess { kindList ->
+                    sourceKinds[item.bookSourceUrl] = kindList
                     upKindList(flexbox, item, kindList, exIndex)
                 }.onFinally {
                     rotateLoading.gone()
@@ -293,7 +300,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         }
                         ti.setText(infoMap[title])
                         var actionJob: Job? = null
-                        ti.addTextChangedListener(object : TextWatcher {
+                        val watcher = object : TextWatcher {
                             var content: String? = null
                             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
                                 content = s.toString()
@@ -313,7 +320,9 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                     }
                                 }
                             }
-                        })
+                        }
+                        ti.setTag(R.id.text_watcher, watcher)
+                        ti.addTextChangedListener(watcher)
                     }
 
                     Type.toggle -> {
@@ -520,13 +529,18 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
         childrenToRecycle.forEach { child ->
             when (child) {
                 is AutoCompleteTextView -> {
-                    child.removeTextChangedListener(null)
+                    val watcher = child.getTag(R.id.text_watcher) as? TextWatcher
+                    if (watcher != null) {
+                        child.removeTextChangedListener(watcher)
+                    }
                     textRecycler.add(child)
                 }
-                is TextView -> recycler.add(child)
+                is TextView -> {
+                    child.setOnTouchListener(null)
+                    recycler.add(child)
+                }
                 is LinearLayout -> {
-                   val ss= child.findViewById<AppCompatSpinner>(R.id.sp_type)
-                       ss?.onItemSelectedListener = null
+                    child.findViewById<AppCompatSpinner>(R.id.sp_type)?.onItemSelectedListener = null
                     selectRecycler.add(child)
                 }
             }
@@ -563,9 +577,14 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
         }
     }
 
+    fun onPause() {
+        sourceKinds.clear()
+    }
+
     private fun refreshExplore(source: BookSourcePart, position: Int) {
         Coroutine.async(callBack.scope) {
             source.clearExploreKindsCache()
+            sourceKinds[source.bookSourceUrl] = source.exploreKinds()
         }.onSuccess {
             notifyItemChanged(position)
         }
