@@ -95,19 +95,16 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
             }
             if (exIndex == holder.layoutPosition) {
                 ivStatus.setImageResource(R.drawable.ic_arrow_down)
-                sourceKinds[item.bookSourceUrl]?.also {
-                    upKindList(flexbox, item, it, exIndex)
-                    return
-                }
                 rotateLoading.loadingColor = context.accentColor
                 rotateLoading.visible()
-                if (scrollTo >= 0) {
-                    callBack.scrollTo(scrollTo)
-                }
                 Coroutine.async(callBack.scope) {
-                    item.exploreKinds()
+                    sourceKinds[item.bookSourceUrl]?.also {
+                        return@async it
+                    }
+                    item.exploreKinds().also {
+                        sourceKinds[item.bookSourceUrl] = it
+                    }
                 }.onSuccess { kindList ->
-                    sourceKinds[item.bookSourceUrl] = kindList
                     upKindList(flexbox, item, kindList, exIndex)
                 }.onFinally {
                     rotateLoading.gone()
@@ -144,9 +141,6 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         }
 
                         override fun reUiView() {
-                        }
-
-                        override fun reExploreView() {
                             refreshExplore(item, exIndex)
                         }
                     })
@@ -310,11 +304,11 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
 
                             override fun afterTextChanged(s: Editable?) {
                                 val reContent = s.toString()
-                                infoMap[title] = reContent
                                 if (reContent != content && kind.action != null) {
                                     actionJob?.cancel()
                                     actionJob = callBack.scope.launch {
                                         delay(500) //防抖
+                                        infoMap[title] = reContent
                                         evalButtonClick(kind.action, source, infoMap, title, sourceJsExtensions)
                                         content = reContent
                                     }
@@ -342,11 +336,12 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         val chars = kind.chars?.filterNotNull() ?: listOf("chars","is null")
                         val infoV = infoMap[title]
                         var char = if (infoV.isNullOrEmpty()) {
-                            kind.default ?: chars[0]
+                            (kind.default ?: chars[0]).also {
+                                infoMap[title] = it
+                            }
                         } else {
                             infoV
                         }
-                        infoMap[title] = char
                         if (viewName == null) {
                             tv.text = if (left) char + title else title + char
                         } else if (viewName.length in 3..19 && viewName.first() == '\'' && viewName.last() == '\'') {
@@ -440,11 +435,12 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                         selector.adapter = adapter
                         val infoV = infoMap[title]
                         val char = if (infoV.isNullOrEmpty()) {
-                            kind.default ?: chars[0]
+                            (kind.default ?: chars[0]).also {
+                                infoMap[title] = it
+                            }
                         } else {
                             infoV
                         }
-                        infoMap[title] = char
                         val i = chars.indexOf(char)
                         selector.setSelectionSafely(i)
                         selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -523,25 +519,27 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
 
     @Synchronized
     private fun recyclerFlexbox(flexbox: FlexboxLayout) {
-        val childrenToRecycle = arrayListOf<View>()
-        childrenToRecycle.addAll(flexbox.children)
+        val children = flexbox.children.toList()
+        if (children.isEmpty()) return
         flexbox.removeAllViews()
-        childrenToRecycle.forEach { child ->
-            when (child) {
-                is AutoCompleteTextView -> {
-                    val watcher = child.getTag(R.id.text_watcher) as? TextWatcher
-                    if (watcher != null) {
-                        child.removeTextChangedListener(watcher)
+        callBack.scope.launch {
+            for (child in children) {
+                when (child) {
+                    is AutoCompleteTextView -> {
+                        val watcher = child.getTag(R.id.text_watcher) as? TextWatcher
+                        if (watcher != null) {
+                            child.removeTextChangedListener(watcher)
+                        }
+                        textRecycler.add(child)
                     }
-                    textRecycler.add(child)
-                }
-                is TextView -> {
-                    child.setOnTouchListener(null)
-                    recycler.add(child)
-                }
-                is LinearLayout -> {
-                    child.findViewById<AppCompatSpinner>(R.id.sp_type)?.onItemSelectedListener = null
-                    selectRecycler.add(child)
+                    is TextView -> {
+                        child.setOnTouchListener(null)
+                        recycler.add(child)
+                    }
+                    is LinearLayout -> {
+                        child.findViewById<AppCompatSpinner>(R.id.sp_type)?.onItemSelectedListener = null
+                        selectRecycler.add(child)
+                    }
                 }
             }
         }
@@ -586,7 +584,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
             source.clearExploreKindsCache()
             sourceKinds[source.bookSourceUrl] = source.exploreKinds()
         }.onSuccess {
-            notifyItemChanged(position)
+            notifyItemChanged(position, false)
         }
     }
 
