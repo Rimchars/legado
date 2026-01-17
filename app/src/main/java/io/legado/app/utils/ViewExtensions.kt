@@ -227,17 +227,7 @@ fun RadioGroup.checkByIndex(index: Int) {
 }
 
 @SuppressLint("ObsoleteSdkInt")
-fun TextView.setHtml(html: String) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        text = Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT)
-    } else {
-        @Suppress("DEPRECATION")
-        text = Html.fromHtml(html)
-    }
-}
-
-@SuppressLint("ObsoleteSdkInt")
-fun TextView.setHtml(html: String, imageGetter: GlideImageGetter?) {
+fun TextView.setHtml(html: String, imageGetter: GlideImageGetter? = null) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         text = Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT, imageGetter, null)
     } else {

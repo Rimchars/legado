@@ -25,6 +25,7 @@ import io.legado.app.data.entities.BookSource
 import io.legado.app.databinding.ActivityBookInfoBinding
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.AppWebDav
+import io.legado.app.help.GlideImageGetter
 import io.legado.app.help.book.addType
 import io.legado.app.help.book.getRemoteUrl
 import io.legado.app.help.book.isAudio
@@ -75,6 +76,7 @@ import io.legado.app.utils.longToastOnUi
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.openFileUri
 import io.legado.app.utils.sendToClip
+import io.legado.app.utils.setHtml
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
@@ -378,7 +380,16 @@ class BookInfoActivity :
         tvAuthor.text = getString(R.string.author_show, book.getRealAuthor())
         tvOrigin.text = getString(R.string.origin_show, book.originName)
         tvLasted.text = getString(R.string.lasted_show, book.latestChapterTitle)
-        tvIntro.text = book.getDisplayIntro()
+        val intro = book.getDisplayIntro()
+        if (intro.isNullOrBlank()) {
+            tvIntro.visible()
+        } else if (intro.startsWith("<usehtml>")) {
+            val html = intro.substring(9, intro.lastIndexOf("<"))
+            val glideImageGetter = GlideImageGetter.create(this@BookInfoActivity, tvIntro, html)
+            tvIntro.setHtml(html, glideImageGetter)
+        } else {
+            tvIntro.text = book.getDisplayIntro()
+        }
         if (book.isWebFile) {
             llToc.gone()
             tvLasted.text = getString(R.string.lasted_show, "下载中...")
