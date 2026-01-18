@@ -135,8 +135,18 @@ getResponse(): Response //返回访问结果,网络朗读引擎采用的是这�
 ```
 
 * 发现url格式
-> 对比登录ui，name换成了title，url用来打开发现页面，其余相同
-> 变量`infoMap: Map<String, String>?`可读取按钮的切换值
+> 对比登录ui，name换成了title，url用来打开发现页面，其余相同  
+> 额外的变量[infoMap](https://github.com/Luoyacheng/legado/blob/main/app/src/main/java/io/legado/app/utils/InfoMap.kt)可读取按钮的切换值
+```js
+//读取值
+var input = infoMap["关键词"];
+//修改值
+infoMap["关键词"]="系统";
+//替换infoMap
+infoMap.set({"键":"值"});
+//保存infoMap
+infoMap.save();
+```
 ```
 //所有按钮类型："url"、"text"、"button"、"toggle"、"select"
 规则填写示范
@@ -157,7 +167,6 @@ getResponse(): Response //返回访问结果,网络朗读引擎采用的是这�
     "type": "text"
   }
 ]
-// var input = infoMap["关键词"];
 ```
 
 * 请求头,支持http代理,socks4 socks5代理设置
