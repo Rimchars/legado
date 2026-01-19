@@ -167,6 +167,7 @@ class BookInfoActivity :
 
     override val binding by viewBinding(ActivityBookInfoBinding::inflate)
     override val viewModel by viewModels<BookInfoViewModel>()
+    private var glideImageGetter: GlideImageGetter? = null
 
     @SuppressLint("PrivateResource")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -385,7 +386,7 @@ class BookInfoActivity :
             tvIntro.visible()
         } else if (intro.startsWith("<usehtml>")) {
             val html = intro.substring(9, intro.lastIndexOf("<"))
-            val glideImageGetter = GlideImageGetter.create(this@BookInfoActivity, tvIntro, html)
+            glideImageGetter = GlideImageGetter(this@BookInfoActivity, tvIntro)
             tvIntro.setHtml(html, glideImageGetter)
         } else {
             tvIntro.text = book.getDisplayIntro()
@@ -855,6 +856,11 @@ class BookInfoActivity :
         } else {
             waitDialog.dismiss()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        glideImageGetter?.clear()
     }
 
 }

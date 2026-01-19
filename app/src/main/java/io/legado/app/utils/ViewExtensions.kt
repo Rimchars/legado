@@ -47,6 +47,8 @@ import splitties.systemservices.inputMethodManager
 import splitties.views.bottomPadding
 import splitties.views.topPadding
 import java.lang.reflect.Field
+import androidx.core.graphics.createBitmap
+import androidx.core.view.isVisible
 
 
 private tailrec fun getCompatActivity(context: Context?): AppCompatActivity? {
@@ -150,7 +152,7 @@ fun View.visible() {
 fun View.visible(visible: Boolean) {
     if (visible && visibility != VISIBLE) {
         visibility = VISIBLE
-    } else if (!visible && visibility == VISIBLE) {
+    } else if (!visible && isVisible) {
         visibility = INVISIBLE
     }
 }
@@ -162,14 +164,13 @@ fun View.screenshot(bitmap: Bitmap? = null, canvas: Canvas? = null): Bitmap? {
             bitmap
         } else {
             bitmap?.recycle()
-            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            createBitmap(width, height)
         }
         val c = canvas ?: Canvas()
         c.setBitmap(screenshot)
-        c.save()
-        c.translate(-scrollX.toFloat(), -scrollY.toFloat())
-        this.draw(c)
-        c.restore()
+        c.withTranslation(-scrollX.toFloat(), -scrollY.toFloat()) {
+            this@screenshot.draw(this)
+        }
         c.setBitmap(null)
         screenshot.prepareToDraw()
         screenshot

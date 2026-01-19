@@ -1,133 +1,175 @@
 package io.legado.app.help
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
-import android.os.Build
 import android.text.Html
 import android.widget.TextView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.gif.GifDrawable
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import java.lang.ref.WeakReference
 
-class GlideImageGetter(private val context: Context, textView: TextView, private val originalHtml: String) :
-    Html.ImageGetter {
-    companion object {
-        fun create(context: Context, textView: TextView, html: String): GlideImageGetter {
-            return GlideImageGetter(context, textView, html)
-        }
-        private fun createEmptyDrawable(): Drawable {
-            return object : Drawable() {
-                override fun draw(canvas: android.graphics.Canvas) = Unit
-                override fun setAlpha(alpha: Int) = Unit
-                override fun setColorFilter(colorFilter: ColorFilter?) = Unit
-                @Deprecated("Deprecated in Java")
-                override fun getOpacity(): Int = PixelFormat.TRANSPARENT
-            }
+class GlideImageGetter(context: Context, textView: TextView) : Html.ImageGetter, Drawable.Callback {
+    private val textViewRef = WeakReference(textView)
+    private val contextRef = WeakReference(context)
+    private val targets = mutableSetOf<CustomTarget<*>>()
+    private val emptyDrawable by lazy {
+        object : Drawable() {
+            override fun draw(canvas: Canvas) = Unit
+            override fun setAlpha(alpha: Int) = Unit
+            override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+            @Deprecated("Deprecated in Java")
+            override fun getOpacity(): Int = PixelFormat.TRANSPARENT
+            override fun getIntrinsicWidth(): Int = 0
+            override fun getIntrinsicHeight(): Int = 0
         }
     }
 
-    private val loadedDrawables = mutableMapOf<String, Drawable>()
-    private val textViewRef = WeakReference(textView)
-    private val targets = mutableSetOf<CustomTarget<*>>()
-
     override fun getDrawable(source: String?): Drawable {
-        if (source.isNullOrBlank()) {
-            return createEmptyDrawable()
+        val context = contextRef.get()
+        if (context == null || source.isNullOrBlank()) {
+            return emptyDrawable
         }
         val urlDrawable = GlideUrlDrawable()
-        val target = createImageTarget(urlDrawable, source)
-        targets.add(target)
+        val target = ImageTarget(urlDrawable)
         Glide.with(context)
+            .asDrawable()
             .load(source)
             .into(target)
         return urlDrawable
     }
 
-    private fun createImageTarget(
-        urlDrawable: GlideUrlDrawable,
-        source: String
-    ): CustomTarget<Drawable> {
-        return object : CustomTarget<Drawable>() {
-            override fun onResourceReady(
-                resource: Drawable,
-                transition: Transition<in Drawable>?
-            ) {
-                targets.remove(this)
-                val textView = textViewRef.get() ?: return
-                val availableWidth = textView.width - textView.paddingLeft - textView.paddingRight
-                val maxWidth = availableWidth.takeIf { it > 0 } ?: 700
-                val drawableWidth = resource.intrinsicWidth.coerceAtLeast(1)
-                val drawableHeight = resource.intrinsicHeight.coerceAtLeast(1)
-                val scale = if (drawableWidth > maxWidth) {
-                    maxWidth.toFloat() / drawableWidth
-                } else {
-                    1f
-                }
-                val width = (drawableWidth * scale).toInt()
-                val height = (drawableHeight * scale).toInt()
-                resource.setBounds(0, 0, width, height)
-                urlDrawable.setDrawable(resource)
-                loadedDrawables[source] = urlDrawable
-                refreshTextView()
-            }
+    override fun invalidateDrawable(who: Drawable) {
+        textViewRef.get()?.invalidate()
+    }
 
-            override fun onLoadCleared(placeholder: Drawable?) {
-                targets.remove(this)
-                urlDrawable.setDrawable(placeholder)
-                refreshTextView()
-            }
+    override fun scheduleDrawable(
+        who: Drawable,
+        what: Runnable,
+        `when`: Long
+    ) {
+    }
 
-            override fun onLoadFailed(errorDrawable: Drawable?) {
-                targets.remove(this)
-                val placeholder = errorDrawable ?: createEmptyDrawable()
-                urlDrawable.setDrawable(placeholder)
-                loadedDrawables[source] = urlDrawable
-                refreshTextView()
-            }
+    override fun unscheduleDrawable(
+        who: Drawable,
+        what: Runnable
+    ) {
+    }
 
-            override fun onLoadStarted(placeholder: Drawable?) {
-                urlDrawable.setDrawable(placeholder)
+    private inner class GlideUrlDrawable(): Drawable(), Drawable.Callback {
+        private var mDrawable: Drawable? = null
+        fun setDrawable(drawable: Drawable?) {
+            mDrawable?.callback = null
+            drawable?.callback = this
+            mDrawable = drawable
+        }
+
+        override fun draw(canvas: Canvas) {
+            mDrawable?.draw(canvas)
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int {
+            return mDrawable?.opacity ?: PixelFormat.TRANSLUCENT
+        }
+
+        override fun setAlpha(alpha: Int) {
+            mDrawable?.alpha = alpha
+        }
+
+        override fun setColorFilter(colorFilter: ColorFilter?) {
+            mDrawable?.colorFilter = colorFilter
+        }
+
+        override fun invalidateDrawable(who: Drawable) {
+            callback?.invalidateDrawable(who)
+        }
+
+        override fun scheduleDrawable(
+            who: Drawable,
+            what: Runnable,
+            `when`: Long
+        ) {
+            callback?.scheduleDrawable(who, what, `when`)
+        }
+
+        override fun unscheduleDrawable(
+            who: Drawable,
+            what: Runnable
+        ) {
+            callback?.unscheduleDrawable(who, what)
+        }
+    }
+
+    private inner class ImageTarget(
+        urlDrawable: GlideUrlDrawable
+    ) : CustomTarget<Drawable>() {
+        private var mDrawable: GlideUrlDrawable
+
+        init {
+            targets.add(this)
+            mDrawable = urlDrawable
+        }
+
+        override fun onResourceReady(
+            drawable: Drawable,
+            transition: Transition<in Drawable>?
+        ) {
+            targets.remove(this)
+            val textView = textViewRef.get() ?: return
+            val context = contextRef.get() ?: return
+            val availableWidth = if (textView.width > 0) {
+                textView.width - textView.paddingLeft - textView.paddingRight
+            } else {
+                val displayMetrics = context.resources.displayMetrics
+                (displayMetrics.widthPixels * 0.8).toInt()
             }
+            val maxWidth = availableWidth.takeIf { it > 0 } ?: 700
+            val drawableWidth = drawable.intrinsicWidth.coerceAtLeast(1)
+            val drawableHeight = drawable.intrinsicHeight.coerceAtLeast(1)
+            val scale = if (drawableWidth > maxWidth) {
+                maxWidth.toFloat() / drawableWidth
+            } else {
+                1f
+            }
+            val width = (drawableWidth * scale).toInt()
+            val height = (drawableHeight * scale).toInt()
+            drawable.setBounds(0, 0, width, height)
+            mDrawable.setBounds(0, 0, width, height)
+            mDrawable.setDrawable(drawable)
+            if (drawable is GifDrawable) {
+                mDrawable.callback = this@GlideImageGetter
+                drawable.setLoopCount(GifDrawable.LOOP_FOREVER)
+                drawable.start()
+            }
+            textView.text = textView.text
+            textView.invalidate()
+        }
+
+        override fun onLoadCleared(placeholder: Drawable?) {
+            targets.remove(this)
+            mDrawable.setDrawable(placeholder)
+        }
+
+        override fun onLoadFailed(errorDrawable: Drawable?) {
+            targets.remove(this)
+            mDrawable.setDrawable(errorDrawable)
         }
     }
 
     fun clear() {
-        targets.forEach {
-            Glide.with(context).clear(it)
+        val context = contextRef.get()
+        if (context != null) {
+            targets.forEach {
+                Glide.with(context).clear(it)
+            }
         }
-        targets.clear()
+        contextRef.clear()
         textViewRef.clear()
-    }
-
-    private fun refreshTextView() {
-        val textView = textViewRef.get() ?: return
-        textView.post {
-            // 创建新的ImageGetter，但使用缓存
-            val cachedImageGetter = CachedImageGetter(loadedDrawables)
-            val newHtml = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                Html.fromHtml(originalHtml,  Html.FROM_HTML_MODE_COMPACT, cachedImageGetter, null)
-            } else {
-                @Suppress("DEPRECATION")
-                Html.fromHtml(originalHtml, cachedImageGetter, null)
-            }
-            textView.text = newHtml
-        }
-    }
-
-    private class CachedImageGetter(
-        private val drawableCache: Map<String, Drawable>
-    ) : Html.ImageGetter {
-        override fun getDrawable(source: String?): Drawable {
-            if (source.isNullOrBlank()) {
-                return createEmptyDrawable()
-            }
-            drawableCache[source]?.let { return it }
-            return createEmptyDrawable().apply {
-                setBounds(0, 0, 1, 1)
-            }
-        }
+        targets.clear()
     }
 }

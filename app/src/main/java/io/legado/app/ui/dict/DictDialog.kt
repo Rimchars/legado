@@ -62,7 +62,7 @@ class DictDialog() : BaseDialogFragment(R.layout.dialog_dict) {
                 viewModel.dict(dictRule, word!!) {
                     binding.rotateLoading.inVisible()
                     glideImageGetter?.clear()
-                    glideImageGetter = GlideImageGetter.create(requireContext(), binding.tvDict, it)
+                    glideImageGetter = GlideImageGetter(requireContext(), binding.tvDict)
                     binding.tvDict.setHtml(it, glideImageGetter)
                 }
             }
@@ -90,8 +90,7 @@ class DictDialog() : BaseDialogFragment(R.layout.dialog_dict) {
     }
 
     override fun onDestroyView() {
-        glideImageGetter?.clear()
-        glideImageGetter = null
         super.onDestroyView()
+        glideImageGetter?.clear()
     }
 }
