@@ -125,7 +125,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
         }
     }
 
-    @SuppressLint("SetTextI18n", "ClickableViewAccessibility")
+    @SuppressLint("SetTextI18n")
     private fun upKindList(binding: ItemFindBookBinding, item: BookSourcePart, kinds: List<ExploreKind>, exIndex: Int) {
         val flexbox = binding.flexbox
         val sourceUrl = item.bookSourceUrl
@@ -184,6 +184,14 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                 tv.text = "err"
                             }
                         }
+                        tv.setOnClickListener {// 辅助触发无障碍功能正常
+                            val url = kind.url ?: return@setOnClickListener
+                            if (kind.title.startsWith("ERROR:")) {
+                                it.activity?.showDialogFragment(TextDialog("ERROR", url))
+                            } else {
+                                callBack.openExplore(sourceUrl, kind.title, url)
+                            }
+                        }
                         tv.setOnTouchListener { view, event ->
                             when (event.action) {
                                 MotionEvent.ACTION_DOWN -> {
@@ -196,7 +204,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                         return@setOnTouchListener true
                                     }
                                     lastClickTime = upTime
-                                    val url = kind.url?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener false
+                                    val url = kind.url?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener true
                                     if (kind.title.startsWith("ERROR:")) {
                                         view.activity?.showDialogFragment(TextDialog("ERROR", url))
                                     } else {
@@ -241,6 +249,12 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                 tv.text = "err"
                             }
                         }
+                        tv.setOnClickListener {
+                            val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnClickListener
+                            callBack.scope.launch {
+                                evalButtonClick(action, source, infoMap, title, sourceJsExtensions)
+                            }
+                        }
                         tv.setOnTouchListener { view, event ->
                             when (event.action) {
                                 MotionEvent.ACTION_DOWN -> {
@@ -253,7 +267,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                         return@setOnTouchListener true
                                     }
                                     lastClickTime = upTime
-                                    val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener false
+                                    val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener true
                                     callBack.scope.launch {
                                         evalButtonClick(action, source, infoMap, title, sourceJsExtensions)
                                     }
@@ -367,6 +381,17 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                 tv.text = char + "err"
                             }
                         }
+                        tv.setOnClickListener {
+                            val currentIndex = chars.indexOf(char)
+                            val nextIndex = (currentIndex + 1) % chars.size
+                            char = chars.getOrNull(nextIndex) ?: ""
+                            infoMap[title] = char
+                            tv.text = if (left) char + newName else newName + char
+                            val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnClickListener
+                            callBack.scope.launch {
+                                evalButtonClick(action, source, infoMap, title, sourceJsExtensions)
+                            }
+                        }
                         tv.setOnTouchListener { view, event ->
                             when (event.action) {
                                 MotionEvent.ACTION_DOWN -> {
@@ -384,7 +409,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                                     char = chars.getOrNull(nextIndex) ?: ""
                                     infoMap[title] = char
                                     tv.text = if (left) char + newName else newName + char
-                                    val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener false
+                                    val action = kind.action?.takeIf { it.isNotBlank() } ?: return@setOnTouchListener true
                                     callBack.scope.launch {
                                         evalButtonClick(action, source, infoMap, title, sourceJsExtensions)
                                     }
@@ -538,6 +563,7 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                     }
                     is TextView -> {
                         child.setOnTouchListener(null)
+                        child.setOnClickListener(null)
                         recycler.add(child)
                     }
                     is LinearLayout -> {
