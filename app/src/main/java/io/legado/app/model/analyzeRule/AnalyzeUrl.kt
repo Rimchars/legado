@@ -747,6 +747,10 @@ class AnalyzeUrl(
         return source
     }
 
+    override fun getTag(): String? {
+        return source?.getTag()
+    }
+
     companion object {
         val paramPattern: Pattern = Pattern.compile("\\s*,\\s*(?=\\{)")
         private val pagePattern = Pattern.compile("<(.*?)>")

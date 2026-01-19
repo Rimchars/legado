@@ -355,3 +355,8 @@ window.run("java.toast('执行成功');'成功'")
 var url = `https://www.baidu.com/img/flexible/logo/pc/result.png,{"js": "if (book) java.toast('这是'+book.name+'正文的图被点击了');result", "style": "right"}`;
 result = `<img src = "${url}">`;
 ```
+
+* 详情页html
+> 书籍详情页支持轻度显示html字符串样式（同字典规则）  
+> 获取到的简介字符串需要用<usehtml></usehtml>包裹起来才能识别  
+> 支持按钮 `<button>点我@onclick:java.toast("Hello World")</button>`  

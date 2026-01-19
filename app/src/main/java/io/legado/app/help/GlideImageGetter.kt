@@ -7,16 +7,22 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
 import android.text.Html
 import android.widget.TextView
+import androidx.lifecycle.Lifecycle
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.gif.GifDrawable
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import java.lang.ref.WeakReference
+import io.legado.app.utils.lifecycle
 
-class GlideImageGetter(context: Context, textView: TextView) : Html.ImageGetter, Drawable.Callback {
+class GlideImageGetter(
+    context: Context,
+    textView: TextView,
+    private  val lifecycle: Lifecycle
+) : Html.ImageGetter, Drawable.Callback {
     private val textViewRef = WeakReference(textView)
     private val contextRef = WeakReference(context)
-    private val targets = mutableSetOf<CustomTarget<*>>()
+    private val gifDrawables = mutableSetOf<GlideUrlDrawable>()
     private val emptyDrawable by lazy {
         object : Drawable() {
             override fun draw(canvas: Canvas) = Unit
@@ -36,8 +42,7 @@ class GlideImageGetter(context: Context, textView: TextView) : Html.ImageGetter,
         }
         val urlDrawable = GlideUrlDrawable()
         val target = ImageTarget(urlDrawable)
-        Glide.with(context)
-            .asDrawable()
+        Glide.with(context).lifecycle(lifecycle)
             .load(source)
             .into(target)
         return urlDrawable
@@ -66,6 +71,15 @@ class GlideImageGetter(context: Context, textView: TextView) : Html.ImageGetter,
             mDrawable?.callback = null
             drawable?.callback = this
             mDrawable = drawable
+        }
+
+        fun clear() {
+            (mDrawable as? GifDrawable)?.apply{
+                stop()
+                clearAnimationCallbacks()
+            }
+            mDrawable?.callback = null
+            mDrawable = null
         }
 
         override fun draw(canvas: Canvas) {
@@ -106,20 +120,13 @@ class GlideImageGetter(context: Context, textView: TextView) : Html.ImageGetter,
     }
 
     private inner class ImageTarget(
-        urlDrawable: GlideUrlDrawable
+        private val urlDrawable: GlideUrlDrawable
     ) : CustomTarget<Drawable>() {
-        private var mDrawable: GlideUrlDrawable
-
-        init {
-            targets.add(this)
-            mDrawable = urlDrawable
-        }
 
         override fun onResourceReady(
             drawable: Drawable,
             transition: Transition<in Drawable>?
         ) {
-            targets.remove(this)
             val textView = textViewRef.get() ?: return
             val context = contextRef.get() ?: return
             val availableWidth = if (textView.width > 0) {
@@ -139,37 +146,32 @@ class GlideImageGetter(context: Context, textView: TextView) : Html.ImageGetter,
             val width = (drawableWidth * scale).toInt()
             val height = (drawableHeight * scale).toInt()
             drawable.setBounds(0, 0, width, height)
-            mDrawable.setBounds(0, 0, width, height)
-            mDrawable.setDrawable(drawable)
+            urlDrawable.setBounds(0, 0, width, height)
+            urlDrawable.setDrawable(drawable)
             if (drawable is GifDrawable) {
-                mDrawable.callback = this@GlideImageGetter
-                drawable.setLoopCount(GifDrawable.LOOP_FOREVER)
+                urlDrawable.callback = this@GlideImageGetter
                 drawable.start()
+                gifDrawables.add(urlDrawable)
             }
             textView.text = textView.text
             textView.invalidate()
         }
 
         override fun onLoadCleared(placeholder: Drawable?) {
-            targets.remove(this)
-            mDrawable.setDrawable(placeholder)
+            urlDrawable.setDrawable(placeholder)
         }
 
         override fun onLoadFailed(errorDrawable: Drawable?) {
-            targets.remove(this)
-            mDrawable.setDrawable(errorDrawable)
+            urlDrawable.setDrawable(errorDrawable)
         }
     }
 
     fun clear() {
-        val context = contextRef.get()
-        if (context != null) {
-            targets.forEach {
-                Glide.with(context).clear(it)
-            }
+        gifDrawables.forEach {
+            it.clear()
         }
+        gifDrawables.clear()
         contextRef.clear()
         textViewRef.clear()
-        targets.clear()
     }
 }

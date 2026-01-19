@@ -9,7 +9,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Picture
 import android.os.Build
-import android.text.Html
 import android.view.MotionEvent
 import android.view.View
 import android.view.View.GONE
@@ -48,8 +47,10 @@ import splitties.views.bottomPadding
 import splitties.views.topPadding
 import java.lang.reflect.Field
 import androidx.core.graphics.createBitmap
+import androidx.core.text.HtmlCompat
 import androidx.core.view.isVisible
-
+import androidx.core.text.parseAsHtml
+import io.legado.app.help.TextViewTagHandler
 
 private tailrec fun getCompatActivity(context: Context?): AppCompatActivity? {
     return when (context) {
@@ -227,14 +228,8 @@ fun RadioGroup.checkByIndex(index: Int) {
     check(get(index).id)
 }
 
-@SuppressLint("ObsoleteSdkInt")
-fun TextView.setHtml(html: String, imageGetter: GlideImageGetter? = null) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        text = Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT, imageGetter, null)
-    } else {
-        @Suppress("DEPRECATION")
-        text = Html.fromHtml(html, imageGetter, null)
-    }
+fun TextView.setHtml(html: String, imageGetter: GlideImageGetter? = null, textViewTagHandler: TextViewTagHandler? = null) {
+    text = html.parseAsHtml(HtmlCompat.FROM_HTML_MODE_COMPACT, imageGetter, textViewTagHandler)
 }
 
 fun TextView.setTextIfNotEqual(charSequence: CharSequence?) {

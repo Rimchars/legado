@@ -26,6 +26,7 @@ import io.legado.app.databinding.ActivityBookInfoBinding
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.AppWebDav
 import io.legado.app.help.GlideImageGetter
+import io.legado.app.help.TextViewTagHandler
 import io.legado.app.help.book.addType
 import io.legado.app.help.book.getRemoteUrl
 import io.legado.app.help.book.isAudio
@@ -386,8 +387,14 @@ class BookInfoActivity :
             tvIntro.visible()
         } else if (intro.startsWith("<usehtml>")) {
             val html = intro.substring(9, intro.lastIndexOf("<"))
-            glideImageGetter = GlideImageGetter(this@BookInfoActivity, tvIntro)
-            tvIntro.setHtml(html, glideImageGetter)
+            glideImageGetter?.clear()
+            glideImageGetter = GlideImageGetter(this@BookInfoActivity, tvIntro, lifecycle)
+            val textViewTagHandler = TextViewTagHandler(object : TextViewTagHandler.OnButtonClickListener {
+                override fun onButtonClick(name: String, click: String?) {
+                    viewModel.onButtonClick(this@BookInfoActivity, name, click)
+                }
+            })
+            tvIntro.setHtml(html, glideImageGetter, textViewTagHandler)
         } else {
             tvIntro.text = book.getDisplayIntro()
         }
