@@ -45,8 +45,8 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:fillViewport="true"
-                android:paddingTop="8dp"
                 android:paddingStart="8dp"
+                android:paddingTop="8dp"
                 android:paddingEnd="8dp">
 
                 <LinearLayout
@@ -311,9 +311,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"
-                    android:paddingTop="8dp"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
                     tools:ignore="NestedWeights">
 
                     <io.legado.app.ui.widget.text.ScrollTextView
@@ -322,6 +319,9 @@
                         android:layout_height="wrap_content"
                         android:clickable="true"
                         android:focusable="true"
+                        android:paddingStart="16dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="8dp"
                         android:text="@string/book_intro"
                         android:textColor="@color/secondaryText"
                         android:textIsSelectable="true"

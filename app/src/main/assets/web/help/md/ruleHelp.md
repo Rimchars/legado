@@ -357,11 +357,12 @@ result = `<img src = "${url}">`;
 
 > "style"键值控制单个图片的样式  
 > 目前支持"text"、"full"、"single"、"left"、"right"  
-> 在书源正文样式为大写"TEXT"时，占1.5个字符位(text样式大小与汉字保存一致，无法再受width控制)  
+> 在书源正文样式为大写"TEXT"时，占1.5个字符位(text样式宽度与汉字保持一致，不受width控制)  
 
 ```
-<img src = "https://m.baidu.com/result.png,{'style': 'center','width':'50%'}">
-<img src = "https://m.baidu.com/result.png,{'style': 'right','width':'300'}">
+<img src = "https://du.com/result.png,{'style': 'center','width':'50%'}">
+<img src = "https://du.com/result.png,{'style': 'right','width':'300'}">
+<img src = "data:image/svg+xml;base64,QQ,{'style': 'left','width':'100%'}">
 ```
 
 * 详情页html

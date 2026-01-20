@@ -169,6 +169,7 @@ class BookInfoActivity :
     override val binding by viewBinding(ActivityBookInfoBinding::inflate)
     override val viewModel by viewModels<BookInfoViewModel>()
     private var glideImageGetter: GlideImageGetter? = null
+    private var oldIntro: String? = null
 
     @SuppressLint("PrivateResource")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -383,6 +384,22 @@ class BookInfoActivity :
         tvOrigin.text = getString(R.string.origin_show, book.originName)
         tvLasted.text = getString(R.string.lasted_show, book.latestChapterTitle)
         val intro = book.getDisplayIntro()
+        showBookIntro(intro)
+        if (book.isWebFile) {
+            llToc.gone()
+            tvLasted.text = getString(R.string.lasted_show, "下载中...")
+        } else {
+            llToc.visible()
+        }
+        menuCustomBtn?.isVisible = viewModel.hasCustomBtn
+        upTvBookshelf()
+        upKinds(book)
+        upGroup(book.group)
+    }
+
+    private fun showBookIntro(intro: String?) = binding.run {
+        if (oldIntro == intro) return
+        oldIntro = intro
         if (intro.isNullOrBlank()) {
             tvIntro.visible()
         } else if (intro.startsWith("<usehtml>")) {
@@ -396,18 +413,8 @@ class BookInfoActivity :
             })
             tvIntro.setHtml(html, glideImageGetter, textViewTagHandler)
         } else {
-            tvIntro.text = book.getDisplayIntro()
+            tvIntro.text = intro
         }
-        if (book.isWebFile) {
-            llToc.gone()
-            tvLasted.text = getString(R.string.lasted_show, "下载中...")
-        } else {
-            llToc.visible()
-        }
-        menuCustomBtn?.isVisible = viewModel.hasCustomBtn
-        upTvBookshelf()
-        upKinds(book)
-        upGroup(book.group)
     }
 
     private fun upKinds(book: Book) = binding.run {
