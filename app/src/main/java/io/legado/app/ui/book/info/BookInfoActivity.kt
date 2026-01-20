@@ -8,11 +8,13 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
+import android.view.textclassifier.TextClassifier
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.BookType
@@ -83,6 +85,10 @@ import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
+import io.noties.markwon.Markwon
+import io.noties.markwon.ext.tables.TablePlugin
+import io.noties.markwon.html.HtmlPlugin
+import io.noties.markwon.image.glide.GlideImagesPlugin
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -397,13 +403,19 @@ class BookInfoActivity :
         upGroup(book.group)
     }
 
-    private fun showBookIntro(intro: String?) = binding.run {
+    private fun showBookIntro(intro: String?) {
         if (oldIntro == intro) return
         oldIntro = intro
+        val tvIntro = binding.tvIntro
         if (intro.isNullOrBlank()) {
             tvIntro.visible()
         } else if (intro.startsWith("<usehtml>")) {
-            val html = intro.substring(9, intro.lastIndexOf("<"))
+            val lastIndex = intro.lastIndexOf("<")
+            if (lastIndex < 9) {
+                tvIntro.text = intro
+                return
+            }
+            val html = intro.substring(9, lastIndex)
             glideImageGetter?.clear()
             glideImageGetter = GlideImageGetter(this@BookInfoActivity, tvIntro, lifecycle)
             val textViewTagHandler = TextViewTagHandler(object : TextViewTagHandler.OnButtonClickListener {
@@ -412,6 +424,29 @@ class BookInfoActivity :
                 }
             })
             tvIntro.setHtml(html, glideImageGetter, textViewTagHandler)
+        } else if (intro.startsWith("<usemark>")) {
+            val lastIndex = intro.lastIndexOf("<")
+            if (lastIndex < 9) {
+                tvIntro.text = intro
+                return
+            }
+            val mark = intro.substring(9, lastIndex)
+            lifecycleScope.launch {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    tvIntro.setTextClassifier(TextClassifier.NO_OP)
+                }
+                val context = this@BookInfoActivity
+                val markwon: Markwon
+                val markdown = withContext(IO) {
+                    markwon = Markwon.builder(context)
+                        .usePlugin(GlideImagesPlugin.create(Glide.with(context)))
+                        .usePlugin(HtmlPlugin.create())
+                        .usePlugin(TablePlugin.create(context))
+                        .build()
+                    markwon.toMarkdown(mark)
+                }
+                markwon.setParsedMarkdown(tvIntro, markdown)
+            }
         } else {
             tvIntro.text = intro
         }
