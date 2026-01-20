@@ -6,12 +6,16 @@ import android.graphics.ColorFilter
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
 import android.text.Html
+import android.util.LruCache
 import android.widget.TextView
 import androidx.lifecycle.Lifecycle
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.gif.GifDrawable
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
+import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
+import io.legado.app.utils.GSON
+import io.legado.app.utils.fromJsonObject
 import java.lang.ref.WeakReference
 import io.legado.app.utils.lifecycle
 
@@ -20,6 +24,9 @@ class GlideImageGetter(
     textView: TextView,
     private  val lifecycle: Lifecycle
 ) : Html.ImageGetter, Drawable.Callback {
+    companion object {
+        private val urlStyleCache = LruCache<String, Map<String, String>>(99)
+    }
     private val textViewRef = WeakReference(textView)
     private val contextRef = WeakReference(context)
     private val gifDrawables = mutableSetOf<GlideUrlDrawable>()
@@ -40,8 +47,19 @@ class GlideImageGetter(
         if (context == null || source.isNullOrBlank()) {
             return emptyDrawable
         }
+        urlStyleCache[source] ?: run {
+            val urlMatcher = paramPattern.matcher(source)
+            if (urlMatcher.find()) {
+                val urlOptionStr = source.substring(urlMatcher.end())
+                GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()?.let { map ->
+                    urlStyleCache.put(source, map.filterKeys { it in listOf("style", "width") })
+                    return@run
+                }
+            }
+            urlStyleCache.put(source, emptyMap())
+        }
         val urlDrawable = GlideUrlDrawable()
-        val target = ImageTarget(urlDrawable)
+        val target = ImageTarget(urlDrawable, source)
         Glide.with(context).lifecycle(lifecycle)
             .load(source)
             .into(target)
@@ -120,7 +138,8 @@ class GlideImageGetter(
     }
 
     private inner class ImageTarget(
-        private val urlDrawable: GlideUrlDrawable
+        private val urlDrawable: GlideUrlDrawable,
+        private val source: String
     ) : CustomTarget<Drawable>() {
 
         override fun onResourceReady(
@@ -129,24 +148,33 @@ class GlideImageGetter(
         ) {
             val textView = textViewRef.get() ?: return
             val context = contextRef.get() ?: return
-            val availableWidth = if (textView.width > 0) {
-                textView.width - textView.paddingLeft - textView.paddingRight
-            } else {
-                val displayMetrics = context.resources.displayMetrics
-                (displayMetrics.widthPixels * 0.8).toInt()
-            }
-            val maxWidth = availableWidth.takeIf { it > 0 } ?: 700
             val drawableWidth = drawable.intrinsicWidth.coerceAtLeast(1)
             val drawableHeight = drawable.intrinsicHeight.coerceAtLeast(1)
-            val scale = if (drawableWidth > maxWidth) {
-                maxWidth.toFloat() / drawableWidth
+            val style = urlStyleCache[source]
+            val styleWidth = style?.get("width")
+            val imgWidth = if (styleWidth?.endsWith("%")  == true) {
+                val sWidth = styleWidth.dropLast(1).toIntOrNull() ?: 80
+                val displayMetrics = context.resources.displayMetrics
+                displayMetrics.widthPixels * sWidth / 100
             } else {
-                1f
+                val sWidth = styleWidth?.toIntOrNull() ?: 0
+                if (sWidth > 0) {
+                    sWidth
+                } else {
+                    drawableWidth
+                }
             }
-            val width = (drawableWidth * scale).toInt()
-            val height = (drawableHeight * scale).toInt()
-            drawable.setBounds(0, 0, width, height)
-            urlDrawable.setBounds(0, 0, width, height)
+            val availableWidth = textView.width - textView.paddingLeft - textView.paddingRight
+            val showWidth = availableWidth.takeIf { it in 1..<imgWidth } ?: imgWidth
+            val showHeight = (drawableHeight * showWidth / drawableWidth.toFloat()).toInt()
+            val styleType = style?.get("style")
+            val left = when (styleType) {
+                "center" -> (availableWidth - showWidth) / 2
+                "right" -> availableWidth - showWidth
+                else -> 0
+            }
+            drawable.setBounds(left, 0, left + showWidth, showHeight)
+            urlDrawable.setBounds(left, 0, left + showWidth, showHeight)
             urlDrawable.setDrawable(drawable)
             if (drawable is GifDrawable) {
                 urlDrawable.callback = this@GlideImageGetter

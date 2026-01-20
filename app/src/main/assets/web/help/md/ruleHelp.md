@@ -343,17 +343,25 @@ window.run("java.toast('执行成功');'成功'")
 .catch(e=>alert("执行出错:"+e));
 ```
 
-* 书源控制正文图片
+* 图片链接控制样式
+> 在书源正文  
 > 图片链接中含有"js"键时，点击图片会执行一次键值的函数  
 > 加载图片时，执行结果作为图片链接  
+```js
+var url = `https://www.baidu.com/img/flexible/logo/pc/result.png,{"js": "if (book) java.toast('这是'+book.name+'正文的图被点击了');result", "style": "TEXT"}`;
+result = `<img src = "${url}">`;
+```
+
+> "width"键值控制图片宽度  
+> 键值为数字时为像素宽度，带`%`时为最大宽度百分比  
 
 > "style"键值控制单个图片的样式  
 > 目前支持"text"、"full"、"single"、"left"、"right"  
-> 大写"TEXT"时，占1.5个字符位  
+> 在书源正文样式为大写"TEXT"时，占1.5个字符位(text样式大小与汉字保存一致，无法再受width控制)  
 
-```js
-var url = `https://www.baidu.com/img/flexible/logo/pc/result.png,{"js": "if (book) java.toast('这是'+book.name+'正文的图被点击了');result", "style": "right"}`;
-result = `<img src = "${url}">`;
+```
+<img src = "https://m.baidu.com/result.png,{'style': 'center','width':'50%'}">
+<img src = "https://m.baidu.com/result.png,{'style': 'right','width':'300'}">
 ```
 
 * 详情页html
