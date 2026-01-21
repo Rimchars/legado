@@ -92,6 +92,7 @@ object WebViewPool {
             stopLoading()
             clearFocus() //清除焦点
             setOnLongClickListener(null)
+            setOnClickListener(null)
             webChromeClient = null
             webViewClient = WebViewClient()
 

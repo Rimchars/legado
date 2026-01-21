@@ -50,7 +50,7 @@ class GlideImageGetter(
         }
     }
     private val availableWidth by lazy {
-        val textView = textViewRef.get() ?: return@lazy 0
+        val textView = textViewRef.get() ?: return@lazy 800
         textView.width - textView.paddingLeft - textView.paddingRight - 8.dpToPx() //8是为了文字对齐额外的右边距
     }
 
