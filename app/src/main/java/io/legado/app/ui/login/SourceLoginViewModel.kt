@@ -66,7 +66,7 @@ class SourceLoginViewModel(application: Application) : BaseViewModel(application
             headerMap = runScriptWithContext {
                 source?.getHeaderMap(true) ?: emptyMap()
             }
-            source?.let{ loginInfo =it.getLoginInfoMap() }
+            source?.let{ loginInfo = it.getLoginInfoMap() }
             source
         }.onSuccess {
             if (it != null) {

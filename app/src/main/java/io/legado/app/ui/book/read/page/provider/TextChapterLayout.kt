@@ -556,8 +556,7 @@ class TextChapterLayout(
                 continue
             }
             val textLine = TextLine(isHtml = true)
-            val lineText = spanned.subSequence(lineStart, lineEnd).toString()
-            textLine.text = lineText //文本
+            val lineText = StringBuilder()
             val lineLeft = staticLayout.getLineLeft(lineIndex)
             textLine.startX = absStartX + lineLeft //x坐标
             val mLineTop = staticLayout.getLineTop(lineIndex).toFloat()
@@ -570,19 +569,20 @@ class TextChapterLayout(
             var charIndex = lineStart
             while (charIndex < lineEnd) {
                 val char = spanned[charIndex].toString()
+                lineText.append(char)
                 if (char == "\n") {
                     textLine.isParagraphEnd = true
                     durY += lineHeight * paragraphSpacing / 10f //段距
                     charIndex++
                     continue
                 }
-                val charX = staticLayout.getPrimaryHorizontal(charIndex) + lineLeft
+                val charX = staticLayout.getPrimaryHorizontal(charIndex)
                 val textSize = extractTextSize(spanned, charIndex, textPaint.textSize)
-                val textColor = extractTextColor(spanned, charIndex, textPaint.color)
+                val textColor = extractTextColor(spanned, charIndex)
                 val linkUrl = extractLinkUrl(spanned, charIndex)
 
                 val charRight = if (charIndex + 1 < lineEnd) {
-                    staticLayout.getPrimaryHorizontal(charIndex + 1) + lineLeft
+                    staticLayout.getPrimaryHorizontal(charIndex + 1)
                 } else {
                     tempPaint.textSize = textSize
                     val charWidth = tempPaint.measureText(char)
@@ -596,7 +596,8 @@ class TextChapterLayout(
                         char,
                         textSize,
                         textColor,
-                        linkUrl)
+                        linkUrl
+                    )
                 )
                 charIndex++
                 if (charIndex == lineEnd && lineIndex == staticLayout.lineCount - 1) {
@@ -604,6 +605,7 @@ class TextChapterLayout(
                     durY += lineHeight * paragraphSpacing / 10f //段距
                 }
             }
+            textLine.text = lineText.toString()
             if (textFullJustify && !textLine.isParagraphEnd) {
                 justifyHtmlLine(columns, textLine, visibleWidth)
             } else {
@@ -712,23 +714,9 @@ class TextChapterLayout(
         return defaultSize
     }
 
-    private fun extractTextColor(spanned: Spanned, index: Int, defaultColor: Int): Int {
-        // 检查 ForegroundColorSpan（前景色）
+    private fun extractTextColor(spanned: Spanned, index: Int): Int? {
         val foregroundSpans = spanned.getSpans(index, index + 1, ForegroundColorSpan::class.java)
-        foregroundSpans.firstOrNull()?.let { span ->
-            return span.foregroundColor
-        }
-
-        // 2. 检查自定义的彩色 Span
-//        val customColorSpans = spanned.getSpans(index, index + 1, CharacterStyle::class.java)
-//        customColorSpans.firstOrNull()?.let { span ->
-//            if (span is ForegroundColorSpan) {
-//                return span.foregroundColor
-//            }
-//        }
-
-        // 默认返回 Paint 的颜色
-        return defaultColor
+        return foregroundSpans.firstOrNull()?.foregroundColor
     }
 
     private fun extractLinkUrl(spanned: Spanned, index: Int): String? {

@@ -91,9 +91,7 @@ object WebViewPool {
             (parent as? ViewGroup)?.removeView(webView)
             stopLoading()
             clearFocus() //清除焦点
-            webView.setOnLongClickListener { _ ->
-                return@setOnLongClickListener false
-            }
+            webView.setOnLongClickListener(null)
             webChromeClient = null
             webViewClient = WebViewClient()
 

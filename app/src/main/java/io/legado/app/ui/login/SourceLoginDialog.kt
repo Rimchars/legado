@@ -215,11 +215,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
             getLoginData(it)
         } ?: viewModel.loginInfo.toMutableMap()
         try {
-            source.evalJS("$loginJS\n$jsStr") {
-                put("result", result)
-                put("book", viewModel.book)
-                put("chapter", viewModel.chapter)
-            }.toString()
+            runScriptWithContext {
+                source.evalJS("$loginJS\n$jsStr") {
+                    put("result", result)
+                    put("book", viewModel.book)
+                    put("chapter", viewModel.chapter)
+                }.toString()
+            }
         } catch (e: Exception) {
             AppLog.put(source.getTag() + " loginUi err:" + (e.localizedMessage ?: e.toString()), e)
             null
@@ -232,7 +234,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
         }.getOrNull()
     }
 
-    @SuppressLint("SetTextI18n")
+    @SuppressLint("SetTextI18n", "ClickableViewAccessibility")
     private fun rowUiBuilder(source: BaseSource, rowUis: List<RowUi>?) {
         val loginInfo = viewModel.loginInfo
         rowUiName.clear()
