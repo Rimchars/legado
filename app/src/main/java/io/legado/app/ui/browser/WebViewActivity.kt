@@ -320,7 +320,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
     }
 
     @Suppress("unused")
-    class JSInterface(activity: WebViewActivity) {
+    private class JSInterface(activity: WebViewActivity) {
         private val activityRef: WeakReference<WebViewActivity> = WeakReference(activity)
         @JavascriptInterface
         fun lockOrientation(orientation: String) {

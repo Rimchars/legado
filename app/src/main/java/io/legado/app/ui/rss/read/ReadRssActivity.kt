@@ -501,7 +501,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
 
 
     @Suppress("unused")
-    class JSInterface(activity: ReadRssActivity) {
+    private class JSInterface(activity: ReadRssActivity) {
         private val activityRef: WeakReference<ReadRssActivity> = WeakReference(activity)
         @JavascriptInterface
         fun lockOrientation(orientation: String) {
@@ -679,7 +679,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                     AppPattern.htmlHeadRegex.find(originalText)?.let { match ->
                         originalText.replaceRange(
                             match.range,
-                            "${match.value}<script>(() => {$JS_INJECTION$preloadJs\n})();</script>"
+                            "${match.value}<script>(() => {$JS_INJECTION\n$preloadJs\n})();</script>"
                         )
                     } ?: originalText
                 }

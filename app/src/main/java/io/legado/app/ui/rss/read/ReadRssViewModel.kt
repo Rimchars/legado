@@ -226,9 +226,9 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
         val preloadJs = rssSource?.preloadJs ?: ""
         var processedHtml = content
         processedHtml = if (processedHtml.contains("<head>")) {
-            processedHtml.replaceFirst("<head>", "<head><script>(() => {$JS_INJECTION$preloadJs\n})();</script>")
+            processedHtml.replaceFirst("<head>", "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script>")
         } else {
-            "<head><script>(() => {$JS_INJECTION$preloadJs\n})();</script></head>$processedHtml"
+            "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script></head>$processedHtml"
         }
         if (processedHtml.contains("<style>")) {
             if (!style.isNullOrBlank()) {
