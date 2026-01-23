@@ -21,6 +21,7 @@ import java.io.File
 @Suppress("unused")
 class SourceLoginJsExtensions(
     activity: AppCompatActivity?, source: BaseSource?,
+    private val bookType: Int = 0,
     private val callback: Callback? = null
 ) : RssJsExtensions(activity, source) {
 
@@ -69,12 +70,12 @@ class SourceLoginJsExtensions(
         activity.showDialogFragment(
             BottomWebViewDialog(
                 source.getKey(),
+                bookType,
                 url,
                 html,
                 preloadJs
             )
         )
-
     }
 
 }

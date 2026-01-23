@@ -325,21 +325,18 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
         @JavascriptInterface
         fun lockOrientation(orientation: String) {
             val ctx = activityRef.get()
-            if (ctx != null && !ctx.isFinishing && !ctx.isDestroyed) {
+            if (ctx != null && ctx.isfullscreen  && !ctx.isFinishing && !ctx.isDestroyed) {
                 ctx.runOnUiThread {
-                    if (ctx.isfullscreen) {
-                        ctx.requestedOrientation = when (orientation) {
-                            "portrait", "portrait-primary" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                            "portrait-secondary" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
-                            "landscape", "landscape-primary" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                            "landscape-secondary" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
-                            "any", "unspecified" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
-                            else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                        }
+                    ctx.requestedOrientation = when (orientation) {
+                        "portrait", "portrait-primary" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                        "portrait-secondary" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+                        "landscape", "landscape-primary" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                        "landscape-secondary" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                        "any", "unspecified" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                        else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                     }
                 }
             }
-
         }
 
         @JavascriptInterface

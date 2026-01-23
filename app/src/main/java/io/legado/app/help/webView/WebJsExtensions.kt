@@ -4,9 +4,17 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import io.legado.app.constant.BookType
+import io.legado.app.data.appDb
 import io.legado.app.data.entities.BaseSource
+import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.model.AudioPlay
+import io.legado.app.model.ReadBook
+import io.legado.app.model.VideoPlay
 import io.legado.app.model.analyzeRule.AnalyzeRule
+import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setChapter
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
 import io.legado.app.ui.rss.read.RssJsExtensions
 import io.legado.app.utils.GSON
@@ -15,7 +23,7 @@ import io.legado.app.utils.fromJsonObject
 import java.util.UUID
 
 @Suppress("unused")
-class WebJsExtensions(private val source: BaseSource, activity: AppCompatActivity, private val webView: WebView): RssJsExtensions(activity, source) {
+class WebJsExtensions(private val source: BaseSource, activity: AppCompatActivity, private val webView: WebView, private val bookType: Int = 0): RssJsExtensions(activity, source) {
 
     /**
      * 由软件主动注入的js函数调用
@@ -26,8 +34,31 @@ class WebJsExtensions(private val source: BaseSource, activity: AppCompatActivit
         Coroutine.async(activity.lifecycleScope) {
             when (funName) {
                 "run" -> {
-                    AnalyzeRule(null, source).run {
+                    var book: Book? = null
+                    var chapter: BookChapter? = null
+                    when (bookType) {
+                        BookType.text -> {
+                            book = ReadBook.book?.also {
+                                chapter = appDb.bookChapterDao.getChapter(
+                                    it.bookUrl,
+                                    ReadBook.durChapterIndex
+                                )
+                            }
+                        }
+
+                        BookType.audio -> {
+                            book = AudioPlay.book
+                            chapter = AudioPlay.durChapter
+                        }
+
+                        BookType.video -> {
+                            book = VideoPlay.book
+                            chapter = VideoPlay.chapter
+                        }
+                    }
+                    AnalyzeRule(book, source).run {
                         setCoroutineContext(coroutineContext)
+                        setChapter(chapter)
                         evalJS(jsParam[0]).toString()
                     }
                 }
@@ -147,7 +178,7 @@ class WebJsExtensions(private val source: BaseSource, activity: AppCompatActivit
 
     companion object{
         private fun getRandomLetter(): Char {
-            val letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
+            val letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_"
             return letters.random()
         }
         val uuid by lazy { UUID.randomUUID().toString().split("-") }

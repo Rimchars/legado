@@ -69,8 +69,11 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
     private var rowUiName = arrayListOf<String>()
     private var hasChange = false
     private val sourceLoginJsExtensions by lazy {
-        SourceLoginJsExtensions(activity as AppCompatActivity, viewModel.source,
-            object : SourceLoginJsExtensions.Callback {
+        SourceLoginJsExtensions(
+            activity as AppCompatActivity,
+            viewModel.source,
+            viewModel.bookType,
+            callback = object : SourceLoginJsExtensions.Callback {
                 override fun upUiData(data: Map<String, String?>?) {
                     activity?.runOnUiThread { // 在主线程中更新 UI
                         handleUpUiData(data)

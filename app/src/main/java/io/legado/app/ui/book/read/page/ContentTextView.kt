@@ -260,10 +260,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 } else {
                     if (ReadBook.book?.isOnLineTxt == true) {
                         val src = column.src
-                        if (src.contains("\"js\"") || src.contains("'js'")) {
-                            callBack.clickImg(src)
-                            handled = true
-                        }
+                        handled = callBack.clickImg(src)
                     }
                 }
                 is TextHtmlColumn -> {
@@ -745,6 +742,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         fun onImageLongPress(x: Float, y: Float, src: String)
         fun onCancelSelect()
         fun onLongScreenshotTouchEvent(event: MotionEvent): Boolean
-        fun clickImg(src: String)
+        fun clickImg(src: String): Boolean
     }
 }
