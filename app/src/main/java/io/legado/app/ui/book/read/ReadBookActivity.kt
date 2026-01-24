@@ -1336,7 +1336,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     /**
      * 点击图片
      */
-    override fun clickImg(src: String): Boolean {
+    override fun oldClickImg(src: String): Boolean {
         val urlMatcher = paramPattern.matcher(src)
         if (urlMatcher.find()) {
             val urlOptionStr = src.substring(urlMatcher.end())
@@ -1348,13 +1348,12 @@ class ReadBookActivity : BaseReadBookActivity(),
                     val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
                     val book = ReadBook.book ?: return@async
                     val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
-                    val urlNoOption = src.take(urlMatcher.start())
                     runScriptWithContext {
                         source.evalJS(click) {
                             put("java", java)
                             put("book", book)
                             put("chapter", chapter)
-                            put("result", urlNoOption)
+                            put("result", src)
                         }
                     }
                 }.onError {
@@ -1382,6 +1381,24 @@ class ReadBookActivity : BaseReadBookActivity(),
         return false
     }
 
+    override fun clickImg(click: String, src: String) {
+        Coroutine.async(lifecycleScope,IO) {
+            val source = ReadBook.bookSource ?: return@async
+            val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
+            val book = ReadBook.book ?: return@async
+            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
+            runScriptWithContext {
+                source.evalJS(click) {
+                    put("java", java)
+                    put("book", book)
+                    put("chapter", chapter)
+                    put("result", src)
+                }
+            }
+        }.onError {
+            AppLog.put("执行图片链接click键值出错\n${it.localizedMessage}", it, true)
+        }
+    }
 
 
     /**

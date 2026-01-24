@@ -254,13 +254,32 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                     handled = true
                 }
 
-                is ImageColumn -> if (AppConfig.previewImageByClick) {
-                    activity?.showDialogFragment(PhotoDialog(column.src))
-                    handled = true
-                } else {
-                    if (ReadBook.book?.isOnLineTxt == true) {
-                        val src = column.src
-                        handled = callBack.clickImg(src)
+                is ImageColumn -> when (AppConfig.clickImgWay) {
+                    "1" -> { //预览图片
+                        activity?.showDialogFragment(PhotoDialog(column.src))
+                        handled = true
+                    }
+                    "2" -> { //兼容处理
+                        if (ReadBook.book?.isOnLineTxt == true) {
+                            val click = column.click
+                            val src = column.src
+                            if (!click.isNullOrBlank()) {
+                                callBack.clickImg(click, src)
+                                handled = true
+                            } else {
+                                handled = callBack.oldClickImg(src)
+                            }
+                        }
+                    }
+                    "3" -> { //关闭
+                        handled = false
+                    }
+                    else -> { //默认点击
+                        val click = column.click
+                        if (!click.isNullOrBlank()) {
+                            callBack.clickImg(click, column.src)
+                            handled = true
+                        }
                     }
                 }
                 is TextHtmlColumn -> {
@@ -742,6 +761,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         fun onImageLongPress(x: Float, y: Float, src: String)
         fun onCancelSelect()
         fun onLongScreenshotTouchEvent(event: MotionEvent): Boolean
-        fun clickImg(src: String): Boolean
+        fun oldClickImg(src: String): Boolean
+        fun clickImg(click: String, src: String)
     }
 }
