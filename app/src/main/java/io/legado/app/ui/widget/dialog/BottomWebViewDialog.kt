@@ -2,7 +2,6 @@ package io.legado.app.ui.widget.dialog
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.DialogInterface
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
@@ -57,6 +56,7 @@ import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
 import kotlinx.coroutines.launch
 import androidx.core.view.size
+import io.legado.app.utils.get
 import java.lang.ref.WeakReference
 
 class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view) {
@@ -89,7 +89,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private lateinit var pooledWebView: PooledWebView
     private lateinit var currentWebView: WebView
     private var source: BaseSource? = null
-    private var successInit = false
     private var isFullScreen = false
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var originOrientation: Int? = null
@@ -142,7 +141,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script>"
                     )
                 } else {
-                    "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script></head>$html" //$basicJs
+                    "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script></head>$html"
                 }
             }
             appDb.bookSourceDao.getBookSource(sourceKey).let {
@@ -155,8 +154,13 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
             val bookType = args.getInt("bookType", 0)
             val analyzeUrl = AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
-            initWebView(analyzeUrl.url, html, analyzeUrl.headerMap, bookType)
+            currentWebView.resumeTimers()
+            currentWebView.onResume() //缓存库拿的需要激活
+            currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                behavior?.isDraggable = scrollY == 0
+            }
             currentWebView.post {
+                initWebView(analyzeUrl.url, html, analyzeUrl.headerMap, bookType)
                 currentWebView.clearHistory()
             }
         }
@@ -186,13 +190,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         currentWebView.webChromeClient = CustomWebChromeClient()
         currentWebView.addJavascriptInterface(JSInterface(this), nameBasic)
         currentWebView.webViewClient = CustomWebViewClient()
-        currentWebView.settings.apply {
-            useWideViewPort = true
-            loadWithOverviewMode = true
-            headerMap[AppConst.UA_NAME]?.let {
-                userAgentString = it
-            }
-        }
+        currentWebView.settings.userAgentString = headerMap.get(AppConst.UA_NAME, true)
         source?.let { source ->
             (activity as? AppCompatActivity)?.let { currentActivity ->
                 val webJsExtensions = WebJsExtensions(source, currentActivity, currentWebView, bookType)
@@ -204,14 +202,13 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
     }
 
-    override fun onDismiss(dialog: DialogInterface) {
-        super.onDismiss(dialog)
-        if (successInit) {
-            WebViewPool.release(pooledWebView)
-        }
+    override fun onDestroyView() {
+        customWebViewCallback?.onCustomViewHidden()
+        WebViewPool.release(pooledWebView)
         originOrientation?.let {
             activity?.requestedOrientation = it
         }
+        super.onDestroyView()
     }
 
     @Suppress("unused")
@@ -261,13 +258,13 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
         override fun onHideCustomView() {
             isFullScreen = false
-            binding.customWebView.removeAllViews()
             binding.webViewContainer.visible()
+            binding.customWebView.removeAllViews()
+            customWebViewCallback = null
             dialog?.toggleSystemBar(true)
             dialog?.keepScreenOn(false)
             originOrientation?.let {
                 activity?.requestedOrientation = it
-                originOrientation = null
             }
         }
 

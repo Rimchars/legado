@@ -93,6 +93,7 @@ import io.legado.app.help.webView.WebViewPool
 import io.legado.app.help.webView.WebViewPool.BLANK_HTML
 import io.legado.app.help.webView.WebViewPool.DATA_HTML
 import java.lang.ref.WeakReference
+import splitties.systemservices.powerManager
 
 /**
  * rss阅读界面
@@ -109,6 +110,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
     private var starMenuItem: MenuItem? = null
     private var ttsMenuItem: MenuItem? = null
     private var isFullscreen = false
+    private var wasScreenOff = false
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var isInterfaceInjected = false
     private var needClearHistory = true
@@ -484,14 +486,21 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
 
     override fun onPause() {
         super.onPause()
-        currentWebView.pauseTimers()
-        currentWebView.onPause()
+        if (powerManager.isInteractive) {
+            wasScreenOff = false
+            currentWebView.pauseTimers()
+            currentWebView.onPause()
+        } else {
+            wasScreenOff = true
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        currentWebView.resumeTimers()
-        currentWebView.onResume()
+        if (!wasScreenOff) {
+            currentWebView.resumeTimers()
+            currentWebView.onResume()
+        }
     }
 
     override fun onDestroy() {

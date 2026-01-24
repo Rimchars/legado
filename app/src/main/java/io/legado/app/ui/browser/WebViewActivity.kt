@@ -55,6 +55,7 @@ import io.legado.app.help.webView.PooledWebView
 import io.legado.app.help.webView.WebViewPool
 import io.legado.app.help.webView.WebViewPool.BLANK_HTML
 import io.legado.app.help.webView.WebViewPool.DATA_HTML
+import splitties.systemservices.powerManager
 import java.lang.ref.WeakReference
 
 class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
@@ -73,6 +74,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
     private var isCloudflareChallenge = false
     private var isFullScreen = false
     private var isfullscreen = false
+    private var wasScreenOff = false
     private var needClearHistory = true
     private val saveImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
@@ -304,14 +306,21 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
 
     override fun onPause() {
         super.onPause()
-        currentWebView.pauseTimers()
-        currentWebView.onPause()
+        if (powerManager.isInteractive) {
+            wasScreenOff = false
+            currentWebView.pauseTimers()
+            currentWebView.onPause()
+        } else {
+            wasScreenOff = true
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        currentWebView.resumeTimers()
-        currentWebView.onResume()
+        if (!wasScreenOff) {
+            currentWebView.resumeTimers()
+            currentWebView.onResume()
+        }
     }
 
     override fun onDestroy() {
