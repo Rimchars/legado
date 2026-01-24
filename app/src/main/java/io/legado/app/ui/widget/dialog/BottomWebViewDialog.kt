@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -156,8 +157,10 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             val analyzeUrl = AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
             currentWebView.resumeTimers()
             currentWebView.onResume() //缓存库拿的需要激活
-            currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                behavior?.isDraggable = scrollY == 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                    behavior?.isDraggable = scrollY == 0
+                }
             }
             currentWebView.post {
                 initWebView(analyzeUrl.url, html, analyzeUrl.headerMap, bookType)

@@ -456,6 +456,7 @@ book.getVariable(key: String): String?
 ```js
 chapter.putVariable(key: String, variable: String?)
 chapter.getVariable(key: String): String?
+//在函数回调或登录界面等地方调用，chapter自身不会进行保存，需要调用chapter.update()
 ```
  * 章节信息存储
 ```js
