@@ -1348,11 +1348,13 @@ class ReadBookActivity : BaseReadBookActivity(),
                     val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
                     val book = ReadBook.book ?: return@async
                     val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
+                    val urlNoOption = src.take(urlMatcher.start())
                     runScriptWithContext {
                         source.evalJS(click) {
                             put("java", java)
                             put("book", book)
                             put("chapter", chapter)
+                            put("result", urlNoOption)
                         }
                     }
                 }.onError {
@@ -1362,10 +1364,10 @@ class ReadBookActivity : BaseReadBookActivity(),
             }
             val jsStr = urlOptionMap?.get("js") ?: return false
             Coroutine.async(lifecycleScope, IO) {
-                val urlNoOption = src.take(urlMatcher.start())
                 val source = ReadBook.bookSource ?: return@async
                 val book = ReadBook.book ?: return@async
                 val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
+                val urlNoOption = src.take(urlMatcher.start())
                 AnalyzeRule(book, source).apply {
                     setCoroutineContext(coroutineContext)
                     setBaseUrl(chapter.url)

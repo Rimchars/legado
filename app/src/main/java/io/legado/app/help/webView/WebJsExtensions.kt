@@ -23,7 +23,34 @@ import io.legado.app.utils.fromJsonObject
 import java.util.UUID
 
 @Suppress("unused")
-class WebJsExtensions(private val source: BaseSource, activity: AppCompatActivity, private val webView: WebView, private val bookType: Int = 0): RssJsExtensions(activity, source) {
+class WebJsExtensions(source: BaseSource, activity: AppCompatActivity, private val webView: WebView, private val bookType: Int = 0): RssJsExtensions(activity, source) {
+    private val bookAndChapter by lazy {
+        var book: Book? = null
+        var chapter: BookChapter? = null
+        when (bookType) {
+            BookType.text -> {
+                book = ReadBook.book?.also {
+                    chapter = appDb.bookChapterDao.getChapter(
+                        it.bookUrl,
+                        ReadBook.durChapterIndex
+                    )
+                }
+            }
+
+            BookType.audio -> {
+                book = AudioPlay.book
+                chapter = AudioPlay.durChapter
+            }
+
+            BookType.video -> {
+                book = VideoPlay.book
+                chapter = VideoPlay.chapter
+            }
+        }
+        Pair(book, chapter)
+    }
+    private val book: Book? get() = bookAndChapter.first
+    private val chapter: BookChapter? get() = bookAndChapter.second
 
     /**
      * 由软件主动注入的js函数调用
@@ -33,34 +60,10 @@ class WebJsExtensions(private val source: BaseSource, activity: AppCompatActivit
         val activity = activityRef.get() ?: return
         Coroutine.async(activity.lifecycleScope) {
             when (funName) {
-                "run" -> {
-                    var book: Book? = null
-                    var chapter: BookChapter? = null
-                    when (bookType) {
-                        BookType.text -> {
-                            book = ReadBook.book?.also {
-                                chapter = appDb.bookChapterDao.getChapter(
-                                    it.bookUrl,
-                                    ReadBook.durChapterIndex
-                                )
-                            }
-                        }
-
-                        BookType.audio -> {
-                            book = AudioPlay.book
-                            chapter = AudioPlay.durChapter
-                        }
-
-                        BookType.video -> {
-                            book = VideoPlay.book
-                            chapter = VideoPlay.chapter
-                        }
-                    }
-                    AnalyzeRule(book, source).run {
-                        setCoroutineContext(coroutineContext)
-                        setChapter(chapter)
-                        evalJS(jsParam[0]).toString()
-                    }
+                "run" -> AnalyzeRule(book, getSource()).run {
+                    setCoroutineContext(coroutineContext)
+                    setChapter(chapter)
+                    evalJS(jsParam[0]).toString()
                 }
                 "ajaxAwait" -> {
                     ajax(jsParam[0], jsParam[1].toIntOrNull()).toString()
@@ -101,8 +104,10 @@ class WebJsExtensions(private val source: BaseSource, activity: AppCompatActivit
                 "importScriptAwait" -> {
                     importScript(jsParam[0])
                 }
-                "getStringAwait" -> {
-                    AnalyzeRule(source = source).getString(jsParam[0], jsParam[1])
+                "getStringAwait" -> AnalyzeRule(book, getSource()).run {
+                    setCoroutineContext(coroutineContext)
+                    setChapter(chapter)
+                    getString(jsParam[0], jsParam[1])
                 }
                 else -> "error funName"
             }

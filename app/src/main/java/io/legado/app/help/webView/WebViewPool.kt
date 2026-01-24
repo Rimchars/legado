@@ -72,9 +72,9 @@ object WebViewPool {
             pooledWebView.realWebView.destroy()
             return
         }
-        pooledWebView.upContext(MutableContextWrapper(appCtx))
         // 重置WebView状态
         resetWebView(pooledWebView.realWebView)
+        pooledWebView.upContext(MutableContextWrapper(appCtx))
         pooledWebView.isInUse = false
         if (idlePool.size < CACHED_WEB_VIEW_MAX_NUM - inUsePool.size) {
             pooledWebView.lastUseTime = System.currentTimeMillis()
@@ -89,6 +89,10 @@ object WebViewPool {
     private fun resetWebView(webView: WebView) = with(webView) {
         try {
             (parent as? ViewGroup)?.removeView(webView)
+            webView.layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
             stopLoading()
             clearFocus() //清除焦点
             webView.setOnLongClickListener(null)
