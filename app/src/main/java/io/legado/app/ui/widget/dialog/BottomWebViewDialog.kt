@@ -19,6 +19,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -62,12 +63,19 @@ import io.legado.app.utils.visible
 import kotlinx.coroutines.launch
 import androidx.core.view.size
 import io.legado.app.exception.NoStackTraceException
+import io.legado.app.help.http.newCallResponse
+import io.legado.app.help.http.okHttpClient
+import io.legado.app.help.http.text
+import io.legado.app.help.webView.WebJsExtensions.Companion.JS_URL
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameUrl
 import io.legado.app.help.webView.WebViewPool.BLANK_HTML
 import io.legado.app.help.webView.WebViewPool.DATA_HTML
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.get
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.runBlocking
+import java.io.ByteArrayInputStream
 import java.lang.ref.WeakReference
 import com.google.android.material.R as materialR
 
@@ -103,6 +111,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private lateinit var pooledWebView: PooledWebView
     private lateinit var currentWebView: WebView
     private var source: BaseSource? = null
+    private var preloadJs: String? = null
     private var isFullScreen = false
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var originOrientation: Int? = null
@@ -327,17 +336,21 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                 if (html.isNullOrEmpty()) {
                     throw NoStackTraceException("html is NullOrEmpty")
                 }
-                val preloadJs = args.getString("preloadJs")
+                preloadJs = args.getString("preloadJs")
                 val spliceHtml = if (preloadJs.isNullOrEmpty()) {
                     html
                 } else {
-                    if (html.contains("<head>")) {
-                        html.replaceFirst(
-                            "<head>",
-                            "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script>"
-                        )
+                    val headIndex = html.indexOf("<head", ignoreCase = true)
+                    if (headIndex >= 0) {
+                        val closingHeadIndex = html.indexOf('>', startIndex = headIndex)
+                        if (closingHeadIndex >= 0) {
+                            val insertPos = closingHeadIndex + 1
+                            StringBuilder(html).insert(insertPos, JS_URL).toString()
+                        } else {
+                            html
+                        }
                     } else {
-                        "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script></head>$html"
+                        html
                     }
                 }
                 appDb.bookSourceDao.getBookSource(sourceKey).let {
@@ -631,6 +644,75 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             view: WebView?, handler: SslErrorHandler?, error: SslError?
         ) {
             handler?.proceed()
+        }
+
+        override fun shouldInterceptRequest(
+            view: WebView, request: WebResourceRequest
+        ): WebResourceResponse? {
+            val url = request.url.toString()
+            if (request.isForMainFrame) {
+                if (!preloadJs.isNullOrEmpty()) {
+                    if (url.startsWith("data:text/html;") || request.method == "POST") {
+                        return super.shouldInterceptRequest(view, request)
+                    }
+                    return runBlocking {
+                        getModifiedContentWithJs(url, request) ?: super.shouldInterceptRequest(view, request)
+                    }
+                }
+            } else if (url.endsWith(nameUrl)) {
+                val preloadJs = preloadJs ?: ""
+                return WebResourceResponse(
+                    "application/javascript",
+                    "utf-8",
+                    ByteArrayInputStream("(() => {$JS_INJECTION\n$preloadJs\n})();".toByteArray())
+                )
+            }
+            return super.shouldInterceptRequest(view, request)
+        }
+        private val webCookieManager by lazy { android.webkit.CookieManager.getInstance() }
+        private suspend fun getModifiedContentWithJs(url: String, request: WebResourceRequest): WebResourceResponse? {
+            try {
+                val cookie = webCookieManager.getCookie(url)
+                val res = okHttpClient.newCallResponse {
+                    url(url)
+                    method(request.method, null)
+                    if (!cookie.isNullOrEmpty()) {
+                        addHeader("Cookie", cookie)
+                    }
+                    request.requestHeaders?.forEach { (key, value) ->
+                        addHeader(key, value)
+                    }
+                }
+                res.headers("Set-Cookie").forEach { setCookie ->
+                    webCookieManager.setCookie(url, setCookie)
+                }
+                val body = res.body
+                val contentType = body.contentType()
+                val mimeType = contentType?.toString()?.substringBefore(";") ?: "text/html"
+                val charset = contentType?.charset() ?: Charsets.UTF_8
+                val charsetSre = charset.name()
+                val bodyText = body.text().let { originalText ->
+                    val headIndex = originalText.indexOf("<head", ignoreCase = true)
+                    if (headIndex >= 0) {
+                        val closingHeadIndex = originalText.indexOf('>', startIndex = headIndex)
+                        if (closingHeadIndex >= 0) {
+                            val insertPos = closingHeadIndex + 1
+                            StringBuilder(originalText).insert(insertPos, JS_URL).toString()
+                        } else {
+                            originalText
+                        }
+                    } else {
+                        originalText
+                    }
+                }
+                return WebResourceResponse(
+                    mimeType,
+                    charsetSre,
+                    ByteArrayInputStream(bodyText.toByteArray(charset))
+                )
+            } catch (_: Exception) {
+                return null
+            }
         }
     }
 
