@@ -57,7 +57,9 @@ import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
 import kotlinx.coroutines.launch
 import androidx.core.view.size
+import io.legado.app.exception.ContentEmptyException
 import io.legado.app.utils.get
+import kotlinx.coroutines.Dispatchers.IO
 import java.lang.ref.WeakReference
 
 class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view) {
@@ -66,7 +68,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         sourceKey: String,
         bookType: Int,
         url: String,
-        html: String,
+        html: String? = null,
         preloadJs: String? = null
     ) : this() {
         arguments = Bundle().apply {
@@ -126,7 +128,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             view.setBackgroundColor(ThemeStore.backgroundColor())
         }
         binding.webViewContainer.addView(currentWebView)
-        lifecycleScope.launch {
+        lifecycleScope.launch(IO) {
             val args = arguments
             if (args == null) {
                 dismiss()
@@ -134,37 +136,52 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
             val sourceKey = args.getString("sourceKey") ?: return@launch
             val url = args.getString("url") ?: return@launch
-            var html = args.getString("html") ?: return@launch
-            args.getString("preloadJs")?.let { preloadJs ->
-                html = if (html.contains("<head>")) {
-                    html.replaceFirst(
-                        "<head>",
-                        "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script>"
-                    )
+            kotlin.runCatching {
+                val analyzeUrl = AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
+                val html = args.getString("html") ?: analyzeUrl.getStrResponseAwait().body
+                if (html.isNullOrEmpty()) {
+                    throw ContentEmptyException("html is NullOrEmpty")
+                }
+                val preloadJs = args.getString("preloadJs")
+                val spliceHtml = if (preloadJs.isNullOrEmpty()) {
+                    html
                 } else {
-                    "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script></head>$html"
+                    if (html.contains("<head>")) {
+                        html.replaceFirst(
+                            "<head>",
+                            "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script>"
+                        )
+                    } else {
+                        "<head><script>(() => {$JS_INJECTION\n$preloadJs\n})();</script></head>$html"
+                    }
                 }
-            }
-            appDb.bookSourceDao.getBookSource(sourceKey).let {
-                if (it == null) {
-                    activity?.toastOnUi("no find bookSource")
-                    dismiss()
-                    return@launch
+                appDb.bookSourceDao.getBookSource(sourceKey).let {
+                    if (it == null) {
+                        activity?.toastOnUi("no find bookSource")
+                        dismiss()
+                        return@launch
+                    }
+                    source = it
                 }
-                source = it
-            }
-            val bookType = args.getInt("bookType", 0)
-            val analyzeUrl = AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
-            currentWebView.resumeTimers()
-            currentWebView.onResume() //缓存库拿的需要激活
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                    behavior?.isDraggable = scrollY == 0
+                val bookType = args.getInt("bookType", 0)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                        behavior?.isDraggable = scrollY == 0
+                    }
                 }
-            }
-            currentWebView.post {
-                initWebView(analyzeUrl.url, html, analyzeUrl.headerMap, bookType)
-                currentWebView.clearHistory()
+                currentWebView.post {
+                    currentWebView.resumeTimers()
+                    currentWebView.onResume() //缓存库拿的需要激活
+                    initWebView(analyzeUrl.url, spliceHtml, analyzeUrl.headerMap, bookType)
+                    currentWebView.clearHistory()
+                }
+            }.onFailure {
+                currentWebView.post {
+                    currentWebView.resumeTimers()
+                    currentWebView.onResume()
+                    currentWebView.loadDataWithBaseURL(url, it.stackTraceToString(), "text/html", "utf-8", url)
+                    currentWebView.clearHistory()
+                }
             }
         }
         dialog?.setOnKeyListener { _, keyCode, event ->
