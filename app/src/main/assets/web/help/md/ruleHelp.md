@@ -333,6 +333,7 @@ decodeImage(result, key)
 * 网页JS
 > `window.close()` 关闭浏览器界面  
 > `screen.orientation.lock()` 全屏后可控制屏幕方向  
+> lock参数"landscape"->横屏且受重力控制正反、"landscape-primary"->正向横屏、"landscape-secondary"->反向横屏  
 
 > 本地html中的额外支持的js函数  
 

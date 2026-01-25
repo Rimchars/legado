@@ -44,7 +44,6 @@ import io.legado.app.help.webView.WebViewPool
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.ui.association.OnLineImportActivity
-import io.legado.app.ui.browser.WebViewActivity.Companion.sessionShowWebLog
 import io.legado.app.utils.invisible
 import io.legado.app.utils.keepScreenOn
 import io.legado.app.utils.longSnackbar
@@ -57,7 +56,7 @@ import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
 import kotlinx.coroutines.launch
 import androidx.core.view.size
-import io.legado.app.exception.ContentEmptyException
+import io.legado.app.exception.NoStackTraceException
 import io.legado.app.utils.get
 import kotlinx.coroutines.Dispatchers.IO
 import java.lang.ref.WeakReference
@@ -140,7 +139,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                 val analyzeUrl = AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
                 val html = args.getString("html") ?: analyzeUrl.getStrResponseAwait().body
                 if (html.isNullOrEmpty()) {
-                    throw ContentEmptyException("html is NullOrEmpty")
+                    throw NoStackTraceException("html is NullOrEmpty")
                 }
                 val preloadJs = args.getString("preloadJs")
                 val spliceHtml = if (preloadJs.isNullOrEmpty()) {
@@ -243,8 +242,9 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     ctx.requestedOrientation = when (orientation) {
                         "portrait", "portrait-primary" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                         "portrait-secondary" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
-                        "landscape", "landscape-primary" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                        "landscape-secondary" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                        "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE //横屏且受重力控制正反
+                        "landscape-primary" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE //正向横屏
+                        "landscape-secondary" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE //反向横屏
                         "any", "unspecified" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
                         else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                     }
@@ -295,22 +295,13 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
         /* 监听网页日志 */
         override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
-            if (sessionShowWebLog) {
-                val source = source ?: return false
-                val consoleException =
-                    Exception("${consoleMessage.messageLevel().name}: \n${consoleMessage.message()}\n-Line ${consoleMessage.lineNumber()} of ${consoleMessage.sourceId()}")
-                val message = source.getTag() + ": ${consoleMessage.message()}"
-                when (consoleMessage.messageLevel()) {
-                    ConsoleMessage.MessageLevel.LOG -> AppLog.put(message)
-                    ConsoleMessage.MessageLevel.DEBUG -> AppLog.put(message, consoleException)
-                    ConsoleMessage.MessageLevel.WARNING -> AppLog.put(message, consoleException)
-                    ConsoleMessage.MessageLevel.ERROR -> AppLog.put(message, consoleException)
-                    ConsoleMessage.MessageLevel.TIP -> AppLog.put(message)
-                    else -> AppLog.put(message)
-                }
-                return true
-            }
-            return false
+            if (!AppConfig.recordLog) return false
+            val source = source ?: return false
+            val messageLevel = consoleMessage.messageLevel().name
+            val message = consoleMessage.message()
+            AppLog.put("${source.getTag()}${messageLevel}: $message",
+                NoStackTraceException("\n${message}\n- Line ${consoleMessage.lineNumber()} of ${consoleMessage.sourceId()}"))
+            return true
         }
     }
 
