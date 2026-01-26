@@ -47,7 +47,11 @@ object WebViewPool {
     @Synchronized
     fun acquire(context: Context): PooledWebView {
         val pooledWebView = if (idlePool.isNotEmpty()) {
-            idlePool.pop().upContext(context) // 复用闲置实例
+            idlePool.pop().upContext(context).apply { // 复用闲置实例
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) { //低安卓版本重新设置一次是否夜间
+                    realWebView.settings.setDarkeningAllowed(AppConfig.isNightTheme)
+                }
+            }
         } else {
             if (needInitialize) {
                 needInitialize = false
