@@ -96,10 +96,12 @@ object WebViewPool {
             )
             stopLoading()
             clearFocus() //清除焦点
-            webView.setOnLongClickListener(null)
+            setOnLongClickListener(null)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                webView.setOnScrollChangeListener(null)
+                setOnScrollChangeListener(null)
             }
+            outlineProvider = null
+            clipToOutline = false
             webChromeClient = null
             webViewClient = WebViewClient()
 
