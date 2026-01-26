@@ -3,6 +3,7 @@ package io.legado.app.help.webView
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.MutableContextWrapper
+import android.os.Build
 import android.view.ViewGroup
 import android.webkit.URLUtil
 import android.webkit.WebSettings
@@ -10,10 +11,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
-import io.legado.app.help.webView.WebJsExtensions.Companion.nameBasic
-import io.legado.app.help.webView.WebJsExtensions.Companion.nameCache
-import io.legado.app.help.webView.WebJsExtensions.Companion.nameJava
-import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.model.Download
 import io.legado.app.ui.rss.read.VisibleWebView
 import io.legado.app.utils.longSnackbar
@@ -96,7 +93,9 @@ object WebViewPool {
             stopLoading()
             clearFocus() //清除焦点
             webView.setOnLongClickListener(null)
-            webView.setOnScrollChangeListener(null)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                webView.setOnScrollChangeListener(null)
+            }
             webChromeClient = null
             webViewClient = WebViewClient()
 
@@ -107,10 +106,10 @@ object WebViewPool {
 //            webView.clearSslPreferences() //清除SSL首选项
 //            clearDisappearingChildren() //清除消失中的子视图
             clearAnimation() //清除动画
-            removeJavascriptInterface(nameBasic)
-            removeJavascriptInterface(nameJava)
-            removeJavascriptInterface(nameSource)
-            removeJavascriptInterface(nameCache)
+//            removeJavascriptInterface(nameBasic)
+//            removeJavascriptInterface(nameJava)
+//            removeJavascriptInterface(nameSource)
+//            removeJavascriptInterface(nameCache) //无意义的效果
             settings.apply {
                 javaScriptEnabled = false
                 javaScriptEnabled = true // 禁用再启用来重置js环境，注意需要禁用的订阅源需要再次执行

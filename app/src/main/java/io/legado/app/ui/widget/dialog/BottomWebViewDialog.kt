@@ -77,7 +77,6 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayInputStream
 import java.lang.ref.WeakReference
-import com.google.android.material.R as materialR
 
 class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view) {
 
@@ -101,7 +100,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
     private val binding by viewBinding(DialogWebViewBinding::bind)
     private val bottomSheet by lazy {
-        dialog?.findViewById<View>(materialR.id.design_bottom_sheet)
+        dialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
     }
     private val behavior by lazy {
         bottomSheet?.let { sheet ->
@@ -611,7 +610,9 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             return true
         }
 
+        private var jsInjected = false
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            jsInjected = false
             if (needClearHistory) {
                 needClearHistory = false
                 currentWebView.clearHistory() //清除历史
@@ -659,13 +660,16 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         getModifiedContentWithJs(url, request) ?: super.shouldInterceptRequest(view, request)
                     }
                 }
-            } else if (url.endsWith(nameUrl)) {
-                val preloadJs = preloadJs ?: ""
-                return WebResourceResponse(
-                    "application/javascript",
-                    "utf-8",
-                    ByteArrayInputStream("(() => {$JS_INJECTION\n$preloadJs\n})();".toByteArray())
-                )
+            } else if (!jsInjected) {
+                if (url == nameUrl) {
+                    jsInjected = true
+                    val preloadJs = preloadJs ?: ""
+                    return WebResourceResponse(
+                        "application/javascript",
+                        "utf-8",
+                        ByteArrayInputStream("(() => {$JS_INJECTION\n$preloadJs\n})();".toByteArray())
+                    )
+                }
             }
             return super.shouldInterceptRequest(view, request)
         }
