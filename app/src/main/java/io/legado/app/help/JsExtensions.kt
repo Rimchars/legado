@@ -229,13 +229,23 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     fun webViewGetSource(html: String?, url: String?, js: String?, sourceRegex: String): String? {
-        return webViewGetSource(html, url, js, sourceRegex, false)
+        return webViewGetSource(html, url, js, sourceRegex, false, 0)
+    }
+    fun webViewGetSource(html: String?, url: String?, js: String?, sourceRegex: String, cacheFirst: Boolean): String? {
+        return webViewGetSource(html, url, js, sourceRegex, cacheFirst, 0)
     }
 
     /**
      * 使用webView获取资源url
      */
-    fun webViewGetSource(html: String?, url: String?, js: String?, sourceRegex: String, cacheFirst: Boolean): String? {
+    fun webViewGetSource(
+        html: String?,
+        url: String?,
+        js: String?,
+        sourceRegex: String,
+        cacheFirst: Boolean,
+        delayTime:Long
+    ): String? {
         if (isMainThread) {
             error("webViewGetSource must be called on a background thread")
         }
@@ -253,7 +263,10 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     fun webViewGetOverrideUrl(html: String?, url: String?, js: String?, overrideUrlRegex: String): String? {
-        return webViewGetOverrideUrl(html, url, js, overrideUrlRegex, false)
+        return webViewGetOverrideUrl(html, url, js, overrideUrlRegex, false, 0)
+    }
+    fun webViewGetOverrideUrl(html: String?, url: String?, js: String?, overrideUrlRegex: String, cacheFirst: Boolean): String? {
+        return webViewGetOverrideUrl(html, url, js, overrideUrlRegex, cacheFirst, 0)
     }
 
     /**
@@ -264,7 +277,8 @@ interface JsExtensions : JsEncodeUtils {
         url: String?,
         js: String?,
         overrideUrlRegex: String,
-        cacheFirst: Boolean
+        cacheFirst: Boolean,
+        delayTime:Long
     ): String? {
         if (isMainThread) {
             error("webViewGetOverrideUrl must be called on a background thread")
@@ -277,7 +291,8 @@ interface JsExtensions : JsEncodeUtils {
                 headerMap = getSource()?.getHeaderMap(true),
                 tag = getSource()?.getKey(),
                 overrideUrlRegex = overrideUrlRegex,
-                cacheFirst = cacheFirst
+                cacheFirst = cacheFirst,
+                delayTime = delayTime
             ).getStrResponse().body
         }
     }
