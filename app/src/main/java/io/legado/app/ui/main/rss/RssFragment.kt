@@ -42,13 +42,12 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
-
+import io.legado.app.ui.login.SourceLoginActivity
 
 /**
  * 订阅界面
  */
-class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss),
-    MainFragmentInterface,
+class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainFragmentInterface,
     RssAdapter.CallBack {
 
     constructor(position: Int) : this() {
@@ -197,8 +196,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss),
                 startActivity<RssSortActivity> {
                     putExtra("sourceUrl", rssSource.sourceUrl)
                 }
-            }
-            ) { html ->
+            }) { html ->
                 startActivity<ReadRssActivity> {
                     putExtra("title", rssSource.sourceName)
                     putExtra("origin", rssSource.sourceUrl)
@@ -210,6 +208,13 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss),
 
     override fun toTop(rssSource: RssSource) {
         viewModel.topSource(rssSource)
+    }
+
+    override fun login(rssSource: RssSource) {
+        startActivity<SourceLoginActivity> {
+            putExtra("type", "rssSource")
+            putExtra("key", rssSource.sourceUrl)
+        }
     }
 
     override fun edit(rssSource: RssSource) {
