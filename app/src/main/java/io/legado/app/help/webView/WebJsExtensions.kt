@@ -20,10 +20,27 @@ import io.legado.app.ui.rss.read.RssJsExtensions
 import io.legado.app.utils.GSON
 import io.legado.app.utils.escapeForJs
 import io.legado.app.utils.fromJsonObject
+import java.lang.ref.WeakReference
 import java.util.UUID
 
 @Suppress("unused")
-class WebJsExtensions(source: BaseSource, activity: AppCompatActivity, private val webView: WebView, private val bookType: Int = 0): RssJsExtensions(activity, source) {
+class WebJsExtensions(
+    source: BaseSource, activity: AppCompatActivity,
+    private val webView: WebView,
+    private val bookType: Int = 0,
+    callback: Callback? = null
+): RssJsExtensions(activity, source) {
+    private val callbackRef: WeakReference<Callback> = WeakReference(callback)
+
+    interface Callback {
+        fun upConfig(config: String)
+    }
+
+    @JavascriptInterface
+    fun upConfig(config: String) {
+        callbackRef.get()?.upConfig(config)
+    }
+
     private val bookAndChapter by lazy {
         var book: Book? = null
         var chapter: BookChapter? = null

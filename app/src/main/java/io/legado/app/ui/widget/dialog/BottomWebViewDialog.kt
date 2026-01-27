@@ -1,6 +1,7 @@
 package io.legado.app.ui.widget.dialog
 
 import android.annotation.SuppressLint
+import android.app.Dialog
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
@@ -8,6 +9,7 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
+import android.util.Base64
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -17,6 +19,7 @@ import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
+import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -56,27 +59,34 @@ import io.legado.app.utils.openUrl
 import io.legado.app.utils.setLayout
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
-import io.legado.app.utils.toggleSystemBar
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
 import kotlinx.coroutines.launch
 import androidx.core.view.size
+import io.legado.app.constant.AppConst.imagePathKey
 import io.legado.app.exception.NoStackTraceException
-import io.legado.app.help.config.ReadBookConfig
+import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.http.newCallResponse
+import io.legado.app.help.http.newCallResponseBody
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.help.http.text
 import io.legado.app.help.webView.WebJsExtensions.Companion.JS_URL
 import io.legado.app.help.webView.WebJsExtensions.Companion.nameUrl
 import io.legado.app.help.webView.WebViewPool.BLANK_HTML
 import io.legado.app.help.webView.WebViewPool.DATA_HTML
+import io.legado.app.lib.dialogs.SelectItem
+import io.legado.app.lib.dialogs.selector
+import io.legado.app.ui.file.HandleFileContract
+import io.legado.app.utils.ACache
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.get
+import io.legado.app.utils.writeBytes
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayInputStream
 import java.lang.ref.WeakReference
+import java.util.Date
 
 class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view) {
 
@@ -107,6 +117,12 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             BottomSheetBehavior.from(sheet)
         }
     }
+    private val selectImageDir = registerForActivityResult(HandleFileContract()) {
+        it.uri?.let { uri ->
+            ACache.get().put(imagePathKey, uri.toString())
+            saveImage(it.value, uri)
+        }
+    }
     private lateinit var pooledWebView: PooledWebView
     private lateinit var currentWebView: WebView
     private var source: BaseSource? = null
@@ -114,8 +130,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private var isFullScreen = false
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var originOrientation: Int? = null
-    private var originDimAmount: Float? = null
     private var needClearHistory = true
+    private var longClickSaveImg = true
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -123,12 +139,18 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         currentWebView = pooledWebView.realWebView
     }
 
+    @Suppress("DEPRECATION")
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val dialog = super.onCreateDialog(savedInstanceState)
+        activity?.window?.decorView?.systemUiVisibility?.also {
+            dialog.window?.decorView?.systemUiVisibility = it
+        }
+        return dialog
+    }
+
     override fun onStart() {
         super.onStart()
         setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        activity?.window?.decorView?.systemUiVisibility?.also {
-            dialog?.window?.decorView?.systemUiVisibility = it
-        }
     }
 
     override fun show(manager: FragmentManager, tag: String?) {
@@ -217,6 +239,16 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                                     }
                                 }
                             currentWebView.clipToOutline = true
+                            binding.customWebView.outlineProvider =
+                                object : android.view.ViewOutlineProvider() {
+                                    override fun getOutline(
+                                        view: View,
+                                        outline: android.graphics.Outline
+                                    ) {
+                                        outline.setRoundRect(0, 0, view.width, view.height, radius)
+                                    }
+                                }
+                            binding.customWebView.clipToOutline = true
                         }
                     }
                 } catch (e: Exception) {
@@ -316,6 +348,10 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
             config.isNestedScrollingEnabled?.let {
                 currentWebView.isNestedScrollingEnabled = it
+            }
+
+            config.longClickSaveImg?.let {
+                longClickSaveImg = it
             }
         }
     }
@@ -459,13 +495,85 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         source?.let { source ->
             (activity as? AppCompatActivity)?.let { currentActivity ->
                 val webJsExtensions =
-                    WebJsExtensions(source, currentActivity, currentWebView, bookType)
+                    WebJsExtensions(source, currentActivity, currentWebView, bookType,callback = object : WebJsExtensions.Callback {
+                        override fun upConfig(config: String) {
+                            setConfig(config)
+                        }
+                    })
                 currentWebView.addJavascriptInterface(webJsExtensions, nameJava)
             }
             currentWebView.addJavascriptInterface(source, nameSource)
             currentWebView.addJavascriptInterface(WebCacheManager, nameCache)
         }
+        if (longClickSaveImg) {
+            currentWebView.setOnLongClickListener {
+                val hitTestResult = currentWebView.hitTestResult
+                if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE ||
+                    hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+                    hitTestResult.extra?.let { webPic ->
+                        requireContext().selector(
+                            arrayListOf(
+                                SelectItem(getString(R.string.action_save), "save"),
+                                SelectItem(getString(R.string.select_folder), "selectFolder")
+                            )
+                        ) { _, charSequence, _ ->
+                            when (charSequence.value) {
+                                "save" -> saveImage(webPic)
+                                "selectFolder" -> selectSaveFolder(null)
+                            }
+                        }
+                        return@setOnLongClickListener true
+                    }
+                }
+                return@setOnLongClickListener false
+            }
+        }
         currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+    }
+
+    private fun saveImage(webPic: String) {
+        val path = ACache.get().getAsString(imagePathKey)
+        if (path.isNullOrEmpty()) {
+            selectSaveFolder(webPic)
+        } else {
+            saveImage(webPic, path.toUri())
+        }
+    }
+
+    private fun selectSaveFolder(webPic: String?) {
+        val default = arrayListOf<SelectItem<Int>>()
+        val path = ACache.get().getAsString(imagePathKey)
+        if (!path.isNullOrEmpty()) {
+            default.add(SelectItem(path, -1))
+        }
+        selectImageDir.launch {
+            otherActions = default
+            value = webPic
+        }
+    }
+
+    private fun saveImage(webPic: String?, uri: Uri) {
+        webPic ?: return
+        Coroutine.async(lifecycleScope) {
+            val fileName = "${AppConst.fileNameFormat.format(Date(System.currentTimeMillis()))}.jpg"
+            val byteArray = webData2bitmap(webPic) ?: throw NoStackTraceException("NULL")
+            uri.writeBytes(requireContext(), fileName, byteArray)
+        }.onError {
+            ACache.get().remove(imagePathKey)
+            context?.toastOnUi("保存图片失败:${it.localizedMessage}")
+        }.onSuccess {
+            context?.toastOnUi("保存成功")
+        }
+    }
+
+    private suspend fun webData2bitmap(data: String): ByteArray? {
+        return if (URLUtil.isValidUrl(data)) {
+            okHttpClient.newCallResponseBody {
+                url(data)
+            }.bytes()
+        } else {
+            Base64.decode(data.split(",").toTypedArray()[1], Base64.DEFAULT)
+        }
     }
 
     override fun onDestroyView() {
@@ -556,34 +664,32 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         var widthPercentage: Float? = null, // 弹窗宽度占屏幕宽度的百分比（0.0-1.0）
         var heightPercentage: Float? = null, // 弹窗高度占屏幕高度的百分比（0.0-1.0）
         var responsiveBreakpoint: Int? = null, // 响应式断点（像素），小于此宽度时使用移动端布局
+
+        //阅读功能自定义配置
+        var longClickSaveImg : Boolean? = null, //是否启用长按图片保存功能，默认启用
     )
 
     inner class CustomWebChromeClient : WebChromeClient() {
 
         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+            originOrientation = activity?.requestedOrientation //先记录原始方向，避免被js控制的影响
             isFullScreen = true
             binding.webViewContainer.invisible()
             binding.customWebView.addView(view)
             customWebViewCallback = callback
             dialog?.keepScreenOn(true)
             behavior?.state = BottomSheetBehavior.STATE_EXPANDED
-            originOrientation = activity?.requestedOrientation
-            originDimAmount = dialog?.window?.attributes?.dimAmount
-            dialog?.window?.setDimAmount(1.0f)
         }
 
         override fun onHideCustomView() {
+            originOrientation?.let {
+                activity?.requestedOrientation = it
+            }
             isFullScreen = false
             binding.webViewContainer.visible()
             binding.customWebView.removeAllViews()
             customWebViewCallback = null
             dialog?.keepScreenOn(false)
-            originOrientation?.let {
-                activity?.requestedOrientation = it
-            }
-            originDimAmount?.let {
-                dialog?.window?.setDimAmount(it)
-            }
         }
 
         /* 覆盖window.close() */
