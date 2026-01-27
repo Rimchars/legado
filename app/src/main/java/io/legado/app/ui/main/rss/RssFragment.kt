@@ -192,16 +192,18 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss),
                     context?.openUrl(url)
                 }
             }
-        }
-        else if(rssSource.startHtml.isNullOrBlank()) {
-            startActivity<RssSortActivity> {
-                putExtra("sourceUrl", rssSource.sourceUrl)
-            }
         } else {
-            startActivity<ReadRssActivity> {
-                putExtra("title", rssSource.sourceName)
-                putExtra("origin", rssSource.sourceUrl)
-                putExtra("startHtml", true)
+            viewModel.launchRssWithHtml(rssSource, {
+                startActivity<RssSortActivity> {
+                    putExtra("sourceUrl", rssSource.sourceUrl)
+                }
+            }
+            ) { html ->
+                startActivity<ReadRssActivity> {
+                    putExtra("title", rssSource.sourceName)
+                    putExtra("origin", rssSource.sourceUrl)
+                    putExtra("startHtml", html)
+                }
             }
         }
     }
