@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -62,6 +63,7 @@ import io.legado.app.utils.visible
 import kotlinx.coroutines.launch
 import androidx.core.view.size
 import io.legado.app.exception.NoStackTraceException
+import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.http.newCallResponse
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.help.http.text
@@ -113,6 +115,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private var isFullScreen = false
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var originOrientation: Int? = null
+    private var originDimAmount: Float? = null
     private var needClearHistory = true
 
     override fun onAttach(context: Context) {
@@ -124,6 +127,9 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     override fun onStart() {
         super.onStart()
         setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        activity?.window?.decorView?.systemUiVisibility?.also {
+            dialog?.window?.decorView?.systemUiVisibility = it
+        }
     }
 
     override fun show(manager: FragmentManager, tag: String?) {
@@ -132,6 +138,186 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             super.show(manager, tag)
         }.onFailure {
             AppLog.put("显示对话框失败 tag:$tag", it)
+        }
+    }
+
+
+    private fun setConfig(json: String) {
+        GSON.fromJsonObject<Config>(json).getOrThrow().let { config ->
+            config.state?.let {
+                behavior?.state = it
+            }
+            config.peekHeight?.let {
+                behavior?.peekHeight = it
+            }
+            config.isHideable?.let {
+                behavior?.isHideable = it
+            }
+            config.skipCollapsed?.let {
+                behavior?.skipCollapsed = it
+            }
+            config.setHalfExpandedRatio?.let {
+                behavior?.setHalfExpandedRatio(it)
+            }
+            config.setExpandedOffset?.let {
+                behavior?.setExpandedOffset(it)
+            }
+            config.setFitToContents?.let {
+                behavior?.setFitToContents(it)
+            }
+
+            config.isDraggable?.let {
+                behavior?.isDraggable = it
+            }
+            config.isDraggableOnNestedScroll?.let {
+                behavior?.isDraggableOnNestedScroll = it
+            }
+            config.significantVelocityThreshold?.let {
+                behavior?.significantVelocityThreshold = it
+            }
+            config.hideFriction?.let {
+                behavior?.hideFriction = it
+            }
+
+            config.maxWidth?.let {
+                behavior?.maxWidth = it
+            }
+            config.maxHeight?.let {
+                behavior?.maxHeight = it
+            }
+            config.isGestureInsetBottomIgnored?.let {
+                behavior?.isGestureInsetBottomIgnored = it
+            }
+            config.expandedCornersRadius?.let {
+                try {
+                    val radius = TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP, it, resources.displayMetrics
+                    )
+                    bottomSheet?.let { sheet ->
+                        sheet.backgroundTintList = null
+                        val shapeDrawable =
+                            android.graphics.drawable.GradientDrawable().apply {
+                                cornerRadius = 0f
+                                cornerRadii = floatArrayOf(
+                                    radius, radius,
+                                    radius, radius,
+                                    0f, 0f,
+                                    0f, 0f
+                                )
+                            }
+                        sheet.background = shapeDrawable
+                        sheet.clipToOutline = true
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                            currentWebView.outlineProvider =
+                                object : android.view.ViewOutlineProvider() {
+                                    override fun getOutline(
+                                        view: View,
+                                        outline: android.graphics.Outline
+                                    ) {
+                                        outline.setRoundRect(0, 0, view.width, view.height, radius)
+                                    }
+                                }
+                            currentWebView.clipToOutline = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    AppLog.put("设置圆角失败", e)
+                }
+            }
+
+            config.setUpdateImportantForAccessibilityOnSiblings?.let {
+                behavior?.setUpdateImportantForAccessibilityOnSiblings(it)
+            }
+
+            config.backgroundDimAmount?.let {
+                activity?.runOnUiThread {
+                    dialog?.window?.setDimAmount(it)
+                }
+            }
+            config.shouldDimBackground?.let {
+                if (!it) {
+                    activity?.runOnUiThread {
+                        dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                    }
+                }
+            }
+
+            config.dismissOnTouchOutside?.let {
+                isCancelable = it
+            }
+
+            config.webViewInitialScale?.let {
+                activity?.runOnUiThread {
+                    currentWebView.settings.loadWithOverviewMode = true
+                    currentWebView.settings.useWideViewPort = true
+                    currentWebView.settings.textZoom = it
+                }
+            }
+            config.webViewCacheMode?.let {
+                activity?.runOnUiThread {
+                    currentWebView.settings.cacheMode = it
+                }
+            }
+
+            config.widthPercentage?.let { percentage ->
+                if (percentage in 0.0..1.0) {
+                    val displayMetrics = requireContext().resources.displayMetrics
+                    val width = (displayMetrics.widthPixels * percentage).toInt()
+                    bottomSheet?.layoutParams?.width = width
+                }
+            }
+            config.heightPercentage?.let { percentage ->
+                if (percentage in 0.0..1.0) {
+                    val displayMetrics = requireContext().resources.displayMetrics
+                    val height = (displayMetrics.heightPixels * percentage).toInt()
+                    bottomSheet?.layoutParams?.height = height
+                    // 同时更新peekHeight和最大高度
+                    if (config.peekHeight == null) {
+                        behavior?.peekHeight = height
+                    }
+                    if (config.maxHeight == null) {
+                        behavior?.maxHeight = height
+                    }
+                }
+            }
+            config.responsiveBreakpoint?.let { breakpoint ->
+                activity?.let { activity ->
+                    val displayMetrics = activity.resources.displayMetrics
+                    val screenWidth = displayMetrics.widthPixels
+                    if (screenWidth < breakpoint) {
+                        // 移动端布局（小屏幕）设置
+                        behavior?.peekHeight = config.peekHeight ?: 300
+                        config.widthPercentage?.let { percentage ->
+                            if (percentage > 0.8f) {
+                                // 小屏幕上最大宽度限制
+                                val maxWidth = (screenWidth * 0.9).toInt()
+                                behavior?.maxWidth = maxWidth
+                            }
+                        }
+                    } else {
+                        // 平板/大屏幕布局设置
+                        behavior?.peekHeight = config.peekHeight ?: 400
+                        config.widthPercentage?.let { percentage ->
+                            if (percentage < 0.6f) {
+                                // 大屏幕上居中显示
+                                bottomSheet?.layoutParams?.width =
+                                    (screenWidth * percentage).toInt()
+                                (bottomSheet?.layoutParams as? FrameLayout.LayoutParams)?.gravity =
+                                    Gravity.CENTER_HORIZONTAL
+                            }
+                        }
+                    }
+                }
+            }
+
+            config.hardwareAccelerated?.let {
+                if (it) {
+                    dialog?.window?.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)
+                }
+            }
+            config.isNestedScrollingEnabled?.let {
+                currentWebView.isNestedScrollingEnabled = it
+            }
         }
     }
 
@@ -154,180 +340,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             val url = args.getString("url") ?: return@launch
             kotlin.runCatching {
                 args.getString("config")?.let { json ->
-                    GSON.fromJsonObject<Config>(json).getOrThrow().let { config ->
-                        config.state?.let {
-                            behavior?.state = it
-                        }
-                        config.peekHeight?.let {
-                            behavior?.peekHeight = it
-                        }
-                        config.isHideable?.let {
-                            behavior?.isHideable = it
-                        }
-                        config.skipCollapsed?.let {
-                            behavior?.skipCollapsed = it
-                        }
-                        config.setHalfExpandedRatio?.let {
-                            behavior?.setHalfExpandedRatio(it)
-                        }
-                        config.setExpandedOffset?.let {
-                            behavior?.setExpandedOffset(it)
-                        }
-                        config.setFitToContents?.let {
-                            behavior?.setFitToContents(it)
-                        }
-
-                        config.isDraggable?.let {
-                            behavior?.isDraggable = it
-                        }
-                        config.isDraggableOnNestedScroll?.let {
-                            behavior?.isDraggableOnNestedScroll = it
-                        }
-                        config.significantVelocityThreshold?.let {
-                            behavior?.significantVelocityThreshold = it
-                        }
-                        config.hideFriction?.let {
-                            behavior?.hideFriction = it
-                        }
-
-                        config.maxWidth?.let {
-                            behavior?.maxWidth = it
-                        }
-                        config.maxHeight?.let {
-                            behavior?.maxHeight = it
-                        }
-                        config.isGestureInsetBottomIgnored?.let {
-                            behavior?.isGestureInsetBottomIgnored = it
-                        }
-                        config.expandedCornersRadius?.let {
-                            try {
-                                val radius = TypedValue.applyDimension(
-                                    TypedValue.COMPLEX_UNIT_DIP, it, resources.displayMetrics
-                                )
-                                bottomSheet?.let { sheet ->
-                                    sheet.backgroundTintList = null
-                                    val shapeDrawable =
-                                        android.graphics.drawable.GradientDrawable().apply {
-                                            cornerRadius = 0f
-                                            cornerRadii = floatArrayOf(
-                                                radius, radius,
-                                                radius, radius,
-                                                0f, 0f,
-                                                0f, 0f
-                                            )
-                                        }
-                                    sheet.background = shapeDrawable
-                                    sheet.clipToOutline = true
-                                    binding.webViewContainer.background = shapeDrawable
-                                    binding.webViewContainer.clipToOutline = true
-                                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                                        currentWebView.outlineProvider = object : android.view.ViewOutlineProvider() {
-                                            override fun getOutline(view: View, outline: android.graphics.Outline) {
-                                                outline.setRoundRect(0, 0, view.width, view.height, radius)
-                                            }
-                                        }
-                                        currentWebView.clipToOutline = true
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                AppLog.put("设置圆角失败", e)
-                            }
-                        }
-
-                        config.setUpdateImportantForAccessibilityOnSiblings?.let {
-                            behavior?.setUpdateImportantForAccessibilityOnSiblings(it)
-                        }
-
-                        config.backgroundDimAmount?.let {
-                            activity?.runOnUiThread {
-                                dialog?.window?.setDimAmount(it)
-                            }
-                        }
-                        config.shouldDimBackground?.let {
-                            if (!it) {
-                                activity?.runOnUiThread {
-                                    dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-                                }
-                            }
-                        }
-
-                        config.dismissOnTouchOutside?.let {
-                            isCancelable = it
-                        }
-
-                        config.webViewInitialScale?.let {
-                            activity?.runOnUiThread {
-                                currentWebView.settings.loadWithOverviewMode = true
-                                currentWebView.settings.useWideViewPort = true
-                                currentWebView.settings.textZoom = it
-                            }
-                        }
-                        config.webViewCacheMode?.let {
-                            activity?.runOnUiThread {
-                                currentWebView.settings.cacheMode = it
-                            }
-                        }
-
-                        config.widthPercentage?.let { percentage ->
-                            if (percentage in 0.0..1.0) {
-                                val displayMetrics = requireContext().resources.displayMetrics
-                                val width = (displayMetrics.widthPixels * percentage).toInt()
-                                bottomSheet?.layoutParams?.width = width
-                            }
-                        }
-                        config.heightPercentage?.let { percentage ->
-                            if (percentage in 0.0..1.0) {
-                                val displayMetrics = requireContext().resources.displayMetrics
-                                val height = (displayMetrics.heightPixels * percentage).toInt()
-                                bottomSheet?.layoutParams?.height = height
-                                // 同时更新peekHeight和最大高度
-                                if (config.peekHeight == null) {
-                                    behavior?.peekHeight = height
-                                }
-                                if (config.maxHeight == null) {
-                                    behavior?.maxHeight = height
-                                }
-                            }
-                        }
-                        config.responsiveBreakpoint?.let { breakpoint ->
-                            activity?.let { activity ->
-                                val displayMetrics = activity.resources.displayMetrics
-                                val screenWidth = displayMetrics.widthPixels
-                                if (screenWidth < breakpoint) {
-                                    // 移动端布局（小屏幕）设置
-                                    behavior?.peekHeight = config.peekHeight ?: 300
-                                    config.widthPercentage?.let { percentage ->
-                                        if (percentage > 0.8f) {
-                                            // 小屏幕上最大宽度限制
-                                            val maxWidth = (screenWidth * 0.9).toInt()
-                                            behavior?.maxWidth = maxWidth
-                                        }
-                                    }
-                                } else {
-                                    // 平板/大屏幕布局设置
-                                    behavior?.peekHeight = config.peekHeight ?: 400
-                                    config.widthPercentage?.let { percentage ->
-                                        if (percentage < 0.6f) {
-                                            // 大屏幕上居中显示
-                                            bottomSheet?.layoutParams?.width =
-                                                (screenWidth * percentage).toInt()
-                                            (bottomSheet?.layoutParams as? FrameLayout.LayoutParams)?.gravity =
-                                                Gravity.CENTER_HORIZONTAL
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        config.hardwareAccelerated?.let {
-                            if (it) {
-                                dialog?.window?.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)
-                            }
-                        }
-                        config.isNestedScrollingEnabled?.let {
-                            currentWebView.isNestedScrollingEnabled = it
-                        }
-                    }
+                    setConfig(json)
                 }
                 val analyzeUrl =
                     AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
@@ -553,10 +566,11 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             binding.webViewContainer.invisible()
             binding.customWebView.addView(view)
             customWebViewCallback = callback
-            dialog?.toggleSystemBar(false)
             dialog?.keepScreenOn(true)
             behavior?.state = BottomSheetBehavior.STATE_EXPANDED
             originOrientation = activity?.requestedOrientation
+            originDimAmount = dialog?.window?.attributes?.dimAmount
+            dialog?.window?.setDimAmount(1.0f)
         }
 
         override fun onHideCustomView() {
@@ -564,10 +578,12 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             binding.webViewContainer.visible()
             binding.customWebView.removeAllViews()
             customWebViewCallback = null
-            dialog?.toggleSystemBar(true)
             dialog?.keepScreenOn(false)
             originOrientation?.let {
                 activity?.requestedOrientation = it
+            }
+            originDimAmount?.let {
+                dialog?.window?.setDimAmount(it)
             }
         }
 
