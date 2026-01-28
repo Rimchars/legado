@@ -132,7 +132,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var originOrientation: Int? = null
     private var needClearHistory = true
-    private var longClickSaveImg = true
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -163,8 +162,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
-
-    private fun setConfig(config: Config) {
+    private fun setConfig(config: Config, first: Boolean = false) {
         behavior?.let { behavior ->
             config.state?.let { behavior.state = it }
             config.peekHeight?.let { behavior.peekHeight = it }
@@ -335,8 +333,50 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
         }
 
-        config.longClickSaveImg?.let {
-            longClickSaveImg = it
+        val scrollNoDraggable = config.scrollNoDraggable ?: if (first) true else null
+        scrollNoDraggable?.let {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (it) {
+                    currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                        behavior?.isDraggable = scrollY == 0
+                    }
+                } else {
+                    currentWebView.setOnScrollChangeListener(null)
+                }
+            }
+        }
+
+        val longClickSaveImg = config.longClickSaveImg ?: if (first) true else null
+        longClickSaveImg?.let {
+            if (it) {
+                setLongClickSaveImg()
+            } else {
+                currentWebView.setOnLongClickListener(null)
+            }
+        }
+    }
+
+    private fun setLongClickSaveImg() {
+        currentWebView.setOnLongClickListener {
+            val hitTestResult = currentWebView.hitTestResult
+            if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE ||
+                hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+                hitTestResult.extra?.let { webPic ->
+                    requireContext().selector(
+                        arrayListOf(
+                            SelectItem(getString(R.string.action_save), "save"),
+                            SelectItem(getString(R.string.select_folder), "selectFolder")
+                        )
+                    ) { _, charSequence, _ ->
+                        when (charSequence.value) {
+                            "save" -> saveImage(webPic)
+                            "selectFolder" -> selectSaveFolder(null)
+                        }
+                    }
+                    return@setOnLongClickListener true
+                }
+            }
+            return@setOnLongClickListener false
         }
     }
 
@@ -362,11 +402,20 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     try {
                         GSON.fromJsonObject<Config>(json).getOrThrow().let { config ->
                             activity?.runOnUiThread {
-                                setConfig(config)
+                                setConfig(config, true)
                             }
                         }
+                        true
                     } catch (e: Exception) {
                         AppLog.put("config err", e)
+                        null
+                    }
+                } ?: run {
+                    setLongClickSaveImg()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                            behavior?.isDraggable = scrollY == 0
+                        }
                     }
                 }
                 val analyzeUrl =
@@ -401,11 +450,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     source = it
                 }
                 val bookType = args.getInt("bookType", 0)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                        behavior?.isDraggable = scrollY == 0
-                    }
-                }
                 currentWebView.post {
                     currentWebView.resumeTimers()
                     currentWebView.onResume() //缓存库拿的需要激活
@@ -504,29 +548,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
             currentWebView.addJavascriptInterface(source, nameSource)
             currentWebView.addJavascriptInterface(WebCacheManager, nameCache)
-        }
-        if (longClickSaveImg) {
-            currentWebView.setOnLongClickListener {
-                val hitTestResult = currentWebView.hitTestResult
-                if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE ||
-                    hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
-                    hitTestResult.extra?.let { webPic ->
-                        requireContext().selector(
-                            arrayListOf(
-                                SelectItem(getString(R.string.action_save), "save"),
-                                SelectItem(getString(R.string.select_folder), "selectFolder")
-                            )
-                        ) { _, charSequence, _ ->
-                            when (charSequence.value) {
-                                "save" -> saveImage(webPic)
-                                "selectFolder" -> selectSaveFolder(null)
-                            }
-                        }
-                        return@setOnLongClickListener true
-                    }
-                }
-                return@setOnLongClickListener false
-            }
         }
         currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
     }
@@ -668,6 +689,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
         //阅读功能自定义配置
         var longClickSaveImg : Boolean? = null, //是否启用长按图片保存功能，默认启用
+        var scrollNoDraggable : Boolean? = null, //网页有滚动时禁止对话框拖拽，默认启用
     )
 
     inner class CustomWebChromeClient : WebChromeClient() {
