@@ -38,7 +38,8 @@
 ## 当前类对象的可使用的部分方法
 
 ### [RssJsExtensions](https://github.com/Luoyacheng/legado/blob/main/app/src/main/java/io/legado/app/ui/rss/read/RssJsExtensions.kt)独有函数
-> 在订阅源`shouldOverrideUrlLoading`规则或`登录界面`中使用  
+> 在订阅源`shouldOverrideUrlLoading`规则中使用  
+> 被下方`SourceLoginJsExtensions`类包含，也能使用这些函数  
 > 订阅添加跳转url拦截, js, 返回true拦截,js变量url,可以通过js打开url  
 > url跳转拦截规则不能执行耗时操作
 
@@ -64,6 +65,11 @@ java.addBook(bookUrl: String)
 * @param title 为对应界面的标题，"search"时为搜索关键词，"login"时该参数无意义
 * @param origin 打开指定源界面的源地址
 java.open(name: String, url: String? = null, title: String? = null, origin: String? = null)
+```
+
+* 展示图片  
+```js
+java.showPhoto(src: String)
 ```
 
 ### [SourceLoginJsExtensions](https://github.com/Luoyacheng/legado/blob/main/app/src/main/java/io/legado/app/ui/login/SourceLoginJsExtensions.kt)独有函数

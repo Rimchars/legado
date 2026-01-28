@@ -257,7 +257,8 @@ interface JsExtensions : JsEncodeUtils {
                 headerMap = getSource()?.getHeaderMap(true),
                 tag = getSource()?.getKey(),
                 sourceRegex = sourceRegex,
-                cacheFirst = cacheFirst
+                cacheFirst = cacheFirst,
+                delayTime = delayTime
             ).getStrResponse().body
         }
     }

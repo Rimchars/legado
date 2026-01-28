@@ -100,6 +100,9 @@ class WebJsExtensions(
                 "webViewAwait" -> {
                     webView(jsParam[0], jsParam[1], jsParam[2], jsParam[3].toBoolean()).toString()
                 }
+                "webViewGetSourceAwait" -> {
+                    webViewGetSource(jsParam[0], jsParam[1], jsParam[2], jsParam[3], jsParam[4].toBoolean(), jsParam[5].toLongOrNull() ?: 0)
+                }
                 "decryptStrAwait" -> {
                     createSymmetricCrypto(jsParam[0], jsParam[1], jsParam[2]).decryptStr(jsParam[3])
                 }
@@ -277,6 +280,13 @@ class WebJsExtensions(
                     java?.request("webViewAwait", [String(html), String(url), String(js), String(cacheFirst)], id);
                 });
             };
+            function webViewGetSourceAwait(html, url, js, sourceRegex, cacheFirst, delayTime) {
+                return new Promise((resolve, reject) => {
+                    const id = requestId("webViewGetSourceAwait");
+                    JSBridgeCallbacks[id] = { resolve, reject };
+                    java?.request("webViewGetSourceAwait", [String(html), String(url), String(js), String(sourceRegex), String(cacheFirst), String(delayTime)], id);
+                });
+            }
             function decryptStrAwait(transformation, key, iv, data) {
                 return new Promise((resolve, reject) => {
                     const id = requestId("decryptStrAwait");
