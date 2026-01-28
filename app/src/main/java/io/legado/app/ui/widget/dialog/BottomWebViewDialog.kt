@@ -117,6 +117,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             BottomSheetBehavior.from(sheet)
         }
     }
+    private val displayMetrics by lazy { resources.displayMetrics }
     private val selectImageDir = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
             ACache.get().put(imagePathKey, uri.toString())
@@ -185,11 +186,11 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
 
         config.expandedCornersRadius?.let {
-            try {
-                val radius = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, it, resources.displayMetrics
-                )
-                bottomSheet?.let { sheet ->
+            val radius = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, it, displayMetrics
+            )
+            bottomSheet?.let { sheet ->
+                if (radius > 0) {
                     sheet.backgroundTintList = null
                     val shapeDrawable =
                         android.graphics.drawable.GradientDrawable().apply {
@@ -225,9 +226,17 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                             }
                         binding.customWebView.clipToOutline = true
                     }
+                } else { //取消圆角
+                    sheet.backgroundTintList = null
+                    sheet.background = null
+                    sheet.clipToOutline = false
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                        currentWebView.outlineProvider = null
+                        currentWebView.clipToOutline = false
+                        binding.customWebView.outlineProvider = null
+                        binding.customWebView.clipToOutline = false
+                    }
                 }
-            } catch (e: Exception) {
-                AppLog.put("设置圆角失败", e)
             }
         }
 
@@ -266,52 +275,61 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
         }
 
-        config.widthPercentage?.let { percentage ->
-            if (percentage in 0.0..1.0) {
-                val displayMetrics = requireContext().resources.displayMetrics
-                val width = (displayMetrics.widthPixels * percentage).toInt()
-                bottomSheet?.layoutParams?.width = width
-            }
-        }
-        config.heightPercentage?.let { percentage ->
-            if (percentage in 0.0..1.0) {
-                val displayMetrics = requireContext().resources.displayMetrics
-                val height = (displayMetrics.heightPixels * percentage).toInt()
-                bottomSheet?.layoutParams?.height = height
-                // 同时更新peekHeight和最大高度
-                if (config.peekHeight == null) {
-                    behavior?.peekHeight = height
-                }
-                if (config.maxHeight == null) {
-                    behavior?.maxHeight = height
+        bottomSheet?.let { sheet ->
+            val params = sheet.layoutParams
+            var hasChanged = false
+            config.widthPercentage?.let { percentage ->
+                if (percentage in 0.0..1.0) {
+                    val width = (displayMetrics.widthPixels * percentage).toInt()
+                    params.width = width
+                    hasChanged = true
                 }
             }
-        }
-        config.responsiveBreakpoint?.let { breakpoint ->
-            activity?.let { activity ->
-                val displayMetrics = activity.resources.displayMetrics
-                val screenWidth = displayMetrics.widthPixels
-                if (screenWidth < breakpoint) {
-                    // 移动端布局（小屏幕）设置
-                    behavior?.peekHeight = config.peekHeight ?: 300
-                    config.widthPercentage?.let { percentage ->
-                        if (percentage > 0.8f) {
-                            // 小屏幕上最大宽度限制
-                            val maxWidth = (screenWidth * 0.9).toInt()
-                            behavior?.maxWidth = maxWidth
-                        }
+            config.heightPercentage?.let { percentage ->
+                if (percentage in 0.0..1.0) {
+                    val height = (displayMetrics.heightPixels * percentage).toInt()
+                    params.height = height
+                    // 同时更新peekHeight和最大高度
+                    if (config.peekHeight == null) {
+                        behavior?.peekHeight = height
                     }
-                } else {
-                    // 平板/大屏幕布局设置
-                    behavior?.peekHeight = config.peekHeight ?: 400
-                    config.widthPercentage?.let { percentage ->
-                        if (percentage < 0.6f) {
-                            // 大屏幕上居中显示
-                            bottomSheet?.layoutParams?.width =
-                                (screenWidth * percentage).toInt()
-                            (bottomSheet?.layoutParams as? FrameLayout.LayoutParams)?.gravity =
-                                Gravity.CENTER_HORIZONTAL
-                        }
+                    if (config.maxHeight == null) {
+                        behavior?.maxHeight = height
+                    }
+                    hasChanged = true
+                }
+            }
+            config.dialogHeight?.let { height ->
+                params.height = height
+                hasChanged = true
+            }
+            if (hasChanged) {
+                sheet.layoutParams = params
+            }
+        }
+
+        config.responsiveBreakpoint?.let { breakpoint ->
+            val screenWidth = displayMetrics.widthPixels
+            if (screenWidth < breakpoint) {
+                // 移动端布局（小屏幕）设置
+                behavior?.peekHeight = config.peekHeight ?: 300
+                config.widthPercentage?.let { percentage ->
+                    if (percentage > 0.8f) {
+                        // 小屏幕上最大宽度限制
+                        val maxWidth = (screenWidth * 0.9).toInt()
+                        behavior?.maxWidth = maxWidth
+                    }
+                }
+            } else {
+                // 平板/大屏幕布局设置
+                behavior?.peekHeight = config.peekHeight ?: 400
+                config.widthPercentage?.let { percentage ->
+                    if (percentage < 0.6f) {
+                        // 大屏幕上居中显示
+                        bottomSheet?.layoutParams?.width =
+                            (screenWidth * percentage).toInt()
+                        (bottomSheet?.layoutParams as? FrameLayout.LayoutParams)?.gravity =
+                            Gravity.CENTER_HORIZONTAL
                     }
                 }
             }
@@ -341,10 +359,14 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             val url = args.getString("url") ?: return@launch
             kotlin.runCatching {
                 args.getString("config")?.let { json ->
-                    GSON.fromJsonObject<Config>(json).getOrThrow().let { config ->
-                        activity?.runOnUiThread {
-                            setConfig(config)
+                    try {
+                        GSON.fromJsonObject<Config>(json).getOrThrow().let { config ->
+                            activity?.runOnUiThread {
+                                setConfig(config)
+                            }
                         }
+                    } catch (e: Exception) {
+                        AppLog.put("config err", e)
                     }
                 }
                 val analyzeUrl =
@@ -465,12 +487,16 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         source?.let { source ->
             (activity as? AppCompatActivity)?.let { currentActivity ->
                 val webJsExtensions =
-                    WebJsExtensions(source, currentActivity, currentWebView, bookType,callback = object : WebJsExtensions.Callback {
+                    WebJsExtensions(source, currentActivity, currentWebView, bookType, callback = object : WebJsExtensions.Callback {
                         override fun upConfig(config: String) {
-                            GSON.fromJsonObject<Config>(config).getOrThrow().let { config ->
-                                activity?.runOnUiThread {
-                                    setConfig(config)
+                            try {
+                                GSON.fromJsonObject<Config>(config).getOrThrow().let { config ->
+                                    activity?.runOnUiThread {
+                                        setConfig(config)
+                                    }
                                 }
+                            } catch (e: Exception) {
+                                AppLog.put("config err", e)
                             }
                         }
                     })
@@ -596,17 +622,17 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     @Keep
     data class Config(
         // 底部弹窗状态相关配置
-        var state: Int? = null, // 设置弹窗的初始状态： STATE_DRAGGING(1), STATE_SETTLING(2), STATE_EXPANDED(3), STATE_COLLAPSED(4), STATE_HIDDEN(5), STATE_HALF_EXPANDED(6)
+        var state: Int? = null, // 设置弹窗的初始状态： 3 STATE_EXPANDED(展开) 、 4 STATE_COLLAPSED(折叠) 、 5 STATE_HIDDEN(隐藏) 、 6 STATE_HALF_EXPANDED(半展开)
         var peekHeight: Int? = null, // 设置折叠状态下的高度（像素）
         var isHideable: Boolean? = null, // 设置弹窗是否可以通过向下拖拽隐藏
-        var skipCollapsed: Boolean? = null, // 设置是否跳过折叠状态，从隐藏直接到展开或半展开
+        var skipCollapsed: Boolean? = null, // 设置是否跳过折叠状态，下滑对话框时直接关闭
         var setHalfExpandedRatio: Float? = null, // 设置半展开状态的比例（0.0-1.0），相对于父容器的高度
         var setExpandedOffset: Int? = null, // 设置完全展开状态时顶部距离父容器顶部的偏移量（像素）
-        var setFitToContents: Boolean? = null, // 设置弹窗是否自适应内容高度（true）或使用固定比例（false）
+        var setFitToContents: Boolean? = null, // 设置展开时的高度计算方式true（默认值）自适应内容、false 固定比例
 
         // 交互行为相关配置
         var isDraggable: Boolean? = null, // 设置弹窗是否可以通过拖拽交互
-        var isDraggableOnNestedScroll: Boolean? = null, // 设置嵌套滚动时是否可拖拽（当WebView内容滚动到底部时）
+        var isDraggableOnNestedScroll: Boolean? = null, //是否允许webview滚动控制折叠展开  默认值为true允许
         var significantVelocityThreshold: Int? = null, // 设置判定为快速滑动的速度阈值（像素/秒）
         var hideFriction: Float? = null, // 设置隐藏时的摩擦系数，影响拖拽回弹效果（0.0-1.0）
 
@@ -638,6 +664,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         var widthPercentage: Float? = null, // 弹窗宽度占屏幕宽度的百分比（0.0-1.0）
         var heightPercentage: Float? = null, // 弹窗高度占屏幕高度的百分比（0.0-1.0）
         var responsiveBreakpoint: Int? = null, // 响应式断点（像素），小于此宽度时使用移动端布局
+        var dialogHeight: Int? = null, //弹窗高度（像素），默认为-1（父容器最大高度）、-2（最大内容高度）
 
         //阅读功能自定义配置
         var longClickSaveImg : Boolean? = null, //是否启用长按图片保存功能，默认启用

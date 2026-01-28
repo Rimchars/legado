@@ -270,14 +270,16 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                         handled = true
                     }
                     "2" -> { //兼容处理
-                        if (ReadBook.book?.isOnLineTxt == true) {
-                            val click = column.click
-                            val src = column.src
-                            if (!click.isNullOrBlank()) {
-                                callBack.clickImg(click, src)
-                                handled = true
-                            } else {
-                                handled = callBack.oldClickImg(src)
+                        if (!debounceClick) {
+                            if (ReadBook.book?.isOnLineTxt == true) {
+                                val click = column.click
+                                val src = column.src
+                                if (!click.isNullOrBlank()) {
+                                    callBack.clickImg(click, src)
+                                    handled = true
+                                } else {
+                                    handled = callBack.oldClickImg(src)
+                                }
                             }
                         }
                     }
