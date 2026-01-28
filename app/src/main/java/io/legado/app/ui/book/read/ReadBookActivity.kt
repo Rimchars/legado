@@ -1477,7 +1477,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         )
         popupAction.onActionClick = {
             when (it) {
-                "show" -> showDialogFragment(PhotoDialog(src))
+                "show" -> showDialogFragment(PhotoDialog(src, isBook = true))
                 "refresh" -> viewModel.refreshImage(src)
                 "save" -> {
                     val path = ACache.get().getAsString(AppConst.imagePathKey)
