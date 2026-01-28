@@ -1,7 +1,28 @@
-[实时详细日志查看](https://gitee.com/lyc486/legado/commits/main)
 # 更新日志
+欢迎关注公众号[阅读Plus]即时了解软件更新资讯  
+<img src="https://open.weixin.qq.com/qr/code?username=legado_plus" width="300">
 
 ## cronet版本: 128.0.6613.40
+
+**2026/01/28**
+- 新增java.reLoginView()函数，刷新登录界面
+- 书源发现支持更多丰富的按钮类型
+- 新增java.refreshExplore()函数
+- java.open函数支持打开登录界面
+- 书源简介支持html标签包裹，显示html样式
+- 书籍简介和字典支持gif动态图和svg图data链接
+- 书籍简介和字典支持button按钮
+- 支持源控制图片显示尺寸
+- 书籍简介支持maekdown语法编写
+- 新增java.showBrowser函数，能进行半屏显示段评
+- 支持图片链接click键，不推荐继续使用旧方式
+- 支持双击响应段评图
+- 新增chapter.update()函数
+- 新增java.showPhoto函数
+- 新增java.refreshContent()函数
+- 支持订阅源启动页html用js返回空
+- 提升webview函数获取js结果速度
+- 其余优化与修复
 
 **2026/01/13**
 - 软件自定义背景图支持.9.png格式
@@ -26,13 +47,11 @@
 - 视频播放器支持记录函数调用时的播放进度
 - 其余细节优化与bug修复
 
-| 2026 | 让我们 | 继续扬 | 帆起航 | 洛娅橙 |
-| :--- | ---: | :---: | :--- | ---: |
 
 ## **必读**
 ### 来源于fork仓库 [Luoyacheng/legado](https://github.com/Luoyacheng/legado)  
-【温馨提醒】 *更新前一定要做好备份，以免数据丢失！*
-
+[查看实时详细日志](https://gitee.com/lyc486/legado/commits/main)  
+【温馨提醒】 *更新前一定要做好备份，以免数据丢失！*  
 * 阅读只是一个转码工具，不提供内容，第一次安装app，需要自己手动导入书源。
 * 正文出现缺字漏字、内容缺失、排版错乱等情况，有可能是净化规则或简繁转换出现问题。
 ----
