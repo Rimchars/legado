@@ -624,8 +624,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
             when (item.itemId) {
                 R.id.menu_ok -> {
                     oKToClose = true
-                    val loginData = getLoginData(rowUis, true)
-                    login(source, loginData)
+                    login(source)
                 }
 
                 R.id.menu_show_login_header -> alert {
@@ -715,7 +714,8 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
         return viewModel.loginInfo.toMutableMap().apply { putAll(loginData) }
     }
 
-    private fun login(source: BaseSource, loginData: MutableMap<String, String>) {
+    private fun login(source: BaseSource) {
+        val loginData = getLoginData(rowUis, true)
         lifecycleScope.launch(IO) {
             if (loginData.isEmpty()) {
                 source.removeLoginInfo()
