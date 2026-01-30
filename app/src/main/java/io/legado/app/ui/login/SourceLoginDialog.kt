@@ -59,7 +59,8 @@ import io.legado.app.utils.setSelectionSafely
 import kotlin.math.abs
 
 
-class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
+class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
+    SourceLoginJsExtensions.Callback {
 
     private val binding by viewBinding(DialogLoginBinding::bind)
     private val viewModel by activityViewModels<SourceLoginViewModel>()
@@ -73,19 +74,20 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
             activity as AppCompatActivity,
             viewModel.source,
             viewModel.bookType,
-            callback = object : SourceLoginJsExtensions.Callback {
-                override fun upUiData(data: Map<String, String?>?) {
-                    activity?.runOnUiThread { // 在主线程中更新 UI
-                        handleUpUiData(data)
-                    }
-                }
+            this
+        )
+    }
 
-                override fun reUiView() {
-                    activity?.runOnUiThread {
-                        handleReUiView()
-                    }
-                }
-            })
+    override fun upUiData(data: Map<String, String?>?) {
+        activity?.runOnUiThread { // 在主线程中更新 UI
+            handleUpUiData(data)
+        }
+    }
+
+    override fun reUiView() {
+        activity?.runOnUiThread {
+            handleReUiView()
+        }
     }
 
     private fun handleReUiView() {
