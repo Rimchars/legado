@@ -416,64 +416,85 @@ jobs:
             echo "🧪 发布预发布版: $TAG_NAME"
           fi
 
+          # 辅助：带重试与可见性的 curl 封装
+          curl_with_retry() {
+            local max_retries=${1:-3}
+            shift
+            local attempt=0
+            local rc=0
+            while [ $attempt -lt $max_retries ]; do
+              # 显示错误并开启重试机制
+              curl --fail --show-error --retry 3 --retry-delay 2 "$@"
+              rc=$?
+              if [ $rc -eq 0 ]; then
+                return 0
+              fi
+              attempt=$((attempt+1))
+              echo "⚠️ curl attempt $attempt failed (rc=$rc), retrying..."
+              sleep 2
+            done
+            return $rc
+          }
+
           # 删除旧Release
-          if [ "$TAG_NAME" = "beta" ]; then
-            if release_data=$(curl -sH "$AUTH_HEADER" "$API_BASE/releases/tags/beta"); then
-              release_id=$(echo "$release_data" | jq -r '.id // empty')
-              if [ -n "$release_id" ]; then
-                curl -sX DELETE -H "$AUTH_HEADER" "$API_BASE/releases/$release_id"
-                echo "✅ 已删除旧 beta release"
-              fi
-            fi
-          else
-            if release_data=$(curl -sH "$AUTH_HEADER" "$API_BASE/releases/tags/$TAG_NAME"); then
-              release_id=$(echo "$release_data" | jq -r '.id // empty')
-              if [ -n "$release_id" ]; then
-                curl -sX DELETE -H "$AUTH_HEADER" "$API_BASE/releases/$release_id"
-                echo "✅ 已删除旧 $TAG_NAME release"
-              fi
-            fi
+          release_data=""
+          if curl_with_retry 3 -sH "$AUTH_HEADER" "$API_BASE/releases/tags/$TAG_NAME" >/tmp/release_data.json 2>/tmp/release_err.log; then
+            release_data=$(cat /tmp/release_data.json)
+          fi
+          release_id=$(echo "$release_data" | jq -r '.id // empty')
+          if [ -n "$release_id" ]; then
+            curl_with_retry 3 -sX DELETE -H "$AUTH_HEADER" "$API_BASE/releases/$release_id" || echo "删除 release $release_id 失败"
+            echo "✅ 已删除旧 $TAG_NAME release"
           fi
 
           # 创建新Release，带重试机制
           MAX_RETRIES=3
           RETRY_COUNT=0
-          RELEASE_CREATED=false
           RELEASE_ID=""
           while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ -z "$RELEASE_ID" ]; do
-            RELEASE_JSON=$(curl -sX POST \
-              -H "Content-Type: application/json" \
-              -H "$AUTH_HEADER" \
-              -d '{
-                "tag_name": "'"$TAG_NAME"'",
-                "name": "'"$RELEASE_NAME"'",
-                "body": "'"${UPDATE_CONTENT//\"/\\\"}"'",
-                "target_commitish": "main",
-                "prerelease": '"$PRERELEASE"'
-              }' \
-              "$API_BASE/releases")
-
-            if [ $? -eq 0 ] && [ -n "$RELEASE_JSON" ]; then
+            echo "✨ 尝试创建 release (尝试: $((RETRY_COUNT+1))/$MAX_RETRIES)"
+            # 生成 JSON 并调用 curl_with_retry
+            PAYLOAD=$(jq -n --arg tag "$TAG_NAME" --arg name "$RELEASE_NAME" --arg body "$UPDATE_CONTENT" --argjson prerelease $PRERELEASE '{tag_name:$tag, name:$name, body:$body, target_commitish:"main", prerelease:$prerelease}')
+            if curl_with_retry 3 -H "Content-Type: application/json" -H "$AUTH_HEADER" -d "$PAYLOAD" "$API_BASE/releases" >/tmp/create_release.json 2>/tmp/create_release.err; then
+              RELEASE_JSON=$(cat /tmp/create_release.json)
               RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id // empty')
-              RELEASE_CREATED=true
             else
+              echo "⚠️ create release failed, resp:"
+              sed -n '1,200p' /tmp/create_release.err || true
+              RELEASE_ID=""
+            fi
+            if [ -z "$RELEASE_ID" ]; then
               RETRY_COUNT=$((RETRY_COUNT+1))
-              echo "⚠️  第 $RETRY_COUNT 次重试创建Release..."
-              sleep 5
+              sleep 3
             fi
           done
-          # 检查是否成功创建Release
           if [ -z "$RELEASE_ID" ]; then
             echo "❌ 创建Release失败，跳过文件上传"
             exit 1
           fi
           # 上传所有APK文件
           for APK_FILE in apk/*.apk; do
-            curl -sX POST \
-              -H "$AUTH_HEADER" \
-              -F "file=@$APK_FILE" \
-              "$API_BASE/releases/$RELEASE_ID/attach_files"
-            echo "✅ 已上传 $APK_FILE"
+            if [ ! -f "$APK_FILE" ]; then
+              echo "跳过不存在的文件: $APK_FILE"
+              continue
+            fi
+            echo "上传 $APK_FILE 到 release $RELEASE_ID"
+            UP_ATTEMPT=0
+            UP_RC=1
+            while [ $UP_ATTEMPT -lt 4 ]; do
+              if curl_with_retry 3 -H "$AUTH_HEADER" -F "file=@$APK_FILE" "$API_BASE/releases/$RELEASE_ID/attach_files" >/tmp/upload_resp.json 2>/tmp/upload_err.log; then
+                echo "✅ 已上传 $APK_FILE"
+                UP_RC=0
+                break
+              else
+                UP_ATTEMPT=$((UP_ATTEMPT+1))
+                echo "⚠️ 上传 $APK_FILE 失败 (尝试 $UP_ATTEMPT)，等待后重试..."
+                sleep 2
+              fi
+            done
+            if [ $UP_RC -ne 0 ]; then
+              echo "❌ 上传 $APK_FILE 最终失败，继续处理下一个文件"
+            fi
           done
 
   update-storage:
