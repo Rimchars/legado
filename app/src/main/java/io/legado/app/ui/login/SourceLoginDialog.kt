@@ -235,7 +235,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
 
     fun loginUi(json: String?): List<RowUi>? {
         return GSON.fromJsonArray<RowUi>(json).onFailure {
-            it.printOnDebug()
+            AppLog.put("loginUi json parse err:" + it.localizedMessage, it)
         }.getOrNull()
     }
 
