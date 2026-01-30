@@ -110,7 +110,7 @@ jobs:
           if [ -z "$UPDATED_CONTENT" ]; then
             UPDATED_CONTENT=$(git log -1 --pretty=%B)
           fi
-          CONTENT_JSON=$(echo "$UPDATED_CONTENT" | jq -Rs . 2>/dev/null || echo "\"Error generating update content\"")
+          CONTENT_JSON=$(jq -n --arg content "$UPDATED_CONTENT" '$content')
           echo "body=$CONTENT_JSON" >> $GITHUB_OUTPUT
       - id: set-matrix
         run: |
@@ -264,7 +264,7 @@ jobs:
           tag_name: ${{ env.VERSION }}
           body: |
             ### 更新内容
-            ${{ fromJSON(needs.prepare.outputs.updateLog_content) }}
+            ${{ needs.prepare.outputs.updateLog_content }}
           prerelease: false
           files: ${{ github.workspace }}/apk/*.apk
           fail_on_unmatched_files: true
@@ -294,7 +294,7 @@ jobs:
           tag_name: beta
           body: |
             ### 更新内容
-            ${{ fromJSON(needs.prepare.outputs.updateLog_content) }}
+            ${{ needs.prepare.outputs.updateLog_content }}
           prerelease: true
           files: ${{ github.workspace }}/apk/*.apk
           fail_on_unmatched_files: true
@@ -363,7 +363,7 @@ jobs:
           context: |
             版本号：${{ needs.prepare.outputs.versionL }}
             更新内容：
-            ${{ fromJSON(needs.prepare.outputs.updateLog_content) }}
+            ${{ needs.prepare.outputs.updateLog_content }}
             #阅读 #Legado #阅读Sigma ${{ steps.set-tags.outputs.TAGS }}
           path: apk/*
           method: sendFile
@@ -396,7 +396,7 @@ jobs:
           GITEE_USER: "lyc486"
           GITEE_REPO: "legado"
           VERSION: ${{ needs.prepare.outputs.version }}
-          UPDATE_CONTENT: ${{ fromJSON(needs.prepare.outputs.updateLog_content) }}
+          UPDATE_CONTENT: ${{ needs.prepare.outputs.updateLog_content }}
           UPDATE_UPDATED: ${{ needs.prepare.outputs.updateLog_updated }}
         run: |
           sudo apt-get update && sudo apt-get install -y jq curl 

@@ -125,8 +125,9 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                 val default = rowUi.default
                 when (val rowView = binding.root.findViewById<View>(index + 1000)) {
                     is TextInputLayout -> {
-                        newLoginInfo[rowUi.name] = default ?: ""
-                        rowView.editText?.setText(default ?: "")
+                        val value = default ?: ""
+                        newLoginInfo[rowUi.name] = value
+                        rowView.editText?.setText(value)
                     }
 
                     is TextView -> {
@@ -164,20 +165,19 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
         data.forEach { (key, value) ->
             val index = rowUiName.indexOf(key)
             if (index != -1) {
+                val rowUi = rowUis?.getOrNull(index) ?: return@forEach
+                val value = value ?: rowUi.default
                 when (val rowView = binding.root.findViewById<View>(index + 1000)) {
                     is TextInputLayout -> {
-                        val value = value ?: run {
-                            val rowUi = rowUis?.getOrNull(index) ?: return@forEach
-                            rowUi.default ?: ""
-                        }
+                        val value = value ?: ""
+                        loginInfo[rowUi.name] = value
                         rowView.editText?.setText(value)
                     }
 
                     is TextView -> {
-                        val rowUi = rowUis?.getOrNull(index) ?: return@forEach
                         when (rowUi.type) {
                             Type.button -> {
-                                rowView.text = value ?: key
+                                rowView.text = value ?: rowUi.viewName ?: key
                             }
 
                             Type.toggle -> {
@@ -194,12 +194,8 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     }
 
                     is LinearLayout -> {
-                        val rowUi = rowUis?.getOrNull(index) ?: return@forEach
                         val items = rowUi.chars?.filterNotNull() ?: listOf("chars","is null")
                         val index = items.indexOf(value)
-                        loginInfo[rowUi.name] = value ?: run{
-                            items.getOrNull(0) ?: ""
-                        }
                         rowView.findViewById<AppCompatSpinner>(R.id.sp_type)?.setSelectionSafely(index)
                     }
                 }
