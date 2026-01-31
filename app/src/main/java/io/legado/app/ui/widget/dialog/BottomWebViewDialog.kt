@@ -203,7 +203,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         }
                     sheet.background = shapeDrawable
                     sheet.clipToOutline = true
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
                         currentWebView.outlineProvider =
                             object : android.view.ViewOutlineProvider() {
                                 override fun getOutline(
@@ -229,7 +229,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     sheet.backgroundTintList = null
                     sheet.background = null
                     sheet.clipToOutline = false
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
                         currentWebView.outlineProvider = null
                         currentWebView.clipToOutline = false
                         binding.customWebView.outlineProvider = null
@@ -440,10 +440,10 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                             val insertPos = closingHeadIndex + 1
                             StringBuilder(html).insert(insertPos, JS_URL).toString()
                         } else {
-                            html
+                            JS_URL + html
                         }
                     } else {
-                        html
+                        JS_URL + html
                     }
                 }
                 appDb.bookSourceDao.getBookSource(sourceKey).let {

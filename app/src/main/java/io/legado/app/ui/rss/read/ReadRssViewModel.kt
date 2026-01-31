@@ -221,24 +221,45 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
         }
     }
 
-    fun clHtml(content: String, style: String? = rssSource?.style): String {
-        var processedHtml = content
-        processedHtml = if (processedHtml.contains("<head>")) {
-            processedHtml.replaceFirst("<head>", "<head>$JS_URL")
+    fun clHtml(content: String, style: String?): String {
+        val htmlBuilder = StringBuilder(content.length + JS_URL.length + 200)
+        val headIndex = content.indexOf("<head>")
+        if (headIndex >= 0) {
+            htmlBuilder.append(content, 0, headIndex + 6)
+            htmlBuilder.append(JS_URL)
+            htmlBuilder.append(content, headIndex + 6, content.length)
         } else {
-            "<head>$JS_URL</head>$processedHtml"
+            htmlBuilder.append("<head>").append(JS_URL).append("</head>")
+            htmlBuilder.append(content)
         }
-        if (processedHtml.contains("<style>")) {
+        val styleEndIndex = htmlBuilder.indexOf("</style>")
+        return if (styleEndIndex >= 0) {
             if (!style.isNullOrBlank()) {
-                processedHtml = processedHtml.replaceFirst("</style>", "</style><style>$style</style>")
+                StringBuilder(htmlBuilder.length + style.length + 10)
+                    .append(htmlBuilder, 0, styleEndIndex + 8)
+                    .append("<style>").append(style).append("</style>")
+                    .append(htmlBuilder, styleEndIndex + 8, htmlBuilder.length)
+                    .toString()
+            } else {
+                htmlBuilder.toString()
             }
         } else {
-            processedHtml = processedHtml.replaceFirst("</head>", "<style>${
-                style.takeIf { !it.isNullOrBlank() } ?:
-                "img{max-width:100% !important; width:auto; height:auto;}video{object-fit:fill; max-width:100% !important; width:auto; height:auto;}body{word-wrap:break-word; height:auto;max-width: 100%; width:auto;}"
-            }</style></head>")
+            val finalStyle = style.takeIf { !it.isNullOrBlank() } ?:
+            "img{max-width:100% !important; width:auto; height:auto;}video{object-fit:fill; max-width:100% !important; width:auto; height:auto;}body{word-wrap:break-word; height:auto;max-width: 100%; width:auto;}"
+            val headEndIndex = htmlBuilder.indexOf("</head>")
+            if (headEndIndex >= 0) {
+                StringBuilder(htmlBuilder.length + finalStyle.length + 16)
+                    .append(htmlBuilder, 0, headEndIndex)
+                    .append("<style>").append(finalStyle).append("</style>")
+                    .append(htmlBuilder, headEndIndex, htmlBuilder.length)
+                    .toString()
+            } else {
+                StringBuilder(htmlBuilder.length + finalStyle.length + 16)
+                    .append("<style>").append(finalStyle).append("</style>")
+                    .append(htmlBuilder)
+                    .toString()
+            }
         }
-        return processedHtml
     }
 
     private fun loadStartHtml(startHtml: String) {
@@ -250,10 +271,20 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
         execute {
             val javascript = rssSource?.startJs
             var processedHtml = if (!javascript.isNullOrBlank()) {
-                if (startHtml.contains("</body>")) {
-                    startHtml.replaceFirst("</body>", "<script>$javascript</script></body>")
+                val bodyEndIndex = startHtml.indexOf("</body>")
+                if (bodyEndIndex >= 0) {
+                    StringBuilder(startHtml.length + javascript.length + 20)
+                        .append(startHtml, 0, bodyEndIndex)
+                        .append("<script>$javascript</script>")
+                        .append(startHtml, bodyEndIndex, startHtml.length)
+                        .toString()
                 } else {
-                    "<body>$startHtml<script>$javascript</script></body>"
+                    StringBuilder(startHtml.length + javascript.length + 25)
+                        .append("<body>")
+                        .append(startHtml)
+                        .append("<script>$javascript</script>")
+                        .append("</body>")
+                        .toString()
                 }
             } else {
                 startHtml

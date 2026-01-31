@@ -378,11 +378,12 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
             viewModel.rssArticle?.let {
                 upJavaScriptEnable()
                 initJavascriptInterface()
+                val rssSource = viewModel.rssSource
                 val url = NetworkUtils.getAbsoluteURL(it.origin, it.link).substringBefore("@js")
-                val html = viewModel.clHtml(content)
+                val html = viewModel.clHtml(content, rssSource?.style)
                 currentWebView.settings.userAgentString =
                     viewModel.headerMap[AppConst.UA_NAME] ?: AppConfig.userAgent
-                if (viewModel.rssSource?.loadWithBaseUrl == true) {
+                if (rssSource?.loadWithBaseUrl == true) {
                     currentWebView.loadDataWithBaseURL(
                         url,
                         html,
@@ -417,7 +418,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                 currentWebView.settings.userAgentString =
                     viewModel.headerMap[AppConst.UA_NAME] ?: AppConfig.userAgent
                 val baseUrl =
-                    if (viewModel.rssSource?.loadWithBaseUrl == true) it.sourceUrl else null
+                    if (it.loadWithBaseUrl) it.sourceUrl else null
                 currentWebView.loadDataWithBaseURL(
                     baseUrl, html, "text/html", "utf-8", it.sourceUrl
                 )
