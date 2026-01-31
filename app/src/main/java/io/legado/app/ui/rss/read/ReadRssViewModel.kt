@@ -223,23 +223,23 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
 
     fun clHtml(content: String, style: String?): String {
         val htmlBuilder = StringBuilder(content.length + JS_URL.length + 200)
-        val headIndex = content.indexOf("<head>")
-        if (headIndex >= 0) {
-            htmlBuilder.append(content, 0, headIndex + 6)
-            htmlBuilder.append(JS_URL)
-            htmlBuilder.append(content, headIndex + 6, content.length)
+        if (hasPreloadJs) {
+            val headIndex = content.indexOf("<head>")
+            if (headIndex >= 0) {
+                htmlBuilder.append(content, 0, headIndex + 6)
+                htmlBuilder.append(JS_URL)
+                htmlBuilder.append(content, headIndex + 6, content.length)
+            } else {
+                htmlBuilder.append("<head>").append(JS_URL).append("</head>")
+                htmlBuilder.append(content)
+            }
         } else {
-            htmlBuilder.append("<head>").append(JS_URL).append("</head>")
             htmlBuilder.append(content)
         }
         val styleEndIndex = htmlBuilder.indexOf("</style>")
         return if (styleEndIndex >= 0) {
             if (!style.isNullOrBlank()) {
-                StringBuilder(htmlBuilder.length + style.length + 10)
-                    .append(htmlBuilder, 0, styleEndIndex + 8)
-                    .append("<style>").append(style).append("</style>")
-                    .append(htmlBuilder, styleEndIndex + 8, htmlBuilder.length)
-                    .toString()
+                htmlBuilder.insert(styleEndIndex + 8, "<style>$style</style>").toString()
             } else {
                 htmlBuilder.toString()
             }
@@ -248,16 +248,9 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
             "img{max-width:100% !important; width:auto; height:auto;}video{object-fit:fill; max-width:100% !important; width:auto; height:auto;}body{word-wrap:break-word; height:auto;max-width: 100%; width:auto;}"
             val headEndIndex = htmlBuilder.indexOf("</head>")
             if (headEndIndex >= 0) {
-                StringBuilder(htmlBuilder.length + finalStyle.length + 16)
-                    .append(htmlBuilder, 0, headEndIndex)
-                    .append("<style>").append(finalStyle).append("</style>")
-                    .append(htmlBuilder, headEndIndex, htmlBuilder.length)
-                    .toString()
+                htmlBuilder.insert(headEndIndex, "<style>$finalStyle</style>").toString()
             } else {
-                StringBuilder(htmlBuilder.length + finalStyle.length + 16)
-                    .append("<style>").append(finalStyle).append("</style>")
-                    .append(htmlBuilder)
-                    .toString()
+                htmlBuilder.insert(0, "<style>$finalStyle</style>").toString()
             }
         }
     }
