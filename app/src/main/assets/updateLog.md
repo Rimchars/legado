@@ -1,8 +1,12 @@
 # 更新日志
 欢迎关注公众号[阅读Plus]即时了解软件更新资讯  
-<img src="https://open.weixin.qq.com/qr/code?username=legado_plus" width="300">
+<img src="https://open.weixin.qq.com/qr/code?username=legado_plus" width="200">
 
 ## cronet版本: 128.0.6613.40
+
+**2026/01/31**
+- 优化代码，修复一些问题
+- 正文增加锁定反向横屏
 
 **2026/01/28**
 - 新增java.reLoginView()函数，刷新登录界面
