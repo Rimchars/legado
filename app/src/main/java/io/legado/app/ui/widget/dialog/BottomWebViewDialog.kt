@@ -167,6 +167,9 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     }
 
     private fun setConfig(config: Config, first: Boolean = false) {
+        if (!isAdded || context == null) {
+            return
+        }
         behavior?.let { behavior ->
             config.state?.let { behavior.state = it }
             config.peekHeight?.let { behavior.peekHeight = it }

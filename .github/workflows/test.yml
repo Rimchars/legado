@@ -62,11 +62,12 @@ jobs:
             echo "sgithub=yes" >> $GITHUB_OUTPUT
           fi
       - id: updateLog
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           git fetch --unshallow --depth=20 origin main 2>/dev/null || git fetch --depth=20 origin main 2>/dev/null || true
           UPDATED_CONTENT=""
           IS_MERGE_PR=false
-          COMMIT_MSG="${GITHUB_EVENT_HEAD_COMMIT_MESSAGE:-}"
           if [[ -n "$COMMIT_MSG" ]]; then
             if [[ "$COMMIT_MSG" =~ ^"Merge pull request" ]] || 
               [[ "$COMMIT_MSG" =~ ^"Merge branch" ]] || 
@@ -83,17 +84,15 @@ jobs:
               UPDATED_CONTENT=$(awk '
               /^\*\*20/ && !found {
                 found=1
-                print
-                next
               }
-              found && NF == 0 { exit }
-              found { print }
-              END {
-                if (!found) {
-                  system("head -n 10 app/src/main/assets/updateLog.md")
-                }
+              found {
+                if (NF == 0) exit
+                print
               }
               ' app/src/main/assets/updateLog.md)
+              if [ -z "$UPDATED_CONTENT" ]; then
+                UPDATED_CONTENT=$(head -n 10 app/src/main/assets/updateLog.md)
+              fi
             fi
           elif [ "$IS_MERGE_PR" = true ]; then
               UPDATED_CONTENT="$COMMIT_MSG"
