@@ -172,11 +172,11 @@ class BackstageWebView(
 
         override fun onPageFinished(view: WebView, url: String) {
             setCookie(url)
-            if (runnable == null) {
-                runnable = EvalJsRunnable(view, url, getJs())
+            val runnable = runnable ?: EvalJsRunnable(view, url, getJs()).also {
+                runnable = it
             }
-            mHandler.removeCallbacks(runnable!!)
-            mHandler.postDelayed(runnable!!, 100L + delayTime)
+            mHandler.removeCallbacks(runnable)
+            mHandler.postDelayed(runnable, 100L + delayTime)
         }
 
         @SuppressLint("WebViewClientOnReceivedSslError")
