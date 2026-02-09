@@ -14,9 +14,11 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import io.legado.app.constant.AppConst
 import io.legado.app.exception.NoStackTraceException
+import io.legado.app.help.WebCacheManager
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.webView.PooledWebView
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameCache
 import io.legado.app.help.webView.WebViewPool
 import io.legado.app.utils.get
 import io.legado.app.utils.runOnUI
@@ -95,7 +97,10 @@ class BackstageWebView(
         mWebView = webView
         try {
             when {
-                !html.isNullOrEmpty() -> webView.loadDataWithBaseURL(url, html, "text/html", getEncoding(), url)
+                !html.isNullOrEmpty() -> {
+                    webView.addJavascriptInterface(WebCacheManager, nameCache)
+                    webView.loadDataWithBaseURL(url, html, "text/html", getEncoding(), url)
+                }
 
                 else -> if (headerMap == null) {
                     webView.loadUrl(url!!)
