@@ -2,9 +2,10 @@ package io.legado.app.ui.login
 
 import android.annotation.SuppressLint
 import android.content.DialogInterface
-import android.graphics.Rect
 import android.os.Bundle
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -54,8 +55,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSpinner
 import io.legado.app.data.entities.rule.RowUi.Type
 import io.legado.app.ui.widget.text.TextInputLayout
+import io.legado.app.utils.buildMainHandler
 import io.legado.app.utils.setSelectionSafely
-import kotlin.math.abs
 
 
 class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
@@ -83,13 +84,13 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
         }
     }
 
-    override fun reUiView() {
+    override fun reUiView(deltaUp: Boolean) {
         activity?.runOnUiThread {
-            handleReUiView()
+            handleReUiView(deltaUp)
         }
     }
 
-    private fun handleReUiView() {
+    private fun handleReUiView(deltaUp: Boolean) {
         val source = viewModel.source ?: return
         val loginUiStr = source.loginUi ?: return
         val codeStr = loginUiStr.let {
@@ -106,13 +107,11 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     val loginUiJson = evalUiJs(codeStr)
                     rowUis = loginUi(loginUiJson)
                 }
-                binding.flexbox.removeAllViews()
-                rowUiBuilder(source, rowUis)
+                rowUiBuilder(source, rowUis, deltaUp)
             }
         } else {
             rowUis = loginUi(loginUiStr)
-            binding.flexbox.removeAllViews()
-            rowUiBuilder(source, rowUis)
+            rowUiBuilder(source, rowUis, deltaUp)
         }
     }
 
@@ -237,15 +236,34 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
     }
 
     @SuppressLint("SetTextI18n", "ClickableViewAccessibility")
-    private fun rowUiBuilder(source: BaseSource, rowUis: List<RowUi>?) {
+    private fun rowUiBuilder(source: BaseSource, rowUis: List<RowUi>?, deltaUp: Boolean) {
         val loginInfo = viewModel.loginInfo
-        rowUiName.clear()
+        if (!deltaUp) {
+            binding.flexbox.removeAllViews()
+            rowUiName.clear()
+        }
         rowUis?.forEachIndexed { index, rowUi ->
             val type = rowUi.type
             val name = rowUi.name
             val viewName = rowUi.viewName
             val action = rowUi.action
-            rowUiName.add(name)
+            if (deltaUp) {
+                val oldName = rowUiName.getOrNull(index)
+                when (oldName) {
+                    name -> {
+                        return@forEachIndexed
+                    }
+                    null -> {
+                        rowUiName.add(name)
+                    }
+                    else -> {
+                        rowUiName[index] = name
+                        binding.flexbox.removeViewAt(index)
+                    }
+                }
+            } else {
+                rowUiName.add(name)
+            }
             when (type) {
                 Type.text -> ItemSourceEditBinding.inflate(
                     layoutInflater,
@@ -282,29 +300,27 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     }
                     editText.setText(loginInfo[name])
                     action?.let { jsStr ->
-                        var content: String? = null
-                        editText.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
-                            if (hasFocus) {
-                                content = editText.text.toString()
-                            } else {
-                                val reContent = editText.text.toString()
-                                if (content != null && content != reContent) {
-                                    handleButtonClick(source, jsStr, name, rowUis, false)
+                        val watcher = object : TextWatcher {
+                            private var content: String? = null
+                            private val handler = buildMainHandler()
+                            private val runnable = Runnable {
+                                handleButtonClick(source, jsStr, name, rowUis, false)
+                            }
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                                content = s.toString()
+                            }
+
+                            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+                            override fun afterTextChanged(s: Editable?) {
+                                val reContent = s.toString()
+                                if (reContent != content) {
+                                    handler.removeCallbacks(runnable)
+                                    handler.postDelayed(runnable, 600)
                                 }
                             }
                         }
-                        editText.viewTreeObserver.addOnGlobalLayoutListener {
-                            if (!editText.hasFocus()) {
-                                return@addOnGlobalLayoutListener
-                            }
-                            val rect = Rect()
-                            binding.root.getWindowVisibleDisplayFrame(rect)
-                            val screenHeight = binding.root.height
-                            val keypadHeight = screenHeight - rect.bottom
-                            if (abs(keypadHeight) < screenHeight / 5) {
-                                editText.clearFocus()
-                            }
-                        }
+                        editText.addTextChangedListener(watcher)
                     }
                 }
 
@@ -345,29 +361,27 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                         InputType.TYPE_TEXT_VARIATION_PASSWORD or InputType.TYPE_CLASS_TEXT
                     editText.setText(loginInfo[name])
                     action?.let { jsStr ->
-                        var content: String? = null
-                        editText.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
-                            if (hasFocus) {
-                                content = editText.text.toString()
-                            } else {
-                                val reContent = editText.text.toString()
-                                if (content != null && content != reContent) {
-                                    handleButtonClick(source, jsStr, name, rowUis, false)
+                        val watcher = object : TextWatcher {
+                            private var content: String? = null
+                            private val handler = buildMainHandler()
+                            private val runnable = Runnable {
+                                handleButtonClick(source, jsStr, name, rowUis, false)
+                            }
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                                content = s.toString()
+                            }
+
+                            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+                            override fun afterTextChanged(s: Editable?) {
+                                val reContent = s.toString()
+                                if (reContent != content) {
+                                    handler.removeCallbacks(runnable)
+                                    handler.postDelayed(runnable, 600)
                                 }
                             }
                         }
-                        editText.viewTreeObserver.addOnGlobalLayoutListener {
-                            if (!editText.hasFocus()) {
-                                return@addOnGlobalLayoutListener
-                            }
-                            val rect = Rect()
-                            binding.root.getWindowVisibleDisplayFrame(rect)
-                            val screenHeight = binding.root.height
-                            val keypadHeight = screenHeight - rect.bottom
-                            if (abs(keypadHeight) < screenHeight / 5) {
-                                editText.clearFocus()
-                            }
-                        }
+                        editText.addTextChangedListener(watcher)
                     }
                 }
 
@@ -593,10 +607,19 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                 }
             }
         }
+        if (deltaUp && rowUis != null) {
+            val newRowUiSize = rowUis.size
+            for (i in binding.flexbox.childCount - 1 downTo newRowUiSize) {
+                binding.flexbox.removeViewAt(i)
+            }
+            if (rowUiName.size > newRowUiSize) {
+                rowUiName.subList(newRowUiSize, rowUiName.size).clear()
+            }
+        }
     }
 
     private fun buttonUi(source: BaseSource, rowUis: List<RowUi>?) {
-        rowUiBuilder(source, rowUis)
+        rowUiBuilder(source, rowUis, false)
         binding.toolBar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_ok -> {
@@ -703,8 +726,16 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                 }
             } else if (source.putLoginInfo(GSON.toJson(loginData))) {
                 try {
+                    val buttonFunctionJS = "if (typeof login=='function'){ login.apply(this); } else { throw('Function login not implements!!!') }"
+                    val loginJS = source.getLoginJs() ?: return@launch
                     runScriptWithContext {
-                        source.login()
+                        source.evalJS("$loginJS\n$buttonFunctionJS") {
+                            put("java", sourceLoginJsExtensions)
+                            put("result", getLoginData(rowUis))
+                            put("book", viewModel.book)
+                            put("chapter", viewModel.chapter)
+                            put("isLongClick", false)
+                        }
                     }
                     context?.toastOnUi(R.string.success)
                     withContext(Main) {
