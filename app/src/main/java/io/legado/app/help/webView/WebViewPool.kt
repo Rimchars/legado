@@ -5,15 +5,11 @@ import android.content.Context
 import android.content.MutableContextWrapper
 import android.os.Build
 import android.view.ViewGroup
-import android.webkit.URLUtil
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import io.legado.app.R
 import io.legado.app.help.config.AppConfig
-import io.legado.app.model.Download
 import io.legado.app.ui.rss.read.VisibleWebView
-import io.legado.app.utils.longSnackbar
 import io.legado.app.utils.setDarkeningAllowed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +19,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import splitties.init.appCtx
-import java.net.URLDecoder
 import java.util.Stack
 import kotlin.math.max
 import kotlin.random.Random

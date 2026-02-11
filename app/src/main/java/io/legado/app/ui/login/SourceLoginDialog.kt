@@ -247,6 +247,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
             val name = rowUi.name
             val viewName = rowUi.viewName
             val action = rowUi.action
+            val default = rowUi.default
             if (deltaUp) {
                 val oldName = rowUiName.getOrNull(index)
                 when (oldName) {
@@ -298,7 +299,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                             it.textInputLayout.hint = "err"
                         }
                     }
-                    editText.setText(loginInfo[name])
+                    editText.setText(loginInfo[name] ?: default)
                     action?.let { jsStr ->
                         val watcher = object : TextWatcher {
                             private var content: String? = null
@@ -359,7 +360,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     }
                     editText.inputType =
                         InputType.TYPE_TEXT_VARIATION_PASSWORD or InputType.TYPE_CLASS_TEXT
-                    editText.setText(loginInfo[name])
+                    editText.setText(loginInfo[name] ?: default)
                     action?.let { jsStr ->
                         val watcher = object : TextWatcher {
                             private var content: String? = null
@@ -420,7 +421,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     val infoV = loginInfo[name]
                     val char = if (infoV.isNullOrEmpty()) {
                         hasChange = true
-                        rowUi.default ?: chars[0]
+                        default ?: chars[0]
                     } else {
                         infoV
                     }
@@ -538,7 +539,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     val infoV = loginInfo[name]
                     var char = if (infoV.isNullOrEmpty()) {
                         hasChange = true
-                        rowUi.default ?: chars[0]
+                        default ?: chars[0]
                     } else {
                         infoV
                     }

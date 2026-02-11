@@ -149,7 +149,7 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
             url = null,
             html = """<html><body><script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.15.4/beautify.min.js"></script>
                 <script>
-                window.result = js_beautify($nameCache?.getFromMemory('web_format_code'), {
+                window.result = js_beautify($nameCache.getFromMemory('web_format_code'), {
                 indent_size: 4,
                 indent_char: ' ',
                 preserve_newlines: true,
