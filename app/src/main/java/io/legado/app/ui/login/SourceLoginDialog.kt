@@ -58,7 +58,6 @@ import io.legado.app.ui.widget.text.TextInputLayout
 import io.legado.app.utils.buildMainHandler
 import io.legado.app.utils.setSelectionSafely
 
-
 class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
     SourceLoginJsExtensions.Callback {
 
@@ -69,6 +68,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
     private var rowUis: List<RowUi>? = null
     private var rowUiName = arrayListOf<String>()
     private var hasChange = false
+    private var loginUrl: String? = null
     private val sourceLoginJsExtensions by lazy {
         SourceLoginJsExtensions(
             activity as AppCompatActivity,
@@ -211,7 +211,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
 
     suspend fun evalUiJs(jsStr: String): String? {
         val source = viewModel.source ?: return null
-        val loginJS = source.getLoginJs() ?: ""
+        val loginJS = loginUrl ?: ""
         val result = rowUis?.let {
             getLoginData(it)
         } ?: viewModel.loginInfo.toMutableMap()
@@ -304,7 +304,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                             private var content: String? = null
                             private val handler = buildMainHandler()
                             private val runnable = Runnable {
-                                handleButtonClick(source, jsStr, name, rowUis, false)
+                                handleButtonClick(source, jsStr, name, false)
                             }
                             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
                                 content = s.toString()
@@ -365,7 +365,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                             private var content: String? = null
                             private val handler = buildMainHandler()
                             private val runnable = Runnable {
-                                handleButtonClick(source, jsStr, name, rowUis, false)
+                                handleButtonClick(source, jsStr, name, false)
                             }
                             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
                                 content = s.toString()
@@ -437,7 +437,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                             hasChange = true
                             loginInfo[name] = chars[position]
                             if (action != null) {
-                                handleButtonClick(source, action, name, rowUis, false)
+                                handleButtonClick(source, action, name, false)
                             }
                         }
                         override fun onNothingSelected(parent: AdapterView<*>?) {
@@ -492,7 +492,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     it.textView.setPadding(16.dpToPx())
                     var downTime = 0L
                     it.root.setOnClickListener { //无障碍点击
-                        handleButtonClick(source, action, name, rowUis, false)
+                        handleButtonClick(source, action, name, false)
                     }
                     it.root.setOnTouchListener { view, event ->
                         when (event.action) {
@@ -507,7 +507,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                                     return@setOnTouchListener true
                                 }
                                 lastClickTime = upTime
-                                handleButtonClick(source, action, name, rowUis, upTime > downTime + 666)
+                                handleButtonClick(source, action, name, upTime > downTime + 666)
                             }
                             MotionEvent.ACTION_CANCEL -> {
                                 view.isSelected = false
@@ -575,7 +575,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                         hasChange = true
                         loginInfo[name] = char
                         it.textView.text = if (left) char + newName else newName + char
-                        handleButtonClick(source, action, name, rowUis, false)
+                        handleButtonClick(source, action, name, false)
                     }
                     it.root.setOnTouchListener { view, event ->
                         when (event.action) {
@@ -596,7 +596,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                                 hasChange = true
                                 loginInfo[name] = char
                                 it.textView.text = if (left) char + newName else newName + char
-                                handleButtonClick(source, action, name, rowUis, upTime > downTime + 666)
+                                handleButtonClick(source, action, name, upTime > downTime + 666)
                             }
                             MotionEvent.ACTION_CANCEL -> {
                                 view.isSelected = false
@@ -646,6 +646,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         val source = viewModel.source ?: return
+        loginUrl = source.getLoginJs()
         val loginUiStr = source.loginUi ?: return
         val codeStr = loginUiStr.let {
             when {
@@ -672,14 +673,14 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
         binding.toolBar.menu.applyTint(requireContext())
     }
 
-    private fun handleButtonClick(source: BaseSource, action: String?, name: String, rowUis: List<RowUi>, isLongClick: Boolean) {
+    private fun handleButtonClick(source: BaseSource, action: String?, name: String, isLongClick: Boolean) {
         lifecycleScope.launch(IO) {
             if (action.isAbsUrl()) {
                 context?.openUrl(action!!)
             } else if (action != null) {
                 // JavaScript
                 val buttonFunctionJS = action
-                val loginJS = source.getLoginJs() ?: return@launch
+                val loginJS = loginUrl ?: return@launch
                 kotlin.runCatching {
                     runScriptWithContext {
                         source.evalJS("$loginJS\n$buttonFunctionJS") {
@@ -698,7 +699,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
         }
     }
 
-    private fun getLoginData(rowUis: List<RowUi>?, save: Boolean = false): MutableMap<String, String> {
+    private fun getLoginData(rowUis: List<RowUi>?): MutableMap<String, String> {
         val loginData = hashMapOf<String, String>()
         rowUis?.forEachIndexed { index, rowUi ->
             when (rowUi.type) {
@@ -710,15 +711,12 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                 }
             }
         }
-        if (save) {
-            return viewModel.loginInfo.apply { putAll(loginData) }
-        }
         return viewModel.loginInfo.toMutableMap().apply { putAll(loginData) }
     }
 
     private fun login(source: BaseSource) {
-        val loginData = getLoginData(rowUis, true)
         lifecycleScope.launch(IO) {
+            val loginData = getLoginData(rowUis)
             if (loginData.isEmpty()) {
                 source.removeLoginInfo()
                 withContext(Main) {
@@ -727,11 +725,11 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
             } else if (source.putLoginInfo(GSON.toJson(loginData))) {
                 try {
                     val buttonFunctionJS = "if (typeof login=='function'){ login.apply(this); } else { throw('Function login not implements!!!') }"
-                    val loginJS = source.getLoginJs() ?: return@launch
+                    val loginJS = loginUrl ?: return@launch
                     runScriptWithContext {
                         source.evalJS("$loginJS\n$buttonFunctionJS") {
                             put("java", sourceLoginJsExtensions)
-                            put("result", getLoginData(rowUis))
+                            put("result", loginData)
                             put("book", viewModel.book)
                             put("chapter", viewModel.chapter)
                             put("isLongClick", false)
