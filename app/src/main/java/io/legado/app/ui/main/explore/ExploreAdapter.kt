@@ -325,12 +325,9 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
                             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
                             override fun afterTextChanged(s: Editable?) {
-                                if (kind.action == null) {
-                                    return
-                                }
                                 val reContent = s.toString()
                                 infoMap[title] = reContent
-                                if (reContent != content) {
+                                if (kind.action != null && reContent != content) {
                                     actionJob?.cancel()
                                     actionJob = callBack.scope.launch(IO) {
                                         delay(600) //防抖

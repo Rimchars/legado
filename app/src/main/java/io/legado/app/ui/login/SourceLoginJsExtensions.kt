@@ -48,6 +48,10 @@ class SourceLoginJsExtensions(
         postEvent(EventBus.REFRESH_BOOK_INFO, true)
     }
 
+    fun refreshBookToc() {
+        postEvent(EventBus.REFRESH_BOOK_TOC, true)
+    }
+
     fun refreshContent() {
         postEvent(EventBus.REFRESH_BOOK_CONTENT, true)
     }

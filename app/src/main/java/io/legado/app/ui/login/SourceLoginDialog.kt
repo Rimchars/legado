@@ -56,6 +56,7 @@ import androidx.appcompat.widget.AppCompatSpinner
 import io.legado.app.data.entities.rule.RowUi.Type
 import io.legado.app.ui.widget.text.TextInputLayout
 import io.legado.app.utils.buildMainHandler
+import io.legado.app.utils.indexOf
 import io.legado.app.utils.setSelectionSafely
 
 class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
@@ -76,6 +77,12 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
             viewModel.bookType,
             this
         )
+    }
+
+    private var initHandler = false
+    private val handler by lazy {
+        initHandler = true
+        buildMainHandler()
     }
 
     override fun upUiData(data: Map<String, String?>?) {
@@ -248,19 +255,29 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
             val viewName = rowUi.viewName
             val action = rowUi.action
             val default = rowUi.default
+            var insertIndex = -1
             if (deltaUp) {
-                val oldName = rowUiName.getOrNull(index)
-                when (oldName) {
-                    name -> {
+                val oldIndex = rowUiName.indexOf(name, index)
+                if (oldIndex == index) {
+                    binding.flexbox.getChildAt(oldIndex)?.let {
+                        it.id = index + 1000
                         return@forEachIndexed
                     }
-                    null -> {
-                        rowUiName.add(name)
+                } else if (oldIndex >= 0) {
+                    binding.flexbox.getChildAt(oldIndex)?.let {
+                        binding.flexbox.removeView(it)
+                        rowUiName.removeAt(oldIndex)
+                        binding.flexbox.addView(it, index)
+                        rowUiName.add(index, name)
+                        it.id = index + 1000
+                        return@forEachIndexed
                     }
-                    else -> {
-                        rowUiName[index] = name
-                        binding.flexbox.removeViewAt(index)
-                    }
+                }
+                if (oldIndex == -2) {
+                    rowUiName.add(name)
+                } else {
+                    rowUiName.add(index, name)
+                    insertIndex = index
                 }
             } else {
                 rowUiName.add(name)
@@ -272,7 +289,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     false
                 ).let {
                     val editText = it.editText
-                    binding.flexbox.addView(it.root)
+                    binding.flexbox.addView(it.root, insertIndex)
                     rowUi.style().apply {
                         when (this.layout_justifySelf) {
                             "center" -> editText.gravity = Gravity.CENTER
@@ -303,7 +320,6 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     action?.let { jsStr ->
                         val watcher = object : TextWatcher {
                             private var content: String? = null
-                            private val handler = buildMainHandler()
                             private val runnable = Runnable {
                                 handleButtonClick(source, jsStr, name, false)
                             }
@@ -331,7 +347,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     false
                 ).let {
                     val editText = it.editText
-                    binding.flexbox.addView(it.root)
+                    binding.flexbox.addView(it.root, insertIndex)
                     rowUi.style().apply {
                         when (this.layout_justifySelf) {
                             "center" -> editText.gravity = Gravity.CENTER
@@ -364,7 +380,6 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     action?.let { jsStr ->
                         val watcher = object : TextWatcher {
                             private var content: String? = null
-                            private val handler = buildMainHandler()
                             private val runnable = Runnable {
                                 handleButtonClick(source, jsStr, name, false)
                             }
@@ -444,7 +459,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                         override fun onNothingSelected(parent: AdapterView<*>?) {
                         }
                     }
-                    binding.flexbox.addView(it.root)
+                    binding.flexbox.addView(it.root, insertIndex)
                     rowUi.style().apply {
                         when (this.layout_justifySelf) {
                             "flex_start" -> selector.gravity = Gravity.START
@@ -460,7 +475,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     binding.root,
                     false
                 ).let {
-                    binding.flexbox.addView(it.root)
+                    binding.flexbox.addView(it.root, insertIndex)
                     rowUi.style().apply {
                         when (this.layout_justifySelf) {
                             "flex_start" -> it.textView.gravity = Gravity.START
@@ -525,7 +540,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                 ).let {
                     var newName = name
                     var left = true
-                    binding.flexbox.addView(it.root)
+                    binding.flexbox.addView(it.root, insertIndex)
                     rowUi.style().apply {
                         when (this.layout_justifySelf) {
                             "flex_start" -> it.textView.gravity = Gravity.START
@@ -757,6 +772,9 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
             } else {
                 viewModel.source?.putLoginInfo(GSON.toJson(loginInfo))
             }
+        }
+        if (initHandler) {
+            handler.removeCallbacksAndMessages(null)
         }
         super.onDismiss(dialog)
         activity?.finish()
