@@ -54,7 +54,6 @@ class BackstageWebView(
 
     private val mHandler = Handler(Looper.getMainLooper())
     private var callback: Callback? = null
-    private var mWebView: WebView? = null
     private var pooledWebView: PooledWebView? = null
 
     suspend fun getStrResponse(): StrResponse = withTimeout(timeout ?: 60000L) {
@@ -94,7 +93,6 @@ class BackstageWebView(
     @Throws(AndroidRuntimeException::class)
     private fun load() {
         val webView = createWebView()
-        mWebView = webView
         try {
             when {
                 !html.isNullOrEmpty() -> {
@@ -118,10 +116,9 @@ class BackstageWebView(
     private fun createWebView(): WebView {
         val pooledWebView = WebViewPool.acquire(appCtx)
         this.pooledWebView = pooledWebView
-        val webView = pooledWebView.realWebView.apply {
-            resumeTimers()
-            onResume()
-        }
+        val webView = pooledWebView.realWebView
+        webView.resumeTimers()
+        webView.onResume() //缓存库拿的需要激活
         val settings = webView.settings
         settings.blockNetworkImage = true
         settings.userAgentString = headerMap?.get(AppConst.UA_NAME, true) ?: AppConfig.userAgent
@@ -136,7 +133,6 @@ class BackstageWebView(
 
     private fun destroy() {
         pooledWebView?.let { WebViewPool.release(it) }
-        mWebView = null
         pooledWebView = null
     }
 
