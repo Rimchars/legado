@@ -14,6 +14,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import io.legado.app.constant.AppConst
 import io.legado.app.exception.NoStackTraceException
+import io.legado.app.help.CacheManager
 import io.legado.app.help.WebCacheManager
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
@@ -49,7 +50,8 @@ class BackstageWebView(
     private val javaScript: String? = null,
     private val delayTime: Long = 0,
     private val cacheFirst: Boolean = false,
-    private val timeout: Long? = null
+    private val timeout: Long? = null,
+    private val result: String? = null
 ) {
 
     private val mHandler = Handler(Looper.getMainLooper())
@@ -96,7 +98,10 @@ class BackstageWebView(
         try {
             when {
                 !html.isNullOrEmpty() -> {
-                    webView.addJavascriptInterface(WebCacheManager, nameCache)
+                    if (result != null) {
+                        webView.addJavascriptInterface(WebCacheManager, nameCache)
+                        CacheManager.putMemory("webview_result", result)
+                    }
                     webView.loadDataWithBaseURL(url, html, "text/html", getEncoding(), url)
                 }
 
@@ -173,6 +178,9 @@ class BackstageWebView(
 
         override fun onPageFinished(view: WebView, url: String) {
             setCookie(url)
+            result?.let {
+                view.evaluateJavascript("window.result = $nameCache.getFromMemory('webview_result')", null)
+            }
             val runnable = runnable ?: EvalJsRunnable(view, url, getJs()).also {
                 runnable = it
             }

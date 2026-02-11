@@ -2,10 +2,12 @@ package io.legado.app.model.analyzeRule
 
 import android.text.TextUtils
 import androidx.annotation.Keep
+import com.google.gson.internal.LinkedTreeMap
 import com.script.CompiledScript
 import com.script.buildScriptBindings
 import com.script.rhino.RhinoScriptEngine
 import io.legado.app.constant.AppPattern.JS_PATTERN
+import io.legado.app.constant.AppPattern.WebJS_PATTERN
 import io.legado.app.data.entities.BaseBook
 import io.legado.app.data.entities.BaseSource
 import io.legado.app.data.entities.Book
@@ -15,6 +17,7 @@ import io.legado.app.data.entities.RssArticle
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.CacheManager
 import io.legado.app.help.JsExtensions
+import io.legado.app.help.http.BackstageWebView
 import io.legado.app.help.http.CookieStore
 import io.legado.app.help.source.getShareScope
 import io.legado.app.model.Debug
@@ -22,10 +25,12 @@ import io.legado.app.model.webBook.WebBook
 import io.legado.app.utils.GSON
 import io.legado.app.utils.GSONStrict
 import io.legado.app.utils.NetworkUtils
+import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getOrPutLimit
 import io.legado.app.utils.isDataUrl
 import io.legado.app.utils.isJson
+import io.legado.app.utils.isMainThread
 import io.legado.app.utils.printOnDebug
 import io.legado.app.utils.splitNotBlank
 import io.legado.app.utils.stackTraceStr
@@ -164,6 +169,27 @@ class AnalyzeRule(
     }
 
     /**
+     * 获取webJs结果
+     */
+    private fun getWebJsResult(jsStr: String, result: Any): String {
+        if (isMainThread) {
+            error("webJs must be called on a background thread")
+        }
+        return runBlocking {
+            BackstageWebView(
+                url = baseUrl,
+                html = content.toString(),
+                javaScript = jsStr,
+                headerMap = getSource()?.getHeaderMap(true),
+                tag = getSource()?.getKey(),
+                cacheFirst = true,
+                timeout = 10000,
+                result = GSON.toJson(result)
+            ).getStrResponse().body.toString()
+        }
+    }
+
+    /**
      * 获取文本列表
      */
     @JvmOverloads
@@ -211,6 +237,9 @@ class AnalyzeRule(
                     val rule = sourceRule.rule
                     if (rule.isNotEmpty()) {
                         result = when (sourceRule.mode) {
+                            Mode.WebJs -> getWebJsResult(rule, result).let{
+                                GSON.fromJsonArray<String>(it).getOrNull() ?: it
+                            }
                             Mode.Js -> evalJS(rule, result)
                             Mode.Json -> getAnalyzeByJSonPath(result).getStringList(rule)
                             Mode.XPath -> getAnalyzeByXPath(result).getStringList(rule)
@@ -290,6 +319,9 @@ class AnalyzeRule(
                 }?.let {
                     replaceRegex(it, sourceRule)
                 }
+            } else if (result is LinkedTreeMap<*, *>) {
+                // 键值直接访问
+                result = result[ruleList.first().rule]?.toString()
             } else {
                 for (sourceRule in ruleList) {
                     putRule(sourceRule.putMap)
@@ -298,6 +330,7 @@ class AnalyzeRule(
                     val rule = sourceRule.rule
                     if (rule.isNotBlank() || sourceRule.replaceRegex.isEmpty()) {
                         result = when (sourceRule.mode) {
+                            Mode.WebJs -> getWebJsResult(rule, result)
                             Mode.Js -> evalJS(rule, result)
                             Mode.Json -> getAnalyzeByJSonPath(result).getString(rule)
                             Mode.XPath -> getAnalyzeByXPath(result).getString(rule)
@@ -354,6 +387,7 @@ class AnalyzeRule(
                         rule.splitNotBlank("&&")
                     )
 
+                    Mode.WebJs -> GSON.fromJsonObject<Map<String, Any?>>(getWebJsResult(rule, result)).getOrNull()
                     Mode.Js -> evalJS(rule, result)
                     Mode.Json -> getAnalyzeByJSonPath(result).getObject(rule)
                     Mode.XPath -> getAnalyzeByXPath(result).getElements(rule)
@@ -387,6 +421,7 @@ class AnalyzeRule(
                         rule.splitNotBlank("&&")
                     )
 
+                    Mode.WebJs -> GSON.fromJsonArray<Map<String, Any?>>(getWebJsResult(rule, result)).getOrNull()
                     Mode.Js -> evalJS(rule, result)
                     Mode.Json -> getAnalyzeByJSonPath(result).getList(rule)
                     Mode.XPath -> getAnalyzeByXPath(result).getElements(rule)
@@ -514,14 +549,23 @@ class AnalyzeRule(
             ruleList.add(SourceRule(jsMatcher.group(2) ?: jsMatcher.group(1), Mode.Js))
             start = jsMatcher.end()
         }
-
+        val webJsMatcher = WebJS_PATTERN.matcher(ruleStr)
+        while (webJsMatcher.find()) {
+            if (webJsMatcher.start() > start) {
+                tmp = ruleStr.substring(start, webJsMatcher.start()).trim { it <= ' ' }
+                if (tmp.isNotEmpty()) {
+                    ruleList.add(SourceRule(tmp, mMode))
+                }
+            }
+            ruleList.add(SourceRule(webJsMatcher.group(1) ?: "", Mode.WebJs))
+            start = webJsMatcher.end()
+        }
         if (ruleStr.length > start) {
             tmp = ruleStr.substring(start).trim { it <= ' ' }
             if (tmp.isNotEmpty()) {
                 ruleList.add(SourceRule(tmp, mMode))
             }
         }
-
         return ruleList
     }
 
@@ -738,7 +782,7 @@ class AnalyzeRule(
     }
 
     enum class Mode {
-        XPath, Json, Default, Js, Regex
+        XPath, Json, Default, Js, Regex, WebJs
     }
 
     /**
