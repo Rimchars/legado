@@ -69,6 +69,10 @@ class WebJsExtensions(
     private val book: Book? get() = bookAndChapter.first
     private val chapter: BookChapter? get() = bookAndChapter.second
 
+    override val analyzeRule by lazy {
+        AnalyzeRule(book, source = getSource()).setChapter(chapter)
+    }
+
     /**
      * 由软件主动注入的js函数调用
      */
@@ -77,9 +81,8 @@ class WebJsExtensions(
         val activity = activityRef.get() ?: return
         Coroutine.async(activity.lifecycleScope) {
             when (funName) {
-                "run" -> AnalyzeRule(book, getSource()).run {
+                "run" -> analyzeRule.run {
                     setCoroutineContext(coroutineContext)
-                    setChapter(chapter)
                     evalJS(jsParam[0]).toString()
                 }
                 "ajaxAwait" -> {
@@ -124,9 +127,8 @@ class WebJsExtensions(
                 "importScriptAwait" -> {
                     importScript(jsParam[0])
                 }
-                "getStringAwait" -> AnalyzeRule(book, getSource()).run {
+                "getStringAwait" -> analyzeRule.run {
                     setCoroutineContext(coroutineContext)
-                    setChapter(chapter)
                     getString(jsParam[0], jsParam[1])
                 }
                 else -> "error funName"
@@ -201,6 +203,14 @@ class WebJsExtensions(
     fun head(urlStr: String, headers: String, timeout: Int?): String {
         val headerMap = GSON.fromJsonObject<Map<String, String>>(headers).getOrNull() ?: emptyMap()
         return GSON.toJson(super.head(urlStr, headerMap, timeout).headers())
+    }
+    @JavascriptInterface
+    fun getStringList(rule: String?, mContent: String? = null, isUrl: Boolean = false): List<String>? {
+        return super.getStringList(rule, mContent, isUrl)
+    }
+    @JavascriptInterface
+    fun getString(ruleStr: String?, mContent: String? = null, isUrl: Boolean = false): String {
+        return super.getString(ruleStr, mContent, isUrl)
     }
 
     companion object{
