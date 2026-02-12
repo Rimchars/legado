@@ -182,7 +182,7 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
             javaScript = "window.re",
             cacheFirst = true,
             timeout = 5000,
-            result = ""
+            isRule = true
         ).getStrResponse().body
     }
 

@@ -184,7 +184,8 @@ class AnalyzeRule(
                 tag = getSource()?.getKey(),
                 cacheFirst = true,
                 timeout = 10000,
-                result = GSON.toJson(result)
+                result = GSON.toJson(result),
+                isRule = true
             ).getStrResponse().body.toString()
         }
     }
@@ -229,6 +230,9 @@ class AnalyzeRule(
                         result = replaceRegex(result.toString(), sourceRule)
                     }
                 }
+            } else if (result is LinkedTreeMap<*, *>) {
+                // 键值直接访问
+                result = result[ruleList.first().rule]
             } else {
                 for (sourceRule in ruleList) {
                     putRule(sourceRule.putMap)

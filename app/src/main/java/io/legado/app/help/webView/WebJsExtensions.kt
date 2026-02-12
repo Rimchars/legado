@@ -25,7 +25,7 @@ import java.util.UUID
 
 @Suppress("unused")
 class WebJsExtensions(
-    source: BaseSource, activity: AppCompatActivity,
+    source: BaseSource, activity: AppCompatActivity?,
     private val webView: WebView,
     private val bookType: Int = 0,
     callback: Callback? = null
