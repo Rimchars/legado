@@ -6,8 +6,10 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.AndroidRuntimeException
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -26,6 +28,7 @@ import io.legado.app.help.webView.WebJsExtensions.Companion.nameCache
 import io.legado.app.help.webView.WebJsExtensions.Companion.nameJava
 import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.help.webView.WebViewPool
+import io.legado.app.model.Debug
 import io.legado.app.utils.get
 import io.legado.app.utils.runOnUI
 import kotlinx.coroutines.Dispatchers.IO
@@ -108,6 +111,15 @@ class BackstageWebView(
                         webView.addJavascriptInterface(WebCacheManager, nameCache)
                         tag?.let { key ->
                            appDb.bookSourceDao.getBookSource(key)?.let {
+                               webView.webChromeClient = object : WebChromeClient() {
+                                   /* 监听网页日志 */
+                                   override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                                       val messageLevel = consoleMessage.messageLevel().name
+                                       val message = consoleMessage.message()
+                                       Debug.log(it.bookSourceUrl, "${messageLevel}: $message", true)
+                                       return true
+                                   }
+                               }
                                webView.addJavascriptInterface(it as BaseSource, nameSource)
                                val webJsExtensions = WebJsExtensions(it, null, webView)
                                webView.addJavascriptInterface(webJsExtensions, nameJava)
