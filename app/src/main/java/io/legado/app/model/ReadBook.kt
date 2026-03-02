@@ -858,6 +858,9 @@ object ReadBook : CoroutineScope by MainScope() {
         }
     }
 
+    /**
+     * 预下载时，章节已完，更新目录
+     */
     @Synchronized
     fun upToc() {
         val bookSource = bookSource ?: return

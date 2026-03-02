@@ -68,12 +68,8 @@ open class RssJsExtensions(
     }
 
     @JavascriptInterface
-    fun searchBook(key: String) {
-        searchBook(key, null)
-    }
-
-    @JavascriptInterface
-    fun searchBook(key: String, searchScope: String?) {
+    @JvmOverloads
+    fun searchBook(key: String, searchScope: String? = null) {
         activityRef.get()?.let {
             SearchActivity.start(it, key, searchScope)
         }
