@@ -706,7 +706,8 @@ object ReadBook : CoroutineScope by MainScope() {
             val contentProcessor = ContentProcessor.get(book.name, book.origin)
             val displayTitle = chapter.getDisplayTitle(
                 contentProcessor.getTitleReplaceRules(),
-                book.getUseReplaceRule()
+                book.getUseReplaceRule(),
+                replaceBook = book.toReplaceBook()
             )
             val contents = contentProcessor
                 .getContent(book, chapter, content, includeTitle = false)
@@ -794,7 +795,8 @@ object ReadBook : CoroutineScope by MainScope() {
             val contentProcessor = ContentProcessor.get(book.name, book.origin)
             val displayTitle = chapter.getDisplayTitle(
                 contentProcessor.getTitleReplaceRules(),
-                book.getUseReplaceRule()
+                book.getUseReplaceRule(),
+                replaceBook = book.toReplaceBook()
             )
             val contents = contentProcessor
                 .getContent(book, chapter, content, includeTitle = false)
@@ -914,7 +916,8 @@ object ReadBook : CoroutineScope by MainScope() {
                     appDb.bookChapterDao.getChapter(book.bookUrl, durChapterIndex)?.let {
                         book.durChapterTitle = it.getDisplayTitle(
                             ContentProcessor.get(book.name, book.origin).getTitleReplaceRules(),
-                            book.getUseReplaceRule()
+                            book.getUseReplaceRule(),
+                            replaceBook = book.toReplaceBook()
                         )
                         SourceCallBack.callBackBook(SourceCallBack.SAVE_READ, bookSource, book, it)
                     }

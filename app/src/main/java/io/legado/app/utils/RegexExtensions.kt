@@ -2,13 +2,11 @@ package io.legado.app.utils
 
 import com.script.ScriptBindings
 import com.script.rhino.RhinoScriptEngine
-import io.legado.app.constant.AppLog
-import io.legado.app.data.appDb
 import io.legado.app.data.entities.BookChapter
-import io.legado.app.data.entities.SearchBook
+import io.legado.app.data.entities.ReplaceBook
 import io.legado.app.exception.RegexTimeoutException
 import io.legado.app.help.CrashHandler
-import io.legado.app.help.JsEncodeUtils
+import io.legado.app.help.RegexJsExtensions
 import io.legado.app.help.coroutine.Coroutine
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,56 +25,18 @@ private val handler by lazy { buildMainHandler() }
  * 带有超时检测的正则替换
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-fun CharSequence.replace(regex: Regex, replacement: String, timeout: Long): String {
 fun CharSequence.replace(
     name: String,
     regex: Regex,
     replacement: String,
     timeout: Long,
     chapter: BookChapter? = null,
-    book: SearchBook? = null
+    book: ReplaceBook? = null
 ): String {
     val charSequence = this@replace
     val isJs = replacement.startsWith("@js:")
     val replacement1 = if (isJs) replacement.substring(4) else replacement
-    val book = if (isJs) {
-        book ?: chapter?.bookUrl?.let {
-            appDb.searchBookDao.getSearchBook(it) ?: appDb.bookDao.getBook(it)?.toSearchBook()
-        }
-    } else {
-        null
-    }
-    @Suppress("unused")
-    val reJsExtensions by lazy {
-        object : JsEncodeUtils {
-            /**
-             * 输出调试日志
-             */
-            fun log(msg: Any?): Any? {
-                AppLog.putDebug("替换净化规则 $name 输出: $msg")
-                return msg
-            }
-
-            /**
-             * 输出对象类型
-             */
-            fun logType(any: Any?) {
-                if (any == null) {
-                    log("null")
-                } else {
-                    log(any.javaClass.name)
-                }
-            }
-
-            fun t2s(text: String): String {
-                return ChineseUtils.t2s(text)
-            }
-
-            fun s2t(text: String): String {
-                return ChineseUtils.s2t(text)
-            }
-        }
-    }
+    val reJsExtensions by lazy { RegexJsExtensions(name) }
     return runBlocking {
         suspendCancellableCoroutine { block ->
             Coroutine.async(executeContext = IO) {
@@ -91,9 +51,9 @@ fun CharSequence.replace(
                                     val bindings = ScriptBindings()
                                     bindings["result"] = matcher.group()
                                     bindings["chapter"] = chapter
-                                bindings["book"] = book
-                                bindings["java"] = reJsExtensions
-                                eval(replacement1, bindings)
+                                    bindings["book"] = book
+                                    bindings["java"] = reJsExtensions
+                                    eval(replacement1, bindings)
                                 }.toString()
                                 val quotedResult = jsResult.quoteReplacementJs()
                                 matcher.appendReplacement(stringBuffer, quotedResult)
