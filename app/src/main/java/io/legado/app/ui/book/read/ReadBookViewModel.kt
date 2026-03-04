@@ -140,7 +140,11 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
                 }
             }
         } else {
-            ReadBook.loadOrUpContent()
+            ReadBook.loadOrUpContent {
+                ReadBook.bookSource?.let {
+                    SourceCallBack.callBackBook(SourceCallBack.START_READ, it, book, ReadBook.curTextChapter?.chapter)
+                }
+            }
         }
         if (ReadBook.chapterChanged) {
             // 有章节跳转不同步阅读进度

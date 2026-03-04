@@ -542,9 +542,11 @@ object ReadBook : CoroutineScope by MainScope() {
         loadContent(durChapterIndex - 1, resetPageOffset = resetPageOffset)
     }
 
-    fun loadOrUpContent() {
+    fun loadOrUpContent(success: (() -> Unit)? = null) {
         if (curTextChapter == null) {
-            loadContent(durChapterIndex)
+            loadContent(durChapterIndex) {
+                success?.invoke()
+            }
         } else {
             callBack?.upContent()
         }
