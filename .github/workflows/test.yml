@@ -76,15 +76,11 @@ jobs:
             fi
           fi
 
-          echo "DEBUG: COMMIT_MSG=$COMMIT_MSG"
-
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null)
           UPDATE_LOG_CHANGED=$(echo "$CHANGED_FILES" | grep -q "app/src/main/assets/updateLog.md" && echo "yes" || echo "no")
           CRONET_JSON_CHANGED=$(echo "$CHANGED_FILES" | grep -q "app/src/main/assets/cronet.json" && echo "yes" || echo "no")
 
           echo "DEBUG: CHANGED_FILES=$CHANGED_FILES"
-          echo "DEBUG: UPDATE_LOG_CHANGED=$UPDATE_LOG_CHANGED"
-          echo "DEBUG: CRONET_JSON_CHANGED=$CRONET_JSON_CHANGED"
 
           if [ "$UPDATE_LOG_CHANGED" = "yes" ] && [ "$CRONET_JSON_CHANGED" = "no" ]; then
             echo "updated=yes" >> $GITHUB_OUTPUT
@@ -112,7 +108,7 @@ jobs:
               BEFORE_SHA="${{ github.event.before }}"
               AFTER_SHA="${{ github.event.after }}"
               COMMIT_RANGE="$BEFORE_SHA..$AFTER_SHA"
-              echo "DEBUG: BEFORE_SHA=$BEFORE_SHA AFTER_SHA=$AFTER_SHA COMMIT_RANGE=$COMMIT_RANGE"
+              echo "DEBUG: COMMIT_RANGE=$COMMIT_RANGE"
               if git rev-parse "$COMMIT_RANGE" >/dev/null 2>&1; then
                 UPDATED_CONTENT=$(git log $COMMIT_RANGE --pretty=format:"• %s" --reverse 2>/dev/null | grep -v "^• Merge" || echo "• $COMMIT_MSG")
                 echo "DEBUG: UPDATED_CONTENT (from commit range) set"
@@ -128,9 +124,6 @@ jobs:
             echo "DEBUG: fallback to last commit body"
             UPDATED_CONTENT=$(git log -1 --pretty=%B)
           fi
-
-          echo "DEBUG: final UPDATED_CONTENT="
-          echo "$UPDATED_CONTENT"
 
           CONTENT_JSON=$(echo "$UPDATED_CONTENT" | jq -Rs . 2>/dev/null || echo "\"Error generating update content\"")
           echo "DEBUG: CONTENT_JSON=$CONTENT_JSON"
