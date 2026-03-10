@@ -16,6 +16,8 @@ import androidx.activity.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DecodeFormat
+import com.bumptech.glide.request.RequestOptions
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.BookType
@@ -48,7 +50,6 @@ import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
 import io.legado.app.model.BookCover
-import io.legado.app.model.ReadBook
 import io.legado.app.model.remote.RemoteBookWebDav
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.book.audio.AudioPlayActivity
@@ -461,7 +462,17 @@ class BookInfoActivity :
                 val markwon: Markwon
                 val markdown = withContext(IO) {
                     markwon = Markwon.builder(context)
-                        .usePlugin(GlideImagesPlugin.create(Glide.with(context)))
+                        .usePlugin(
+                            GlideImagesPlugin.create(
+                                Glide.with(context)
+                                    .applyDefaultRequestOptions(
+                                        RequestOptions()
+                                            .override(tvIntro.width - tvIntro.paddingLeft - tvIntro.paddingRight - 8.dpToPx())
+                                            .encodeQuality(88)
+                                            .format(DecodeFormat.PREFER_RGB_565)
+                                    )
+                            )
+                        )
                         .usePlugin(HtmlPlugin.create())
                         .usePlugin(TablePlugin.create(context))
                         .build()
