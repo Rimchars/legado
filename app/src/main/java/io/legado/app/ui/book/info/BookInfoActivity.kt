@@ -247,7 +247,13 @@ class BookInfoActivity :
             R.id.menu_custom_btn -> {
                 viewModel.bookSource?.customButton?.let {
                     viewModel.getBook()?.let { book ->
-                        SourceCallBack.callBackBtn(this,SourceCallBack.CLICK_CUSTOM_BUTTON, viewModel.bookSource, book, null)
+                        SourceCallBack.callBackBtn(
+                            this,
+                            SourceCallBack.CLICK_CUSTOM_BUTTON,
+                            viewModel.bookSource,
+                            book,
+                            null
+                        )
                     }
                 }
             }
@@ -262,9 +268,16 @@ class BookInfoActivity :
 
             R.id.menu_share_it -> {
                 viewModel.getBook()?.let {
-                    SourceCallBack.callBackBtn(this,SourceCallBack.CLICK_SHARE_BOOK, viewModel.bookSource, it, null) {
-                        val bookJson = GSON.toJson(it)
-                        val shareStr = "${it.bookUrl}#$bookJson"
+                    val bookJson = GSON.toJson(it)
+                    val shareStr = "${it.bookUrl}#$bookJson"
+                    SourceCallBack.callBackBtn(
+                        this,
+                        SourceCallBack.CLICK_SHARE_BOOK,
+                        viewModel.bookSource,
+                        it,
+                        null,
+                        result = shareStr
+                    ) {
                         val intent = Intent(Intent.ACTION_SEND)
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         intent.putExtra(Intent.EXTRA_TEXT, shareStr)
@@ -290,13 +303,27 @@ class BookInfoActivity :
             R.id.menu_set_source_variable -> setSourceVariable()
             R.id.menu_set_book_variable -> setBookVariable()
             R.id.menu_copy_book_url -> viewModel.getBook()?.let {
-                SourceCallBack.callBackBtn(this, SourceCallBack.CLICK_COPY_BOOK_URL, viewModel.bookSource, it, null) {
+                SourceCallBack.callBackBtn(
+                    this,
+                    SourceCallBack.CLICK_COPY_BOOK_URL,
+                    viewModel.bookSource,
+                    it,
+                    null,
+                    result = it.bookUrl
+                ) {
                     sendToClip(it.bookUrl)
                 }
             }
 
             R.id.menu_copy_toc_url -> viewModel.getBook()?.let {
-                SourceCallBack.callBackBtn(this, SourceCallBack.CLICK_COPY_TOC_URL, viewModel.bookSource, it, null) {
+                SourceCallBack.callBackBtn(
+                    this,
+                    SourceCallBack.CLICK_COPY_TOC_URL,
+                    viewModel.bookSource,
+                    it,
+                    null,
+                    result = it.tocUrl
+                ) {
                     sendToClip(it.tocUrl)
                 }
             }
@@ -501,7 +528,30 @@ class BookInfoActivity :
                 lbKind.gone()
             } else {
                 lbKind.visible()
-                lbKind.setLabels(kinds)
+                lbKind.setLabels(
+                    kinds,
+                    { kind ->
+                        SourceCallBack.callBackBtn(
+                            this@BookInfoActivity,
+                            SourceCallBack.CLICK_BOOK_LABEL,
+                            viewModel.bookSource,
+                            book,
+                            null,
+                            result = kind
+                        )
+                    },
+                    { kind ->
+                        SourceCallBack.callBackBtn(
+                            this@BookInfoActivity,
+                            SourceCallBack.LONG_CLICK_BOOK_LABEL,
+                            viewModel.bookSource,
+                            book,
+                            null,
+                            result = kind
+                        )
+                        true
+                    }
+                )
             }
         }
     }
@@ -644,7 +694,14 @@ class BookInfoActivity :
         }
         tvAuthor.setOnClickListener {
             viewModel.getBook(false)?.let { book ->
-                SourceCallBack.callBackBtn(this@BookInfoActivity, SourceCallBack.CLICK_AUTHOR, viewModel.bookSource, book, null) {
+                SourceCallBack.callBackBtn(
+                    this@BookInfoActivity,
+                    SourceCallBack.CLICK_AUTHOR,
+                    viewModel.bookSource,
+                    book,
+                    null,
+                    result = book.author
+                ) {
                     startActivity<SearchActivity> {
                         putExtra("key", book.author)
                     }
@@ -653,7 +710,14 @@ class BookInfoActivity :
         }
         tvAuthor.setOnLongClickListener {
             viewModel.getBook(false)?.let { book ->
-                SourceCallBack.callBackBtn(this@BookInfoActivity, SourceCallBack.LONG_CLICK_AUTHOR, viewModel.bookSource, book, null) {
+                SourceCallBack.callBackBtn(
+                    this@BookInfoActivity,
+                    SourceCallBack.LONG_CLICK_AUTHOR,
+                    viewModel.bookSource,
+                    book,
+                    null,
+                    result = book.author
+                ) {
                     startActivity<SearchActivity> {
                         putExtra("key", book.author)
                     }
@@ -663,7 +727,14 @@ class BookInfoActivity :
         }
         tvName.setOnClickListener {
             viewModel.getBook(false)?.let { book ->
-                SourceCallBack.callBackBtn(this@BookInfoActivity, SourceCallBack.CLICK_BOOK_NAME, viewModel.bookSource, book, null) {
+                SourceCallBack.callBackBtn(
+                    this@BookInfoActivity,
+                    SourceCallBack.CLICK_BOOK_NAME,
+                    viewModel.bookSource,
+                    book,
+                    null,
+                    result = book.name
+                ) {
                     startActivity<SearchActivity> {
                         putExtra("key", book.name)
                     }
@@ -672,7 +743,14 @@ class BookInfoActivity :
         }
         tvName.setOnLongClickListener {
             viewModel.getBook(false)?.let { book ->
-                SourceCallBack.callBackBtn(this@BookInfoActivity, SourceCallBack.LONG_CLICK_BOOK_NAME, viewModel.bookSource, book, null) {
+                SourceCallBack.callBackBtn(
+                    this@BookInfoActivity,
+                    SourceCallBack.LONG_CLICK_BOOK_NAME,
+                    viewModel.bookSource,
+                    book,
+                    null,
+                    result = book.name
+                ) {
                     startActivity<SearchActivity> {
                         putExtra("key", book.name)
                     }

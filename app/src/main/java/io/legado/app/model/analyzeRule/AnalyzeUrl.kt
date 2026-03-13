@@ -270,19 +270,17 @@ class AnalyzeUrl(
         }
         urlNoQuery = url
         when (method) {
-            RequestMethod.GET -> {
+            RequestMethod.POST -> body?.let {
+                if (!it.isJson() && !it.isXml() && headerMap["Content-Type"].isNullOrEmpty()) {
+                    analyzeFields(it)
+                }
+            }
+
+            else -> {
                 val pos = url.indexOf('?')
                 if (pos != -1) {
                     analyzeQuery(url.substring(pos + 1))
                     urlNoQuery = url.substring(0, pos)
-                }
-            }
-
-            RequestMethod.HEAD -> {}
-
-            RequestMethod.POST -> body?.let {
-                if (!it.isJson() && !it.isXml() && headerMap["Content-Type"].isNullOrEmpty()) {
-                    analyzeFields(it)
                 }
             }
         }
