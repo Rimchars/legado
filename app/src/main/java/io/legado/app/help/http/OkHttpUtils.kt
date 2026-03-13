@@ -134,11 +134,6 @@ fun Request.Builder.get(url: String, encodedQuery: String?) {
     url(httpBuilder.build())
 }
 
-fun Request.Builder.head(url: String) {
-    url(url)
-    method("HEAD", null)
-}
-
 private val formContentType = "application/x-www-form-urlencoded".toMediaType()
 
 fun Request.Builder.postForm(encodedForm: String) {

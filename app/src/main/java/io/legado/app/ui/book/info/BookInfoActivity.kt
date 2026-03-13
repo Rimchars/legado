@@ -83,6 +83,7 @@ import io.legado.app.utils.observeEvent
 import io.legado.app.utils.openFileUri
 import io.legado.app.utils.sendToClip
 import io.legado.app.utils.setHtml
+import io.legado.app.utils.setMarkdown
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
@@ -177,15 +178,26 @@ class BookInfoActivity :
 
     override val binding by viewBinding(ActivityBookInfoBinding::inflate)
     override val viewModel by viewModels<BookInfoViewModel>()
+    private val imgAvailableWidth by lazy {
+        val textView = binding.tvIntro
+        textView.width - textView.paddingLeft - textView.paddingRight - 8.dpToPx()  //8是为了文字对齐额外的右边距
+    }
     private var initGetter = false
     private val glideImageGetter by lazy {
         initGetter = true
-        GlideImageGetter(this, binding.tvIntro, lifecycle)
+        GlideImageGetter(
+            this,
+            binding.tvIntro,
+            lifecycle,
+            imgAvailableWidth,
+            viewModel.bookSource?.bookSourceUrl
+        )
     }
+
     private val textViewTagHandler by lazy {
         TextViewTagHandler(object : TextViewTagHandler.OnButtonClickListener {
-            override fun onButtonClick(name: String, click: String?) {
-                viewModel.onButtonClick(this@BookInfoActivity, name, click)
+            override fun onButtonClick(name: String, click: String) {
+                viewModel.onButtonClick(this@BookInfoActivity, "info button $name" , click)
             }
         })
     }
@@ -473,7 +485,17 @@ class BookInfoActivity :
                 return
             }
             val html = intro.substring(9, lastIndex)
-            tvIntro.setHtml(html, glideImageGetter, textViewTagHandler)
+            tvIntro.setHtml(
+                html,
+                glideImageGetter,
+                textViewTagHandler,
+                imgOnLongClickListener = {
+                    showDialogFragment(PhotoDialog(it, viewModel.bookSource?.bookSourceUrl))
+                },
+                imgOnClickListener = {
+                    viewModel.onButtonClick(this@BookInfoActivity, "info image" , it)
+                }
+            )
         } else if (intro.startsWith("<md>")) {
             val lastIndex = intro.lastIndexOf("<")
             if (lastIndex < 4) {
@@ -494,9 +516,8 @@ class BookInfoActivity :
                                 Glide.with(context)
                                     .applyDefaultRequestOptions(
                                         RequestOptions()
-                                            .override(tvIntro.width - tvIntro.paddingLeft - tvIntro.paddingRight - 8.dpToPx())
+                                            .override(imgAvailableWidth)
                                             .encodeQuality(88)
-                                            .format(DecodeFormat.PREFER_RGB_565)
                                     )
                             )
                         )
@@ -505,7 +526,13 @@ class BookInfoActivity :
                         .build()
                     markwon.toMarkdown(mark)
                 }
-                markwon.setParsedMarkdown(tvIntro, markdown)
+                tvIntro.setMarkdown(
+                    markwon,
+                    markdown,
+                    imgOnLongClickListener = { source ->
+                        showDialogFragment(PhotoDialog(source, viewModel.bookSource?.bookSourceUrl))
+                    }
+                )
             }
         } else {
             tvIntro.text = intro

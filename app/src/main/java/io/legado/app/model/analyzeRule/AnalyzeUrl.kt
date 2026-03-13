@@ -70,7 +70,6 @@ import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.max
-import io.legado.app.help.http.head
 
 /**
  * Created by GKF on 2018/1/24.
@@ -493,7 +492,10 @@ class AnalyzeUrl(
                             }
                         }
 
-                        RequestMethod.HEAD -> head(urlNoQuery)
+                        RequestMethod.HEAD -> {
+                            get(urlNoQuery, encodedQuery)
+                            head()
+                        }
 
                         else -> get(urlNoQuery, encodedQuery)
                     }
