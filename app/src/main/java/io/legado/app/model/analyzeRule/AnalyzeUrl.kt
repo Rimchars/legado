@@ -70,6 +70,7 @@ import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.max
+import io.legado.app.help.http.head
 
 /**
  * Created by GKF on 2018/1/24.
@@ -239,7 +240,11 @@ class AnalyzeUrl(
             }
             urlOption?.let { option ->
                 option.getMethod()?.let {
-                    if (it.equals("POST", true)) method = RequestMethod.POST
+                    method = when (it.uppercase()) {
+                        "POST" -> RequestMethod.POST
+                        "HEAD" -> RequestMethod.HEAD
+                        else -> RequestMethod.GET
+                    }
                 }
                 option.getHeaderMap()?.forEach { entry ->
                     headerMap[entry.key.toString()] = entry.value.toString()
@@ -272,6 +277,8 @@ class AnalyzeUrl(
                     urlNoQuery = url.substring(0, pos)
                 }
             }
+
+            RequestMethod.HEAD -> {}
 
             RequestMethod.POST -> body?.let {
                 if (!it.isJson() && !it.isXml() && headerMap["Content-Type"].isNullOrEmpty()) {
@@ -487,6 +494,8 @@ class AnalyzeUrl(
                                 postJson(body)
                             }
                         }
+
+                        RequestMethod.HEAD -> head(urlNoQuery)
 
                         else -> get(urlNoQuery, encodedQuery)
                     }
