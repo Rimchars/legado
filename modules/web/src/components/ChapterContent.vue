@@ -40,9 +40,14 @@ const props = defineProps<{
 const imgPatternStr = '<img[^>]*src=[\'"]([^\'"]*(?:[\'"][^>]+\\})?)[\'"][^>]*>'
 const imgPattern = lazyRegex(imgPatternStr)
 const imgPatternAll = lazyRegex(imgPatternStr, 'g')
+const imgDataUrlPattern = lazyRegex('data:image[^;]+;base64,[^,]{39,}')
 
 const replaceImage = (content: string) => {
   return content.replace(imgPatternAll(), (match, src) => {
+    const dataUrl = src.match(imgDataUrlPattern())
+    if (dataUrl) {
+      return dataUrl[0]
+    }
     if (isLegadoUrl(src)) {
       const proxySrc = API.getProxyImageUrl(
         bookUrl.value,
@@ -57,6 +62,10 @@ const replaceImage = (content: string) => {
 
 const getImageSrc = (content: string) => {
   const src = content.match(imgPattern())![1] //reg tested in template
+  const dataUrl = src.match(imgDataUrlPattern())
+  if (dataUrl) {
+      return dataUrl[0] //现成的base64图片，去掉阅读格式后缀
+  }
   if (isLegadoUrl(src))
     return API.getProxyImageUrl(
       bookUrl.value,

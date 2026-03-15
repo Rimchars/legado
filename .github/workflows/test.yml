@@ -126,7 +126,7 @@ jobs:
           fi
 
           if [[ "$UPDATED_CONTENT" =~ ^"Bump web" ]]; then
-            PREVIOUS_COMMIT_BODY=$(git log -2 --pretty=%B | tail -n +2)
+            PREVIOUS_COMMIT_BODY=$(git log --skip=1 -1 --pretty=%B)
             UPDATED_CONTENT=$(printf "• %s\n• %s" "$UPDATED_CONTENT" "$PREVIOUS_COMMIT_BODY")
             echo "DEBUG: Updated content with previous commit message for Bump web"
           fi
