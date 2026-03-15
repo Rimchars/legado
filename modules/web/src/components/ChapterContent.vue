@@ -18,14 +18,13 @@
 </template>
 
 <script setup lang="ts">
-import { isLegadoUrl } from '@/utils/utils'
+import { isLegadoUrl, lazyRegex } from '@/utils/utils'
 import API from '@api'
 import jump from '@/plugins/jump'
 import type { webReadConfig } from '@/web'
 
 const store = useBookStore()
 const readWidth = computed(() => store.config.readWidth)
-const fontSize = computed(() => store.config.fontSize)
 const bookUrl = computed(() => store.readingBook.bookUrl)
 
 const props = defineProps<{
@@ -37,15 +36,17 @@ const props = defineProps<{
   fontSize: string
 }>()
 
-const imgPattern = /<img[^>]*src=['"]([^'"]*(?:['"][^>]+\})?)['"][^>]*>/g
+const imgPatternStr = '<img[^>]*src=[\'"]([^\'"]*(?:[\'"][^>]+\\})?)[\'"][^>]*>'
+const imgPattern = lazyRegex(imgPatternStr)
+const imgPatternAll = lazyRegex(imgPatternStr, 'g')
 
 const replaceImage = (content: string) => {
-  return content.replace(imgPattern, (match, src) => {
+  return content.replace(imgPatternAll(), (match, src) => {
     if (isLegadoUrl(src)) {
       const proxySrc = API.getProxyImageUrl(
         bookUrl.value,
         src,
-        fontSize.value,
+        readWidth.value,
       )
       return match.replace(src, proxySrc)
     }
@@ -54,7 +55,7 @@ const replaceImage = (content: string) => {
 }
 
 const getImageSrc = (content: string) => {
-  const src = content.match(imgPattern)![1] //reg tested in template
+  const src = content.match(imgPattern())![1] //reg tested in template
   if (isLegadoUrl(src))
     return API.getProxyImageUrl(
       bookUrl.value,
@@ -86,20 +87,25 @@ const proxyImage = (event: Event) => {
 const handleImgLoadError = (event: Event) => {
   const target = event.target
   if (target instanceof HTMLImageElement) {
-    const newUrl = getImageSrc(target.outerHTML)
+    const srcUrl = target.getAttribute("src")
     console.log(
       "[ChapterContent]: IMG Load Error, replace src:",
-      target.getAttribute("src"), "=>",
-      newUrl
+      srcUrl,
+      "=>",
+      API.getProxyImageUrl(
+        bookUrl.value,
+        srcUrl ?? "",
+        readWidth.value,
+      )
     )
-    target.src = newUrl
+    proxyImage(event)
   }
 }
 
 const calculateWordCount = (paragraph: string) => {
   //内嵌图片文字为1
   const imagePlaceHolder = ' '
-  return paragraph.replace(imgPattern, imagePlaceHolder).length
+  return paragraph.replace(imgPatternAll(), imagePlaceHolder).length
 }
 const chapterPos = computed(() => {
   let pos = -1
