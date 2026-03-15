@@ -13,7 +13,7 @@
       @error.once="proxyImage"
       loading="lazy"
     />
-    <p v-else :style="{ fontFamily, fontSize }" v-html="para" @error.capture="handleImgLoadError" />
+    <p v-else :style="{ fontFamily, fontSize }" v-html="replaceImage(para)" @error.capture="handleImgLoadError" />
   </div>
 </template>
 
@@ -25,6 +25,7 @@ import type { webReadConfig } from '@/web'
 
 const store = useBookStore()
 const readWidth = computed(() => store.config.readWidth)
+const fontSize = computed(() => store.config.fontSize)
 const bookUrl = computed(() => store.readingBook.bookUrl)
 
 const props = defineProps<{
@@ -36,14 +37,29 @@ const props = defineProps<{
   fontSize: string
 }>()
 
+const imgPattern = /<img[^>]*src=['"]([^'"]*(?:['"][^>]+\})?)['"][^>]*>/g
+
+const replaceImage = (content: string) => {
+  return content.replace(imgPattern, (match, src) => {
+    if (isLegadoUrl(src)) {
+      const proxySrc = API.getProxyImageUrl(
+        bookUrl.value,
+        src,
+        fontSize.value,
+      )
+      return match.replace(src, proxySrc)
+    }
+    return match
+  })
+}
+
 const getImageSrc = (content: string) => {
-  const imgPattern = /<img[^>]*src="([^"]*(?:"[^>]+\})?)"[^>]*>/
   const src = content.match(imgPattern)![1] //reg tested in template
   if (isLegadoUrl(src))
     return API.getProxyImageUrl(
       bookUrl.value,
       src,
-      useBookStore().config.readWidth,
+      readWidth.value,
     )
   return src
 }
@@ -82,7 +98,6 @@ const handleImgLoadError = (event: Event) => {
 }
 
 const calculateWordCount = (paragraph: string) => {
-  const imgPattern = /<img[^>]*src="[^"]*(?:"[^>]+\})?"[^>]*>/g
   //内嵌图片文字为1
   const imagePlaceHolder = ' '
   return paragraph.replace(imgPattern, imagePlaceHolder).length
