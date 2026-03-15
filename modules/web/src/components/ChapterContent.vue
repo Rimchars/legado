@@ -25,6 +25,7 @@ import type { webReadConfig } from '@/web'
 
 const store = useBookStore()
 const readWidth = computed(() => store.config.readWidth)
+const lineImgWidth = computed(() => store.config.fontSize * 2)
 const bookUrl = computed(() => store.readingBook.bookUrl)
 
 const props = defineProps<{
@@ -46,7 +47,7 @@ const replaceImage = (content: string) => {
       const proxySrc = API.getProxyImageUrl(
         bookUrl.value,
         src,
-        readWidth.value,
+        lineImgWidth.value,
       )
       return match.replace(src, proxySrc)
     }
