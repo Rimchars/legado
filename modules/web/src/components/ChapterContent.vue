@@ -45,7 +45,7 @@ const replaceImage = (content: string) => {
       const proxySrc = API.getProxyImageUrl(
         bookUrl.value,
         src,
-        fontSize.value,
+        fontSize.value * 2,
       )
       return match.replace(src, proxySrc)
     }
@@ -54,6 +54,7 @@ const replaceImage = (content: string) => {
 }
 
 const getImageSrc = (content: string) => {
+  const imgPattern = /<img[^>]*src=['"]([^'"]*(?:['"][^>]+\})?)['"][^>]*>/
   const src = content.match(imgPattern)![1] //reg tested in template
   if (isLegadoUrl(src))
     return API.getProxyImageUrl(
