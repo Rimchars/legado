@@ -790,12 +790,12 @@ class TextChapterLayout(
         }
 
         if (spaceCount > 1) {
-            // 多个空格：调整单词间距
+            // 多个空格：调整空格间距
             val spaceIncrement = residualWidth / spaceCount
             textLine.wordSpacing = spaceIncrement
 
             // 重新计算字符位置
-            var currentX = columns[0].start
+            var currentX = firstCol.start
             for (i in columns.indices) {
                 val col = columns[i]
                 val width = col.end - col.start
@@ -804,12 +804,12 @@ class TextChapterLayout(
                     // 空格，增加额外的间距
                     col.start = currentX
                     col.end = currentX + width + spaceIncrement
-                    currentX = col.start
+                    currentX = col.end
                 } else {
                     // 非空格或最后一个字符
                     col.start = currentX
                     col.end = currentX + width
-                    currentX = col.start
+                    currentX = col.end
                 }
 
                 textLine.addColumn(col)
@@ -819,7 +819,7 @@ class TextChapterLayout(
             val gapCount = columns.lastIndex
             if (gapCount > 0) {
                 val charIncrement = residualWidth / gapCount
-                var currentX = columns[0].start
+                var currentX = firstCol.start
                 for (i in columns.indices) {
                     val col = columns[i]
                     val width = col.end - col.start
