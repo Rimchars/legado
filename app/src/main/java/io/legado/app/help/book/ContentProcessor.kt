@@ -114,7 +114,7 @@ class ContentProcessor private constructor(
                 } else if (useReplace && book.getUseReplaceRule()) {
                     title = Pattern.quote(
                         chapter.getDisplayTitle(
-                            contentReplaceRules,
+                            titleReplaceRules,
                             chineseConvert = false
                         )
                     )
@@ -139,7 +139,7 @@ class ContentProcessor private constructor(
                         1 -> mContent = ChineseUtils.t2s(mContent)
                         2 -> mContent = ChineseUtils.s2t(mContent)
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     appCtx.toastOnUi("简繁转换出错")
                 }
             }
