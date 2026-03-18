@@ -16,7 +16,6 @@ import androidx.activity.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.request.RequestOptions
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
@@ -729,9 +728,7 @@ class BookInfoActivity :
                     null,
                     result = book.author
                 ) {
-                    startActivity<SearchActivity> {
-                        putExtra("key", book.author)
-                    }
+                    SearchActivity.start(this@BookInfoActivity, book.author)
                 }
             }
         }
@@ -745,9 +742,7 @@ class BookInfoActivity :
                     null,
                     result = book.author
                 ) {
-                    startActivity<SearchActivity> {
-                        putExtra("key", book.author)
-                    }
+                    SearchActivity.start(this@BookInfoActivity, book.author)
                 }
             }
             true
@@ -762,9 +757,7 @@ class BookInfoActivity :
                     null,
                     result = book.name
                 ) {
-                    startActivity<SearchActivity> {
-                        putExtra("key", book.name)
-                    }
+                    SearchActivity.start(this@BookInfoActivity, book.name)
                 }
             }
         }
@@ -778,9 +771,7 @@ class BookInfoActivity :
                     null,
                     result = book.name
                 ) {
-                    startActivity<SearchActivity> {
-                        putExtra("key", book.name)
-                    }
+                    SearchActivity.start(this@BookInfoActivity, book.name)
                 }
             }
             true

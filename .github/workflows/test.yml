@@ -110,10 +110,10 @@ jobs:
               COMMIT_RANGE="$BEFORE_SHA..$AFTER_SHA"
               echo "DEBUG: COMMIT_RANGE=$COMMIT_RANGE"
               if git rev-parse "$COMMIT_RANGE" >/dev/null 2>&1; then
-                UPDATED_CONTENT=$(git log $COMMIT_RANGE --pretty=format:"• %s" --reverse 2>/dev/null | grep -v "^• Merge" || echo "• $COMMIT_MSG")
+                UPDATED_CONTENT=$(git log $COMMIT_RANGE --pretty=format:"* %s" --reverse 2>/dev/null | grep -v "^* Merge" || echo "* $COMMIT_MSG")
                 echo "DEBUG: UPDATED_CONTENT (from commit range) set"
               else
-                UPDATED_CONTENT=$(git log -10 --pretty=format:"• %s (%h)" --reverse 2>/dev/null | grep -v "^• Merge")
+                UPDATED_CONTENT=$(git log -10 --pretty=format:"* %s (%h)" --reverse 2>/dev/null | grep -v "^* Merge")
                 echo "DEBUG: UPDATED_CONTENT (from recent logs) set"
               fi
               echo "$UPDATED_CONTENT"
@@ -127,7 +127,7 @@ jobs:
 
           if [[ "$UPDATED_CONTENT" =~ ^"Bump web" ]]; then
             PREVIOUS_COMMIT_BODY=$(git log --skip=1 -1 --pretty=%B)
-            UPDATED_CONTENT=$(printf "• %s\n• %s" "$UPDATED_CONTENT" "$PREVIOUS_COMMIT_BODY")
+            UPDATED_CONTENT=$(printf "* %s\n* %s" "$UPDATED_CONTENT" "$PREVIOUS_COMMIT_BODY")
             echo "DEBUG: Updated content with previous commit message for Bump web"
           fi
 
