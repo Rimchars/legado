@@ -554,23 +554,30 @@ class BookInfoActivity :
                 lbKind.gone()
             } else {
                 lbKind.visible()
+                val source = viewModel.bookSource
+                if (source == null) {
+                    lbKind.setLabels(kinds)
+                    return@launch
+                }
                 lbKind.setLabels(
                     kinds,
                     { kind ->
                         SourceCallBack.callBackBtn(
                             this@BookInfoActivity,
                             SourceCallBack.CLICK_BOOK_LABEL,
-                            viewModel.bookSource,
+                            source,
                             book,
                             null,
                             result = kind
-                        )
+                        ) {
+                            SearchActivity.start(this@BookInfoActivity, source, kind)
+                        }
                     },
                     { kind ->
                         SourceCallBack.callBackBtn(
                             this@BookInfoActivity,
                             SourceCallBack.LONG_CLICK_BOOK_LABEL,
-                            viewModel.bookSource,
+                            source,
                             book,
                             null,
                             result = kind

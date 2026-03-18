@@ -17,13 +17,6 @@ class LabelsBar @JvmOverloads constructor(
     private val usedViews = arrayListOf<TextView>()
     var textSize = 12f
 
-//    fun setLabels(labels: Array<String>) {
-//        clear()
-//        labels.forEach {
-//            addLabel(it)
-//        }
-//    }
-
     fun setLabels(labels: List<String>, onClick: ((String) -> Unit)? = null, onLongClick: ((String) -> Boolean)? = null) {
         clear()
         labels.forEach {
