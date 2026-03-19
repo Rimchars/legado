@@ -2,13 +2,19 @@ package io.legado.app.ui.book.info
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
+import io.legado.app.ui.widget.text.ScrollTextView
 import android.view.textclassifier.TextClassifier
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +29,7 @@ import io.legado.app.constant.BookType
 import io.legado.app.constant.EventBus
 import io.legado.app.constant.Theme
 import io.legado.app.data.appDb
+import io.legado.app.data.entities.BaseSource
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.BookSource
@@ -31,6 +38,7 @@ import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.AppWebDav
 import io.legado.app.help.GlideImageGetter
 import io.legado.app.help.TextViewTagHandler
+import io.legado.app.help.WebCacheManager
 import io.legado.app.help.book.addType
 import io.legado.app.help.book.getRemoteUrl
 import io.legado.app.help.book.isAudio
@@ -42,6 +50,13 @@ import io.legado.app.help.book.isWebFile
 import io.legado.app.help.book.removeType
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.LocalConfig
+import io.legado.app.help.webView.PooledWebView
+import io.legado.app.help.webView.WebJsExtensions
+import io.legado.app.help.webView.WebJsExtensions.Companion.getInjectionString
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameCache
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameJava
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
+import io.legado.app.help.webView.WebViewPool
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
@@ -61,6 +76,7 @@ import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.book.read.ReadBookActivity.Companion.RESULT_DELETED
 import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.model.SourceCallBack
+import io.legado.app.ui.association.OnLineImportActivity
 import io.legado.app.ui.book.source.edit.BookSourceEditActivity
 import io.legado.app.ui.book.toc.TocActivityResult
 import io.legado.app.ui.file.HandleFileContract
@@ -77,9 +93,11 @@ import io.legado.app.utils.StartActivityContract
 import io.legado.app.utils.applyNavigationBarPadding
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.gone
+import io.legado.app.utils.longSnackbar
 import io.legado.app.utils.longToastOnUi
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.openFileUri
+import io.legado.app.utils.openUrl
 import io.legado.app.utils.sendToClip
 import io.legado.app.utils.setHtml
 import io.legado.app.utils.setMarkdown
@@ -177,8 +195,21 @@ class BookInfoActivity :
 
     override val binding by viewBinding(ActivityBookInfoBinding::inflate)
     override val viewModel by viewModels<BookInfoViewModel>()
+    private var initIntroView = false
+    private val introTextView by lazy {
+        initIntroView = true
+        val inflater = LayoutInflater.from(this)
+        val view = inflater.inflate(R.layout.view_book_intro, binding.tvIntroContainer, false) as ScrollTextView
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            view.revealOnFocusHint = false
+        }
+        view
+    }
+
+    private var pooledWebView: PooledWebView? = null
+
     private val imgAvailableWidth by lazy {
-        val textView = binding.tvIntro
+        val textView = introTextView
         textView.width - textView.paddingLeft - textView.paddingRight - 8.dpToPx()  //8是为了文字对齐额外的右边距
     }
     private var initGetter = false
@@ -186,7 +217,7 @@ class BookInfoActivity :
         initGetter = true
         GlideImageGetter(
             this,
-            binding.tvIntro,
+            introTextView,
             lifecycle,
             imgAvailableWidth,
             viewModel.bookSource?.bookSourceUrl
@@ -212,9 +243,6 @@ class BookInfoActivity :
         binding.vwBg.applyNavigationBarPadding()
         binding.tvShelf.setTextColor(getPrimaryTextColor(ColorUtils.isColorLight(bottomBackground)))
         binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-            binding.tvIntro.revealOnFocusHint = false
-        }
         viewModel.bookData.observe(this) { showBook(it) }
         viewModel.chapterListData.observe(this) { upLoading(false, it) }
         viewModel.waitDialogData.observe(this) { upWaitDialogStatus(it) }
@@ -407,9 +435,9 @@ class BookInfoActivity :
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.action == MotionEvent.ACTION_DOWN) {
+        if (initIntroView && ev.action == MotionEvent.ACTION_DOWN) {
             currentFocus?.let {
-                if (it === binding.tvIntro && binding.tvIntro.hasSelection()) {
+                if (it === introTextView && introTextView.hasSelection()) {
                     it.clearFocus()
                 }
             }
@@ -459,8 +487,7 @@ class BookInfoActivity :
         tvAuthor.text = getString(R.string.author_show, book.getRealAuthor())
         tvOrigin.text = getString(R.string.origin_show, book.originName)
         tvLasted.text = getString(R.string.lasted_show, book.latestChapterTitle)
-        val intro = book.getDisplayIntro()
-        showBookIntro(intro)
+        showBookIntro(book)
         if (book.isWebFile) {
             llToc.gone()
             tvLasted.text = getString(R.string.lasted_show, "下载中...")
@@ -473,11 +500,80 @@ class BookInfoActivity :
         upGroup(book.group)
     }
 
-    private fun showBookIntro(intro: String?) {
-        val tvIntro = binding.tvIntro
+    private fun showBookIntro(book: Book) {
+        val intro = book.getDisplayIntro()
+        if (intro?.startsWith("<useweb>") == true) {
+            val lastIndex = intro.lastIndexOf("<")
+            if (lastIndex < 8) {
+                introTextView.text = intro
+                return
+            }
+            val html = intro.substring(8, lastIndex)
+            val pooledWebView = this.pooledWebView ?: let{
+                val pooledWebView = WebViewPool.acquire(this)
+                val webView = pooledWebView.realWebView
+                webView.onResume()
+                webView.webViewClient = object: WebViewClient() {
+                    private val jsStr = getInjectionString
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView?,
+                        request: WebResourceRequest?
+                    ): Boolean {
+                        request?.let {
+                            val uri = it.url
+                            return when (uri.scheme) {
+                                "http", "https" -> false
+                                "legado", "yuedu" -> {
+                                    startActivity<OnLineImportActivity> {
+                                        data = uri
+                                    }
+                                    true
+                                }
+
+                                else -> {
+                                    binding.root.longSnackbar(R.string.jump_to_another_app, R.string.confirm) {
+                                        openUrl(uri)
+                                    }
+                                    true
+                                }
+                            }
+                        }
+                        return true
+                    }
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                        super.onPageStarted(view, url, favicon)
+                        view?.evaluateJavascript(jsStr, null)
+                    }
+                }
+                webView.addJavascriptInterface(WebCacheManager, nameCache)
+                viewModel.bookSource?.let {
+                    webView.addJavascriptInterface(it as BaseSource, nameSource)
+                    val webJsExtensions = WebJsExtensions(it, null, webView)
+                    webView.addJavascriptInterface(webJsExtensions, nameJava)
+                }
+                pooledWebView
+            }
+            val webView = pooledWebView.realWebView
+            if (initIntroView || this.pooledWebView == null) {
+                initIntroView = false
+                this.pooledWebView = pooledWebView
+                binding.tvIntroContainer.removeAllViews()
+                binding.tvIntroContainer.addView(webView)
+            }
+            val bookUrl = viewModel.getBook()?.bookUrl?.substringBefore(",")
+            webView.loadDataWithBaseURL(bookUrl, html, "text/html", "utf-8", bookUrl)
+            return
+        }
+        if (!initIntroView || pooledWebView != null) {
+            destroyWeb()
+            binding.tvIntroContainer.removeAllViews()
+            binding.tvIntroContainer.addView(introTextView)
+        }
         if (intro.isNullOrBlank()) {
-            tvIntro.visible()
-        } else if (intro.startsWith("<usehtml>")) {
+            return
+        }
+        val tvIntro = introTextView
+        if (intro.startsWith("<usehtml>")) {
             val lastIndex = intro.lastIndexOf("<")
             if (lastIndex < 9) {
                 tvIntro.text = intro
@@ -1058,10 +1154,16 @@ class BookInfoActivity :
      }
 
     override fun onDestroy() {
+        destroyWeb()
         super.onDestroy()
         if (initGetter) {
             glideImageGetter.clear()
         }
+    }
+
+    private fun destroyWeb() {
+        pooledWebView?.let { WebViewPool.release(it) }
+        pooledWebView = null
     }
 
 }

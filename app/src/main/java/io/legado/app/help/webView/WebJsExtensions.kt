@@ -227,6 +227,8 @@ class WebJsExtensions(
             "<script src=\"$nameUrl\"></script>"
         }
 
+        val getInjectionString = "try{var cache=$nameCache,source=$nameSource,java=$nameJava;}catch(e){}"
+
         val JS_INJECTION by lazy { """
             const requestId = n => 'req_' + n + '_' + Date.now() + '_' + Math.random().toString(36).slice(-3);
             const params = a => a.map(p => p != null && typeof p.toString === 'function' ? p.toString() : null);
