@@ -500,6 +500,45 @@ class BookInfoActivity :
         upGroup(book.group)
     }
 
+    inner class CustomWebViewClient : WebViewClient() {
+        private val jsStr = getInjectionString
+        override fun shouldOverrideUrlLoading(
+            view: WebView?,
+            request: WebResourceRequest?
+        ): Boolean {
+            request?.let {
+                val uri = it.url
+                return when (uri.scheme) {
+                    "http", "https" -> false
+                    "legado", "yuedu" -> {
+                        startActivity<OnLineImportActivity> {
+                            data = uri
+                        }
+                        true
+                    }
+
+                    else -> {
+                        binding.root.longSnackbar(R.string.jump_to_another_app, R.string.confirm) {
+                            openUrl(uri)
+                        }
+                        true
+                    }
+                }
+            }
+            return true
+        }
+        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            super.onPageStarted(view, url, favicon)
+            view?.evaluateJavascript(jsStr, null)
+        }
+        override fun onPageFinished(view: WebView?, url: String?) {
+            super.onPageFinished(view, url)
+            view?.post {
+                binding.tvIntroContainer.requestLayout()
+            }
+        }
+    }
+
     private fun showBookIntro(book: Book) {
         val intro = book.getDisplayIntro()
         if (intro?.startsWith("<useweb>") == true) {
@@ -513,38 +552,7 @@ class BookInfoActivity :
                 val pooledWebView = WebViewPool.acquire(this)
                 val webView = pooledWebView.realWebView
                 webView.onResume()
-                webView.webViewClient = object: WebViewClient() {
-                    private val jsStr = getInjectionString
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView?,
-                        request: WebResourceRequest?
-                    ): Boolean {
-                        request?.let {
-                            val uri = it.url
-                            return when (uri.scheme) {
-                                "http", "https" -> false
-                                "legado", "yuedu" -> {
-                                    startActivity<OnLineImportActivity> {
-                                        data = uri
-                                    }
-                                    true
-                                }
-
-                                else -> {
-                                    binding.root.longSnackbar(R.string.jump_to_another_app, R.string.confirm) {
-                                        openUrl(uri)
-                                    }
-                                    true
-                                }
-                            }
-                        }
-                        return true
-                    }
-                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                        super.onPageStarted(view, url, favicon)
-                        view?.evaluateJavascript(jsStr, null)
-                    }
-                }
+                webView.webViewClient = CustomWebViewClient()
                 webView.addJavascriptInterface(WebCacheManager, nameCache)
                 viewModel.bookSource?.let {
                     webView.addJavascriptInterface(it as BaseSource, nameSource)
@@ -560,7 +568,9 @@ class BookInfoActivity :
                 binding.tvIntroContainer.removeAllViews()
                 binding.tvIntroContainer.addView(webView)
             }
-            val bookUrl = viewModel.getBook()?.bookUrl?.substringBefore(",")
+            val bookUrl = viewModel.getBook()?.bookUrl
+                ?.takeIf { it.startsWith("http", true) }
+                ?.substringBefore(",")
             webView.loadDataWithBaseURL(bookUrl, html, "text/html", "utf-8", bookUrl)
             return
         }

@@ -17,12 +17,14 @@ import java.util.UUID
 
 @Suppress("unused")
 class WebJsExtensions(
-    source: BaseSource, activity: AppCompatActivity?,
-    private val webView: WebView,
+    source: BaseSource,
+    activity: AppCompatActivity?,
+    webView: WebView,
     bookType: Int = 0,
     callback: Callback? = null
 ): RssJsExtensions(activity, source, bookType) {
     private val callbackRef: WeakReference<Callback> = WeakReference(callback)
+    private val webViewRef: WeakReference<WebView?> = WeakReference(webView)
 
     interface Callback {
         fun upConfig(config: String)
@@ -151,10 +153,10 @@ class WebJsExtensions(
             }
         }.onSuccess { data ->
             CacheManager.putMemory(id, data)
-            webView.evaluateJavascript("window.$JSBridgeResult('$id', true);", null)
+            webViewRef.get()?.evaluateJavascript("window.$JSBridgeResult('$id', true);", null)
         }.onError {
             CacheManager.putMemory(id, it.localizedMessage ?: "err")
-            webView.evaluateJavascript("window.$JSBridgeResult('$id', false);", null)
+            webViewRef.get()?.evaluateJavascript("window.$JSBridgeResult('$id', false);", null)
         }
     }
     @JavascriptInterface
