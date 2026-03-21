@@ -240,7 +240,9 @@ class BackstageWebView(
             } else mJavaScript
             override fun run() {
                 mWebView.get()?.evaluateJavascript(jsStr) {
-                    handleResult(it)
+                    if (pooledWebView != null) {
+                        handleResult(it)
+                    }
                 }
             }
 

@@ -357,9 +357,7 @@
                         <FrameLayout
                             android:id="@+id/tv_intro_container"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            app:layout_constraintTop_toBottomOf="@+id/title_bar"
-                            app:layout_constraintBottom_toBottomOf="parent" />
+                            android:layout_height="wrap_content" />
 
                     </LinearLayout>
 
