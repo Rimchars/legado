@@ -50,8 +50,12 @@ class LabelsBar @JvmOverloads constructor(
         }
         tv.textSize = textSize
         tv.text = label
-        tv.setOnClickListener { onClick?.invoke(label) }
-        tv.setOnLongClickListener { onLongClick?.invoke(label) == true }
+        if (onClick != null) {
+            tv.setOnClickListener { onClick.invoke(label) }
+        }
+        if (onLongClick != null) {
+            tv.setOnLongClickListener { onLongClick.invoke(label) }
+        }
         addView(tv)
     }
 }
