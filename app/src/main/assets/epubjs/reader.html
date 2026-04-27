@@ -26,7 +26,10 @@
   <script>
     let book = null;
     let rendition = null;
-    let locationsReady = false;
+    let tocItems = [];
+    let activeChapterIndex = 0;
+    let pendingRestoreScroll = 0;
+    let reportTimer = 0;
 
     function notify(type, payload) {
       if (window.AndroidBridge && AndroidBridge.onEvent) {
@@ -74,11 +77,13 @@
     }
 
     function injectContentStyles(contents) {
-      const isScroll = AndroidBridge.isScrollMode();
       const css = `
         html, body {
           background: transparent !important;
-          ${isScroll ? "height: auto !important; min-height: 100% !important; overflow: visible !important;" : ""}
+          height: auto !important;
+          min-height: 100% !important;
+          overflow-x: hidden !important;
+          overflow-y: auto !important;
         }
         body {
           box-sizing: border-box !important;
@@ -116,7 +121,8 @@
           margin-right: auto !important;
         }
         [style*="height: 100%"], [style*="height:100%"] {
-          ${isScroll ? "height: auto !important; max-height: none !important;" : ""}
+          height: auto !important;
+          max-height: none !important;
         }
       `;
       try {
@@ -130,28 +136,134 @@
           doc.head.appendChild(style);
         }
       }
+      bindScrollReporter(contents);
+    }
+
+    function bindScrollReporter(contents) {
+      const win = contents.window;
+      if (!win) return;
+      win.removeEventListener("scroll", scheduleLocationReport);
+      win.addEventListener("scroll", scheduleLocationReport, { passive: true });
+      const outer = getOuterScroller();
+      if (outer) {
+        outer.removeEventListener("scroll", scheduleLocationReport);
+        outer.addEventListener("scroll", scheduleLocationReport, { passive: true });
+      }
+    }
+
+    function scheduleLocationReport() {
+      clearTimeout(reportTimer);
+      reportTimer = setTimeout(reportLocation, 120);
+    }
+
+    function flattenToc(items, out) {
+      (items || []).forEach(item => {
+        if (item && item.href) {
+          out.push({
+            href: item.href,
+            label: item.label || item.href
+          });
+        }
+        if (item && item.subitems && item.subitems.length) {
+          flattenToc(item.subitems, out);
+        }
+      });
+      return out;
+    }
+
+    function sameHref(a, b) {
+      if (!a || !b) return false;
+      const left = String(a).split("#")[0];
+      const right = String(b).split("#")[0];
+      return left === right || left.endsWith(right) || right.endsWith(left);
+    }
+
+    function updateActiveChapter(href) {
+      const index = tocItems.findIndex(item => sameHref(href, item.href));
+      if (index >= 0) {
+        activeChapterIndex = index;
+      }
+      return activeChapterIndex;
+    }
+
+    function getActiveContents() {
+      if (!rendition || !rendition.getContents) return null;
+      const contents = rendition.getContents();
+      return contents && contents.length ? contents[0] : null;
+    }
+
+    function getOuterScroller() {
+      return document.querySelector(".epub-container") || document.getElementById("viewer");
+    }
+
+    function getScrollPort() {
+      const contents = getActiveContents();
+      const win = contents && contents.window;
+      const doc = contents && contents.document;
+      if (win && doc) {
+        const root = doc.scrollingElement || doc.documentElement || doc.body;
+        const height = Math.max(
+          root.scrollHeight || 0,
+          doc.body ? doc.body.scrollHeight : 0
+        );
+        const viewHeight = win.innerHeight || root.clientHeight || 0;
+        const max = Math.max(0, height - viewHeight);
+        if (max > 8) {
+          return {
+            top: win.scrollY || root.scrollTop || 0,
+            max,
+            height: viewHeight,
+            scrollTo: y => win.scrollTo(0, y)
+          };
+        }
+      }
+      const outer = getOuterScroller();
+      if (!outer) {
+        return { top: 0, max: 0, height: 0, scrollTo: () => {} };
+      }
+      const viewHeight = outer.clientHeight || window.innerHeight || 0;
+      return {
+        top: outer.scrollTop || 0,
+        max: Math.max(0, (outer.scrollHeight || 0) - viewHeight),
+        height: viewHeight,
+        scrollTo: y => {
+          outer.scrollTop = y;
+        }
+      };
+    }
+
+    function reportLocation() {
+      const metrics = getScrollPort();
+      notify("location", {
+        cfi: "",
+        chapterIndex: activeChapterIndex,
+        scrollTop: Math.round(metrics.top),
+        scrollMax: Math.round(metrics.max)
+      });
     }
 
     function createRendition() {
       rendition = book.renderTo("viewer", {
         width: "100%",
         height: "100%",
-        flow: AndroidBridge.isScrollMode() ? "scrolled-doc" : "paginated",
+        flow: "scrolled-doc",
         manager: "default",
         spread: "none"
       });
       applyTheme();
       rendition.hooks.content.register(injectContentStyles);
-      rendition.on("relocated", location => {
-        notify("location", {
-          cfi: location.start && location.start.cfi,
-          percentage: book.locations && location.start
-            ? book.locations.percentageFromCfi(location.start.cfi)
-            : 0
-        });
-      });
       rendition.on("rendered", section => {
-        notify("chapter", { href: section.href, title: section.label || "" });
+        const chapterIndex = updateActiveChapter(section.href);
+        notify("chapter", { href: section.href, title: section.label || "", chapterIndex });
+        setTimeout(() => {
+          if (pendingRestoreScroll > 0) {
+            getScrollPort().scrollTo(pendingRestoreScroll);
+            pendingRestoreScroll = 0;
+          } else {
+            getScrollPort().scrollTo(0);
+          }
+          reportLocation();
+        }, 120);
       });
     }
 
@@ -170,36 +282,44 @@
         book = ePub(bookUrl);
         createRendition();
         await book.ready;
+        tocItems = flattenToc((book.navigation && book.navigation.toc) || [], []);
         notify("toc", {
           toc: (book.navigation && book.navigation.toc) || []
         });
-        book.locations.generate(1200).then(() => {
-          locationsReady = true;
-        });
-        const saved = AndroidBridge.getSavedCfi();
-        await rendition.display(saved || undefined);
+        const savedIndex = AndroidBridge.getSavedChapterIndex ? AndroidBridge.getSavedChapterIndex() : 0;
+        pendingRestoreScroll = AndroidBridge.getSavedScrollTop ? AndroidBridge.getSavedScrollTop() : 0;
+        const savedHref = tocItems[savedIndex] && tocItems[savedIndex].href;
+        await rendition.display(savedHref || undefined);
         notify("ready", {});
       } catch (e) {
         notify("error", { message: String(e && e.message ? e.message : e) });
       }
     }
 
-    function nextPage() {
-      if (rendition) rendition.next();
-    }
-
-    function prevPage() {
-      if (rendition) rendition.prev();
+    function scrollPage(direction) {
+      const metrics = getScrollPort();
+      const step = Math.max(160, Math.floor(metrics.height * 0.86));
+      if (direction > 0) {
+        if (metrics.top >= metrics.max - 8) {
+          notify("pageBoundary", { direction: 1 });
+        } else {
+          metrics.scrollTo(Math.min(metrics.max, metrics.top + step));
+          setTimeout(reportLocation, 80);
+        }
+      } else if (direction < 0) {
+        if (metrics.top <= 8) {
+          notify("pageBoundary", { direction: -1 });
+        } else {
+          metrics.scrollTo(Math.max(0, metrics.top - step));
+          setTimeout(reportLocation, 80);
+        }
+      }
     }
 
     function display(cfiOrHref) {
-      if (rendition && cfiOrHref) rendition.display(cfiOrHref);
-    }
-
-    function displayByPercentage(percentage) {
-      if (!book || !book.locations || !locationsReady) return;
-      const cfi = book.locations.cfiFromPercentage(percentage);
-      if (cfi && rendition) rendition.display(cfi);
+      if (!rendition || !cfiOrHref) return;
+      pendingRestoreScroll = 0;
+      rendition.display(cfiOrHref);
     }
 
     function setStyle() {
@@ -207,10 +327,7 @@
     }
 
     function setScrollMode() {
-      const cfi = AndroidBridge.getSavedCfi();
-      if (rendition) rendition.destroy();
-      createRendition();
-      rendition.display(cfi || undefined);
+      setStyle();
     }
 
     document.addEventListener("DOMContentLoaded", openBook);

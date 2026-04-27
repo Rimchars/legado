@@ -12,7 +12,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
-import io.legado.app.constant.PageAnim
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
@@ -48,11 +47,8 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
     private var bookOpfUrl: String = ""
     private var tocItems: List<TocItem> = emptyList()
     private var menuVisible = false
-    private var currentCfi: String = ""
-    private var lastPercentage: Double = 0.0
-    private var currentHref: String = ""
+    private var userSeekingChapter = false
     private val fontFamilyKey = "epubJsFontFamily"
-    private val cfiKey = "epubJsCfi"
     private val tocActivity = registerForActivityResult(TocActivityResult()) { result ->
         val chapterIndex = result?.getOrNull(0) as? Int ?: return@registerForActivityResult
         lifecycleScope.launch {
@@ -82,8 +78,8 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
             if (event.action == MotionEvent.ACTION_UP) {
                 val width = view.width
                 when {
-                    event.x < width * 0.22f -> evaluate("prevPage()")
-                    event.x > width * 0.78f -> evaluate("nextPage()")
+                    event.x < width * 0.22f -> evaluate("scrollPage(-1)")
+                    event.x > width * 0.78f -> evaluate("scrollPage(1)")
                     else -> toggleMenu()
                 }
             }
@@ -92,23 +88,25 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
     }
 
     private fun initMenu() {
-        binding.btnPrev.setOnClickListener { evaluate("prevPage()") }
-        binding.btnNext.setOnClickListener { evaluate("nextPage()") }
+        binding.btnPrev.setOnClickListener { openChapterByOffset(-1) }
+        binding.btnNext.setOnClickListener { openChapterByOffset(1) }
         binding.btnToc.setOnClickListener { showTocPage() }
         binding.btnLayout.setOnClickListener { showLayoutDialog() }
-        binding.btnPageAnim.setOnClickListener { showPageAnimDialog() }
+        binding.btnPageAnim.visibility = View.GONE
         binding.btnSetting.setOnClickListener { showFontDialog() }
         binding.seekProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    val percentage = progress / 10000.0
-                    evaluate("displayByPercentage($percentage)")
-                }
+                if (!fromUser) return
+                userSeekingChapter = true
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
 
-            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                val index = seekBar?.progress ?: return
+                userSeekingChapter = false
+                openChapter(index)
+            }
         })
     }
 
@@ -124,7 +122,6 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
                 book = loadedBook
                 binding.tvTitle.text = loadedBook.name
                 binding.tvSubTitle.text = loadedBook.originName
-                currentCfi = loadedBook.getVariable(cfiKey)
                 bookOpfUrl = withContext(IO) { prepareEpubPackage(loadedBook) }
                 binding.webView.loadUrl("file:///android_asset/epubjs/reader.html")
             } catch (e: Exception) {
@@ -258,6 +255,8 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
             )
         }
         if (chapters.isEmpty()) return
+        binding.seekProgress.max = (chapters.size - 1).coerceAtLeast(0)
+        binding.seekProgress.progress = targetBook.durChapterIndex.coerceIn(0, binding.seekProgress.max)
         lifecycleScope.launch(IO) {
             appDb.bookChapterDao.insert(*chapters.toTypedArray())
             targetBook.totalChapterNum = chapters.size
@@ -301,13 +300,11 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         }
     }
 
-    private fun currentPageAnim(): Int {
-        return book?.getPageAnim() ?: ReadBookConfig.pageAnim
-    }
-
     private fun displayChapter(chapter: BookChapter) {
-        currentHref = chapter.url
         binding.tvTitle.text = chapter.title
+        if (binding.seekProgress.max >= chapter.index) {
+            binding.seekProgress.progress = chapter.index
+        }
         book?.let {
             it.durChapterIndex = chapter.index
             it.durChapterTitle = chapter.title
@@ -316,26 +313,40 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         evaluate("display(${JSONObject.quote(chapter.url)})")
     }
 
-    private fun showPageAnimDialog() {
-        val items = arrayOf(
-            getString(R.string.page_anim_cover),
-            getString(R.string.page_anim_slide),
-            getString(R.string.page_anim_simulation),
-            getString(R.string.page_anim_scroll),
-            getString(R.string.page_anim_none)
-        )
-        val checked = currentPageAnim().coerceIn(0, items.lastIndex)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.page_anim)
-            .setSingleChoiceItems(items, checked) { dialog, which ->
-                book?.setPageAnim(which)
-                lifecycleScope.launch(IO) { book?.save() }
-                ReadBookConfig.pageAnim = which
-                ReadBookConfig.save()
-                evaluate("setScrollMode()")
-                dialog.dismiss()
+    private fun openChapter(index: Int) {
+        val targetBook = book ?: return
+        val maxIndex = when {
+            targetBook.totalChapterNum > 0 -> targetBook.totalChapterNum - 1
+            tocItems.isNotEmpty() -> tocItems.lastIndex
+            else -> index
+        }
+        val chapterIndex = index.coerceIn(0, maxIndex.coerceAtLeast(0))
+        lifecycleScope.launch {
+            val chapter = withContext(IO) {
+                appDb.bookChapterDao.getChapter(targetBook.bookUrl, chapterIndex)
             }
-            .show()
+            if (chapter == null) {
+                toastOnUi("章节不存在")
+            } else {
+                displayChapter(chapter)
+            }
+        }
+    }
+
+    private fun openChapterByOffset(offset: Int) {
+        val targetBook = book ?: return
+        val maxIndex = when {
+            targetBook.totalChapterNum > 0 -> targetBook.totalChapterNum - 1
+            tocItems.isNotEmpty() -> tocItems.lastIndex
+            else -> 0
+        }
+        val nextIndex = (targetBook.durChapterIndex + offset)
+            .coerceIn(0, maxIndex.coerceAtLeast(0))
+        if (nextIndex == targetBook.durChapterIndex && offset != 0) {
+            toastOnUi(if (offset < 0) "已经是第一章" else "已经是最后一章")
+            return
+        }
+        openChapter(nextIndex)
     }
 
     private fun showFontDialog() {
@@ -438,10 +449,10 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         fun getBookUrl(): String = bookOpfUrl
 
         @JavascriptInterface
-        fun getSavedCfi(): String = currentCfi
+        fun getSavedChapterIndex(): Int = book?.durChapterIndex ?: 0
 
         @JavascriptInterface
-        fun isScrollMode(): Boolean = currentPageAnim() == PageAnim.scrollPageAnim
+        fun getSavedScrollTop(): Int = book?.durChapterPos ?: 0
 
         @JavascriptInterface
         fun getStyle(): String {
@@ -474,6 +485,7 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
                     }
 
                     "location" -> handleLocation(payload)
+                    "pageBoundary" -> handlePageBoundary(payload)
                     "error" -> toastOnUi(
                         runCatching { JSONObject(payload).optString("message") }.getOrNull()
                             ?: "EPUB 渲染失败"
@@ -486,13 +498,22 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
     private fun handleLocation(payload: String) {
         runCatching {
             val json = JSONObject(payload)
-            currentCfi = json.optString("cfi")
-            lastPercentage = json.optDouble("percentage", lastPercentage)
-            binding.seekProgress.progress = (lastPercentage * 10000).toInt().coerceIn(0, 10000)
+            val chapterIndex = json.optInt("chapterIndex", book?.durChapterIndex ?: 0)
+            if (!userSeekingChapter && binding.seekProgress.max >= chapterIndex) {
+                binding.seekProgress.progress = chapterIndex
+            }
             book?.let {
-                it.putVariable(cfiKey, currentCfi)
-                it.durChapterPos = binding.seekProgress.progress
+                it.durChapterPos = json.optInt("scrollTop", 0)
                 lifecycleScope.launch(IO) { it.save() }
+            }
+        }
+    }
+
+    private fun handlePageBoundary(payload: String) {
+        runCatching {
+            val direction = JSONObject(payload).optInt("direction", 0)
+            if (direction != 0) {
+                openChapterByOffset(direction)
             }
         }
     }
@@ -504,7 +525,6 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
             tocItems.firstOrNull { href.endsWith(it.href) || it.href.endsWith(href) }?.label.orEmpty()
         }
         if (title.isNotBlank()) binding.tvTitle.text = title
-        if (href.isNotBlank()) currentHref = href
         val targetBook = book ?: return
         val index = tocItems.indexOfFirst { item ->
             href == item.href || href.endsWith(item.href) || item.href.endsWith(href)
@@ -512,6 +532,9 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         if (index >= 0) {
             targetBook.durChapterIndex = index
             targetBook.durChapterTitle = tocItems[index].label
+            if (!userSeekingChapter && binding.seekProgress.max >= index) {
+                binding.seekProgress.progress = index
+            }
             lifecycleScope.launch(IO) { targetBook.save() }
         }
     }
