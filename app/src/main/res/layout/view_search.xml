@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<io.legado.app.ui.widget.SearchView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/search_view"
+    android:layout_width="match_parent"
+    android:layout_height="40dp"
+    android:layout_marginStart="12dp"
+    android:layout_marginTop="8dp"
+    android:layout_marginEnd="12dp"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/bg_searchview"
+    android:focusable="false"
+    android:imeOptions="actionSearch"
+    android:theme="?attr/actionBarStyle"
+    app:defaultQueryHint="搜索"
+    app:iconifiedByDefault="false"
+    app:queryBackground="@null"
+    app:searchHintIcon="@drawable/ic_search_hint"
+    app:searchIcon="@null"
+    app:submitBackground="@null" />

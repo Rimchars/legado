@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/content_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.viewpager.widget.ViewPager
+            android:id="@+id/view_pager_main"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            tools:ignore="SpeakableTextPresentCheck" />
+
+    </FrameLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/bottom_controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:paddingStart="@dimen/main_bottom_controls_horizontal_padding"
+        android:paddingEnd="@dimen/main_bottom_controls_horizontal_padding"
+        android:paddingBottom="@dimen/main_bottom_controls_bottom_padding"
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:ignore="RtlSymmetry">
+
+        <FrameLayout
+            android:id="@+id/bottom_navigation_glass"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/main_bottom_bar_height"
+            android:layout_marginEnd="@dimen/main_bottom_bar_gap"
+            android:elevation="@dimen/main_bottom_bar_elevation"
+            app:layout_constraintBottom_toBottomOf="@id/search_button_container"
+            app:layout_constraintEnd_toStartOf="@id/search_button_container"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@id/search_button_container">
+
+            <com.qmdeve.liquidglass.widget.LiquidGlassView
+                android:id="@+id/bottom_navigation_glass_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clickable="false"
+                android:focusable="false" />
+
+            <View
+                android:id="@+id/bottom_navigation_shell_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_liquid_glass_shell_overlay"
+                android:clickable="false"
+                android:focusable="false" />
+
+            <FrameLayout
+                android:id="@+id/bottom_navigation_indicator_container"
+                android:layout_width="@dimen/main_bottom_indicator_width"
+                android:layout_height="@dimen/main_bottom_indicator_height"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="@dimen/main_bottom_indicator_margin_start"
+                android:clickable="false"
+                android:focusable="false">
+
+                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                    android:id="@+id/bottom_navigation_indicator_glass_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <View
+                    android:id="@+id/bottom_navigation_indicator_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_liquid_glass_indicator_overlay"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+            </FrameLayout>
+
+            <io.legado.app.lib.theme.view.ThemeBottomNavigationVIew
+                android:id="@+id/bottom_navigation_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/transparent"
+                android:minHeight="@dimen/main_bottom_bar_height"
+                android:paddingStart="@dimen/main_bottom_nav_horizontal_padding"
+                android:paddingEnd="@dimen/main_bottom_nav_horizontal_padding"
+                app:itemIconSize="@dimen/main_bottom_nav_icon_size"
+                app:labelVisibilityMode="unlabeled"
+                app:menu="@menu/main_bnv" />
+
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/search_button_container"
+            android:layout_width="@dimen/main_search_button_size"
+            android:layout_height="@dimen/main_search_button_size"
+            android:elevation="@dimen/main_search_button_elevation"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <com.qmdeve.liquidglass.widget.LiquidGlassView
+                android:id="@+id/search_button_glass_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clickable="false"
+                android:focusable="false" />
+
+            <View
+                android:id="@+id/search_button_shell_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_liquid_glass_circle_shell_overlay"
+                android:clickable="false"
+                android:focusable="false" />
+
+            <FrameLayout
+                android:id="@+id/search_button"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_main_search_button"
+                android:contentDescription="@string/search"
+                android:clickable="true"
+                android:focusable="true">
+
+                <androidx.appcompat.widget.AppCompatImageView
+                    android:id="@+id/search_button_icon"
+                    android:layout_width="@dimen/main_search_button_icon_size"
+                    android:layout_height="@dimen/main_search_button_icon_size"
+                    android:layout_gravity="center"
+                    android:contentDescription="@null"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_search"
+                    android:tint="@color/primaryText" />
+
+            </FrameLayout>
+
+        </FrameLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

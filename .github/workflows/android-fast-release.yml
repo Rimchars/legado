@@ -1,0 +1,79 @@
+name: Android Fast Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release-full:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Build full release APK
+        run: |
+          VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))
+          ./gradlew :app:assembleAppRelease \
+            -PVERSION_CODE="$VERSION_CODE" \
+            -PRELEASE_STORE_FILE=ci-debug.keystore \
+            -PRELEASE_STORE_PASSWORD=legado-ci-debug \
+            -PRELEASE_KEY_ALIAS=legado-ci-debug \
+            -PRELEASE_KEY_PASSWORD=legado-ci-debug \
+            --stacktrace
+
+      - name: Resolve APK
+        id: apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/app/release -type f -name '*.apk' | head -n 1)
+          APK_NAME=$(basename "$APK_PATH")
+          echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "name=$APK_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: legado-release-full
+          path: ${{ steps.apk.outputs.path }}
+
+      - name: Remove previous release APK assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/latest-arm64-release --jq '.id' 2>/dev/null || true)
+          if [ -n "$RELEASE_ID" ]; then
+            gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate \
+              --jq '.[] | select(.name | endswith(".apk")) | .id' \
+              | while read -r ASSET_ID; do
+                  gh api -X DELETE repos/${{ github.repository }}/releases/assets/$ASSET_ID
+                done
+          fi
+
+      - name: Publish release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-arm64-release
+          name: 阅读Archive full release
+          prerelease: false
+          generate_release_notes: false
+          overwrite_files: true
+          files: ${{ steps.apk.outputs.path }}
+          append_body: true
+          body: |
+            Latest full release build from GitHub Actions.
+            Commit: ${{ github.sha }}

@@ -1,0 +1,155 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".ui.main.MainActivity"
+    tools:ignore="AlwaysShowAction">
+
+    <group android:id="@+id/menu_group_on_line">
+        <item
+            android:id="@+id/menu_change_source"
+            android:icon="@drawable/ic_exchange"
+            android:title="@string/change_origin"
+            app:showAsAction="always" />
+
+        <item
+            android:id="@+id/menu_refresh"
+            android:icon="@drawable/ic_refresh_black_24dp"
+            android:title="@string/refresh"
+            app:showAsAction="always" />
+
+        <item
+            android:id="@+id/menu_download"
+            android:icon="@drawable/ic_download_line"
+            android:title="@string/offline_cache"
+            app:showAsAction="always" />
+
+    </group>
+
+    <group android:id="@+id/menu_group_text">
+        <item
+            android:id="@+id/menu_toc_regex"
+            android:icon="@drawable/ic_exchange"
+            android:title="@string/txt_toc_rule"
+            android:visible="false"
+            app:showAsAction="always" />
+    </group>
+
+    <group android:id="@+id/menu_group_local">
+
+        <item
+            android:id="@+id/menu_set_charset"
+            android:icon="@drawable/ic_translate"
+            android:title="@string/set_charset"
+            app:showAsAction="always" />
+
+    </group>
+
+    <item
+        android:id="@+id/menu_add_bookmark"
+        android:title="@string/bookmark_add"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_edit_content"
+        android:title="@string/edit_content"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_page_anim"
+        android:title="@string/book_page_anim"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_get_progress"
+        android:title="@string/get_book_progress"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_cover_progress"
+        android:title="@string/cover_book_progress"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_reverse_content"
+        android:title="@string/reverse_content"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_simulated_reading"
+        android:title="@string/simulated_reading"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_enable_replace"
+        android:checkable="true"
+        android:checked="true"
+        android:title="@string/replace_rule_title"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_same_title_removed"
+        android:checkable="true"
+        android:title="@string/same_title_removed"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_re_segment"
+        android:checkable="true"
+        android:checked="false"
+        android:title="@string/re_segment"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_enable_review"
+        android:checkable="true"
+        android:checked="false"
+        android:title="@string/review"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <group android:id="@+id/menu_group_epub">
+
+        <item
+            android:id="@+id/menu_del_ruby_tag"
+            android:checkable="true"
+            android:checked="false"
+            android:title="@string/del_ruby_tag"
+            app:showAsAction="never" />
+
+        <item
+            android:id="@+id/menu_del_h_tag"
+            android:checkable="true"
+            android:checked="false"
+            android:title="@string/del_h_tag"
+            app:showAsAction="never" />
+
+    </group>
+
+    <item
+        android:id="@+id/menu_image_style"
+        android:title="@string/image_style"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_update_toc"
+        android:title="@string/update_toc"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_effective_replaces"
+        android:title="@string/effective_replaces"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_log"
+        android:title="@string/log"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_help"
+        android:title="@string/help"
+        app:showAsAction="never" />
+
+</menu>

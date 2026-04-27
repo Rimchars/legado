@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#5E9DFF</color>
+    <color name="primaryDark">#3F7FE0</color>
+    <color name="accent">#0A84FF</color>
+
+    <color name="disabled">@color/md_dark_disabled</color>
+
+    <color name="background">#111113</color>
+    <color name="background_card">#1C1C1E</color>
+    <color name="background_menu">#252528</color>
+    <color name="book_info_frost">#DD252528</color>
+    <color name="background_prefs">#241C1C1E</color>
+    <color name="glass_bar">#A81F242C</color>
+    <color name="glass_bar_shadow">#66000000</color>
+    <color name="glass_bar_highlight">#26FFFFFF</color>
+    <color name="glass_button">#B52A303A</color>
+    <color name="glass_button_pressed">#D02D6FD6</color>
+    <color name="glass_overlay">#18000000</color>
+    <color name="glass_stroke">#4D8EA6C8</color>
+
+    <color name="night_mask">#69000000</color>
+
+    <color name="transparent10">#10ffffff</color>
+    <color name="transparent20">#20ffffff</color>
+    <color name="transparent30">#30ffffff</color>
+    <color name="transparent50">#50ffffff</color>
+
+    <color name="bg_divider_line">#2C2C2E</color>
+
+    <color name="btn_bg_press">#330A84FF</color>
+    <color name="btn_bg_press_2">#24FFFFFF</color>
+    <color name="btn_bg_press_tp">#63C7C7C7</color>
+
+    <color name="card_bg_water">#E61C1C1E</color>
+    <color name="card_border_water">#24FFFFFF</color>
+
+    <color name="darker_gray">#66666666</color>
+
+    <color name="tv_btn_normal_black">#737373</color>
+    <color name="tv_btn_press_black">#565656</color>
+
+    <color name="primaryText">#ffffffff</color>
+    <color name="secondaryText">#b3ffffff</color>
+    <color name="tv_text_summary">#B3B3B3</color>
+    <color name="menu_color_default">#b7b7b7</color>
+
+
+    <color name="tv_text_button_nor">#303030</color>
+
+    <!--statusBarBackground-->
+    <color name="navigation_bar_bag">#222222</color>
+</resources>

@@ -1,0 +1,573 @@
+package io.legado.app.help.ai
+
+import io.legado.app.R
+import io.legado.app.help.config.AppConfig
+import io.legado.app.help.http.newCallResponse
+import io.legado.app.help.http.okHttpClient
+import io.legado.app.help.http.postJson
+import io.legado.app.ui.main.ai.AiChatException
+import io.legado.app.ui.main.ai.AiChatMessage
+import org.json.JSONArray
+import org.json.JSONObject
+import splitties.init.appCtx
+
+object AiChatService {
+
+    private const val MAX_TOOL_ROUNDS = 12
+
+    private data class ToolCall(
+        val id: String,
+        val name: String,
+        val arguments: String
+    )
+
+    private data class ToolCallBuilder(
+        var id: String = "",
+        var name: String = "",
+        val arguments: StringBuilder = StringBuilder()
+    )
+
+    private data class AssistantTurn(
+        val content: String,
+        val toolCalls: List<ToolCall>,
+        val rawMessage: JSONObject
+    )
+
+    suspend fun chat(messages: List<AiChatMessage>): String {
+        return chatStream(messages, onPartial = {})
+    }
+
+    suspend fun chatStream(
+        messages: List<AiChatMessage>,
+        onPartial: (String) -> Unit,
+        onThinking: (String) -> Unit = {}
+    ): String {
+        val provider = AppConfig.aiCurrentProvider
+        val modelConfig = AppConfig.aiCurrentModelConfig
+        val baseUrl = provider?.baseUrl?.trim().orEmpty()
+        val model = modelConfig?.modelId?.trim().orEmpty()
+        require(baseUrl.isNotBlank()) { "Base URL is empty" }
+        require(model.isNotBlank()) { "Model is empty" }
+
+        val tools = runCatching { AiToolRegistry.resolveAvailableTools() }.getOrDefault(emptyList())
+        val conversation = buildConversation(messages)
+        val requestLog = StringBuilder().apply {
+            append("url=${resolveChatUrl(baseUrl)}").append('\n')
+            append("model=$model").append('\n')
+            append("provider=${provider?.name.orEmpty()}").append('\n')
+            append("tools=${tools.joinToString { it.name }}").append('\n')
+        }
+
+        return runCatching {
+            executeToolLoop(
+                baseUrl = baseUrl,
+                model = model,
+                providerApiKey = provider?.apiKey.orEmpty(),
+                conversation = conversation,
+                tools = tools,
+                requestLog = requestLog,
+                onPartial = onPartial,
+                onThinking = onThinking
+            )
+        }.getOrElse { throwable ->
+            if (throwable is AiChatException) {
+                throw throwable
+            }
+            throw AiChatException(
+                message = throwable.message ?: throwable.javaClass.simpleName,
+                debugLog = requestLog.toString(),
+                cause = throwable
+            )
+        }
+    }
+
+    private suspend fun executeToolLoop(
+        baseUrl: String,
+        model: String,
+        providerApiKey: String,
+        conversation: MutableList<JSONObject>,
+        tools: List<AiResolvedTool>,
+        requestLog: StringBuilder,
+        onPartial: (String) -> Unit,
+        onThinking: (String) -> Unit
+    ): String {
+        val toolMap = tools.associateBy { it.name }
+        repeat(MAX_TOOL_ROUNDS) { round ->
+            val assistantTurn = requestCompletionStream(
+                baseUrl = baseUrl,
+                model = model,
+                providerApiKey = providerApiKey,
+                messages = conversation,
+                tools = tools,
+                requestLog = requestLog,
+                round = round + 1,
+                onPartial = onPartial,
+                onThinking = onThinking
+            )
+            conversation += assistantTurn.rawMessage
+            if (assistantTurn.toolCalls.isEmpty()) {
+                val content = assistantTurn.content
+                if (content.isBlank()) {
+                    throw AiChatException(
+                        message = "Empty response",
+                        debugLog = requestLog.toString()
+                    )
+                }
+                return content
+            }
+            assistantTurn.toolCalls.forEach { toolCall ->
+                onThinking(appCtx.getString(R.string.ai_tool_call, toolCall.name, toolCall.arguments))
+                val result = executeToolCall(toolCall, toolMap)
+                onThinking(appCtx.getString(R.string.ai_tool_result, toolCall.name, result))
+                conversation += JSONObject().apply {
+                    put("role", "tool")
+                    put("tool_call_id", toolCall.id)
+                    put("content", result)
+                }
+            }
+        }
+        conversation += JSONObject().apply {
+            put("role", "system")
+            put(
+                "content",
+                "工具调用轮次已达到上限。现在不要继续调用任何工具，请基于已经获得的工具结果，直接总结当前完成情况、剩余问题和下一步建议。"
+            )
+        }
+        val finalTurn = requestCompletionStream(
+            baseUrl = baseUrl,
+            model = model,
+            providerApiKey = providerApiKey,
+            messages = conversation,
+            tools = emptyList(),
+            requestLog = requestLog,
+            round = MAX_TOOL_ROUNDS + 1,
+            onPartial = onPartial,
+            onThinking = onThinking
+        )
+        if (finalTurn.content.isBlank()) {
+            throw AiChatException(
+                message = appCtx.getString(R.string.ai_tool_round_limit_summary),
+                debugLog = requestLog.toString()
+            )
+        }
+        return finalTurn.content
+    }
+
+    private suspend fun executeToolCall(
+        toolCall: ToolCall,
+        toolMap: Map<String, AiResolvedTool>
+    ): String {
+        val resolvedTool = toolMap[toolCall.name]
+        if (resolvedTool == null) {
+            return JSONObject().apply {
+                put("ok", false)
+                put("error", "Unknown tool: ${toolCall.name}")
+            }.toString()
+        }
+        return runCatching {
+            val arguments = toolCall.arguments.trim().takeIf { it.isNotBlank() }?.let(::JSONObject)
+            resolvedTool.execute(arguments)
+        }.getOrElse { throwable ->
+            JSONObject().apply {
+                put("ok", false)
+                put("error", throwable.message ?: throwable.javaClass.simpleName)
+            }.toString()
+        }
+    }
+
+    private suspend fun requestCompletionStream(
+        baseUrl: String,
+        model: String,
+        providerApiKey: String,
+        messages: List<JSONObject>,
+        tools: List<AiResolvedTool>,
+        requestLog: StringBuilder,
+        round: Int,
+        onPartial: (String) -> Unit,
+        onThinking: (String) -> Unit
+    ): AssistantTurn {
+        val requestBody = buildRequestBody(messages, model, tools, stream = true)
+        requestLog.append("round=").append(round).append('\n')
+            .append("request=").append(requestBody).append('\n')
+        val response = okHttpClient.newCallResponse {
+            url(resolveChatUrl(baseUrl))
+            addHeader("Accept", "text/event-stream, application/json")
+            addHeader("Content-Type", "application/json")
+            providerApiKey.trim().takeIf { it.isNotBlank() }?.let {
+                addHeader("Authorization", "Bearer $it")
+            }
+            postJson(requestBody)
+        }
+        response.use { rawResponse ->
+            val body = rawResponse.body ?: throw AiChatException(
+                message = "Empty response body",
+                debugLog = requestLog.append("response=<empty body>\n").toString()
+            )
+            if (!rawResponse.isSuccessful) {
+                val payload = body.string()
+                throw AiChatException(
+                    message = extractError(payload).ifBlank {
+                        "${rawResponse.code} ${rawResponse.message}"
+                    },
+                    debugLog = buildString {
+                        append(requestLog)
+                        append("status=${rawResponse.code} ${rawResponse.message}").append('\n')
+                        append("response=$payload").append('\n')
+                    }
+                )
+            }
+            val rendered = StringBuilder()
+            val rawRendered = StringBuilder()
+            val rawPayload = StringBuilder()
+            val toolCallBuilders = linkedMapOf<Int, ToolCallBuilder>()
+            body.byteStream().bufferedReader().use { reader ->
+                while (true) {
+                    val rawLine = reader.readLine()?.trim() ?: break
+                    if (rawLine.isEmpty()) continue
+                    rawPayload.append(rawLine).append('\n')
+                    if (rawLine.startsWith("data:")) {
+                        val payload = rawLine.removePrefix("data:").trim()
+                        if (payload == "[DONE]") break
+                        consumeStreamPayload(payload, rawRendered, rendered, toolCallBuilders, onPartial, onThinking)
+                    } else if (rawLine.startsWith("{")) {
+                        consumeStreamPayload(rawLine, rawRendered, rendered, toolCallBuilders, onPartial, onThinking)
+                    }
+                }
+            }
+            requestLog.append("response=").append(rawPayload).append('\n')
+            val toolCalls = toolCallBuilders.map { (index, builder) ->
+                ToolCall(
+                    id = builder.id.ifBlank { "call_$index" },
+                    name = builder.name,
+                    arguments = builder.arguments.toString().ifBlank { "{}" }
+                )
+            }.filter { it.name.isNotBlank() }
+            if (rendered.isBlank() && toolCalls.isEmpty()) {
+                val fallback = runCatching { extractContent(rawPayload.toString()) }.getOrDefault("")
+                if (fallback.isNotBlank()) {
+                    val visibleFallback = stripInlineThinking(fallback, onThinking)
+                    onPartial(visibleFallback)
+                    return AssistantTurn(
+                        visibleFallback,
+                        emptyList(),
+                        buildAssistantRawMessage(visibleFallback, emptyList())
+                    )
+                }
+            }
+            return AssistantTurn(
+                content = rendered.toString(),
+                toolCalls = toolCalls,
+                rawMessage = buildAssistantRawMessage(rendered.toString(), toolCalls)
+            )
+        }
+    }
+
+    private fun buildRequestBody(
+        messages: List<JSONObject>,
+        model: String,
+        tools: List<AiResolvedTool>,
+        stream: Boolean
+    ): String {
+        return JSONObject().apply {
+            put("model", model)
+            put("stream", stream)
+            put("messages", JSONArray().apply {
+                messages.forEach { put(it) }
+            })
+            if (tools.isNotEmpty()) {
+                put("tools", JSONArray().apply {
+                    tools.forEach { put(it.definition) }
+                })
+                put("tool_choice", "auto")
+            }
+        }.toString()
+    }
+
+    private fun consumeStreamPayload(
+        payload: String,
+        rawRendered: StringBuilder,
+        rendered: StringBuilder,
+        toolCallBuilders: MutableMap<Int, ToolCallBuilder>,
+        onPartial: (String) -> Unit,
+        onThinking: (String) -> Unit
+    ) {
+        extractError(payload).takeIf { it.isNotBlank() }?.let {
+            throw IllegalStateException(it)
+        }
+        val root = JSONObject(payload)
+        val choice = root.optJSONArray("choices")?.optJSONObject(0) ?: return
+        val delta = choice.optJSONObject("delta") ?: choice.optJSONObject("message") ?: return
+        val reasoningText = extractContentText(delta.opt("reasoning_content"))
+            .ifBlank { extractContentText(delta.opt("reasoning")) }
+            .ifBlank { extractContentText(delta.opt("thinking")) }
+        if (reasoningText.isNotBlank()) {
+            onThinking(reasoningText)
+        }
+        val deltaText = extractContentText(delta.opt("content"))
+        if (deltaText.isNotEmpty()) {
+            rawRendered.append(deltaText)
+            val visibleText = stripInlineThinking(rawRendered.toString(), onThinking)
+            if (visibleText != rendered.toString()) {
+                rendered.clear()
+                rendered.append(visibleText)
+                onPartial(visibleText)
+            }
+        }
+        val toolCalls = delta.optJSONArray("tool_calls") ?: return
+        for (i in 0 until toolCalls.length()) {
+            val toolCall = toolCalls.optJSONObject(i) ?: continue
+            val index = toolCall.optInt("index", i)
+            val builder = toolCallBuilders.getOrPut(index) { ToolCallBuilder() }
+            toolCall.optString("id").takeIf { it.isNotBlank() }?.let { builder.id = it }
+            val function = toolCall.optJSONObject("function") ?: continue
+            function.optString("name").takeIf { it.isNotBlank() }?.let { builder.name = it }
+            val args = function.opt("arguments")
+            when (args) {
+                is String -> builder.arguments.append(args)
+                is JSONObject, is JSONArray -> builder.arguments.append(args.toString())
+            }
+        }
+    }
+
+    private fun buildAssistantRawMessage(
+        content: String,
+        toolCalls: List<ToolCall>
+    ): JSONObject {
+        return JSONObject().apply {
+            put("role", "assistant")
+            put("content", if (content.isBlank()) JSONObject.NULL else content)
+            if (toolCalls.isNotEmpty()) {
+                put(
+                    "tool_calls",
+                    JSONArray().apply {
+                        toolCalls.forEach { toolCall ->
+                            put(
+                                JSONObject().apply {
+                                    put("id", toolCall.id)
+                                    put("type", "function")
+                                    put(
+                                        "function",
+                                        JSONObject().apply {
+                                            put("name", toolCall.name)
+                                            put("arguments", toolCall.arguments)
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    private fun buildConversation(messages: List<AiChatMessage>): MutableList<JSONObject> {
+        val conversation = mutableListOf<JSONObject>()
+        conversation += JSONObject().apply {
+            put("role", "system")
+            put("content", AppConfig.aiSystemPrompt.ifBlank { AppConfig.DEFAULT_AI_SYSTEM_PROMPT })
+        }
+        AppConfig.aiEnabledSkills.forEach { skill ->
+            conversation += JSONObject().apply {
+                put("role", "system")
+                put(
+                    "content",
+                    buildString {
+                        append("以下是用户启用的真实 SKILL.md，请把它作为当前 agent 的能力规范执行。")
+                        append("Skill 名称：")
+                        append(skill.name)
+                        if (skill.description.isNotBlank()) {
+                            append("\nSkill 描述：")
+                            append(skill.description)
+                        }
+                        if (skill.sourceUrl.isNotBlank()) {
+                            append("\nSkill 来源：")
+                            append(skill.sourceUrl)
+                        }
+                        append("\n\n")
+                        append(skill.content)
+                    }
+                )
+            }
+        }
+        if (requiresBookshelfTool(messages)) {
+            conversation += JSONObject().apply {
+                put("role", "system")
+                put(
+                    "content",
+                    "本轮用户请求涉及本地书架、书籍详情、阅读记录、分组或标签。回复正文前必须先调用合适的书架工具；不要只说明将要查询。"
+                )
+            }
+        }
+        messages.takeLast(12).forEach { message ->
+            conversation += JSONObject().apply {
+                put(
+                    "role",
+                    if (message.role == AiChatMessage.Role.USER) "user" else "assistant"
+                )
+                put("content", message.content)
+            }
+        }
+        return conversation
+    }
+
+    private fun requiresBookshelfTool(messages: List<AiChatMessage>): Boolean {
+        val content = messages.lastOrNull { it.role == AiChatMessage.Role.USER }
+            ?.content
+            ?.lowercase()
+            .orEmpty()
+        if (content.isBlank()) return false
+        return listOf(
+            "书架",
+            "书籍",
+            "书名",
+            "作者",
+            "阅读记录",
+            "最近读",
+            "在读",
+            "简介",
+            "书源",
+            "分组",
+            "标签",
+            "分类",
+            "整理",
+            "批量"
+        ).any { content.contains(it) }
+    }
+
+    private fun parseAssistantTurn(response: JSONObject): AssistantTurn {
+        val message = response.optJSONArray("choices")
+            ?.optJSONObject(0)
+            ?.optJSONObject("message")
+            ?: JSONObject()
+        val content = extractContentText(message.opt("content"))
+        val toolCalls = buildList {
+            val array = message.optJSONArray("tool_calls") ?: JSONArray()
+            for (index in 0 until array.length()) {
+                val toolCall = array.optJSONObject(index) ?: continue
+                val function = toolCall.optJSONObject("function") ?: continue
+                add(
+                    ToolCall(
+                        id = toolCall.optString("id").ifBlank { "call_$index" },
+                        name = function.optString("name"),
+                        arguments = extractToolArguments(function.opt("arguments"))
+                    )
+                )
+            }
+        }
+        return AssistantTurn(
+            content = content,
+            toolCalls = toolCalls,
+            rawMessage = JSONObject().apply {
+                put("role", "assistant")
+                put("content", if (content.isBlank()) JSONObject.NULL else content)
+                if (toolCalls.isNotEmpty()) {
+                    put(
+                        "tool_calls",
+                        JSONArray().apply {
+                            toolCalls.forEach { toolCall ->
+                                put(
+                                    JSONObject().apply {
+                                        put("id", toolCall.id)
+                                        put("type", "function")
+                                        put(
+                                            "function",
+                                            JSONObject().apply {
+                                                put("name", toolCall.name)
+                                                put("arguments", toolCall.arguments)
+                                            }
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    private fun resolveChatUrl(baseUrl: String): String {
+        val normalized = baseUrl.trim().trimEnd('/')
+        return when {
+            normalized.endsWith("/chat/completions") -> normalized
+            normalized.endsWith("/v1") -> "$normalized/chat/completions"
+            else -> "$normalized/v1/chat/completions"
+        }
+    }
+
+    private fun extractError(body: String): String {
+        if (body.isBlank()) return ""
+        return runCatching {
+            val root = JSONObject(body)
+            root.optJSONObject("error")?.optString("message")
+                ?: root.optString("message")
+        }.getOrNull().orEmpty()
+    }
+
+    private fun extractContent(body: String): String {
+        val root = JSONObject(body)
+        val choices = root.optJSONArray("choices") ?: return root.optString("response")
+        val first = choices.optJSONObject(0) ?: return ""
+        val message = first.optJSONObject("message")
+        return extractContentText(message?.opt("content"))
+            .ifBlank { first.optString("text") }
+    }
+
+    private fun extractContentText(content: Any?): String {
+        return when (content) {
+            is String -> content
+            is JSONArray -> contentArrayToText(content)
+            is JSONObject -> content.optString("text")
+            else -> ""
+        }
+    }
+
+    private fun stripInlineThinking(
+        text: String,
+        onThinking: (String) -> Unit
+    ): String {
+        var visible = text
+        val closedThinkRegex = Regex("<think>([\\s\\S]*?)</think>", RegexOption.IGNORE_CASE)
+        closedThinkRegex.findAll(text).forEach { match ->
+            match.groups[1]?.value
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let(onThinking)
+        }
+        visible = closedThinkRegex.replace(visible, "")
+        val openMatch = Regex("<think>", RegexOption.IGNORE_CASE).find(visible)
+        if (openMatch != null) {
+            val thinking = visible.substring(openMatch.range.last + 1)
+                .replace(Regex("</think>", RegexOption.IGNORE_CASE), "")
+                .trim()
+            if (thinking.isNotBlank()) {
+                onThinking(thinking)
+            }
+            visible = visible.substring(0, openMatch.range.first)
+        }
+        return visible.trimStart()
+    }
+
+    private fun extractToolArguments(arguments: Any?): String {
+        return when (arguments) {
+            is String -> arguments.ifBlank { "{}" }
+            is JSONObject -> arguments.toString()
+            is JSONArray -> arguments.toString()
+            else -> "{}"
+        }
+    }
+
+    private fun contentArrayToText(content: JSONArray): String {
+        return buildString {
+            for (index in 0 until content.length()) {
+                val part = content.opt(index)
+                if (part is JSONObject) {
+                    append(part.optString("text"))
+                } else if (part is String) {
+                    append(part)
+                }
+            }
+        }
+    }
+}

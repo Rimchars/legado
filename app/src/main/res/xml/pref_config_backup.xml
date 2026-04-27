@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/web_dav_set"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.EditTextPreference
+            android:key="web_dav_url"
+            android:summary="@string/web_dav_url_s"
+            android:title="@string/web_dav_url"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.EditTextPreference
+            android:key="web_dav_account"
+            android:summary="@string/web_dav_account_s"
+            android:title="@string/web_dav_account"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.EditTextPreference
+            android:key="web_dav_password"
+            android:summary="@string/web_dav_pw_s"
+            android:title="@string/web_dav_pw"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.EditTextPreference
+            android:key="webDavDir"
+            android:title="@string/sub_dir"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.EditTextPreference
+            android:key="webDavDeviceName"
+            android:title="@string/webdav_device_name"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="false"
+            android:key="syncThemePackages"
+            android:summary="开启后主题管理会后台同步云端主题包"
+            android:title="同步云端主题"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="true"
+            android:key="syncBookProgress"
+            android:summary="@string/sync_book_progress_s"
+            android:title="@string/sync_book_progress_t"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="false"
+            android:dependency="syncBookProgress"
+            android:key="syncBookProgressPlus"
+            android:summary="@string/sync_book_progress_plus_s"
+            android:title="@string/sync_book_progress_plus_t"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/backup_restore"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="backupUri"
+            android:summary="@string/select_backup_path"
+            android:title="@string/backup_path"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="web_dav_backup"
+            android:summary="@string/backup_summary"
+            android:title="@string/backup"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="web_dav_restore"
+            android:summary="@string/restore_summary"
+            android:title="@string/restore"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="restoreIgnore"
+            android:summary="@string/restore_ignore_summary"
+            android:title="@string/restore_ignore"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="import_old"
+            android:summary="@string/import_old_summary"
+            android:title="@string/menu_import_old_version"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="true"
+            android:key="onlyLatestBackup"
+            android:summary="@string/only_latest_backup_s"
+            android:title="@string/only_latest_backup_t"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="true"
+            android:key="autoCheckNewBackup"
+            android:summary="@string/auto_check_new_backup_s"
+            android:title="@string/auto_check_new_backup_t"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

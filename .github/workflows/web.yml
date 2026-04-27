@@ -1,0 +1,65 @@
+name: Build Web
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/modules/web/**'
+  pull_request:
+    paths:
+      - '**/modules/web/**'
+  workflow_dispatch:
+
+env:
+  UPSTREAM_REPOSITORY: Luoyacheng/legado
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: 9
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/web/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Build and move files
+        working-directory: modules/web
+        run: |
+          pnpm i
+          pnpm build
+          version="v$(date -d "8 hour" -u +3.%y.%m%d%H)"
+          echo "APP_VER=$version" >> $GITHUB_ENV
+
+      - name: push changes
+        if: ${{ github.event_name != 'pull_request' && github.repository == env.UPSTREAM_REPOSITORY }}
+        uses: stefanzweifel/git-auto-commit-action@v7.0.0
+        with:
+          commit_message: Bump web ${{ env.APP_VER}}
+          file_pattern: app/src/main/assets/web/vue/
+
