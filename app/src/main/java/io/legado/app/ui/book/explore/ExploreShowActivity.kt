@@ -10,19 +10,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
-import io.legado.app.constant.BookSourceType
-import io.legado.app.constant.BookType
-import io.legado.app.data.appDb
 import io.legado.app.data.entities.SearchBook
 import io.legado.app.databinding.ActivityExploreShowBinding
 import io.legado.app.databinding.ViewLoadMoreBinding
-import io.legado.app.ui.book.info.BookInfoActivity
-import io.legado.app.ui.video.VideoPlayerActivity
+import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.ui.widget.number.NumberPickerDialog
 import io.legado.app.ui.widget.recycler.LoadMoreView
 import io.legado.app.ui.widget.recycler.VerticalDivider
 import io.legado.app.utils.applyNavigationBarPadding
-import io.legado.app.utils.startActivity
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
@@ -177,32 +172,13 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
     override fun showBookInfo(book: SearchBook) {
         lifecycleScope.launch {
             val isVideo = withContext(IO) {
-                book.type and BookType.video > 0 ||
-                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video ||
-                        viewModel.isVideoSource()
+                SearchBookOpenHelper.isVideoResult(book, viewModel.sourceTypeHint())
             }
             if (isVideo) {
-                openVideo(book)
+                SearchBookOpenHelper.open(this@ExploreShowActivity, book, true)
             } else {
-                startActivity<BookInfoActivity> {
-                    putExtra("name", book.name)
-                    putExtra("author", book.author)
-                    putExtra("bookUrl", book.bookUrl)
-                    putExtra("origin", book.origin)
-                    putExtra("originName", book.originName)
-                }
+                SearchBookOpenHelper.open(this@ExploreShowActivity, book, false)
             }
-        }
-    }
-
-    private fun openVideo(book: SearchBook) {
-        startActivity<VideoPlayerActivity> {
-            putExtra("name", book.name)
-            putExtra("author", book.author)
-            putExtra("bookUrl", book.bookUrl)
-            putExtra("origin", book.origin)
-            putExtra("originName", book.originName)
-            putExtra(VideoPlayerActivity.EXTRA_PREPARE_BOOK_INFO, true)
         }
     }
 }

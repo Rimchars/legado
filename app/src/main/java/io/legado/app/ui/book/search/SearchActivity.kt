@@ -25,8 +25,6 @@ import com.google.android.flexbox.FlexboxLayoutManager
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.AppLog
-import io.legado.app.constant.BookSourceType
-import io.legado.app.constant.BookType
 import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
@@ -43,9 +41,9 @@ import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.about.AppLogDialog
+import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.ui.book.info.BookInfoActivity
 import io.legado.app.ui.book.source.manage.BookSourceActivity
-import io.legado.app.ui.video.VideoPlayerActivity
 import io.legado.app.ui.widget.ModernActionPopup
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.applyNavigationBarMargin
@@ -514,20 +512,15 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
     override fun showBookInfo(book: SearchBook) {
         lifecycleScope.launch {
             val isVideo = withContext(IO) {
-                book.type and BookType.video > 0 ||
-                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video ||
-                        viewModel.searchScope.getSingleBookSourcePart()?.bookSourceType == BookSourceType.video
+                SearchBookOpenHelper.isVideoResult(
+                    book,
+                    viewModel.searchScope.getSingleBookSourcePart()?.bookSourceType
+                )
             }
             if (isVideo) {
-                openVideo(book)
+                SearchBookOpenHelper.open(this@SearchActivity, book, true)
             } else {
-                startActivity<BookInfoActivity> {
-                    putExtra("name", book.name)
-                    putExtra("author", book.author)
-                    putExtra("bookUrl", book.bookUrl)
-                    putExtra("origin", book.origin)
-                    putExtra("originName", book.originName)
-                }
+                SearchBookOpenHelper.open(this@SearchActivity, book, false)
             }
         }
     }
@@ -551,17 +544,6 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
             putExtra("name", book.name)
             putExtra("author", book.author)
             putExtra("bookUrl", book.bookUrl)
-        }
-    }
-
-    private fun openVideo(book: SearchBook) {
-        startActivity<VideoPlayerActivity> {
-            putExtra("name", book.name)
-            putExtra("author", book.author)
-            putExtra("bookUrl", book.bookUrl)
-            putExtra("origin", book.origin)
-            putExtra("originName", book.originName)
-            putExtra(VideoPlayerActivity.EXTRA_PREPARE_BOOK_INFO, true)
         }
     }
 

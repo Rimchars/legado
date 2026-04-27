@@ -175,37 +175,33 @@ object AppWebDav {
         if (!NetworkUtils.isAvailable()) return emptyList()
         val dirUrl = getThemeTypeUrl(isNightTheme)
         WebDav(dirUrl, authorization).makeAsDir()
-        return WebDav(dirUrl, authorization).listFiles().filter { it.isDir }
+        return WebDav(dirUrl, authorization).listFiles()
+            .filter { !it.isDir && it.displayName.endsWith(".zip", ignoreCase = true) }
     }
 
-    suspend fun uploadThemePackage(isNightTheme: Boolean, remoteDirName: String, localDir: File) {
+    suspend fun uploadThemePackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
         val authorization = authorization ?: return
         if (!NetworkUtils.isAvailable()) return
-        val dirUrl = getThemeTypeUrl(isNightTheme) + remoteDirName.trimEnd('/') + "/"
-        WebDav(getThemeTypeUrl(isNightTheme), authorization).makeAsDir()
-        WebDav(dirUrl, authorization).makeAsDir()
-        localDir.listFiles()?.filter { it.isFile }?.forEach { file ->
-            WebDav("$dirUrl${file.name}", authorization).upload(file)
-        }
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        val typeUrl = getThemeTypeUrl(isNightTheme)
+        WebDav(typeUrl, authorization).makeAsDir()
+        WebDav(typeUrl + fileName, authorization).upload(zipFile)
     }
 
-    suspend fun downloadThemePackage(isNightTheme: Boolean, remoteDirName: String, localDir: File) {
+    suspend fun downloadThemePackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
         val authorization = authorization ?: return
         if (!NetworkUtils.isAvailable()) return
-        val dirUrl = getThemeTypeUrl(isNightTheme) + remoteDirName.trimEnd('/') + "/"
-        localDir.mkdirs()
-        WebDav(dirUrl, authorization).listFiles()
-            .filter { !it.isDir }
-            .forEach { remoteFile ->
-                remoteFile.downloadTo(File(localDir, remoteFile.displayName).absolutePath, true)
-            }
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        zipFile.parentFile?.mkdirs()
+        WebDav(getThemeTypeUrl(isNightTheme) + fileName, authorization)
+            .downloadTo(zipFile.absolutePath, true)
     }
 
     suspend fun deleteThemePackage(isNightTheme: Boolean, remoteDirName: String) {
         val authorization = authorization ?: return
         if (!NetworkUtils.isAvailable()) return
-        val dirUrl = getThemeTypeUrl(isNightTheme) + remoteDirName.trimEnd('/') + "/"
-        WebDav(dirUrl, authorization).delete()
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        WebDav(getThemeTypeUrl(isNightTheme) + fileName, authorization).delete()
     }
 
     private fun getThemeTypeUrl(isNightTheme: Boolean): String {

@@ -29,8 +29,6 @@ import com.script.rhino.runScriptWithContext
 import io.legado.app.R
 import io.legado.app.base.VMBaseFragment
 import io.legado.app.constant.AppLog
-import io.legado.app.constant.BookSourceType
-import io.legado.app.constant.BookType
 import io.legado.app.data.AppDatabase
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.BookSource
@@ -47,11 +45,10 @@ import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.ui.book.explore.ExploreShowAdapter
-import io.legado.app.ui.book.info.BookInfoActivity
 import io.legado.app.ui.book.explore.ExploreShowActivity
+import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.ui.book.source.edit.BookSourceEditActivity
-import io.legado.app.ui.video.VideoPlayerActivity
 import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.login.SourceLoginJsExtensions
 import io.legado.app.ui.main.MainFragmentInterface
@@ -1052,22 +1049,12 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 appDb.searchBookDao.insert(book)
             }
             val isVideo = withContext(IO) {
-                book.type and BookType.video > 0 ||
-                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video ||
-                        selectedDiscoverSourcePart?.bookSourceType == BookSourceType.video ||
-                        selectedDiscoverSource?.bookSourceType == BookSourceType.video
+                SearchBookOpenHelper.isVideoResult(
+                    book,
+                    selectedDiscoverSourcePart?.bookSourceType ?: selectedDiscoverSource?.bookSourceType
+                )
             }
-            val activityClass = if (isVideo) VideoPlayerActivity::class.java else BookInfoActivity::class.java
-            startActivity(Intent(requireContext(), activityClass).apply {
-                putExtra("name", book.name)
-                putExtra("author", book.author)
-                putExtra("bookUrl", book.bookUrl)
-                putExtra("origin", book.origin)
-                putExtra("originName", book.originName)
-                if (isVideo) {
-                    putExtra(VideoPlayerActivity.EXTRA_PREPARE_BOOK_INFO, true)
-                }
-            })
+            SearchBookOpenHelper.open(requireContext(), book, isVideo)
         }
     }
 

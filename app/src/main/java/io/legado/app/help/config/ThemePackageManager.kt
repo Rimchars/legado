@@ -11,6 +11,7 @@ import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getFile
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.normalizeFileName
+import io.legado.app.utils.compress.ZipUtils
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 import splitties.init.appCtx
@@ -49,6 +50,10 @@ object ThemePackageManager {
         }
     }
 
+    suspend fun loadLocalOnly(isNightTheme: Boolean): List<Entry> = withContext(IO) {
+        loadLocal(isNightTheme)
+    }
+
     suspend fun addFromCurrent(context: Context, name: String, isNightTheme: Boolean): Entry =
         withContext(IO) {
             val normalizedName = name.trim().ifBlank { if (isNightTheme) "夜间主题" else "日间主题" }
@@ -65,16 +70,30 @@ object ThemePackageManager {
 
     suspend fun upload(entry: Entry) = withContext(IO) {
         if (!AppConfig.syncThemePackages) return@withContext
-        val dir = entry.localDir ?: return@withContext
-        AppWebDav.uploadThemePackage(entry.packageInfo.isNightTheme, entry.dirName, dir)
+        AppWebDav.uploadThemePackage(
+            entry.packageInfo.isNightTheme,
+            entry.dirName,
+            exportZip(entry)
+        )
     }
 
     suspend fun download(entry: Entry): Entry = withContext(IO) {
-        val dir = localDir(entry.packageInfo.isNightTheme, entry.dirName)
-        AppWebDav.downloadThemePackage(entry.packageInfo.isNightTheme, entry.dirName, dir)
-        readPackage(dir)?.let {
-            Entry(it, Source.BOTH, localDir = dir, remoteUpdatedAt = entry.remoteUpdatedAt)
-        } ?: entry
+        val zipFile = tempDir.getFile("${entry.dirName}.zip")
+        AppWebDav.downloadThemePackage(entry.packageInfo.isNightTheme, entry.dirName, zipFile)
+        importZipInternal(zipFile, entry.remoteUpdatedAt).copy(source = Source.BOTH)
+    }
+
+    suspend fun importZip(zipFile: File): Entry = withContext(IO) {
+        importZipInternal(zipFile, 0L)
+    }
+
+    suspend fun exportZip(entry: Entry): File = withContext(IO) {
+        val localEntry = if (entry.source == Source.REMOTE) download(entry) else entry
+        val dir = localEntry.localDir ?: localDir(localEntry.packageInfo.isNightTheme, localEntry.dirName)
+        val zipFile = tempDir.getFile("${localEntry.dirName}.zip")
+        if (zipFile.exists()) zipFile.delete()
+        ZipUtils.zipFile(dir, zipFile)
+        zipFile
     }
 
     suspend fun deleteLocal(entry: Entry) = withContext(IO) {
@@ -130,7 +149,7 @@ object ThemePackageManager {
 
     private suspend fun loadRemote(isNightTheme: Boolean): List<Entry> {
         return AppWebDav.listThemePackages(isNightTheme).map { remoteDir ->
-            val dirName = remoteDir.displayName.trimEnd('/')
+            val dirName = remoteDir.displayName.trimEnd('/').removeSuffix(".zip")
             Entry(
                 packageInfo = Package(
                     name = dirName,
@@ -149,6 +168,27 @@ object ThemePackageManager {
         val file = File(dir, packageFileName)
         if (!file.exists()) return null
         return GSON.fromJsonObject<Package>(file.readText()).getOrNull()
+    }
+
+    private fun importZipInternal(zipFile: File, remoteUpdatedAt: Long): Entry {
+        val unzipDir = tempDir.getFile("import_${System.currentTimeMillis()}").apply {
+            if (exists()) FileUtils.delete(this, deleteRootDir = true)
+            mkdirs()
+        }
+        ZipUtils.unZipToPath(zipFile, unzipDir)
+        val packageFile = unzipDir.walkTopDown().firstOrNull { it.isFile && it.name == packageFileName }
+            ?: throw IllegalArgumentException("未找到主题配置文件")
+        val pkg = GSON.fromJsonObject<Package>(packageFile.readText()).getOrThrow()
+        val dirName = pkg.dirName.ifBlank { pkg.name.normalizeFileName() }
+        val targetDir = localDir(pkg.isNightTheme, dirName)
+        if (targetDir.exists()) {
+            FileUtils.delete(targetDir, deleteRootDir = true)
+        }
+        targetDir.mkdirs()
+        packageFile.parentFile?.copyRecursively(targetDir, overwrite = true)
+        val targetPackage = readPackage(targetDir) ?: pkg
+        ThemeConfig.addConfig(resolveConfigPaths(targetPackage, targetDir))
+        return Entry(targetPackage, Source.LOCAL, localDir = targetDir, remoteUpdatedAt = remoteUpdatedAt)
     }
 
     private fun copyAssetsIntoPackage(
@@ -209,6 +249,11 @@ object ThemePackageManager {
     fun localDir(isNightTheme: Boolean, dirName: String): File {
         return typeDir(isNightTheme).getFile(dirName)
     }
+
+    private val tempDir: File
+        get() = rootDir.getFile("temp").apply {
+            if (!exists()) mkdirs()
+        }
 
     private fun typeDir(isNightTheme: Boolean): File {
         return rootDir.getFile(if (isNightTheme) "night" else "day").apply {

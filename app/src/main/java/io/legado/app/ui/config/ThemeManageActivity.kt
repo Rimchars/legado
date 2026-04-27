@@ -4,6 +4,8 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.graphics.toColorInt
@@ -72,6 +74,16 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             }
         }
     }
+    private val importThemePackage = registerForActivityResult(HandleFileContract()) {
+        it.uri?.let { uri ->
+            importThemeZip(uri)
+        }
+    }
+    private val exportThemePackage = registerForActivityResult(HandleFileContract()) {
+        it.uri?.let {
+            toastOnUi("主题 ZIP 已导出")
+        }
+    }
     private val dateFormat by lazy {
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     }
@@ -79,6 +91,25 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         initView()
         loadThemes()
+    }
+
+    override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
+        menu.add(0, menuImportThemeZip, 0, "导入ZIP").apply {
+            setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+        }
+        return super.onCompatCreateOptionsMenu(menu)
+    }
+
+    override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == menuImportThemeZip) {
+            importThemePackage.launch {
+                mode = HandleFileContract.FILE
+                title = "导入主题 ZIP"
+                allowExtensions = arrayOf("zip")
+            }
+            return true
+        }
+        return super.onCompatOptionsItemSelected(item)
     }
 
     private fun initView() = binding.run {
@@ -112,12 +143,22 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     private fun loadThemes() {
-        binding.tvSummary.text = if (AppConfig.syncThemePackages) {
-            "正在读取本地和云端主题..."
-        } else {
-            "正在读取本地主题..."
-        }
+        binding.tvSummary.text = "正在读取本地主题..."
         lifecycleScope.launch {
+            kotlin.runCatching {
+                ThemePackageManager.loadLocalOnly(isNightTheme)
+            }.onSuccess {
+                adapter.items = it
+                binding.tvSummary.text = if (it.isEmpty()) {
+                    "暂无主题。添加会保存当前${if (isNightTheme) "夜间" else "日间"}主题。"
+                } else {
+                    "共 ${it.size} 个本地主题。"
+                }
+            }.onFailure {
+                binding.tvSummary.text = "读取失败：${it.localizedMessage}"
+            }
+            if (!AppConfig.syncThemePackages) return@launch
+            binding.tvSummary.text = "正在合并云端主题..."
             kotlin.runCatching {
                 ThemePackageManager.load(isNightTheme)
             }.onSuccess {
@@ -125,10 +166,10 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 binding.tvSummary.text = if (it.isEmpty()) {
                     "暂无主题。添加会保存当前${if (isNightTheme) "夜间" else "日间"}主题。"
                 } else {
-                    "共 ${it.size} 个主题${if (AppConfig.syncThemePackages) "，已合并本地和云端状态" else "，当前仅显示本地"}。"
+                    "共 ${it.size} 个主题，已合并本地和云端 ZIP 状态。"
                 }
             }.onFailure {
-                binding.tvSummary.text = "读取失败：${it.localizedMessage}"
+                binding.tvSummary.text = "云端读取失败，已显示本地主题：${it.localizedMessage}"
             }
         }
     }
@@ -433,6 +474,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         val actions = buildList {
             add("应用")
             add("编辑")
+            if (entry.source != ThemePackageManager.Source.REMOTE) add("导出ZIP")
             if (entry.source != ThemePackageManager.Source.LOCAL) add("下载到本地")
             if (entry.source != ThemePackageManager.Source.REMOTE) add("上传到云端")
             if (entry.source != ThemePackageManager.Source.REMOTE) add("删除本地")
@@ -443,6 +485,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             when (actions[index]) {
                 "应用" -> applyTheme(entry)
                 "编辑" -> showEditDialog(entry)
+                "导出ZIP" -> exportThemeZip(entry)
                 "下载到本地" -> runAction("下载完成") { ThemePackageManager.download(entry) }
                 "上传到云端" -> runAction("上传完成") { ThemePackageManager.upload(entry) }
                 "删除本地" -> confirmDelete("删除本地主题？") { ThemePackageManager.deleteLocal(entry) }
@@ -451,6 +494,44 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                     ThemePackageManager.deleteLocal(entry)
                     ThemePackageManager.deleteRemote(entry)
                 }
+            }
+        }
+    }
+
+    private fun exportThemeZip(entry: ThemePackageManager.Entry) {
+        lifecycleScope.launch {
+            kotlin.runCatching {
+                ThemePackageManager.exportZip(entry)
+            }.onSuccess { zipFile ->
+                exportThemePackage.launch {
+                    mode = HandleFileContract.EXPORT
+                    fileData = HandleFileContract.FileData(
+                        zipFile.name,
+                        zipFile,
+                        "application/zip"
+                    )
+                }
+            }.onFailure {
+                toastOnUi("导出主题失败：${it.localizedMessage}")
+            }
+        }
+    }
+
+    private fun importThemeZip(uri: Uri) {
+        lifecycleScope.launch {
+            kotlin.runCatching {
+                val dir = externalFiles.getFile("themePackageImports").apply { mkdirs() }
+                val file = File(dir, "import_${System.currentTimeMillis()}.zip")
+                contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(file).use { output -> input.copyTo(output) }
+                } ?: throw IllegalArgumentException("无法读取主题 ZIP")
+                ThemePackageManager.importZip(file)
+            }.onSuccess {
+                toastOnUi("主题已导入")
+                loadThemes()
+                uploadThemeInBackground(it)
+            }.onFailure {
+                toastOnUi("导入主题失败：${it.localizedMessage}")
             }
         }
     }
@@ -586,5 +667,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         private const val colorBottomBackground = 404
         private const val colorPrimaryText = 405
         private const val colorSecondaryText = 406
+        private const val menuImportThemeZip = 501
     }
 }
