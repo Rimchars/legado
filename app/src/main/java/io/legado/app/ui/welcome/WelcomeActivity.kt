@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.core.view.postDelayed
+import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
 import io.legado.app.constant.PreferKey
@@ -20,6 +21,9 @@ import io.legado.app.utils.getPrefInt
 import io.legado.app.utils.setStatusBarColorAuto
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 open class WelcomeActivity : BaseActivity<ActivityWelcomeBinding>() {
 
@@ -54,17 +58,21 @@ open class WelcomeActivity : BaseActivity<ActivityWelcomeBinding>() {
 
     private fun startMainActivity() {
         startActivity<MainActivity>()
-        val lastReadBook = appDb.bookDao.lastReadBook
-        if (getPrefBoolean(PreferKey.defaultToRead) && lastReadBook != null) {
-            if (lastReadBook.isEpub) {
-                startActivity<ReadiumEpubActivity> {
-                    putExtra("bookUrl", lastReadBook.bookUrl)
-                }
-            } else {
-                startActivity<ReadBookActivity>()
+        lifecycleScope.launch {
+            val lastReadBook = withContext(Dispatchers.IO) {
+                appDb.bookDao.lastReadBook
             }
+            if (getPrefBoolean(PreferKey.defaultToRead) && lastReadBook != null) {
+                if (lastReadBook.isEpub) {
+                    startActivity<ReadiumEpubActivity> {
+                        putExtra("bookUrl", lastReadBook.bookUrl)
+                    }
+                } else {
+                    startActivity<ReadBookActivity>()
+                }
+            }
+            finish()
         }
-        finish()
     }
 
 }

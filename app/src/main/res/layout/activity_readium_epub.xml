@@ -136,6 +136,94 @@
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="14sp" />
             </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingTop="10dp">
+
+                <TextView
+                    android:id="@+id/btnFontMinus"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_read_menu_quick_action_button"
+                    android:gravity="center"
+                    android:text="字号-"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/btnFontPlus"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_read_menu_quick_action_button"
+                    android:gravity="center"
+                    android:text="字号+"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/btnLineHeight"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_read_menu_quick_action_button"
+                    android:gravity="center"
+                    android:text="行距"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/btnMargin"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_read_menu_quick_action_button"
+                    android:gravity="center"
+                    android:text="边距"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingTop="10dp">
+
+                <TextView
+                    android:id="@+id/btnScrollMode"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_read_menu_quick_action_button"
+                    android:gravity="center"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/btnPublisherStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_read_menu_quick_action_button"
+                    android:gravity="center"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="13sp" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 
