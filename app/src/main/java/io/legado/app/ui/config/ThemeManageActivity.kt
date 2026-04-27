@@ -4,8 +4,6 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.graphics.toColorInt
@@ -94,25 +92,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         loadThemes()
     }
 
-    override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
-        menu.add(0, menuImportThemeZip, 0, "导入ZIP").apply {
-            setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-        }
-        return super.onCompatCreateOptionsMenu(menu)
-    }
-
-    override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == menuImportThemeZip) {
-            importThemePackage.launch {
-                mode = HandleFileContract.FILE
-                title = "导入主题 ZIP"
-                allowExtensions = arrayOf("zip")
-            }
-            return true
-        }
-        return super.onCompatOptionsItemSelected(item)
-    }
-
     private fun initView() = binding.run {
         recyclerView.layoutManager = LinearLayoutManager(this@ThemeManageActivity)
         recyclerView.adapter = adapter
@@ -176,16 +155,25 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     private fun showAddDialog() {
-        alert("添加主题") {
+        selector("添加主题", listOf("手动配置", "导入 ZIP")) { _, index ->
+            when (index) {
+                0 -> showManualAddDialog()
+                1 -> importThemePackage.launch {
+                    mode = HandleFileContract.FILE
+                    title = "导入主题 ZIP"
+                    allowExtensions = arrayOf("zip")
+                }
+            }
+        }
+    }
+
+    private fun showManualAddDialog() {
+        alert("手动添加主题") {
             val dialogBinding = createEditBinding(currentConfig(), null)
             editDialogBinding = dialogBinding
             editingEntry = null
             customView { dialogBinding.root }
-            okButton {
-                saveTheme(dialogBinding)
-                editDialogBinding = null
-                editingEntry = null
-            }
+            okButton { saveTheme(dialogBinding) }
             onDismiss {
                 editDialogBinding = null
                 editingEntry = null
@@ -374,6 +362,14 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         lifecycleScope.launch {
             kotlin.runCatching {
                 val wasApplied = oldEntry?.let { isApplied(it) } == true
+                val exists = ThemePackageManager.themeExists(
+                    config.isNightTheme,
+                    config.themeName,
+                    oldEntry?.dirName
+                )
+                if (exists) {
+                    throw IllegalArgumentException("已存在同名主题")
+                }
                 val entry = ThemePackageManager.addFromConfig(config)
                 if (oldEntry != null && oldEntry.dirName != entry.dirName) {
                     if (oldEntry.source != ThemePackageManager.Source.REMOTE) {
@@ -478,9 +474,11 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             if (entry.source != ThemePackageManager.Source.REMOTE) add("导出ZIP")
             if (entry.source != ThemePackageManager.Source.LOCAL) add("下载到本地")
             if (entry.source != ThemePackageManager.Source.REMOTE) add("上传到云端")
-            if (entry.source != ThemePackageManager.Source.REMOTE) add("删除本地")
-            if (entry.source != ThemePackageManager.Source.LOCAL) add("删除云端")
-            if (entry.source == ThemePackageManager.Source.BOTH) add("同时删除")
+            if (!isApplied(entry)) {
+                if (entry.source != ThemePackageManager.Source.REMOTE) add("删除本地")
+                if (entry.source != ThemePackageManager.Source.LOCAL) add("删除云端")
+                if (entry.source == ThemePackageManager.Source.BOTH) add("同时删除")
+            }
         }
         selector(entry.packageInfo.name, actions) { _, index ->
             when (actions[index]) {
@@ -489,9 +487,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 "导出ZIP" -> exportThemeZip(entry)
                 "下载到本地" -> runAction("下载完成") { ThemePackageManager.download(entry) }
                 "上传到云端" -> runAction("上传完成") { ThemePackageManager.upload(entry) }
-                "删除本地" -> confirmDelete("删除本地主题？") { ThemePackageManager.deleteLocal(entry) }
-                "删除云端" -> confirmDelete("删除云端主题？") { ThemePackageManager.deleteRemote(entry) }
-                "同时删除" -> confirmDelete("同时删除本地和云端主题？") {
+                "删除本地" -> confirmDeleteTheme(entry, "删除本地主题？") { ThemePackageManager.deleteLocal(entry) }
+                "删除云端" -> confirmDeleteTheme(entry, "删除云端主题？") { ThemePackageManager.deleteRemote(entry) }
+                "同时删除" -> confirmDeleteTheme(entry, "同时删除本地和云端主题？") {
                     ThemePackageManager.deleteLocal(entry)
                     ThemePackageManager.deleteRemote(entry)
                 }
@@ -580,6 +578,18 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             }
             noButton()
         }
+    }
+
+    private fun confirmDeleteTheme(
+        entry: ThemePackageManager.Entry,
+        message: String,
+        block: suspend () -> Unit
+    ) {
+        if (isApplied(entry)) {
+            toastOnUi("当前正在应用，不能删除")
+            return
+        }
+        confirmDelete(message, block)
     }
 
     private inner class Adapter : RecyclerView.Adapter<Adapter.Holder>() {
@@ -696,6 +706,5 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         private const val colorBottomBackground = 404
         private const val colorPrimaryText = 405
         private const val colorSecondaryText = 406
-        private const val menuImportThemeZip = 501
     }
 }

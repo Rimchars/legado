@@ -303,7 +303,10 @@ dependencies {
     implementation(libs.markwon.core)
     implementation(libs.markwon.image.glide)
     implementation(libs.markwon.ext.tables)
+    implementation(libs.markwon.ext.strikethrough)
+    implementation(libs.markwon.ext.tasklist)
     implementation(libs.markwon.html)
+    implementation(libs.markwon.linkify)
 
     //转换繁体
     implementation(libs.quick.chinese.transfer.core)

@@ -2,22 +2,35 @@ package io.legado.app.ui.main.ai
 
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.text.Spannable
+import android.text.TextPaint
+import android.text.style.ClickableSpan
+import android.text.style.URLSpan
+import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
+import io.legado.app.data.entities.SearchBook
 import io.legado.app.databinding.ItemAiMessageAssistantBinding
 import io.legado.app.databinding.ItemAiMessageUserBinding
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
+import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
 import io.noties.markwon.Markwon
+import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.ext.tables.TablePlugin
+import io.noties.markwon.ext.tasklist.TaskListPlugin
 import io.noties.markwon.html.HtmlPlugin
+import io.noties.markwon.linkify.LinkifyPlugin
 
 class AiChatAdapter(
     private val context: Context
@@ -27,7 +40,10 @@ class AiChatAdapter(
     private val markwon: Markwon by lazy {
         Markwon.builder(context)
             .usePlugin(TablePlugin.create(context))
+            .usePlugin(StrikethroughPlugin.create())
+            .usePlugin(TaskListPlugin.create(context))
             .usePlugin(HtmlPlugin.create())
+            .usePlugin(LinkifyPlugin.create())
             .build()
     }
 
@@ -95,6 +111,45 @@ class AiChatAdapter(
         }
     }
 
+    private fun installSearchBookLinks(textView: TextView) {
+        val spannable = textView.text as? Spannable ?: return
+        val spans = spannable.getSpans(0, spannable.length, URLSpan::class.java)
+        spans.forEach { span ->
+            val url = span.url
+            if (!url.startsWith(searchBookScheme)) return@forEach
+            val start = spannable.getSpanStart(span)
+            val end = spannable.getSpanEnd(span)
+            val flags = spannable.getSpanFlags(span)
+            spannable.removeSpan(span)
+            spannable.setSpan(SearchBookSpan(url), start, end, flags)
+        }
+    }
+
+    private inner class SearchBookSpan(
+        private val url: String
+    ) : ClickableSpan() {
+
+        override fun onClick(widget: View) {
+            val uri = Uri.parse(url)
+            val isVideo = uri.getQueryParameter("target") == "video"
+            val book = SearchBook(
+                name = uri.getQueryParameter("name").orEmpty(),
+                author = uri.getQueryParameter("author").orEmpty(),
+                bookUrl = uri.getQueryParameter("bookUrl").orEmpty(),
+                origin = uri.getQueryParameter("origin").orEmpty(),
+                originName = uri.getQueryParameter("originName").orEmpty()
+            )
+            if (book.bookUrl.isBlank() || book.origin.isBlank()) return
+            SearchBookOpenHelper.open(context, book, isVideo)
+        }
+
+        override fun updateDrawState(ds: TextPaint) {
+            super.updateDrawState(ds)
+            ds.color = context.accentColor
+            ds.isUnderlineText = false
+        }
+    }
+
     private inner class UserViewHolder(
         private val binding: ItemAiMessageUserBinding
     ) : RecyclerView.ViewHolder(binding.root) {
@@ -132,12 +187,16 @@ class AiChatAdapter(
             binding.tvMessage.background = createBubble(bubbleColor, strokeColor, isUser = false)
             binding.tvMessage.setTextColor(context.primaryTextColor)
             binding.tvMessage.alpha = if (message.pending) 0.76f else 1f
+            binding.tvMessage.movementMethod = LinkMovementMethod.getInstance()
+            binding.tvMessage.linksClickable = true
             markwon.setMarkdown(binding.tvMessage, message.content)
+            installSearchBookLinks(binding.tvMessage)
         }
     }
 
     private companion object {
         const val TYPE_USER = 1
         const val TYPE_ASSISTANT = 2
+        const val searchBookScheme = "legado-search-book://"
     }
 }

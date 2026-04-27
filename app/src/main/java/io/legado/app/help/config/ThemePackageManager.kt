@@ -68,6 +68,26 @@ object ThemePackageManager {
         saveConfig(config)
     }
 
+    suspend fun themeExists(
+        isNightTheme: Boolean,
+        themeName: String,
+        excludeDirName: String? = null
+    ): Boolean = withContext(IO) {
+        val normalizedDirName = themeName.trim().normalizeFileName()
+        val localExists = loadLocal(isNightTheme).any {
+            it.dirName == normalizedDirName && it.dirName != excludeDirName
+        }
+        if (localExists) {
+            return@withContext true
+        }
+        if (!AppConfig.syncThemePackages) {
+            return@withContext false
+        }
+        loadRemote(isNightTheme).any {
+            it.dirName == normalizedDirName && it.dirName != excludeDirName
+        }
+    }
+
     suspend fun upload(entry: Entry) = withContext(IO) {
         if (!AppConfig.syncThemePackages) return@withContext
         AppWebDav.uploadThemePackage(
@@ -84,6 +104,10 @@ object ThemePackageManager {
     }
 
     suspend fun importZip(zipFile: File): Entry = withContext(IO) {
+        val pkg = peekPackage(zipFile)
+        if (themeExists(pkg.isNightTheme, pkg.name)) {
+            throw IllegalArgumentException("已存在同名主题")
+        }
         importZipInternal(zipFile, 0L)
     }
 
@@ -168,6 +192,21 @@ object ThemePackageManager {
         val file = File(dir, packageFileName)
         if (!file.exists()) return null
         return GSON.fromJsonObject<Package>(file.readText()).getOrNull()
+    }
+
+    private fun peekPackage(zipFile: File): Package {
+        val unzipDir = tempDir.getFile("peek_${System.currentTimeMillis()}").apply {
+            if (exists()) FileUtils.delete(this, deleteRootDir = true)
+            mkdirs()
+        }
+        return try {
+            ZipUtils.unZipToPath(zipFile, unzipDir) { it.endsWith(packageFileName) }
+            val packageFile = unzipDir.walkTopDown().firstOrNull { it.isFile && it.name == packageFileName }
+                ?: throw IllegalArgumentException("未找到主题配置文件")
+            GSON.fromJsonObject<Package>(packageFile.readText()).getOrThrow()
+        } finally {
+            FileUtils.delete(unzipDir, deleteRootDir = true)
+        }
     }
 
     private fun importZipInternal(zipFile: File, remoteUpdatedAt: Long): Entry {
