@@ -1517,4 +1517,7 @@
     <string name="source_variable_hint">Source variables can be read in JS with source.getVariable()</string>
     <string name="book_variable_hint">Book variables can be read in JS with book.getVariable(&quot;custom&quot;)</string>
     <string name="disable">Disable</string>
+    <string name="video_source_label">Source: %s</string>
+    <string name="video_book_url_label">Address: %s</string>
+    <string name="video_chapter_progress">Chapter: %1$d / %2$d</string>
 </resources>

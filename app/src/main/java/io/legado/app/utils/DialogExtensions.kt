@@ -3,6 +3,7 @@ package io.legado.app.utils
 import android.app.Activity
 import android.app.Dialog
 import android.os.Build
+import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -38,6 +39,7 @@ fun AlertDialog.applyTint(): AlertDialog {
         listView?.forEach {
             it.applyTint(context.accentColor)
         }
+        applyMaxWidthIfFloating()
     }
     return this
 }
@@ -52,9 +54,10 @@ fun DialogFragment.setLayout(widthMix: Float, heightMix: Float) {
 
 fun Dialog.setLayout(widthMix: Float, heightMix: Float) {
     val dm = context.windowManager.windowSize
+    val height = (dm.heightPixels * heightMix).toInt()
     window?.setLayout(
-        (dm.widthPixels * widthMix).toInt(),
-        (dm.heightPixels * heightMix).toInt()
+        resolveFloatingDialogWidth((dm.widthPixels * widthMix).toInt(), height),
+        height
     )
 }
 
@@ -64,9 +67,10 @@ fun DialogFragment.setLayout(width: Int, heightMix: Float) {
 
 fun Dialog.setLayout(width: Int, heightMix: Float) {
     val dm = context.windowManager.windowSize
+    val height = (dm.heightPixels * heightMix).toInt()
     window?.setLayout(
-        width,
-        (dm.heightPixels * heightMix).toInt()
+        resolveFloatingDialogWidth(width, height),
+        height
     )
 }
 
@@ -77,7 +81,7 @@ fun DialogFragment.setLayout(widthMix: Float, height: Int) {
 fun Dialog.setLayout(widthMix: Float, height: Int) {
     val dm = context.windowManager.windowSize
     window?.setLayout(
-        (dm.widthPixels * widthMix).toInt(),
+        resolveFloatingDialogWidth((dm.widthPixels * widthMix).toInt(), height),
         height
     )
 }
@@ -87,7 +91,31 @@ fun DialogFragment.setLayout(width: Int, height: Int) {
 }
 
 fun Dialog.setLayout(width: Int, height: Int) {
-    window?.setLayout(width, height)
+    window?.setLayout(resolveFloatingDialogWidth(width, height), height)
+}
+
+private fun Dialog.applyMaxWidthIfFloating() {
+    val attrs = window?.attributes ?: return
+    val width = attrs.width
+    val height = attrs.height
+    if (width > 0 || width == WindowManager.LayoutParams.MATCH_PARENT) {
+        window?.setLayout(resolveFloatingDialogWidth(width, height), height)
+    }
+}
+
+private fun Dialog.resolveFloatingDialogWidth(width: Int, height: Int): Int {
+    val attrs = window?.attributes ?: return width
+    val isSheet = attrs.gravity and Gravity.BOTTOM == Gravity.BOTTOM ||
+            attrs.gravity and Gravity.TOP == Gravity.TOP
+    val isFullScreen = height == WindowManager.LayoutParams.MATCH_PARENT
+    if (isSheet || isFullScreen) return width
+    val dm = context.windowManager.windowSize
+    val maxWidth = minOf((dm.widthPixels * 0.88f).toInt(), 520.dpToPx())
+    return when {
+        width == WindowManager.LayoutParams.MATCH_PARENT -> maxWidth
+        width > maxWidth -> maxWidth
+        else -> width
+    }
 }
 
 fun Dialog.toggleSystemBar(show: Boolean) {

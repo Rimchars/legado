@@ -54,6 +54,7 @@ import io.legado.app.help.webView.WebJsExtensions.Companion.nameJava
 import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.help.webView.WebViewPool
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.model.VideoPlay
@@ -145,6 +146,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
     private var isNew = true
     private var isFullScreen = false
     private var preparedVideoStarted = false
+    private var detailTabIndex = 0
     private var orientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private var menuCustomBtn: MenuItem? = null
     private val bookSourceEditResult =
@@ -188,6 +190,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
         playerView.enlargeImageRes = R.drawable.ic_fullscreen
         isNew = intent.getBooleanExtra("isNew", true)
         setupPlayerView()
+        setupDetailTabs()
         if (isNew) {
             intent.getStringExtra("videoUrl")?.let {
                 VideoPlay.videoUrl = it
@@ -235,12 +238,10 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
         binding.root.setBackgroundColor(backgroundColor)
         val book = VideoPlay.book
         if (book == null) {
-            binding.data.invisible()
-            binding.chaptersContainer.invisible()
+            binding.bottomPanel.invisible()
             return
         }
-        binding.data.visible()
-        binding.chaptersContainer.visible()
+        binding.bottomPanel.visible()
         showBook(book)
         if (VideoPlay.episodes.isNullOrEmpty()) {
             binding.chapters.gone()
@@ -253,6 +254,27 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
         } else {
             binding.volumes.visible()
             showVolumes(VideoPlay.volumes)
+        }
+        selectVideoDetailTab(detailTabIndex)
+    }
+
+    private fun setupDetailTabs() {
+        binding.tabIntro.setOnClickListener { selectVideoDetailTab(0) }
+        binding.tabToc.setOnClickListener { selectVideoDetailTab(1) }
+        binding.tabInfo.setOnClickListener { selectVideoDetailTab(2) }
+        selectVideoDetailTab(0)
+    }
+
+    private fun selectVideoDetailTab(index: Int) {
+        detailTabIndex = index.coerceIn(0, 2)
+        binding.panelIntro.visibility = if (detailTabIndex == 0) View.VISIBLE else View.GONE
+        binding.chaptersContainer.visibility = if (detailTabIndex == 1) View.VISIBLE else View.GONE
+        binding.panelInfo.visibility = if (detailTabIndex == 2) View.VISIBLE else View.GONE
+        val tabs = listOf(binding.tabIntro, binding.tabToc, binding.tabInfo)
+        tabs.forEachIndexed { tabIndex, tab ->
+            val selected = tabIndex == detailTabIndex
+            tab.isSelected = selected
+            tab.setTextColor(if (selected) accentColor else primaryTextColor)
         }
     }
 
@@ -317,7 +339,25 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
                 tvAuthor.text = it
             } ?: tvAuthor.gone()
             showBookIntro(book)
+            showVideoInfo(book)
         }
+    }
+
+    private fun showVideoInfo(book: Book) {
+        val sourceName = when (val source = VideoPlay.source) {
+            is BookSource -> source.bookSourceName.ifBlank { source.bookSourceUrl }
+            is RssSource -> source.sourceName.ifBlank { source.sourceUrl }
+            else -> book.origin
+        }.ifBlank { getString(R.string.error_no_source) }
+        val episodes = VideoPlay.episodes.orEmpty()
+        val chapterIndex = if (episodes.isEmpty()) 0 else VideoPlay.chapterInVolumeIndex + 1
+        binding.tvVideoSource.text = getString(R.string.video_source_label, sourceName)
+        binding.tvVideoUrl.text = getString(R.string.video_book_url_label, book.bookUrl)
+        binding.tvVideoChapterInfo.text = getString(
+            R.string.video_chapter_progress,
+            chapterIndex,
+            episodes.size
+        )
     }
 
     inner class CustomWebViewClient : WebViewClient() {
@@ -559,15 +599,14 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE //横屏
             }
             supportActionBar?.hide()
-            binding.chaptersContainer.gone()
-            binding.data.gone()
+            binding.bottomPanel.gone()
             playerView.startWindowFullscreen(this, false, false)
         } else {
             requestedOrientation = orientation
             supportActionBar?.show()
             if (VideoPlay.book != null) {
-                binding.chaptersContainer.visible()
-                binding.data.visible()
+                binding.bottomPanel.visible()
+                selectVideoDetailTab(detailTabIndex)
             }
             playerView.postDelayed({
                 playerView.backFromFull(this)
