@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.webkit.JavascriptInterface
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -18,6 +19,7 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.ActivityEpubJsBinding
 import io.legado.app.help.book.isEpub
+import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.model.localBook.LocalBook
 import io.legado.app.ui.book.toc.TocActivityResult
@@ -39,6 +41,7 @@ import java.io.FileOutputStream
 import java.util.Locale
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
+import kotlin.math.abs
 
 class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
 
@@ -49,6 +52,12 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
     private var tocItems: List<TocItem> = emptyList()
     private var menuVisible = false
     private var userSeekingChapter = false
+    private var downX = 0f
+    private var downY = 0f
+    private var dragDirection = 0
+    private var horizontalDragging = false
+    private var moved = false
+    private val touchSlop by lazy { ViewConfiguration.get(this).scaledTouchSlop }
     private val fontFamilyKey = "epubJsFontFamily"
     private val tocActivity = registerForActivityResult(TocActivityResult()) { result ->
         val chapterIndex = result?.getOrNull(0) as? Int ?: return@registerForActivityResult
@@ -76,16 +85,69 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         binding.webView.settings.allowUniversalAccessFromFileURLs = true
         binding.webView.addJavascriptInterface(Bridge(), "AndroidBridge")
         binding.webView.setOnTouchListener { view, event ->
-            if (event.action == MotionEvent.ACTION_UP) {
-                val width = view.width
-                when {
-                    event.x < width * 0.22f -> evaluate("scrollPage(-1)")
-                    event.x > width * 0.78f -> evaluate("scrollPage(1)")
-                    else -> toggleMenu()
+            handleReadTouch(view, event)
+        }
+    }
+
+    private fun handleReadTouch(view: View, event: MotionEvent): Boolean {
+        if (menuVisible) return false
+        if (currentPageAnim() == PageAnim.scrollPageAnim) {
+            if (event.action == MotionEvent.ACTION_UP && !moved) {
+                performClickAction(resolveClickAction(event.x, event.y, view.width, view.height))
+            }
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                downX = event.x
+                downY = event.y
+                moved = false
+            } else if (event.action == MotionEvent.ACTION_MOVE) {
+                moved = moved || abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop
+            }
+            return false
+        }
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                dragDirection = 0
+                horizontalDragging = false
+                moved = false
+                evaluate("cancelPageDrag()")
+                return false
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.x - downX
+                val dy = event.y - downY
+                if (!horizontalDragging) {
+                    moved = moved || abs(dx) > touchSlop || abs(dy) > touchSlop
+                    if (abs(dx) > touchSlop && abs(dx) > abs(dy) * 1.2f) {
+                        dragDirection = if (dx < 0) 1 else -1
+                        horizontalDragging = true
+                        evaluate("beginPageDrag($dragDirection)")
+                    } else {
+                        return false
+                    }
+                }
+                evaluate("updatePageDrag(${dx.toInt()})")
+                return true
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val dx = event.x - downX
+                val commit = horizontalDragging && abs(dx) > view.width * 0.18f
+                if (horizontalDragging) {
+                    evaluate("endPageDrag(${if (commit) "true" else "false"})")
+                    horizontalDragging = false
+                    dragDirection = 0
+                    return true
+                }
+                if (!moved) {
+                    performClickAction(resolveClickAction(event.x, event.y, view.width, view.height))
+                    return true
                 }
             }
-            false
         }
+        return false
     }
 
     private fun initMenu() {
@@ -312,6 +374,41 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
             lifecycleScope.launch(IO) { it.save() }
         }
         evaluate("display(${JSONObject.quote(chapter.url)})")
+    }
+
+    private fun resolveClickAction(x: Float, y: Float, width: Int, height: Int): Int {
+        val column = when {
+            x < width * 0.33f -> 0
+            x < width * 0.66f -> 1
+            else -> 2
+        }
+        val row = when {
+            y < height * 0.33f -> 0
+            y < height * 0.66f -> 1
+            else -> 2
+        }
+        return when (row * 3 + column) {
+            0 -> AppConfig.clickActionTL
+            1 -> AppConfig.clickActionTC
+            2 -> AppConfig.clickActionTR
+            3 -> AppConfig.clickActionML
+            4 -> AppConfig.clickActionMC
+            5 -> AppConfig.clickActionMR
+            6 -> AppConfig.clickActionBL
+            7 -> AppConfig.clickActionBC
+            else -> AppConfig.clickActionBR
+        }
+    }
+
+    private fun performClickAction(action: Int) {
+        when (action) {
+            0 -> toggleMenu()
+            1 -> evaluate("scrollPage(1)")
+            2 -> evaluate("scrollPage(-1)")
+            3 -> openChapterByOffset(1)
+            4 -> openChapterByOffset(-1)
+            10 -> showTocPage()
+        }
     }
 
     private fun currentPageAnim(): Int {
