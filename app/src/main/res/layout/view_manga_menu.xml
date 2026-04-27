@@ -84,57 +84,39 @@
         app:layout_constraintBottom_toBottomOf="parent">
 
         <LinearLayout
+            android:id="@+id/ll_manga_control_pill"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="16dp"
-            android:layout_marginTop="14dp"
-            android:layout_marginRight="16dp"
-            android:layout_marginBottom="14dp"
+            android:layout_height="@dimen/manga_control_bar_height"
+            android:layout_marginStart="@dimen/manga_control_outer_margin_horizontal"
+            android:layout_marginTop="@dimen/manga_control_outer_margin_vertical"
+            android:layout_marginEnd="@dimen/manga_control_outer_margin_horizontal"
+            android:layout_marginBottom="@dimen/manga_control_outer_margin_vertical"
+            android:background="@drawable/bg_manga_control_pill"
             android:gravity="center_vertical"
             android:importantForAccessibility="no"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/manga_control_bar_padding_horizontal"
+            android:paddingEnd="@dimen/manga_control_bar_padding_horizontal">
 
             <TextView
                 android:id="@+id/tv_pre"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_read_menu_touch"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:minWidth="72dp"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                style="@style/MangaControlButton"
                 android:text="@string/previous_chapter"
-                android:textColor="@color/primaryText"
-                android:textSize="13sp"
                 tools:ignore="TouchTargetSizeCheck" />
 
             <io.legado.app.lib.theme.view.ThemeSeekBar
                 android:id="@+id/seek_read_page"
                 android:layout_width="0dp"
-                android:layout_height="28dp"
+                android:layout_height="@dimen/manga_control_seek_height"
                 android:layout_gravity="center_vertical"
-                android:layout_marginStart="14dp"
-                android:layout_marginEnd="14dp"
+                android:layout_marginStart="@dimen/manga_control_seek_margin_horizontal"
+                android:layout_marginEnd="@dimen/manga_control_seek_margin_horizontal"
                 android:layout_weight="1" />
 
             <TextView
                 android:id="@+id/tv_next"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_read_menu_touch"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:minWidth="72dp"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                style="@style/MangaControlButton"
                 android:text="@string/next_chapter"
-                android:textColor="@color/primaryText"
-                android:textSize="13sp"
                 tools:ignore="TouchTargetSizeCheck" />
         </LinearLayout>
     </LinearLayout>
