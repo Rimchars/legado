@@ -12,6 +12,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
+import io.legado.app.constant.PageAnim
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
@@ -92,7 +93,7 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         binding.btnNext.setOnClickListener { openChapterByOffset(1) }
         binding.btnToc.setOnClickListener { showTocPage() }
         binding.btnLayout.setOnClickListener { showLayoutDialog() }
-        binding.btnPageAnim.visibility = View.GONE
+        binding.btnPageAnim.setOnClickListener { showPageAnimDialog() }
         binding.btnSetting.setOnClickListener { showFontDialog() }
         binding.seekProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -313,6 +314,32 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         evaluate("display(${JSONObject.quote(chapter.url)})")
     }
 
+    private fun currentPageAnim(): Int {
+        return book?.getPageAnim() ?: ReadBookConfig.pageAnim
+    }
+
+    private fun showPageAnimDialog() {
+        val items = arrayOf(
+            getString(R.string.page_anim_cover),
+            getString(R.string.page_anim_slide),
+            getString(R.string.page_anim_simulation),
+            getString(R.string.page_anim_scroll),
+            getString(R.string.page_anim_none)
+        )
+        val checked = currentPageAnim().coerceIn(PageAnim.coverPageAnim, PageAnim.noAnim)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.page_anim)
+            .setSingleChoiceItems(items, checked) { dialog, which ->
+                book?.setPageAnim(which)
+                lifecycleScope.launch(IO) { book?.save() }
+                ReadBookConfig.pageAnim = which
+                ReadBookConfig.save()
+                evaluate("setPageAnim($which)")
+                dialog.dismiss()
+            }
+            .show()
+    }
+
     private fun openChapter(index: Int) {
         val targetBook = book ?: return
         val maxIndex = when {
@@ -453,6 +480,9 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
 
         @JavascriptInterface
         fun getSavedScrollTop(): Int = book?.durChapterPos ?: 0
+
+        @JavascriptInterface
+        fun getPageAnim(): Int = currentPageAnim()
 
         @JavascriptInterface
         fun getStyle(): String {

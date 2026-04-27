@@ -30,6 +30,9 @@
     let activeChapterIndex = 0;
     let pendingRestoreScroll = 0;
     let reportTimer = 0;
+    let pageAnim = 3;
+    let currentStyle = {};
+    let animating = false;
 
     function notify(type, payload) {
       if (window.AndroidBridge && AndroidBridge.onEvent) {
@@ -40,6 +43,7 @@
     function applyTheme() {
       if (!rendition || !window.AndroidBridge) return;
       const style = JSON.parse(AndroidBridge.getStyle());
+      currentStyle = style;
       document.body.style.background = style.background || "#f7f3ea";
       rendition.themes.default({
         "html": {
@@ -243,6 +247,7 @@
     }
 
     function createRendition() {
+      pageAnim = AndroidBridge.getPageAnim ? AndroidBridge.getPageAnim() : 3;
       rendition = book.renderTo("viewer", {
         width: "100%",
         height: "100%",
@@ -297,23 +302,146 @@
     }
 
     function scrollPage(direction) {
+      if (animating) return;
       const metrics = getScrollPort();
       const step = Math.max(160, Math.floor(metrics.height * 0.86));
       if (direction > 0) {
         if (metrics.top >= metrics.max - 8) {
           notify("pageBoundary", { direction: 1 });
         } else {
-          metrics.scrollTo(Math.min(metrics.max, metrics.top + step));
-          setTimeout(reportLocation, 80);
+          animateScroll(direction, metrics, Math.min(metrics.max, metrics.top + step));
         }
       } else if (direction < 0) {
         if (metrics.top <= 8) {
           notify("pageBoundary", { direction: -1 });
         } else {
-          metrics.scrollTo(Math.max(0, metrics.top - step));
-          setTimeout(reportLocation, 80);
+          animateScroll(direction, metrics, Math.max(0, metrics.top - step));
         }
       }
+    }
+
+    function animateScroll(direction, metrics, targetTop) {
+      const mode = Number(pageAnim);
+      if (mode === 4) {
+        metrics.scrollTo(targetTop);
+        setTimeout(reportLocation, 40);
+        return;
+      }
+      if (mode === 3) {
+        animateNativeScroll(metrics, targetTop, 260);
+        return;
+      }
+      if (mode === 0) {
+        animateCover(direction, metrics, targetTop);
+        return;
+      }
+      if (mode === 1) {
+        animateSlide(direction, metrics, targetTop);
+        return;
+      }
+      if (mode === 2) {
+        animateSimulation(direction, metrics, targetTop);
+        return;
+      }
+      metrics.scrollTo(targetTop);
+      setTimeout(reportLocation, 40);
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function animateNativeScroll(metrics, targetTop, duration) {
+      animating = true;
+      const startTop = metrics.top;
+      const delta = targetTop - startTop;
+      const start = performance.now();
+      function frame(now) {
+        const t = Math.min(1, (now - start) / duration);
+        metrics.scrollTo(startTop + delta * easeOutCubic(t));
+        if (t < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          animating = false;
+          reportLocation();
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function animateSlide(direction, metrics, targetTop) {
+      const viewer = document.getElementById("viewer");
+      animating = true;
+      viewer.style.transition = "transform 180ms ease-out";
+      viewer.style.transform = `translateY(${-direction * 18}px)`;
+      setTimeout(() => {
+        metrics.scrollTo(targetTop);
+        viewer.style.transition = "transform 150ms ease-out";
+        viewer.style.transform = "translateY(0)";
+        setTimeout(() => {
+          viewer.style.transition = "";
+          animating = false;
+          reportLocation();
+        }, 170);
+      }, 120);
+    }
+
+    function animateCover(direction, metrics, targetTop) {
+      const overlay = createAnimOverlay();
+      const from = direction > 0 ? "100%" : "-100%";
+      const to = "0";
+      animating = true;
+      overlay.style.transform = `translateY(${from})`;
+      requestAnimationFrame(() => {
+        overlay.style.transition = "transform 180ms ease-out";
+        overlay.style.transform = `translateY(${to})`;
+      });
+      setTimeout(() => {
+        metrics.scrollTo(targetTop);
+        overlay.style.transition = "transform 180ms ease-in";
+        overlay.style.transform = `translateY(${-direction * 100}%)`;
+        setTimeout(() => {
+          overlay.remove();
+          animating = false;
+          reportLocation();
+        }, 190);
+      }, 190);
+    }
+
+    function animateSimulation(direction, metrics, targetTop) {
+      const viewer = document.getElementById("viewer");
+      animating = true;
+      viewer.style.transformOrigin = direction > 0 ? "center bottom" : "center top";
+      viewer.style.transition = "transform 150ms ease-out, opacity 150ms ease-out";
+      viewer.style.transform = `perspective(900px) rotateX(${direction * 4}deg) scale(0.985)`;
+      viewer.style.opacity = "0.92";
+      setTimeout(() => {
+        metrics.scrollTo(targetTop);
+        viewer.style.transition = "transform 180ms ease-out, opacity 180ms ease-out";
+        viewer.style.transform = "none";
+        viewer.style.opacity = "1";
+        setTimeout(() => {
+          viewer.style.transition = "";
+          viewer.style.transformOrigin = "";
+          animating = false;
+          reportLocation();
+        }, 190);
+      }, 130);
+    }
+
+    function createAnimOverlay() {
+      const overlay = document.createElement("div");
+      overlay.style.position = "fixed";
+      overlay.style.left = "0";
+      overlay.style.top = "0";
+      overlay.style.right = "0";
+      overlay.style.bottom = "0";
+      overlay.style.zIndex = "20";
+      overlay.style.pointerEvents = "none";
+      overlay.style.background = currentStyle.background || "#f7f3ea";
+      overlay.style.boxShadow = "0 -18px 36px rgba(0,0,0,0.12)";
+      document.body.appendChild(overlay);
+      return overlay;
     }
 
     function display(cfiOrHref) {
@@ -328,6 +456,10 @@
 
     function setScrollMode() {
       setStyle();
+    }
+
+    function setPageAnim(value) {
+      pageAnim = Number(value);
     }
 
     document.addEventListener("DOMContentLoaded", openBook);
