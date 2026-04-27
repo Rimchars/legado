@@ -85,23 +85,12 @@
             android:layout_height="0dp"
             android:layout_marginTop="10dp"
             android:layout_weight="1"
-            android:orientation="horizontal">
-
-            <io.legado.app.ui.widget.image.CoverImageView
-                android:id="@+id/iv_cover"
-                android:layout_width="96dp"
-                android:layout_height="136dp"
-                android:contentDescription="@string/img_cover"
-                android:scaleType="centerCrop"
-                android:src="@drawable/image_cover_default"
-                tools:ignore="MissingConstraints" />
+            android:orientation="vertical">
 
             <LinearLayout
                 android:id="@+id/data"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
                 android:orientation="vertical"
                 tools:ignore="NestedWeights">
 
@@ -168,20 +157,20 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="vertical">
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/chapters"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
                     android:layout_weight="1"
-                    android:orientation="horizontal"
+                    android:orientation="vertical"
                     android:padding="6dp"
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
                 <io.legado.app.ui.widget.image.ImageButton
                     android:id="@+id/iv_chapter"
-                    android:layout_width="42dp"
+                    android:layout_width="match_parent"
                     android:layout_height="42dp"
                     android:background="@drawable/bg_more_icon_button_clear"
                     android:contentDescription="@string/chapter_list"
@@ -216,7 +205,7 @@
                 tools:text="Source: example" />
 
             <TextView
-                android:id="@+id/tv_video_url"
+                android:id="@+id/tv_video_origin"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
@@ -225,19 +214,26 @@
                 android:maxLines="2"
                 android:textColor="@color/tv_text_summary"
                 android:textSize="13sp"
-                tools:text="Url: https://example.com/book" />
+                tools:text="Origin: example" />
 
-            <TextView
-                android:id="@+id/tv_video_chapter_info"
+            <Button
+                android:id="@+id/btn_change_source"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:ellipsize="end"
-                android:includeFontPadding="false"
-                android:maxLines="2"
-                android:textColor="@color/tv_text_summary"
-                android:textSize="13sp"
-                tools:text="Chapter: 12 / 120" />
+                android:layout_marginTop="14dp"
+                android:text="@string/change_book_source_action" />
+
+            <Button
+                android:id="@+id/btn_edit_source"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/edit_source" />
+
+            <Button
+                android:id="@+id/btn_login_source"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/login" />
 
         </LinearLayout>
 

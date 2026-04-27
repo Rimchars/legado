@@ -29,6 +29,7 @@ import com.script.rhino.runScriptWithContext
 import io.legado.app.R
 import io.legado.app.base.VMBaseFragment
 import io.legado.app.constant.AppLog
+import io.legado.app.constant.BookSourceType
 import io.legado.app.constant.BookType
 import io.legado.app.data.AppDatabase
 import io.legado.app.data.appDb
@@ -1050,7 +1051,10 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             withContext(IO) {
                 appDb.searchBookDao.insert(book)
             }
-            val isVideo = book.type and BookType.video > 0
+            val isVideo = withContext(IO) {
+                book.type and BookType.video > 0 ||
+                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video
+            }
             val activityClass = if (isVideo) VideoPlayerActivity::class.java else BookInfoActivity::class.java
             startActivity(Intent(requireContext(), activityClass).apply {
                 putExtra("name", book.name)
