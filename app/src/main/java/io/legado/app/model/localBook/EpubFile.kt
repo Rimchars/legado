@@ -21,6 +21,7 @@ import me.ag2s.epublib.domain.TOCReference
 import me.ag2s.epublib.epub.EpubReader
 import me.ag2s.epublib.util.zip.AndroidZipFile
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.parser.Parser
 import org.jsoup.select.Elements
@@ -125,6 +126,7 @@ class EpubFile(var book: Book) {
     }
 
     private fun getContent(chapter: BookChapter): String? {
+        if (chapter.isVolume && chapter.url.startsWith("skip:")) return ""
         /*获取当前章节文本*/
         val contents = epubBookContents ?: return null
         val nextChapterFirstResourceHref = chapter.getVariable("nextUrl").substringBeforeLast("#")
@@ -193,10 +195,9 @@ class EpubFile(var book: Book) {
         }
 
         // Jsoup可能会修复不规范的xhtml文件 解析处理后再获取
-        var bodyElement = Jsoup.parse(String(res.data, mCharset)).body()
-        bodyElement.children().run {
-            select("script").remove()
-        }
+        var doc = Jsoup.parse(String(res.data, mCharset))
+        var bodyElement = doc.body()
+        doc.select("script").remove()
         // 获取body对应的文本
         var bodyString = bodyElement.outerHtml()
         val originBodyString = bodyString
@@ -226,7 +227,8 @@ class EpubFile(var book: Book) {
         }
         //截取过再重新解析
         if (bodyString != originBodyString) {
-            bodyElement = Jsoup.parse(bodyString).body()
+            doc = Jsoup.parse(bodyString)
+            bodyElement = doc.body()
         }
         /*选择去除正文中的H标签，部分书籍标题与阅读标题重复待优化*/
         val tag = Book.hTag
@@ -238,19 +240,21 @@ class EpubFile(var book: Book) {
         }
         bodyElement.select("image").forEach {
             it.tagName("img", Parser.NamespaceHtml)
-            it.attr("src", it.attr("xlink:href"))
+            it.attr("src", it.attr("xlink:href").ifBlank { it.attr("href") })
         }
-        bodyElement.applyEpubCss(res)
+        bodyElement.applyEpubCss(doc, res)
         bodyElement.select("[style]").forEach { element ->
             element.applyEpubInlineStyle()
         }
+        bodyElement.markSingleImagePage()
         bodyElement.select("img").forEach {
             val src = it.attr("src").trim().encodeURI()
             val href = res.href.encodeURI()
             val resolvedHref = URLDecoder.decode(URI(href).resolve(src).toString(), "UTF-8")
             val alt = it.attr("alt")
+            val option = it.epubImageOption()
             it.clearAttributes()
-            it.attr("src", resolvedHref)
+            it.attr("src", resolvedHref + option)
             if (alt.isNotBlank()) {
                 it.attr("alt", alt)
             }
@@ -266,8 +270,17 @@ class EpubFile(var book: Book) {
         return bodyElement
     }
 
-    private fun Element.applyEpubCss(res: Resource) {
+    private fun Element.applyEpubCss(doc: Document, res: Resource) {
         val rules = arrayListOf<CssRule>()
+        doc.head()?.select("style")?.forEach { styleElement ->
+            rules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
+        }
+        doc.head()?.select("link[href][rel~=stylesheet]")?.forEach { link ->
+            val href = link.attr("href").trim()
+            if (href.isNotBlank()) {
+                rules.addAll(parseCssRules(loadCss(res.href, href)))
+            }
+        }
         select("style").forEach { styleElement ->
             rules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
             styleElement.remove()
@@ -280,7 +293,7 @@ class EpubFile(var book: Book) {
             link.remove()
         }
         if (rules.isEmpty()) return
-        rules.forEach { rule ->
+        rules.sortedWith(compareBy<CssRule> { it.specificity }.thenBy { it.order }).forEach { rule ->
             runCatching {
                 select(rule.selector).forEach { element ->
                     element.mergeInlineStyle(rule.style)
@@ -305,14 +318,14 @@ class EpubFile(var book: Book) {
         if (css.isBlank()) return emptyList()
         val cleanCss = css.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
         val rules = arrayListOf<CssRule>()
-        Regex("([^{}]+)\\{([^{}]+)}").findAll(cleanCss).forEach { match ->
+        Regex("([^{}]+)\\{([^{}]+)}").findAll(cleanCss).forEachIndexed { order, match ->
             val style = normalizeSupportedCss(match.groupValues[2])
-            if (style.isBlank()) return@forEach
+            if (style.isBlank()) return@forEachIndexed
             match.groupValues[1].split(',')
                 .map { it.trim() }
                 .mapNotNull { it.toSupportedSelector() }
                 .forEach { selector ->
-                    rules.add(CssRule(selector, style))
+                    rules.add(CssRule(selector, style, selector.cssSpecificity(), order))
                 }
         }
         return rules
@@ -337,7 +350,9 @@ class EpubFile(var book: Book) {
             "padding-right",
             "display",
             "width",
-            "height"
+            "height",
+            "max-width",
+            "max-height"
         )
         return style.split(';')
             .mapNotNull { item ->
@@ -364,6 +379,15 @@ class EpubFile(var book: Book) {
         return selector.takeIf {
             it.matches(Regex("[a-zA-Z0-9_#.*\\-\\s>]+"))
         }
+    }
+
+    private fun String.cssSpecificity(): Int {
+        val ids = count { it == '#' }
+        val classes = count { it == '.' }
+        val tags = split(Regex("[\\s>]+")).count { part ->
+            part.isNotBlank() && !part.startsWith(".") && !part.startsWith("#") && part != "*"
+        }
+        return ids * 100 + classes * 10 + tags
     }
 
     private fun Element.mergeInlineStyle(style: String) {
@@ -426,9 +450,56 @@ class EpubFile(var book: Book) {
         }
     }
 
+    private fun Element.markSingleImagePage() {
+        val images = select("img")
+        if (images.size != 1) return
+        val text = text().trim()
+        if (text.isNotBlank()) return
+        images.first()?.attr("data-epub-single-page", "true")
+    }
+
+    private fun Element.epubImageOption(): String {
+        val options = linkedMapOf<String, String>()
+        val style = attr("style")
+        val declarations = style.split(';')
+            .mapNotNull { item ->
+                val index = item.indexOf(':')
+                if (index <= 0) return@mapNotNull null
+                item.substring(0, index).trim().lowercase(Locale.ROOT) to
+                    item.substring(index + 1).trim()
+            }.toMap()
+        val width = attr("width").ifBlank { declarations["width"].orEmpty() }
+        if (width.isNotBlank()) {
+            options["width"] = normalizeImageWidth(width)
+        }
+        if (attr("data-epub-single-page") == "true") {
+            options["style"] = "full"
+            options.putIfAbsent("width", "100%")
+        }
+        if (options.isEmpty()) return ""
+        return options.entries.joinToString(
+            prefix = ",{",
+            postfix = "}"
+        ) { (key, value) ->
+            "\"$key\":\"${value.replace("\"", "\\\"")}\""
+        }
+    }
+
+    private fun normalizeImageWidth(width: String): String {
+        val clean = width.trim().lowercase(Locale.ROOT)
+        return when {
+            clean.endsWith("%") -> clean
+            clean.endsWith("px") -> clean.dropLast(2).substringBefore(".")
+            clean.toIntOrNull() != null -> clean
+            else -> ""
+        }.ifBlank { "100%" }
+    }
+
     private data class CssRule(
         val selector: String,
-        val style: String
+        val style: String,
+        val specificity: Int,
+        val order: Int
     )
 
     private fun getImage(href: String): InputStream? {
@@ -529,11 +600,9 @@ class EpubFile(var book: Book) {
             } else {
                 parseFirstPage(chapterList, refs)
                 parseMenu(chapterList, refs, 0)
-                for (i in chapterList.indices) {
-                    chapterList[i].index = i
-                }
             }
         }
+        normalizeChapterList(chapterList)
         getWordCount(chapterList, book)
         return chapterList
     }
@@ -601,15 +670,46 @@ class EpubFile(var book: Book) {
                 chapter.title = ref.title
                 chapter.url = ref.completeHref
                 chapter.startFragmentId = ref.fragmentId
-                chapterList.lastOrNull()?.endFragmentId = chapter.startFragmentId
-                chapterList.lastOrNull()?.putVariable("nextUrl", chapter.url)
+                chapter.isVolume = ref.children != null && ref.children.isNotEmpty()
                 chapterList.add(chapter)
                 durIndex++
+            } else if (!ref.title.isNullOrBlank()) {
+                val chapter = BookChapter()
+                chapter.bookUrl = book.bookUrl
+                chapter.title = ref.title
+                chapter.url = "skip:${chapterList.size}:${ref.title}"
+                chapter.isVolume = true
+                chapterList.add(chapter)
             }
             if (ref.children != null && ref.children.isNotEmpty()) {
                 chapterList.lastOrNull()?.isVolume = true
                 parseMenu(chapterList, ref.children, level + 1)
             }
+        }
+    }
+
+    private fun normalizeChapterList(chapterList: ArrayList<BookChapter>) {
+        if (chapterList.isEmpty()) return
+        for (index in chapterList.indices) {
+            val chapter = chapterList[index]
+            chapter.index = index
+            val next = chapterList.getOrNull(index + 1)
+            if (chapter.isVolume &&
+                next != null &&
+                !chapter.url.startsWith("skip:") &&
+                chapter.url.substringBeforeLast("#") == next.url.substringBeforeLast("#")
+            ) {
+                chapter.url = "skip:${index}:${chapter.url}"
+                chapter.startFragmentId = null
+                chapter.endFragmentId = null
+            }
+        }
+        for (index in chapterList.indices) {
+            val chapter = chapterList[index]
+            val next = chapterList.drop(index + 1)
+                .firstOrNull { !(it.isVolume && it.url.startsWith("skip:")) }
+            chapter.endFragmentId = next?.startFragmentId
+            chapter.putVariable("nextUrl", next?.url)
         }
     }
 
