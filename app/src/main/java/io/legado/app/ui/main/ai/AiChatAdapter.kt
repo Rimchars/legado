@@ -27,6 +27,7 @@ import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.book.SearchBookOpenHelper
+import io.legado.app.ui.widget.image.CoverImageView
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
 import io.noties.markwon.Markwon
@@ -148,6 +149,7 @@ class AiChatAdapter(
                         kind = item.optString("kind"),
                         intro = item.optString("intro"),
                         latestChapterTitle = item.optString("latestChapterTitle"),
+                        coverUrl = item.optString("coverUrl"),
                         bookUrl = bookUrl,
                         origin = origin,
                         target = item.optString("target")
@@ -159,17 +161,18 @@ class AiChatAdapter(
         return ParsedMessage(visibleContent, cards.distinctBy { it.bookUrl })
     }
 
-    private fun bindSearchCards(container: LinearLayout, cards: List<SearchBookCard>) {
+    private fun bindSearchCards(binding: ItemAiMessageAssistantBinding, cards: List<SearchBookCard>) {
+        val container = binding.searchCards
         container.removeAllViews()
-        container.isVisible = cards.isNotEmpty()
+        binding.searchCardScroller.isVisible = cards.isNotEmpty()
         cards.forEach { card ->
             container.addView(createSearchCardView(card))
         }
     }
 
     private fun createSearchCardView(card: SearchBookCard): View {
-        val cardPaddingH = 13.dpToPx()
-        val cardPaddingV = 10.dpToPx()
+        val cardPaddingH = 10.dpToPx()
+        val cardPaddingV = 9.dpToPx()
         val cardView = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(cardPaddingH, cardPaddingV, cardPaddingH, cardPaddingV)
@@ -194,26 +197,45 @@ class AiChatAdapter(
                 )
             }
         }
+        cardView.addView(CoverImageView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                126.dpToPx()
+            )
+            scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+            load(
+                path = card.coverUrl,
+                name = card.name,
+                author = card.author,
+                loadOnlyWifi = false,
+                sourceOrigin = card.origin,
+                preferThumb = true
+            )
+        })
         cardView.addView(TextView(context).apply {
             text = card.name
             setTextColor(context.primaryTextColor)
             textSize = 15f
-            maxLines = 1
+            maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
             setTypeface(typeface, Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 8.dpToPx()
+            }
         })
         val meta = listOf(card.author, card.originName, card.kind)
             .filter { it.isNotBlank() }
             .joinToString(" · ")
-        if (meta.isNotBlank()) {
-            cardView.addView(TextView(context).apply {
-                text = meta
-                setTextColor(context.secondaryTextColor)
-                textSize = 12.5f
-                maxLines = 1
-                ellipsize = TextUtils.TruncateAt.END
-            })
-        }
+        cardView.addView(TextView(context).apply {
+            text = meta.ifBlank { if (card.target == "video") "视频结果" else "书籍结果" }
+            setTextColor(context.secondaryTextColor)
+            textSize = 12.5f
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        })
         val desc = card.latestChapterTitle.ifBlank { card.intro }
         if (desc.isNotBlank()) {
             cardView.addView(TextView(context).apply {
@@ -225,10 +247,10 @@ class AiChatAdapter(
             })
         }
         cardView.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
+            142.dpToPx(),
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            topMargin = 6.dpToPx()
+            marginEnd = 10.dpToPx()
         }
         return cardView
     }
@@ -301,7 +323,7 @@ class AiChatAdapter(
             binding.tvMessage.isVisible = parsed.content.isNotBlank()
             markwon.setMarkdown(binding.tvMessage, parsed.content.ifBlank { " " })
             installSearchBookLinks(binding.tvMessage)
-            bindSearchCards(binding.searchCards, parsed.searchCards)
+            bindSearchCards(binding, parsed.searchCards)
         }
     }
 
@@ -317,6 +339,7 @@ class AiChatAdapter(
         val kind: String,
         val intro: String,
         val latestChapterTitle: String,
+        val coverUrl: String,
         val bookUrl: String,
         val origin: String,
         val target: String
