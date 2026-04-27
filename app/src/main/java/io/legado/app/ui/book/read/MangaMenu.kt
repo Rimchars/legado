@@ -105,6 +105,24 @@ class MangaMenu @JvmOverloads constructor(
         tvPre.setTextColor(textColor)
         tvConfig.setTextColor(textColor)
         tvNext.setTextColor(textColor)
+        val configButtons = listOf(
+            tvPreDownload,
+            tvScaleImage,
+            tvClickScroll,
+            tvAutoPage,
+            tvAutoScroll,
+            tvSpeed,
+            tvHorizontal,
+            tvPageSnap,
+            tvFooter,
+            tvColorFilter,
+            tvTitle,
+            tvEpaper,
+            tvGray
+        )
+        configButtons.forEach {
+            it.setTextColor(textColor)
+        }
         val brightnessBackground = GradientDrawable()
         brightnessBackground.cornerRadius = 5F.dpToPx()
         brightnessBackground.setColor(ColorUtils.adjustAlpha(bgColor, 0.5f))
@@ -220,6 +238,45 @@ class MangaMenu @JvmOverloads constructor(
         tvConfig.setOnClickListener {
             callBack.openMangaConfig()
         }
+        tvPreDownload.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_pre_manga_number)
+        }
+        tvScaleImage.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_disable_manga_scale)
+        }
+        tvClickScroll.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_disable_click_scroll)
+        }
+        tvAutoPage.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_enable_auto_page)
+        }
+        tvAutoScroll.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_enable_auto_scroll)
+        }
+        tvSpeed.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_manga_auto_page_speed)
+        }
+        tvHorizontal.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_enable_horizontal_scroll)
+        }
+        tvPageSnap.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_disable_horizontal_page_snap)
+        }
+        tvFooter.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_manga_footer_config)
+        }
+        tvColorFilter.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_manga_color_filter)
+        }
+        tvTitle.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_hide_manga_title)
+        }
+        tvEpaper.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_epaper_manga)
+        }
+        tvGray.setOnClickListener {
+            callBack.onMangaConfigAction(R.id.menu_gray_manga)
+        }
 
         seekReadPage.setOnSeekBarChangeListener(object : SeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -248,6 +305,7 @@ class MangaMenu @JvmOverloads constructor(
     interface CallBack {
         fun openBookInfoActivity()
         fun openMangaConfig()
+        fun onMangaConfigAction(id: Int)
         fun upSystemUiVisibility(menuIsVisible: Boolean)
         fun skipToPage(index: Int)
     }

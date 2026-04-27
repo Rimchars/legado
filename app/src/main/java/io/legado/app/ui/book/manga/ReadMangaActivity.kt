@@ -110,7 +110,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         R.id.menu_manga_auto_page_speed,
         R.id.menu_enable_horizontal_scroll,
         R.id.menu_disable_horizontal_page_snap,
-        R.id.menu_disable_manga_page_anim,
         R.id.menu_manga_footer_config,
         R.id.menu_manga_color_filter,
         R.id.menu_hide_manga_title,
@@ -675,22 +674,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 }
             }
 
-            R.id.menu_disable_manga_page_anim -> {
-                item.isChecked = !item.isChecked
-                mMenu?.findItem(R.id.menu_disable_horizontal_page_snap)?.isVisible = !item.isChecked
-                updateBookMangaReadConfig {
-                    mangaPageAnim = null
-                    mangaDisablePageAnim = item.isChecked
-                }
-                if (item.isChecked) {
-                    mPagerSnapHelper.attachToRecyclerView(null)
-                } else {
-                    if (mangaHorizontalScroll && !mangaDisableHorizontalPageSnap) {
-                        mPagerSnapHelper.attachToRecyclerView(binding.recyclerView)
-                    }
-                }
-            }
-
             R.id.menu_gray_manga -> {
                 item.isChecked = !item.isChecked
                 AppConfig.enableMangaGray = item.isChecked
@@ -714,6 +697,10 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     override fun openMangaConfig() {
         showMangaConfigMenu()
+    }
+
+    override fun onMangaConfigAction(id: Int) {
+        triggerMangaMenuItem(id)
     }
 
     override fun upSystemUiVisibility(menuIsVisible: Boolean) {
@@ -788,7 +775,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             isVisible = mangaHorizontalScroll && !mangaDisablePageAnim
             isChecked = mangaDisableHorizontalPageSnap || mangaDisablePageAnim
         }
-        menu.findItem(R.id.menu_disable_manga_page_anim).isChecked = mangaDisablePageAnim
         menu.findItem(R.id.menu_gray_manga).isChecked = AppConfig.enableMangaGray
         mangaConfigMenuItems.forEach { id ->
             menu.findItem(id)?.isVisible = false
@@ -805,7 +791,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private fun showMangaConfigMenu() {
         val items = listOf(
-            getString(R.string.manga_page_mode),
             getString(R.string.pre_download),
             getString(R.string.disable_manga_scale).removePrefix("禁用").removePrefix("Disable "),
             getString(R.string.disable_manga_click_scroll).removePrefix("禁用").removePrefix("Disable "),
@@ -814,7 +799,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             getString(R.string.setting_manga_auto_page_speed).removePrefix("设置"),
             getString(R.string.enable_manga_horizontal_scroll),
             getString(R.string.disable_horizontal_page_snap).removePrefix("禁用").removePrefix("Disable "),
-            getString(R.string.disable_manga_page_anim).removePrefix("禁用").removePrefix("Disable "),
             getString(R.string.footer),
             getString(R.string.manga_color_filter),
             getString(R.string.title),
@@ -824,53 +808,21 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         )
         selector(R.string.manga_config, items) { _, index ->
             when (index) {
-                0 -> showMangaPageModeConfig()
-                1 -> triggerMangaMenuItem(R.id.menu_pre_manga_number)
-                2 -> triggerMangaMenuItem(R.id.menu_disable_manga_scale)
-                3 -> triggerMangaMenuItem(R.id.menu_disable_click_scroll)
-                4 -> triggerMangaMenuItem(R.id.menu_enable_auto_page)
-                5 -> triggerMangaMenuItem(R.id.menu_enable_auto_scroll)
-                6 -> triggerMangaMenuItem(R.id.menu_manga_auto_page_speed)
-                7 -> triggerMangaMenuItem(R.id.menu_enable_horizontal_scroll)
-                8 -> triggerMangaMenuItem(R.id.menu_disable_horizontal_page_snap)
-                9 -> triggerMangaMenuItem(R.id.menu_disable_manga_page_anim)
-                10 -> triggerMangaMenuItem(R.id.menu_manga_footer_config)
-                11 -> triggerMangaMenuItem(R.id.menu_manga_color_filter)
-                12 -> triggerMangaMenuItem(R.id.menu_hide_manga_title)
-                13 -> triggerMangaMenuItem(R.id.menu_epaper_manga)
-                14 -> triggerMangaMenuItem(R.id.menu_epaper_manga_setting)
-                15 -> triggerMangaMenuItem(R.id.menu_gray_manga)
+                0 -> triggerMangaMenuItem(R.id.menu_pre_manga_number)
+                1 -> triggerMangaMenuItem(R.id.menu_disable_manga_scale)
+                2 -> triggerMangaMenuItem(R.id.menu_disable_click_scroll)
+                3 -> triggerMangaMenuItem(R.id.menu_enable_auto_page)
+                4 -> triggerMangaMenuItem(R.id.menu_enable_auto_scroll)
+                5 -> triggerMangaMenuItem(R.id.menu_manga_auto_page_speed)
+                6 -> triggerMangaMenuItem(R.id.menu_enable_horizontal_scroll)
+                7 -> triggerMangaMenuItem(R.id.menu_disable_horizontal_page_snap)
+                8 -> triggerMangaMenuItem(R.id.menu_manga_footer_config)
+                9 -> triggerMangaMenuItem(R.id.menu_manga_color_filter)
+                10 -> triggerMangaMenuItem(R.id.menu_hide_manga_title)
+                11 -> triggerMangaMenuItem(R.id.menu_epaper_manga)
+                12 -> triggerMangaMenuItem(R.id.menu_epaper_manga_setting)
+                13 -> triggerMangaMenuItem(R.id.menu_gray_manga)
             }
-        }
-    }
-
-    private fun showMangaPageModeConfig() {
-        val items = arrayListOf<String>()
-        items.add(getString(R.string.btn_default_s))
-        items.add(getString(R.string.page_anim_cover))
-        items.add(getString(R.string.page_anim_slide))
-        items.add(getString(R.string.page_anim_simulation))
-        items.add(getString(R.string.page_anim_scroll))
-        items.add(getString(R.string.page_anim_none))
-        selector(R.string.manga_page_mode, items) { _, index ->
-            val pageAnim = when (index) {
-                1 -> PageAnim.coverPageAnim
-                2 -> PageAnim.slidePageAnim
-                3 -> PageAnim.simulationPageAnim
-                4 -> PageAnim.scrollPageAnim
-                5 -> PageAnim.noAnim
-                else -> null
-            }
-            updateBookMangaReadConfig {
-                mangaPageAnim = pageAnim
-                if (pageAnim != null) {
-                    mangaHorizontalScroll = pageAnim != PageAnim.scrollPageAnim
-                    mangaDisablePageAnim = pageAnim == PageAnim.noAnim
-                    mangaDisableHorizontalPageSnap = pageAnim == PageAnim.noAnim
-                }
-            }
-            applyBookMangaReadConfig()
-            mAdapter.notifyDataSetChanged()
         }
     }
 

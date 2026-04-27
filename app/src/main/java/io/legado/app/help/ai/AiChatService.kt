@@ -175,6 +175,7 @@ object AiChatService {
                     put("kind", item.optString("kind").take(80))
                     put("intro", item.optString("intro").replace(Regex("\\s+"), " ").trim().take(160))
                     put("latestChapterTitle", item.optString("latestChapterTitle").take(80))
+                    put("coverUrl", item.optString("coverUrl"))
                     put("bookUrl", item.optString("bookUrl"))
                     put("origin", item.optString("origin"))
                     put("target", item.optString("target"))
