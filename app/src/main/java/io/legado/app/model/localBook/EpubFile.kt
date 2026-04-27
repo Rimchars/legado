@@ -519,8 +519,27 @@ class EpubFile(var book: Book) {
 
     private fun getImage(href: String): InputStream? {
         if (href == "cover.jpeg") return epubBook?.coverImage?.inputStream
-        val abHref = URLDecoder.decode(href, "UTF-8")
-        return epubBook?.resources?.getByHref(abHref)?.inputStream
+        val resourceHref = href.stripUrlOptions()
+        val candidates = linkedSetOf(resourceHref)
+        runCatching {
+            URLDecoder.decode(resourceHref, "UTF-8")
+        }.getOrNull()?.let { decoded ->
+            candidates.add(decoded)
+            candidates.add(decoded.trimStart('/'))
+        }
+        candidates.add(resourceHref.trimStart('/'))
+        return candidates.firstNotNullOfOrNull { candidate ->
+            epubBook?.resources?.getByHref(candidate)?.inputStream
+        }
+    }
+
+    private fun String.stripUrlOptions(): String {
+        val optionStart = Regex("\\s*,\\s*\\{").find(this)?.range?.first
+        return if (optionStart != null) {
+            substring(0, optionStart).trim()
+        } else {
+            trim()
+        }
     }
 
     private fun upBookCover(fastCheck: Boolean = false) {
