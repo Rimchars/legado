@@ -271,27 +271,32 @@ class EpubFile(var book: Book) {
     }
 
     private fun Element.applyEpubCss(doc: Document, res: Resource) {
-        val rules = arrayListOf<CssRule>()
-        doc.head()?.select("style")?.forEach { styleElement ->
-            rules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
-        }
-        doc.head()?.select("link[href][rel~=stylesheet]")?.forEach { link ->
-            val href = link.attr("href").trim()
-            if (href.isNotBlank()) {
-                rules.addAll(parseCssRules(loadCss(res.href, href)))
+        val rules = runCatching {
+            val parsedRules = arrayListOf<CssRule>()
+            doc.head()?.select("style")?.forEach { styleElement ->
+                parsedRules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
             }
-        }
-        select("style").forEach { styleElement ->
-            rules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
-            styleElement.remove()
-        }
-        select("link[href][rel~=stylesheet]").forEach { link ->
-            val href = link.attr("href").trim()
-            if (href.isNotBlank()) {
-                rules.addAll(parseCssRules(loadCss(res.href, href)))
+            doc.head()?.select("link[href][rel~=stylesheet]")?.forEach { link ->
+                val href = link.attr("href").trim()
+                if (href.isNotBlank()) {
+                    parsedRules.addAll(parseCssRules(loadCss(res.href, href)))
+                }
             }
-            link.remove()
-        }
+            select("style").forEach { styleElement ->
+                parsedRules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
+                styleElement.remove()
+            }
+            select("link[href][rel~=stylesheet]").forEach { link ->
+                val href = link.attr("href").trim()
+                if (href.isNotBlank()) {
+                    parsedRules.addAll(parseCssRules(loadCss(res.href, href)))
+                }
+                link.remove()
+            }
+            parsedRules
+        }.onFailure {
+            AppLog.put("Epub CSS 解析失败, 已忽略样式\n${it.localizedMessage}", it)
+        }.getOrDefault(emptyList())
         if (rules.isEmpty()) return
         rules.sortedWith(compareBy<CssRule> { it.specificity }.thenBy { it.order }).forEach { rule ->
             runCatching {
@@ -318,15 +323,25 @@ class EpubFile(var book: Book) {
         if (css.isBlank()) return emptyList()
         val cleanCss = css.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
         val rules = arrayListOf<CssRule>()
-        Regex("([^{}]+)\\{([^{}]+)}").findAll(cleanCss).forEachIndexed { order, match ->
-            val style = normalizeSupportedCss(match.groupValues[2])
-            if (style.isBlank()) return@forEachIndexed
-            match.groupValues[1].split(',')
-                .map { it.trim() }
-                .mapNotNull { it.toSupportedSelector() }
-                .forEach { selector ->
-                    rules.add(CssRule(selector, style, selector.cssSpecificity(), order))
-                }
+        var order = 0
+        var index = 0
+        while (index < cleanCss.length) {
+            val start = cleanCss.indexOf('{', index)
+            if (start < 0) break
+            val end = cleanCss.indexOf('}', start + 1)
+            if (end < 0) break
+            val selectorText = cleanCss.substring(index, start)
+            val style = normalizeSupportedCss(cleanCss.substring(start + 1, end))
+            if (style.isNotBlank()) {
+                selectorText.split(',')
+                    .map { it.trim() }
+                    .mapNotNull { it.toSupportedSelector() }
+                    .forEach { selector ->
+                        rules.add(CssRule(selector, style, selector.cssSpecificity(), order))
+                    }
+                order++
+            }
+            index = end + 1
         }
         return rules
     }
