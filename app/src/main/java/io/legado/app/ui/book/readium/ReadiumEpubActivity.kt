@@ -106,7 +106,8 @@ class ReadiumEpubActivity : AppCompatActivity(), EpubNavigatorFragment.Listener 
             publicationParser = DefaultPublicationParser(
                 context = this,
                 assetRetriever = assetRetriever,
-                httpClient = httpClient
+                httpClient = httpClient,
+                pdfFactory = null
             )
         ).open(
             asset = asset,
