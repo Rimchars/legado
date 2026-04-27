@@ -13,6 +13,7 @@ import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.BookSource
 import io.legado.app.help.config.AppConfig
 import io.legado.app.model.analyzeRule.AnalyzeUrl
+import io.legado.app.model.localBook.EpubFile
 import io.legado.app.model.localBook.LocalBook
 import io.legado.app.utils.ArchiveUtils
 import io.legado.app.utils.FileUtils
@@ -407,6 +408,13 @@ object BookHelp {
             val string = file.readText()
             if (string.isEmpty()) {
                 return null
+            }
+            if (book.isEpub && AppConfig.adaptSpecialStyle && !string.contains(EpubFile.HTML_CONTENT_FLAG)) {
+                val epubContent = LocalBook.getContent(book, bookChapter)
+                if (epubContent != null) {
+                    saveText(book, bookChapter, epubContent)
+                    return epubContent
+                }
             }
             return string
         }

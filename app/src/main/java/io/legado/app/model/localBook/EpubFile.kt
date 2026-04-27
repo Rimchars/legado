@@ -31,10 +31,12 @@ import java.io.InputStream
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.Charset
+import java.util.Locale
 
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
+        const val HTML_CONTENT_FLAG = "<usehtml>"
         private var eFile: EpubFile? = null
 
         @Synchronized
@@ -161,24 +163,21 @@ class EpubFile(var book: Book) {
         }
         //title标签中的内容不需要显示在正文中，去除
         elements.select("title").remove()
-        elements.select("[style*=display:none]").remove()
+        elements.select("[style*=display:none], [style*=display: none]").remove()
         elements.select("img[src=\"cover.jpeg\"]").forEachIndexed { i, it ->
             if (i > 0) it.remove()
-        }
-        elements.select("img").forEach {
-            if (it.attributesSize() <= 1) {
-                return@forEach
-            }
-            val src = it.attr("src")
-            it.clearAttributes()
-            it.attr("src", src)
         }
         val tag = Book.rubyTag
         if (book.getDelTag(tag)) {
             elements.select("rp, rt").remove()
         }
-        val html = elements.outerHtml()
-        return HtmlFormatter.formatKeepImg(html)
+        val html = elements.joinToString("\n") { element ->
+            element.html().trim()
+        }.trim()
+        if (html.isBlank()) {
+            return HtmlFormatter.formatKeepImg(elements.outerHtml())
+        }
+        return "$HTML_CONTENT_FLAG${html.compactForUseHtml()}</usehtml>"
     }
 
     private fun getBody(res: Resource, startFragmentId: String?, endFragmentId: String?): Element {
@@ -197,7 +196,6 @@ class EpubFile(var book: Book) {
         var bodyElement = Jsoup.parse(String(res.data, mCharset)).body()
         bodyElement.children().run {
             select("script").remove()
-            select("style").remove()
         }
         // 获取body对应的文本
         var bodyString = bodyElement.outerHtml()
@@ -242,13 +240,72 @@ class EpubFile(var book: Book) {
             it.tagName("img", Parser.NamespaceHtml)
             it.attr("src", it.attr("xlink:href"))
         }
+        bodyElement.select("[style]").forEach { element ->
+            element.applyEpubInlineStyle()
+        }
         bodyElement.select("img").forEach {
             val src = it.attr("src").trim().encodeURI()
             val href = res.href.encodeURI()
             val resolvedHref = URLDecoder.decode(URI(href).resolve(src).toString(), "UTF-8")
+            val alt = it.attr("alt")
+            it.clearAttributes()
             it.attr("src", resolvedHref)
+            if (alt.isNotBlank()) {
+                it.attr("alt", alt)
+            }
+        }
+        bodyElement.select("a[href]").forEach {
+            val href = it.attr("href").trim()
+            if (href.isNotBlank() && !href.startsWith("#")) {
+                val baseHref = res.href.encodeURI()
+                val resolvedHref = URLDecoder.decode(URI(baseHref).resolve(href.encodeURI()).toString(), "UTF-8")
+                it.attr("href", resolvedHref)
+            }
         }
         return bodyElement
+    }
+
+    private fun String.compactForUseHtml(): String {
+        return replace("\r", "")
+            .replace("\n", " ")
+            .replace(Regex(">\\s+<"), "><")
+            .trim()
+    }
+
+    private fun Element.applyEpubInlineStyle() {
+        val style = attr("style")
+        if (style.isBlank()) return
+        val declarations = style.split(';')
+            .mapNotNull { item ->
+                val index = item.indexOf(':')
+                if (index <= 0) return@mapNotNull null
+                item.substring(0, index).trim().lowercase(Locale.ROOT) to
+                    item.substring(index + 1).trim()
+            }.toMap()
+        declarations["text-align"]?.let { align ->
+            when (align.lowercase(Locale.ROOT)) {
+                "center", "left", "right" -> attr("align", align.lowercase(Locale.ROOT))
+            }
+        }
+        declarations["color"]?.let { color ->
+            if (normalName() == "span") {
+                tagName("font", Parser.NamespaceHtml)
+            }
+            if (normalName() == "font") {
+                attr("color", color)
+            }
+        }
+        declarations["font-weight"]?.let { weight ->
+            val normalized = weight.lowercase(Locale.ROOT)
+            if (normalName() == "span" && (normalized == "bold" || normalized.toIntOrNull()?.let { it >= 600 } == true)) {
+                tagName("b", Parser.NamespaceHtml)
+            }
+        }
+        declarations["font-style"]?.let { fontStyle ->
+            if (normalName() == "span" && fontStyle.equals("italic", ignoreCase = true)) {
+                tagName("i", Parser.NamespaceHtml)
+            }
+        }
     }
 
     private fun getImage(href: String): InputStream? {
