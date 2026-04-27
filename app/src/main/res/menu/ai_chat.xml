@@ -9,12 +9,6 @@
         app:showAsAction="ifRoom" />
 
     <item
-        android:id="@+id/menu_ai_history"
-        android:icon="@drawable/ic_history"
-        android:title="@string/ai_chat_history"
-        app:showAsAction="ifRoom" />
-
-    <item
         android:id="@+id/menu_ai_more"
         android:icon="@drawable/ic_more_vert"
         android:title="@string/more_menu"

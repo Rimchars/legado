@@ -99,21 +99,15 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
                 return true
             }
 
-            R.id.menu_ai_history -> {
-                if (viewModel.isRequesting) {
-                    toastOnUi(R.string.ai_chat_wait_current)
-                    return true
-                }
-                showHistoryDialog()
-                return true
-            }
-
             R.id.menu_ai_more -> {
                 modernMenuPopup = ModernActionPopup.show(
                     binding.titleBar,
                     listOf(
                         ModernActionPopup.Action(getString(R.string.ai_new_chat)) {
                             startNewChatFromMenu()
+                        },
+                        ModernActionPopup.Action(getString(R.string.ai_chat_history)) {
+                            openHistoryFromMenu()
                         },
                         ModernActionPopup.Action(getString(R.string.ai_setting)) {
                             openAiSettings()
@@ -125,6 +119,14 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
             }
         }
         return super.onCompatOptionsItemSelected(item)
+    }
+
+    private fun openHistoryFromMenu() {
+        if (viewModel.isRequesting) {
+            toastOnUi(R.string.ai_chat_wait_current)
+            return
+        }
+        showHistoryDialog()
     }
 
     private fun startNewChatFromMenu() {

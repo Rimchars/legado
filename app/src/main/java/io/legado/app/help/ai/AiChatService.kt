@@ -14,6 +14,7 @@ import splitties.init.appCtx
 object AiChatService {
 
     private const val MAX_TOOL_ROUNDS = 12
+    private const val MAX_SEARCH_RESULT_CARDS = 8
 
     private data class ToolCall(
         val id: String,
@@ -92,6 +93,7 @@ object AiChatService {
         onThinking: (String) -> Unit
     ): String {
         val toolMap = tools.associateBy { it.name }
+        val searchResultCards = JSONArray()
         repeat(MAX_TOOL_ROUNDS) { round ->
             val assistantTurn = requestCompletionStream(
                 baseUrl = baseUrl,
@@ -113,11 +115,12 @@ object AiChatService {
                         debugLog = requestLog.toString()
                     )
                 }
-                return content
+                return appendSearchResultCards(content, searchResultCards)
             }
             assistantTurn.toolCalls.forEach { toolCall ->
                 onThinking(appCtx.getString(R.string.ai_tool_call, toolCall.name, toolCall.arguments))
                 val result = executeToolCall(toolCall, toolMap)
+                collectSearchResultCards(toolCall, result, searchResultCards)
                 onThinking(appCtx.getString(R.string.ai_tool_result, toolCall.name, result))
                 conversation += JSONObject().apply {
                     put("role", "tool")
@@ -150,7 +153,48 @@ object AiChatService {
                 debugLog = requestLog.toString()
             )
         }
-        return finalTurn.content
+        return appendSearchResultCards(finalTurn.content, searchResultCards)
+    }
+
+    private fun collectSearchResultCards(
+        toolCall: ToolCall,
+        result: String,
+        cards: JSONArray
+    ) {
+        if (toolCall.name != "search_book_source") return
+        runCatching {
+            val results = JSONObject(result).optJSONArray("results") ?: return
+            for (index in 0 until results.length()) {
+                if (cards.length() >= MAX_SEARCH_RESULT_CARDS) break
+                val item = results.optJSONObject(index) ?: continue
+                if (item.optString("bookUrl").isBlank() || item.optString("origin").isBlank()) continue
+                cards.put(JSONObject().apply {
+                    put("name", item.optString("name").take(80))
+                    put("author", item.optString("author").take(60))
+                    put("originName", item.optString("originName").take(60))
+                    put("kind", item.optString("kind").take(80))
+                    put("intro", item.optString("intro").replace(Regex("\\s+"), " ").trim().take(160))
+                    put("latestChapterTitle", item.optString("latestChapterTitle").take(80))
+                    put("bookUrl", item.optString("bookUrl"))
+                    put("origin", item.optString("origin"))
+                    put("target", item.optString("target"))
+                })
+            }
+        }
+    }
+
+    private fun appendSearchResultCards(content: String, cards: JSONArray): String {
+        if (cards.length() == 0) return content
+        val payload = JSONObject().apply {
+            put("type", "search_book_results")
+            put("results", cards)
+        }
+        return buildString {
+            append(content.trimEnd())
+            append("\n\n```legado-search-results\n")
+            append(payload)
+            append("\n```")
+        }
     }
 
     private suspend fun executeToolCall(
@@ -405,10 +449,14 @@ object AiChatService {
                     "role",
                     if (message.role == AiChatMessage.Role.USER) "user" else "assistant"
                 )
-                put("content", message.content)
+                put("content", stripSearchResultBlocks(message.content))
             }
         }
         return conversation
+    }
+
+    private fun stripSearchResultBlocks(content: String): String {
+        return searchResultBlockRegex.replace(content, "").trim()
     }
 
     private fun requiresBookshelfTool(messages: List<AiChatMessage>): Boolean {
@@ -570,4 +618,9 @@ object AiChatService {
             }
         }
     }
+
+    private val searchResultBlockRegex = Regex(
+        "```legado-search-results\\s*\\n([\\s\\S]*?)\\n```",
+        setOf(RegexOption.MULTILINE)
+    )
 }

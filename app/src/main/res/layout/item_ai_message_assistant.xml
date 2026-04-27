@@ -5,20 +5,34 @@
     android:paddingTop="4dp"
     android:paddingBottom="4dp">
 
-    <TextView
-        android:id="@+id/tv_message"
+    <LinearLayout
+        android:id="@+id/message_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="start"
-        android:lineSpacingExtra="2dp"
         android:maxWidth="312dp"
-        android:minHeight="40dp"
-        android:paddingStart="15dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="15dp"
-        android:paddingBottom="10dp"
-        android:textColor="@color/primaryText"
-        android:textIsSelectable="true"
-        android:textSize="15sp" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_message"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:lineSpacingExtra="2dp"
+            android:minHeight="40dp"
+            android:paddingStart="15dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="15dp"
+            android:paddingBottom="10dp"
+            android:textColor="@color/primaryText"
+            android:textSize="15sp" />
+
+        <LinearLayout
+            android:id="@+id/search_cards"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="vertical" />
+
+    </LinearLayout>
 
 </FrameLayout>
