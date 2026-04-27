@@ -18,6 +18,7 @@
       overflow: hidden;
     }
   </style>
+  <script src="jszip.min.js"></script>
   <script src="epub.min.js"></script>
 </head>
 <body>
@@ -68,6 +69,12 @@
 
     async function openBook() {
       try {
+        if (!window.JSZip) {
+          throw new Error("JSZip lib not loaded");
+        }
+        if (!window.ePub) {
+          throw new Error("epub.js lib not loaded");
+        }
         const base64 = AndroidBridge.getBookBase64();
         const buffer = decodeBase64(base64);
         book = ePub(buffer);
