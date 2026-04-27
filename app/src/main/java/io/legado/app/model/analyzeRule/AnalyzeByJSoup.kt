@@ -385,9 +385,9 @@ class AnalyzeByJSoup(doc: Any) {
              * */
             if (split == '!') { //排除
 
-                for (pcInt in indexSet.sortedDescending()) {
-                    elements.removeAt(pcInt)
-                }
+                for (pcInt in indexSet) elements[pcInt] = null
+
+                elements.removeAll(nullSet) //测试过，这样就行
 
             } else if (split == '.') { //选择
 
