@@ -5,6 +5,7 @@ package io.legado.app.ui.main
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.text.format.DateUtils
@@ -44,6 +45,7 @@ import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.storage.Backup
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.ThemeStore
+import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.service.BaseReadAloudService
 import io.legado.app.ui.about.CrashLogsDialog
@@ -69,6 +71,7 @@ import io.legado.app.utils.setStatusBarColorAuto
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import io.legado.app.utils.ColorUtils as AppColorUtils
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -229,6 +232,15 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        binding.bottomControls.post {
+            if (!isFinishing) {
+                setupLiquidGlass()
+            }
+        }
+    }
+
     override fun onNavigationItemSelected(item: MenuItem): Boolean = binding.run {
         when (item.itemId) {
             R.id.menu_bookshelf ->
@@ -327,15 +339,33 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
             searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
             val glassLevel = AppConfig.frostedGlassLevel / 100f
-            val blurBoost = 0.55f + glassLevel * 0.9f
-            val tintAlpha = 0.12f + glassLevel * 0.14f
-            val dispersion = 0.36f + glassLevel * 0.18f
+            val blurBoost = 0.75f + glassLevel * 1.25f
+            val tintAlpha = 0.22f + glassLevel * 0.34f
+            val dispersion = 0.28f + glassLevel * 0.24f
+            bottomNavigationShellOverlay.background = createLiquidGlassShellDrawable(
+                glassLevel = glassLevel,
+                cornerRadius = bottomBarCornerRadius,
+                oval = false,
+                selected = false
+            )
+            searchButtonShellOverlay.background = createLiquidGlassShellDrawable(
+                glassLevel = glassLevel,
+                cornerRadius = searchButtonCornerRadius,
+                oval = true,
+                selected = false
+            )
+            bottomNavigationIndicatorOverlay.background = createLiquidGlassShellDrawable(
+                glassLevel = glassLevel,
+                cornerRadius = bottomIndicatorCornerRadius,
+                oval = false,
+                selected = true
+            )
             setupLiquidGlassView(
                 liquidGlassView = bottomNavigationGlassView,
                 cornerRadius = bottomBarCornerRadius,
                 refractionHeight = 18f.dpToPx(),
                 refractionOffset = 74f.dpToPx(),
-                blurRadius = 24f.dpToPx() * blurBoost,
+                blurRadius = 28f.dpToPx() * blurBoost,
                 dispersion = dispersion,
                 tintAlpha = tintAlpha,
                 elasticEnabled = true,
@@ -346,7 +376,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 cornerRadius = searchButtonCornerRadius,
                 refractionHeight = 18f.dpToPx(),
                 refractionOffset = 74f.dpToPx(),
-                blurRadius = 24f.dpToPx() * blurBoost,
+                blurRadius = 28f.dpToPx() * blurBoost,
                 dispersion = dispersion,
                 tintAlpha = tintAlpha,
                 elasticEnabled = true,
@@ -357,12 +387,46 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 cornerRadius = bottomIndicatorCornerRadius,
                 refractionHeight = 16f.dpToPx(),
                 refractionOffset = 46f.dpToPx(),
-                blurRadius = 18f.dpToPx() * blurBoost,
+                blurRadius = 22f.dpToPx() * blurBoost,
                 dispersion = dispersion + 0.04f,
-                tintAlpha = (tintAlpha + 0.04f).coerceAtMost(0.32f),
+                tintAlpha = (tintAlpha + 0.06f).coerceAtMost(0.68f),
                 elasticEnabled = true,
                 touchEffectEnabled = true
             )
+        }
+    }
+
+    private fun createLiquidGlassShellDrawable(
+        glassLevel: Float,
+        cornerRadius: Float,
+        oval: Boolean,
+        selected: Boolean
+    ): GradientDrawable {
+        val baseColor = bottomBackground
+        val isLight = AppColorUtils.isColorLight(baseColor)
+        val surfaceColor = if (isLight) {
+            AppColorUtils.blendColors(baseColor, Color.WHITE, 0.72f)
+        } else {
+            AppColorUtils.blendColors(baseColor, Color.BLACK, 0.24f)
+        }
+        val startAlpha = (0.48f + glassLevel * 0.28f).coerceIn(0f, 0.86f)
+        val centerAlpha = (0.36f + glassLevel * 0.26f).coerceIn(0f, 0.78f)
+        val endAlpha = (0.30f + glassLevel * 0.22f).coerceIn(0f, 0.70f)
+        val selectedBoost = if (selected) 0.10f else 0f
+        val strokeAlpha = (0.24f + glassLevel * 0.20f + selectedBoost).coerceIn(0f, 0.58f)
+        return GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(
+                AppColorUtils.withAlpha(surfaceColor, startAlpha + selectedBoost),
+                AppColorUtils.withAlpha(surfaceColor, centerAlpha + selectedBoost),
+                AppColorUtils.withAlpha(surfaceColor, endAlpha + selectedBoost)
+            )
+        ).apply {
+            shape = if (oval) GradientDrawable.OVAL else GradientDrawable.RECTANGLE
+            if (!oval) {
+                setCornerRadius(cornerRadius)
+            }
+            setStroke(1.dpToPx(), AppColorUtils.withAlpha(surfaceColor, strokeAlpha))
         }
     }
 
