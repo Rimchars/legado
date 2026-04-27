@@ -2,7 +2,6 @@ package io.legado.app.ui.book.epub
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.util.Base64
 import android.view.MotionEvent
 import android.view.View
 import android.webkit.JavascriptInterface
@@ -24,6 +23,7 @@ import io.legado.app.model.localBook.LocalBook
 import io.legado.app.ui.book.toc.TocActivityResult
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.getPrefString
+import io.legado.app.utils.MD5Utils
 import io.legado.app.utils.putPrefString
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -32,14 +32,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import org.w3c.dom.Element
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.util.Locale
+import java.util.zip.ZipInputStream
+import javax.xml.parsers.DocumentBuilderFactory
 
 class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
 
     override val binding by viewBinding(ActivityEpubJsBinding::inflate)
 
     private var book: Book? = null
-    private var bookBase64: String = ""
+    private var bookOpfUrl: String = ""
     private var tocItems: List<TocItem> = emptyList()
     private var menuVisible = false
     private var currentCfi: String = ""
@@ -69,6 +75,8 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         binding.webView.settings.domStorageEnabled = true
         binding.webView.settings.allowFileAccess = true
         binding.webView.settings.allowContentAccess = true
+        binding.webView.settings.allowFileAccessFromFileURLs = true
+        binding.webView.settings.allowUniversalAccessFromFileURLs = true
         binding.webView.addJavascriptInterface(Bridge(), "AndroidBridge")
         binding.webView.setOnTouchListener { view, event ->
             if (event.action == MotionEvent.ACTION_UP) {
@@ -117,17 +125,86 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
                 binding.tvTitle.text = loadedBook.name
                 binding.tvSubTitle.text = loadedBook.originName
                 currentCfi = loadedBook.getVariable(cfiKey)
-                bookBase64 = withContext(IO) {
-                    LocalBook.getBookInputStream(loadedBook).use {
-                        Base64.encodeToString(it.readBytes(), Base64.NO_WRAP)
-                    }
-                }
+                bookOpfUrl = withContext(IO) { prepareEpubPackage(loadedBook) }
                 binding.webView.loadUrl("file:///android_asset/epubjs/reader.html")
             } catch (e: Exception) {
                 toastOnUi(e.localizedMessage ?: "EPUB 打开失败")
                 finish()
             }
         }
+    }
+
+    private fun prepareEpubPackage(book: Book): String {
+        val root = getExternalFilesDir("epubjs") ?: File(filesDir, "epubjs")
+        val bookDir = File(root, MD5Utils.md5Encode16(book.bookUrl))
+        val marker = File(bookDir, ".source")
+        val signature = "${book.bookUrl}\n${book.latestChapterTime}\n${book.originName}"
+        if (!File(bookDir, "META-INF/container.xml").exists() || marker.readTextOrNull() != signature) {
+            if (bookDir.exists()) {
+                bookDir.deleteRecursively()
+            }
+            bookDir.mkdirs()
+            LocalBook.getBookInputStream(book).use { input ->
+                ZipInputStream(input).use { zip ->
+                    var entry = zip.nextEntry
+                    val canonicalRoot = bookDir.canonicalFile
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (entry != null) {
+                        val outFile = File(bookDir, entry.name).canonicalFile
+                        if (!outFile.path.startsWith(canonicalRoot.path + File.separator)) {
+                            error("EPUB 内部路径不安全: ${entry.name}")
+                        }
+                        if (entry.isDirectory) {
+                            outFile.mkdirs()
+                        } else {
+                            outFile.parentFile?.mkdirs()
+                            FileOutputStream(outFile).use { output ->
+                                while (true) {
+                                    val len = zip.read(buffer)
+                                    if (len <= 0) break
+                                    output.write(buffer, 0, len)
+                                }
+                            }
+                        }
+                        zip.closeEntry()
+                        entry = zip.nextEntry
+                    }
+                }
+            }
+            marker.writeText(signature)
+        }
+        val opf = findOpfFile(bookDir)
+        return opf.toURI().toString()
+    }
+
+    private fun findOpfFile(bookDir: File): File {
+        val container = File(bookDir, "META-INF/container.xml")
+        if (container.exists()) {
+            runCatching {
+                val factory = DocumentBuilderFactory.newInstance().apply {
+                    isNamespaceAware = true
+                    setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+                    setFeature("http://xml.org/sax/features/external-general-entities", false)
+                    setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+                }
+                FileInputStream(container).use { input ->
+                    val doc = factory.newDocumentBuilder().parse(input)
+                    val nodes = doc.getElementsByTagNameNS("*", "rootfile")
+                    if (nodes.length > 0) {
+                        val path = (nodes.item(0) as Element).getAttribute("full-path")
+                        if (path.isNotBlank()) {
+                            return File(bookDir, path)
+                        }
+                    }
+                }
+            }
+        }
+        return bookDir.walkTopDown().firstOrNull { it.isFile && it.extension.equals("opf", true) }
+            ?: error("EPUB 未找到 OPF 文件")
+    }
+
+    private fun File.readTextOrNull(): String? {
+        return runCatching { readText() }.getOrNull()
     }
 
     private fun showTocPage() {
@@ -358,7 +435,7 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
     inner class Bridge {
 
         @JavascriptInterface
-        fun getBookBase64(): String = bookBase64
+        fun getBookUrl(): String = bookOpfUrl
 
         @JavascriptInterface
         fun getSavedCfi(): String = currentCfi
