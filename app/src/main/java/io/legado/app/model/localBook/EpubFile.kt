@@ -240,6 +240,7 @@ class EpubFile(var book: Book) {
             it.tagName("img", Parser.NamespaceHtml)
             it.attr("src", it.attr("xlink:href"))
         }
+        bodyElement.applyEpubCss(res)
         bodyElement.select("[style]").forEach { element ->
             element.applyEpubInlineStyle()
         }
@@ -263,6 +264,113 @@ class EpubFile(var book: Book) {
             }
         }
         return bodyElement
+    }
+
+    private fun Element.applyEpubCss(res: Resource) {
+        val rules = arrayListOf<CssRule>()
+        select("style").forEach { styleElement ->
+            rules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
+            styleElement.remove()
+        }
+        select("link[href][rel~=stylesheet]").forEach { link ->
+            val href = link.attr("href").trim()
+            if (href.isNotBlank()) {
+                rules.addAll(parseCssRules(loadCss(res.href, href)))
+            }
+            link.remove()
+        }
+        if (rules.isEmpty()) return
+        rules.forEach { rule ->
+            runCatching {
+                select(rule.selector).forEach { element ->
+                    element.mergeInlineStyle(rule.style)
+                }
+            }
+        }
+    }
+
+    private fun loadCss(baseHref: String, href: String): String {
+        return runCatching {
+            val resolvedHref = URLDecoder.decode(
+                URI(baseHref.encodeURI()).resolve(href.encodeURI()).toString(),
+                "UTF-8"
+            )
+            epubBook?.resources?.getByHref(resolvedHref)?.data?.let {
+                String(it, mCharset)
+            }.orEmpty()
+        }.getOrDefault("")
+    }
+
+    private fun parseCssRules(css: String): List<CssRule> {
+        if (css.isBlank()) return emptyList()
+        val cleanCss = css.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
+        val rules = arrayListOf<CssRule>()
+        Regex("([^{}]+)\\{([^{}]+)}").findAll(cleanCss).forEach { match ->
+            val style = normalizeSupportedCss(match.groupValues[2])
+            if (style.isBlank()) return@forEach
+            match.groupValues[1].split(',')
+                .map { it.trim() }
+                .mapNotNull { it.toSupportedSelector() }
+                .forEach { selector ->
+                    rules.add(CssRule(selector, style))
+                }
+        }
+        return rules
+    }
+
+    private fun normalizeSupportedCss(style: String): String {
+        val supported = setOf(
+            "text-align",
+            "color",
+            "font-weight",
+            "font-style",
+            "font-size",
+            "text-indent",
+            "line-height",
+            "margin",
+            "margin-left",
+            "margin-right",
+            "margin-top",
+            "margin-bottom",
+            "padding",
+            "padding-left",
+            "padding-right",
+            "display",
+            "width",
+            "height"
+        )
+        return style.split(';')
+            .mapNotNull { item ->
+                val index = item.indexOf(':')
+                if (index <= 0) return@mapNotNull null
+                val name = item.substring(0, index).trim().lowercase(Locale.ROOT)
+                val value = item.substring(index + 1).trim()
+                    .replace("\"", "'")
+                if (name in supported && value.isNotBlank()) {
+                    "$name:$value"
+                } else {
+                    null
+                }
+            }
+            .joinToString(";")
+    }
+
+    private fun String.toSupportedSelector(): String? {
+        val selector = trim()
+            .substringBefore(":")
+            .replace(Regex("\\s+>\\s+"), " > ")
+        if (selector.isBlank()) return null
+        if (selector.contains(Regex("[+~\\[\\]=]"))) return null
+        return selector.takeIf {
+            it.matches(Regex("[a-zA-Z0-9_#.*\\-\\s>]+"))
+        }
+    }
+
+    private fun Element.mergeInlineStyle(style: String) {
+        if (style.isBlank()) return
+        val oldStyle = attr("style").trim().trimEnd(';')
+        val newStyle = if (oldStyle.isBlank()) style else "$oldStyle;$style"
+        attr("style", newStyle)
     }
 
     private fun String.compactForUseHtml(): String {
@@ -306,7 +414,22 @@ class EpubFile(var book: Book) {
                 tagName("i", Parser.NamespaceHtml)
             }
         }
+        declarations["display"]?.let { display ->
+            if (display.equals("none", ignoreCase = true)) {
+                remove()
+            }
+        }
+        declarations["font-size"]?.let { size ->
+            if (normalName() == "span" && size.contains(Regex("large|[1-9][0-9]{2,}%"))) {
+                tagName("big", Parser.NamespaceHtml)
+            }
+        }
     }
+
+    private data class CssRule(
+        val selector: String,
+        val style: String
+    )
 
     private fun getImage(href: String): InputStream? {
         if (href == "cover.jpeg") return epubBook?.coverImage?.inputStream
