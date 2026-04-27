@@ -2,9 +2,10 @@ package io.legado.app.ui.book.read
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.drawable.GradientDrawable
+import android.graphics.Color
 import android.util.AttributeSet
 import android.view.LayoutInflater
+import android.view.MenuItem
 import android.view.animation.Animation
 import android.widget.FrameLayout
 import android.widget.SeekBar
@@ -22,14 +23,11 @@ import io.legado.app.model.ReadManga
 import io.legado.app.ui.browser.WebViewActivity
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
-import io.legado.app.utils.ConstraintModify
 import io.legado.app.utils.activity
 import io.legado.app.utils.applyNavigationBarPadding
-import io.legado.app.utils.dpToPx
 import io.legado.app.utils.gone
 import io.legado.app.utils.invisible
 import io.legado.app.utils.loadAnimation
-import io.legado.app.utils.modifyBegin
 import io.legado.app.utils.openUrl
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.visible
@@ -103,59 +101,27 @@ class MangaMenu @JvmOverloads constructor(
         tvChapterName.setTextColor(secondaryTextColor)
         tvChapterUrl.setTextColor(secondaryTextColor)
         tvPre.setTextColor(textColor)
-        tvConfig.setTextColor(textColor)
         tvNext.setTextColor(textColor)
-        val configButtons = listOf(
-            tvPreDownload,
-            tvScaleImage,
-            tvClickScroll,
-            tvAutoPage,
-            tvAutoScroll,
-            tvSpeed,
-            tvHorizontal,
-            tvPageSnap,
-            tvFooter,
-            tvColorFilter,
-            tvTitle,
-            tvEpaper,
-            tvGray
-        )
-        configButtons.forEach {
-            it.setTextColor(textColor)
+        titleBar.menu.clear()
+        titleBar.menu.add(0, MENU_ITEM_CONFIG, 0, R.string.manga_config).apply {
+            setIcon(R.drawable.ic_more_vert)
+            setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
         }
-        val brightnessBackground = GradientDrawable()
-        brightnessBackground.cornerRadius = 5F.dpToPx()
-        brightnessBackground.setColor(ColorUtils.adjustAlpha(bgColor, 0.5f))
         if (AppConfig.isEInkMode) {
             titleBar.setBackgroundResource(R.drawable.bg_eink_border_bottom)
             bottomMenu.setBackgroundResource(R.drawable.bg_eink_border_top)
         } else {
-            bottomMenu.setBackgroundColor(bgColor)
+            bottomMenu.setBackgroundColor(Color.TRANSPARENT)
         }
         if (AppConfig.showReadTitleBarAddition) {
             titleBarAddition.visible()
         } else {
             titleBarAddition.gone()
         }
-        upBrightnessVwPos()
         /**
          * 确保视图不被导航栏遮挡
          */
         bottomMenu.applyNavigationBarPadding()
-    }
-
-    private fun upBrightnessVwPos() {
-        if (AppConfig.brightnessVwPos) {
-            binding.root.modifyBegin()
-                .clear(R.id.ll_brightness, ConstraintModify.Anchor.LEFT)
-                .rightToRightOf(R.id.ll_brightness, R.id.vw_menu_root)
-                .commit()
-        } else {
-            binding.root.modifyBegin()
-                .clear(R.id.ll_brightness, ConstraintModify.Anchor.RIGHT)
-                .leftToLeftOf(R.id.ll_brightness, R.id.vw_menu_root)
-                .commit()
-        }
     }
 
     private fun initAnimation() {
@@ -197,6 +163,14 @@ class MangaMenu @JvmOverloads constructor(
         titleBar.toolbar.setOnClickListener {
             callBack.openBookInfoActivity()
         }
+        titleBar.toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == MENU_ITEM_CONFIG) {
+                callBack.openMangaConfig()
+                true
+            } else {
+                false
+            }
+        }
         val chapterViewClickListener = OnClickListener {
             if (AppConfig.readUrlInBrowser) {
                 context.openUrl(tvChapterUrl.text.toString().substringBefore(",{"))
@@ -235,49 +209,6 @@ class MangaMenu @JvmOverloads constructor(
         tvPre.setOnClickListener {
             ReadManga.moveToPrevChapter(true)
         }
-        tvConfig.setOnClickListener {
-            callBack.openMangaConfig()
-        }
-        tvPreDownload.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_pre_manga_number)
-        }
-        tvScaleImage.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_disable_manga_scale)
-        }
-        tvClickScroll.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_disable_click_scroll)
-        }
-        tvAutoPage.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_enable_auto_page)
-        }
-        tvAutoScroll.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_enable_auto_scroll)
-        }
-        tvSpeed.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_manga_auto_page_speed)
-        }
-        tvHorizontal.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_enable_horizontal_scroll)
-        }
-        tvPageSnap.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_disable_horizontal_page_snap)
-        }
-        tvFooter.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_manga_footer_config)
-        }
-        tvColorFilter.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_manga_color_filter)
-        }
-        tvTitle.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_hide_manga_title)
-        }
-        tvEpaper.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_epaper_manga)
-        }
-        tvGray.setOnClickListener {
-            callBack.onMangaConfigAction(R.id.menu_gray_manga)
-        }
-
         seekReadPage.setOnSeekBarChangeListener(object : SeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
@@ -305,9 +236,12 @@ class MangaMenu @JvmOverloads constructor(
     interface CallBack {
         fun openBookInfoActivity()
         fun openMangaConfig()
-        fun onMangaConfigAction(id: Int)
         fun upSystemUiVisibility(menuIsVisible: Boolean)
         fun skipToPage(index: Int)
+    }
+
+    private companion object {
+        const val MENU_ITEM_CONFIG = 0x4D01
     }
 
 }
