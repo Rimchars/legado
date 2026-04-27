@@ -699,10 +699,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         showMangaConfigMenu()
     }
 
-    override fun onMangaConfigAction(id: Int) {
-        triggerMangaMenuItem(id)
-    }
-
     override fun upSystemUiVisibility(menuIsVisible: Boolean) {
         toggleSystemBar(menuIsVisible)
         if (enableAutoScroll) {

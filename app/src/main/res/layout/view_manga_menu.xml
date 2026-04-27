@@ -78,7 +78,7 @@
         android:id="@+id/bottom_menu"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/background_menu"
+        android:background="@android:color/transparent"
         android:importantForAccessibility="no"
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent">
@@ -86,178 +86,56 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginLeft="20dp"
-            android:layout_marginTop="10dp"
-            android:layout_marginRight="20dp"
-            android:layout_marginBottom="10dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginBottom="14dp"
+            android:gravity="center_vertical"
             android:importantForAccessibility="no"
             android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/tv_pre"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:layout_marginEnd="10dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:paddingTop="10dp"
-                android:paddingBottom="10dp"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_read_menu_touch"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:minWidth="72dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
                 android:text="@string/previous_chapter"
                 android:textColor="@color/primaryText"
-                android:textSize="14sp"
-                tools:ignore="TouchTargetSizeCheck" />
-
-            <TextView
-                android:id="@+id/tv_config"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:layout_marginEnd="10dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:paddingTop="10dp"
-                android:paddingBottom="10dp"
-                android:text="@string/manga_config"
-                android:textColor="@color/primaryText"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 tools:ignore="TouchTargetSizeCheck" />
 
             <io.legado.app.lib.theme.view.ThemeSeekBar
                 android:id="@+id/seek_read_page"
                 android:layout_width="0dp"
-                android:layout_height="25dp"
+                android:layout_height="28dp"
                 android:layout_gravity="center_vertical"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
                 android:layout_weight="1" />
 
             <TextView
                 android:id="@+id/tv_next"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:layout_marginEnd="10dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:paddingTop="10dp"
-                android:paddingBottom="10dp"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_read_menu_touch"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:minWidth="72dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
                 android:text="@string/next_chapter"
                 android:textColor="@color/primaryText"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 tools:ignore="TouchTargetSizeCheck" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/ll_manga_quick_actions"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="16dp"
-            android:layout_marginRight="16dp"
-            android:layout_marginBottom="14dp"
-            android:orientation="vertical">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/tv_pre_download"
-                    style="@style/MangaQuickActionButton"
-                    android:text="预先下载" />
-
-                <TextView
-                    android:id="@+id/tv_scale_image"
-                    style="@style/MangaQuickActionButton"
-                    android:text="缩放图片" />
-
-                <TextView
-                    android:id="@+id/tv_click_scroll"
-                    style="@style/MangaQuickActionButton"
-                    android:text="点击滚动" />
-
-                <TextView
-                    android:id="@+id/tv_auto_page"
-                    style="@style/MangaQuickActionButton"
-                    android:text="自动翻页" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/tv_auto_scroll"
-                    style="@style/MangaQuickActionButton"
-                    android:text="自动滚动" />
-
-                <TextView
-                    android:id="@+id/tv_speed"
-                    style="@style/MangaQuickActionButton"
-                    android:text="速度设置" />
-
-                <TextView
-                    android:id="@+id/tv_horizontal"
-                    style="@style/MangaQuickActionButton"
-                    android:text="横向滚动" />
-
-                <TextView
-                    android:id="@+id/tv_page_snap"
-                    style="@style/MangaQuickActionButton"
-                    android:text="页面吸附" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/tv_footer"
-                    style="@style/MangaQuickActionButton"
-                    android:text="页脚设置" />
-
-                <TextView
-                    android:id="@+id/tv_color_filter"
-                    style="@style/MangaQuickActionButton"
-                    android:text="色彩过滤" />
-
-                <TextView
-                    android:id="@+id/tv_title"
-                    style="@style/MangaQuickActionButton"
-                    android:text="标题显示" />
-
-                <TextView
-                    android:id="@+id/tv_epaper"
-                    style="@style/MangaQuickActionButton"
-                    android:text="墨水模式" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/tv_gray"
-                    style="@style/MangaQuickActionButton"
-                    android:text="灰度显示" />
-
-                <Space
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1" />
-
-                <Space
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1" />
-
-                <Space
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1" />
-            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 
