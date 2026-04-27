@@ -252,11 +252,17 @@ class EpubFile(var book: Book) {
             val href = res.href.encodeURI()
             val resolvedHref = URLDecoder.decode(URI(href).resolve(src).toString(), "UTF-8")
             val alt = it.attr("alt")
-            val option = it.epubImageOption()
+            val options = it.epubImageOptions()
             it.clearAttributes()
-            it.attr("src", resolvedHref + option)
+            it.attr("src", resolvedHref)
             if (alt.isNotBlank()) {
                 it.attr("alt", alt)
+            }
+            options["width"]?.let { width ->
+                it.attr("data-legado-width", width)
+            }
+            options["style"]?.let { style ->
+                it.attr("data-legado-style", style)
             }
         }
         bodyElement.select("a[href]").forEach {
@@ -473,7 +479,7 @@ class EpubFile(var book: Book) {
         images.first()?.attr("data-epub-single-page", "true")
     }
 
-    private fun Element.epubImageOption(): String {
+    private fun Element.epubImageOptions(): Map<String, String> {
         val options = linkedMapOf<String, String>()
         val style = attr("style")
         val declarations = style.split(';')
@@ -491,13 +497,7 @@ class EpubFile(var book: Book) {
             options["style"] = "full"
             options.putIfAbsent("width", "100%")
         }
-        if (options.isEmpty()) return ""
-        return options.entries.joinToString(
-            prefix = ",{",
-            postfix = "}"
-        ) { (key, value) ->
-            "\"$key\":\"${value.replace("\"", "\\\"")}\""
-        }
+        return options
     }
 
     private fun normalizeImageWidth(width: String): String {
@@ -534,12 +534,26 @@ class EpubFile(var book: Book) {
     }
 
     private fun String.stripUrlOptions(): String {
-        val optionStart = Regex("\\s*,\\s*\\{").find(this)?.range?.first
+        val optionStart = indexOfUrlOptions()
         return if (optionStart != null) {
             substring(0, optionStart).trim()
         } else {
             trim()
         }
+    }
+
+    private fun String.indexOfUrlOptions(): Int? {
+        for (index in indices) {
+            if (this[index] != ',') continue
+            var next = index + 1
+            while (next < length && this[next].isWhitespace()) {
+                next++
+            }
+            if (next < length && this[next] == '{') {
+                return index
+            }
+        }
+        return null
     }
 
     private fun upBookCover(fastCheck: Boolean = false) {

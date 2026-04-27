@@ -65,6 +65,10 @@ import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
 import io.legado.app.ui.book.read.page.provider.ChapterProvider.reviewChar
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
+import org.jsoup.nodes.TextNode
 
 class TextChapterLayout(
     scope: CoroutineScope,
@@ -598,6 +602,134 @@ class TextChapterLayout(
      * 排版html样式
      */
     private suspend fun setTypeHtml(
+        imageStyle: String?,
+        book: Book,
+        htmlContent: String,
+    ) {
+        val htmlBuffer = StringBuilder()
+        suspend fun flushHtmlBuffer() {
+            if (htmlBuffer.isBlank()) {
+                htmlBuffer.setLength(0)
+                return
+            }
+            setTypeHtmlText(imageStyle, book, htmlBuffer.toString())
+            htmlBuffer.setLength(0)
+        }
+
+        suspend fun renderNode(node: Node) {
+            currentCoroutineContext().ensureActive()
+            when (node) {
+                is TextNode -> htmlBuffer.append(node.outerHtml())
+                is Element -> {
+                    if (node.normalName() == "img") {
+                        flushHtmlBuffer()
+                        setTypeHtmlImage(imageStyle, book, node)
+                    } else if (node.hasHtmlImage()) {
+                        if (node.isHtmlBlock()) {
+                            flushHtmlBuffer()
+                        }
+                        node.childNodes().forEach { child ->
+                            renderNode(child)
+                        }
+                        if (node.isHtmlBlock()) {
+                            htmlBuffer.append("<br>")
+                            flushHtmlBuffer()
+                        }
+                    } else {
+                        htmlBuffer.append(node.outerHtml())
+                        if (node.isHtmlBlock()) {
+                            flushHtmlBuffer()
+                        }
+                    }
+                }
+                else -> htmlBuffer.append(node.outerHtml())
+            }
+        }
+
+        val body = Jsoup.parseBodyFragment(htmlContent).body()
+        body.childNodes().forEach { node ->
+            renderNode(node)
+        }
+        flushHtmlBuffer()
+    }
+
+    private suspend fun setTypeHtmlImage(
+        imageStyle: String?,
+        book: Book,
+        element: Element
+    ) {
+        val src = element.attr("src").trim()
+        if (src.isBlank()) return
+        var style = element.attr("data-legado-style").ifBlank { null }
+        val width = element.attr("data-legado-width")
+            .ifBlank { element.attr("width") }
+            .ifBlank { element.cssWidth() }
+        val click = element.attr("data-legado-click").ifBlank { null }
+        var imgSize = ImageProvider.getImageSize(book, src, ReadBook.bookSource)
+        imgSize = imgSize.applyWidth(width)
+        if (style == null) {
+            style = if (imgSize.width < 80 && imgSize.height < 80) {
+                "text"
+            } else {
+                imageStyle
+            }
+        }
+        setTypeImage(
+            book,
+            src,
+            contentPaintTextHeight,
+            style,
+            imgSize,
+            click
+        )
+    }
+
+    private fun Element.hasHtmlImage(): Boolean {
+        if (normalName() == "img") return true
+        return children().any { it.hasHtmlImage() }
+    }
+
+    private fun Element.isHtmlBlock(): Boolean {
+        return when (normalName()) {
+            "address", "article", "aside", "blockquote", "body", "center", "dd", "details",
+            "dialog", "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer",
+            "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "main",
+            "nav", "ol", "p", "pre", "section", "table", "tbody", "td", "tfoot", "th",
+            "thead", "tr", "ul" -> true
+            else -> false
+        }
+    }
+
+    private fun Element.cssWidth(): String {
+        val style = attr("style")
+        if (style.isBlank()) return ""
+        style.split(';').forEach { item ->
+            val index = item.indexOf(':')
+            if (index <= 0) return@forEach
+            val name = item.substring(0, index).trim()
+            if (name.equals("width", ignoreCase = true)) {
+                return item.substring(index + 1).trim()
+            }
+        }
+        return ""
+    }
+
+    private fun Size.applyWidth(width: String): Size {
+        if (this.width <= 0 || this.height <= 0 || width.isBlank()) return this
+        val clean = width.trim().lowercase()
+        val newWidth = when {
+            clean.endsWith("%") -> {
+                val percentage = clean.dropLast(1).toFloatOrNull() ?: return this
+                (visibleWidth * percentage / 100f).roundToInt()
+            }
+            clean.endsWith("px") -> clean.dropLast(2).substringBefore(".").toIntOrNull() ?: return this
+            else -> clean.substringBefore(".").toIntOrNull() ?: return this
+        }.coerceAtLeast(1)
+        val newHeight = (height * newWidth.toFloat() / this.width).roundToInt().coerceAtLeast(1)
+        return Size(newWidth, newHeight)
+    }
+
+    private suspend fun setTypeHtmlText(
         imageStyle: String?,
         book: Book,
         htmlContent: String,
