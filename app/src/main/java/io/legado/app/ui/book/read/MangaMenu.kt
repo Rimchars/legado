@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.Color
 import android.util.AttributeSet
 import android.view.LayoutInflater
-import android.view.MenuItem
 import android.view.animation.Animation
 import android.widget.FrameLayout
 import android.widget.SeekBar
@@ -102,11 +101,6 @@ class MangaMenu @JvmOverloads constructor(
         tvChapterUrl.setTextColor(secondaryTextColor)
         tvPre.setTextColor(textColor)
         tvNext.setTextColor(textColor)
-        titleBar.menu.clear()
-        titleBar.menu.add(0, MENU_ITEM_CONFIG, 0, R.string.manga_config).apply {
-            setIcon(R.drawable.ic_more_vert)
-            setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-        }
         if (AppConfig.isEInkMode) {
             titleBar.setBackgroundResource(R.drawable.bg_eink_border_bottom)
             bottomMenu.setBackgroundResource(R.drawable.bg_eink_border_top)
@@ -162,14 +156,6 @@ class MangaMenu @JvmOverloads constructor(
         vwMenuBg.setOnClickListener { runMenuOut() }
         titleBar.toolbar.setOnClickListener {
             callBack.openBookInfoActivity()
-        }
-        titleBar.toolbar.setOnMenuItemClickListener { item ->
-            if (item.itemId == MENU_ITEM_CONFIG) {
-                callBack.openMangaConfig()
-                true
-            } else {
-                false
-            }
         }
         val chapterViewClickListener = OnClickListener {
             if (AppConfig.readUrlInBrowser) {
@@ -238,10 +224,6 @@ class MangaMenu @JvmOverloads constructor(
         fun openMangaConfig()
         fun upSystemUiVisibility(menuIsVisible: Boolean)
         fun skipToPage(index: Int)
-    }
-
-    private companion object {
-        const val MENU_ITEM_CONFIG = 0x4D01
     }
 
 }
