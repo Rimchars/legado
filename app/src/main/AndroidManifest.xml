@@ -158,6 +158,14 @@
                 android:resource="@xml/spen_remote_actions" />
         </activity>
 
+        <!-- Readium EPUB 阅读界面 -->
+        <activity
+            android:name=".ui.book.readium.ReadiumEpubActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
+            android:exported="false"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTask" />
+
         <!-- 阅读漫画界面 -->
         <activity
             android:name=".ui.book.manga.ReadMangaActivity"
