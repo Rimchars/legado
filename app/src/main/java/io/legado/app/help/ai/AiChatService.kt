@@ -440,7 +440,7 @@ object AiChatService {
                 put("role", "system")
                 put(
                     "content",
-                    "本轮用户请求涉及本地书架、书籍详情、阅读记录、分组、标签或书源搜索。回复正文前必须先调用合适的本地工具；不要只说明将要查询。search_book_source 返回的 actionMarkdown 是可点击打开结果的内部链接，展示搜索结果时必须原样保留这个 Markdown 链接。"
+                    "本轮用户请求涉及本地书架、书籍详情、阅读记录、分组、标签或书源搜索。回复正文前必须先调用合适的本地工具；不要只说明将要查询。需要选择书源时先调用 list_book_sources。search_book_source 的结果会由客户端自动渲染成可点击卡片，回复里不要生成链接、不要输出内部 URL、不要手写 Markdown 打开链接，只需要用自然语言简短说明搜索结果。"
                 )
             }
         }

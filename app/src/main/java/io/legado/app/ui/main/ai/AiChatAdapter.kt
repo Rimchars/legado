@@ -248,7 +248,7 @@ class AiChatAdapter(
         }
         cardView.layoutParams = LinearLayout.LayoutParams(
             142.dpToPx(),
-            LinearLayout.LayoutParams.WRAP_CONTENT
+            244.dpToPx()
         ).apply {
             marginEnd = 10.dpToPx()
         }

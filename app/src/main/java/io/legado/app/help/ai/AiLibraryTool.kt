@@ -9,7 +9,6 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -17,10 +16,10 @@ import java.util.Locale
 object AiLibraryTool {
 
     private const val TOOL_QUERY_READ_RECORDS = "query_read_records"
+    private const val TOOL_LIST_BOOK_SOURCES = "list_book_sources"
     private const val TOOL_SEARCH_BOOK_SOURCE = "search_book_source"
     private const val DEFAULT_LIMIT = 8
     private const val MAX_LIMIT = 20
-    private val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
     fun resolvedTools(): List<AiResolvedTool> {
@@ -29,6 +28,11 @@ object AiLibraryTool {
                 name = TOOL_QUERY_READ_RECORDS,
                 definition = queryReadRecordsDefinition(),
                 execute = { args -> queryReadRecords(args) }
+            ),
+            AiResolvedTool(
+                name = TOOL_LIST_BOOK_SOURCES,
+                definition = listBookSourcesDefinition(),
+                execute = { args -> listBookSources(args) }
             ),
             AiResolvedTool(
                 name = TOOL_SEARCH_BOOK_SOURCE,
@@ -88,6 +92,10 @@ object AiLibraryTool {
                             put("type", "string")
                             put("description", "可选，指定单个书源 URL。")
                         })
+                        put("sourceName", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "可选，指定书源名称。sourceUrl 优先。")
+                        })
                         put("sourceGroup", JSONObject().apply {
                             put("type", "string")
                             put("description", "可选，指定书源分组。sourceUrl 优先。")
@@ -99,6 +107,43 @@ object AiLibraryTool {
                         })
                     })
                     put("required", JSONArray(listOf("keyword")))
+                    put("additionalProperties", false)
+                })
+            })
+        }
+    }
+
+    private fun listBookSourcesDefinition(): JSONObject {
+        return JSONObject().apply {
+            put("type", "function")
+            put("function", JSONObject().apply {
+                put("name", TOOL_LIST_BOOK_SOURCES)
+                put("description", "读取本地书源列表，用于查看可用书源、按名称/分组/类型筛选，并为 search_book_source 选择 sourceUrl 或 sourceName。")
+                put("parameters", JSONObject().apply {
+                    put("type", "object")
+                    put("properties", JSONObject().apply {
+                        put("keyword", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "可选，按书源名称、URL 或分组模糊筛选。")
+                        })
+                        put("sourceGroup", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "可选，按书源分组筛选。")
+                        })
+                        put("sourceType", JSONObject().apply {
+                            put("type", "integer")
+                            put("description", "可选，书源类型：0文本，1音频，2图片/漫画，3文件，4视频。")
+                        })
+                        put("enabledOnly", JSONObject().apply {
+                            put("type", "boolean")
+                            put("description", "是否只返回启用书源，默认 true。")
+                        })
+                        put("limit", JSONObject().apply {
+                            put("type", "integer")
+                            put("minimum", 1)
+                            put("maximum", 100)
+                        })
+                    })
                     put("additionalProperties", false)
                 })
             })
@@ -190,10 +235,57 @@ object AiLibraryTool {
         }.toString()
     }
 
+    private suspend fun listBookSources(arguments: JSONObject?): String = withContext(IO) {
+        val keyword = arguments?.optString("keyword")?.trim().orEmpty()
+        val sourceGroup = arguments?.optString("sourceGroup")?.trim().orEmpty()
+        val enabledOnly = arguments?.optBoolean("enabledOnly", true) ?: true
+        val sourceType = arguments?.takeIf { it.has("sourceType") }?.optInt("sourceType")
+        val limit = (arguments?.optInt("limit", 50) ?: 50).coerceIn(1, 100)
+        val sources = (if (enabledOnly) appDb.bookSourceDao.allEnabled else appDb.bookSourceDao.all)
+            .asSequence()
+            .filter { sourceType == null || it.bookSourceType == sourceType }
+            .filter {
+                sourceGroup.isBlank() ||
+                        it.bookSourceGroup.orEmpty().split(',').any { group -> group.trim() == sourceGroup }
+            }
+            .filter {
+                keyword.isBlank() ||
+                        it.bookSourceName.contains(keyword, ignoreCase = true) ||
+                        it.bookSourceUrl.contains(keyword, ignoreCase = true) ||
+                        it.bookSourceGroup.orEmpty().contains(keyword, ignoreCase = true)
+            }
+            .take(limit)
+            .toList()
+        JSONObject().apply {
+            put("ok", true)
+            put("count", sources.size)
+            put("sources", JSONArray().apply {
+                sources.forEach { source ->
+                    put(JSONObject().apply {
+                        put("name", source.bookSourceName)
+                        put("url", source.bookSourceUrl)
+                        put("group", source.bookSourceGroup.orEmpty())
+                        put("type", source.bookSourceType)
+                        put("typeName", sourceTypeName(source.bookSourceType))
+                        put("enabled", source.enabled)
+                        put("enabledExplore", source.enabledExplore)
+                        put("hasSearch", !source.searchUrl.isNullOrBlank())
+                    })
+                }
+            })
+        }.toString()
+    }
+
     private fun resolveSources(arguments: JSONObject?): List<BookSource> {
         val sourceUrl = arguments?.optString("sourceUrl")?.trim().orEmpty()
         if (sourceUrl.isNotBlank()) {
             return appDb.bookSourceDao.getBookSource(sourceUrl)?.let(::listOf).orEmpty()
+        }
+        val sourceName = arguments?.optString("sourceName")?.trim().orEmpty()
+        if (sourceName.isNotBlank()) {
+            return appDb.bookSourceDao.allEnabled.filter {
+                it.bookSourceName == sourceName || it.bookSourceName.contains(sourceName, ignoreCase = true)
+            }
         }
         val sourceGroup = arguments?.optString("sourceGroup")?.trim().orEmpty()
         if (sourceGroup.isNotBlank()) {
@@ -215,7 +307,6 @@ object AiLibraryTool {
             put("intro", book.intro ?: "")
             put("latestChapterTitle", book.latestChapterTitle ?: "")
             put("target", if (isVideo) "video" else "bookInfo")
-            put("actionMarkdown", buildOpenMarkdown(book, isVideo))
             put("openAction", JSONObject().apply {
                 put("type", "open_search_book")
                 put("target", if (isVideo) "video" else "bookInfo")
@@ -228,21 +319,14 @@ object AiLibraryTool {
         }
     }
 
-    private fun buildOpenMarkdown(book: SearchBook, isVideo: Boolean): String {
-        val url = buildString {
-            append("legado-search-book://open?")
-            append("target=").append(if (isVideo) "video" else "bookInfo")
-            append("&name=").append(book.name.encodeUrl())
-            append("&author=").append(book.author.encodeUrl())
-            append("&bookUrl=").append(book.bookUrl.encodeUrl())
-            append("&origin=").append(book.origin.encodeUrl())
-            append("&originName=").append(book.originName.encodeUrl())
+    private fun sourceTypeName(type: Int): String {
+        return when (type) {
+            BookSourceType.audio -> "音频"
+            BookSourceType.image -> "图片/漫画"
+            BookSourceType.file -> "文件"
+            BookSourceType.video -> "视频"
+            else -> "文本"
         }
-        return "[打开《${book.name.ifBlank { "结果" }}》]($url)"
-    }
-
-    private fun String.encodeUrl(): String {
-        return URLEncoder.encode(this, Charsets.UTF_8.name())
     }
 
     private fun errorJson(message: String): String {

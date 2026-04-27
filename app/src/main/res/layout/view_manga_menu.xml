@@ -83,196 +83,6 @@
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <HorizontalScrollView
-            android:id="@+id/config_scroll"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clipToPadding="false"
-            android:overScrollMode="never"
-            android:paddingStart="20dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="20dp"
-            android:scrollbars="none">
-
-            <LinearLayout
-                android:id="@+id/config_actions"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/tv_pre_download"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="预先下载" />
-
-                <TextView
-                    android:id="@+id/tv_scale_image"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="缩放图片" />
-
-                <TextView
-                    android:id="@+id/tv_click_scroll"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="点击滚动" />
-
-                <TextView
-                    android:id="@+id/tv_auto_page"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="自动翻页" />
-
-                <TextView
-                    android:id="@+id/tv_auto_scroll"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="自动滚动" />
-
-                <TextView
-                    android:id="@+id/tv_speed"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="速度设置" />
-
-                <TextView
-                    android:id="@+id/tv_horizontal"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="横向滚动" />
-
-                <TextView
-                    android:id="@+id/tv_page_snap"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="页面吸附" />
-
-                <TextView
-                    android:id="@+id/tv_footer"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="页脚设置" />
-
-                <TextView
-                    android:id="@+id/tv_color_filter"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="色彩过滤" />
-
-                <TextView
-                    android:id="@+id/tv_title"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="标题显示" />
-
-                <TextView
-                    android:id="@+id/tv_epaper"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="墨水模式" />
-
-                <TextView
-                    android:id="@+id/tv_gray"
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:minWidth="72dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="灰度显示" />
-
-            </LinearLayout>
-
-        </HorizontalScrollView>
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -331,6 +141,123 @@
                 android:textColor="@color/primaryText"
                 android:textSize="14sp"
                 tools:ignore="TouchTargetSizeCheck" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_manga_quick_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginBottom="14dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_pre_download"
+                    style="@style/MangaQuickActionButton"
+                    android:text="预先下载" />
+
+                <TextView
+                    android:id="@+id/tv_scale_image"
+                    style="@style/MangaQuickActionButton"
+                    android:text="缩放图片" />
+
+                <TextView
+                    android:id="@+id/tv_click_scroll"
+                    style="@style/MangaQuickActionButton"
+                    android:text="点击滚动" />
+
+                <TextView
+                    android:id="@+id/tv_auto_page"
+                    style="@style/MangaQuickActionButton"
+                    android:text="自动翻页" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_auto_scroll"
+                    style="@style/MangaQuickActionButton"
+                    android:text="自动滚动" />
+
+                <TextView
+                    android:id="@+id/tv_speed"
+                    style="@style/MangaQuickActionButton"
+                    android:text="速度设置" />
+
+                <TextView
+                    android:id="@+id/tv_horizontal"
+                    style="@style/MangaQuickActionButton"
+                    android:text="横向滚动" />
+
+                <TextView
+                    android:id="@+id/tv_page_snap"
+                    style="@style/MangaQuickActionButton"
+                    android:text="页面吸附" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_footer"
+                    style="@style/MangaQuickActionButton"
+                    android:text="页脚设置" />
+
+                <TextView
+                    android:id="@+id/tv_color_filter"
+                    style="@style/MangaQuickActionButton"
+                    android:text="色彩过滤" />
+
+                <TextView
+                    android:id="@+id/tv_title"
+                    style="@style/MangaQuickActionButton"
+                    android:text="标题显示" />
+
+                <TextView
+                    android:id="@+id/tv_epaper"
+                    style="@style/MangaQuickActionButton"
+                    android:text="墨水模式" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_gray"
+                    style="@style/MangaQuickActionButton"
+                    android:text="灰度显示" />
+
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1" />
+
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1" />
+
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 
