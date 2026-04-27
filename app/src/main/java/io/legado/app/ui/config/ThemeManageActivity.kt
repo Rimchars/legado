@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.jaredrummler.android.colorpicker.ColorPickerDialog
@@ -585,9 +586,37 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
 
         var items: List<ThemePackageManager.Entry> = emptyList()
             set(value) {
+                val oldItems = field
                 field = value
-                notifyDataSetChanged()
+                DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                    override fun getOldListSize(): Int = oldItems.size
+                    override fun getNewListSize(): Int = value.size
+                    override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                        val old = oldItems[oldItemPosition]
+                        val new = value[newItemPosition]
+                        return old.packageInfo.isNightTheme == new.packageInfo.isNightTheme &&
+                                old.dirName == new.dirName
+                    }
+
+                    override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                        val old = oldItems[oldItemPosition]
+                        val new = value[newItemPosition]
+                        return old.packageInfo == new.packageInfo &&
+                                old.source == new.source &&
+                                old.remoteUpdatedAt == new.remoteUpdatedAt &&
+                                isApplied(old) == isApplied(new)
+                    }
+                }).dispatchUpdatesTo(this)
             }
+
+        init {
+            setHasStableIds(true)
+        }
+
+        override fun getItemId(position: Int): Long {
+            val item = items[position]
+            return "${item.packageInfo.isNightTheme}:${item.dirName}".hashCode().toLong()
+        }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
             return Holder(
