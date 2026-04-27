@@ -47,6 +47,12 @@
         app:iconSpaceReserved="false" />
 
     <io.legado.app.lib.prefs.Preference
+        android:key="frostedGlassLevel"
+        android:summary="@string/frosted_glass_level_summary"
+        android:title="@string/frosted_glass_level"
+        app:iconSpaceReserved="false" />
+
+    <io.legado.app.lib.prefs.Preference
         android:key="fontScale"
         android:summary="@string/font_scale_summary"
         android:title="@string/font_scale"
