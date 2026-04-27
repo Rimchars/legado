@@ -24,7 +24,6 @@ import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.util.UnstableApi
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.LinearSmoothScroller
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
@@ -62,6 +61,7 @@ import io.legado.app.service.VideoPlayService
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.model.SourceCallBack
 import io.legado.app.ui.association.OnLineImportActivity
+import io.legado.app.ui.book.changesource.ChangeBookSourceDialog
 import io.legado.app.ui.book.info.BookInfoViewModel
 import io.legado.app.ui.book.source.edit.BookSourceEditActivity
 import io.legado.app.ui.book.toc.TocActivityResult
@@ -98,7 +98,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlayerViewModel>(),
-    SettingsDialog.CallBack,RssFavoritesDialog.Callback {
+    SettingsDialog.CallBack,
+    RssFavoritesDialog.Callback,
+    ChangeBookSourceDialog.CallBack {
 
     companion object {
         const val EXTRA_PREPARE_BOOK_INFO = "prepareBookInfo"
@@ -333,31 +335,58 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
 
     private fun showBook(book: Book) {
         binding.run {
-            showCover(book)
             tvName.text = book.name
             book.getRealAuthor().takeIf { it.isNotEmpty() }?.let {
                 tvAuthor.text = it
             } ?: tvAuthor.gone()
             showBookIntro(book)
-            showVideoInfo(book)
+        showSourceInfo(book)
+        setupSourceActions(book)
         }
     }
 
-    private fun showVideoInfo(book: Book) {
+    private fun showSourceInfo(book: Book) {
         val sourceName = when (val source = VideoPlay.source) {
             is BookSource -> source.bookSourceName.ifBlank { source.bookSourceUrl }
             is RssSource -> source.sourceName.ifBlank { source.sourceUrl }
             else -> book.origin
         }.ifBlank { getString(R.string.error_no_source) }
-        val episodes = VideoPlay.episodes.orEmpty()
-        val chapterIndex = if (episodes.isEmpty()) 0 else VideoPlay.chapterInVolumeIndex + 1
         binding.tvVideoSource.text = getString(R.string.video_source_label, sourceName)
-        binding.tvVideoUrl.text = getString(R.string.video_book_url_label, book.bookUrl)
-        binding.tvVideoChapterInfo.text = getString(
-            R.string.video_chapter_progress,
-            chapterIndex,
-            episodes.size
-        )
+        binding.tvVideoOrigin.text = getString(R.string.video_origin_label, book.originName.ifBlank { book.origin })
+    }
+
+    private fun setupSourceActions(book: Book) {
+        val source = VideoPlay.source
+        binding.btnChangeSource.setOnClickListener {
+            showDialogFragment(ChangeBookSourceDialog(book.name, book.author))
+        }
+        binding.btnEditSource.setOnClickListener {
+            source?.let { s ->
+                when (s) {
+                    is BookSource -> bookSourceEditResult.launch {
+                        putExtra("sourceUrl", s.getKey())
+                    }
+                    is RssSource -> rssSourceEditResult.launch {
+                        putExtra("sourceUrl", s.getKey())
+                    }
+                }
+            }
+        }
+        binding.btnLoginSource.visibility =
+            if (source?.loginUrl.isNullOrBlank()) View.GONE else View.VISIBLE
+        binding.btnLoginSource.setOnClickListener {
+            source?.let { s ->
+                when (s) {
+                    is BookSource -> startActivity<SourceLoginActivity> {
+                        putExtra("bookType", BookType.video)
+                    }
+                    is RssSource -> startActivity<SourceLoginActivity> {
+                        putExtra("type", "rssSource")
+                        putExtra("key", s.getKey())
+                    }
+                }
+            }
+        }
     }
 
     inner class CustomWebViewClient : WebViewClient() {
@@ -504,10 +533,6 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
         }
     }
 
-    private fun showCover(book: Book) {
-        binding.ivCover.load(book, false)
-    }
-
     private fun showToc(toc: List<BookChapter>) {
         binding.ivChapter.setOnClickListener {
             VideoPlay.book?.bookUrl?.let {
@@ -515,7 +540,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             }
         }
         val recyclerView = binding.chapters
-        val layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        val layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         recyclerView.layoutManager = layoutManager
         val adapter = ChapterAdapter(toc,VideoPlay.chapterInVolumeIndex, false) { chapter, index ->
             if (index != VideoPlay.chapterInVolumeIndex) {
@@ -557,18 +582,32 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
     private fun scrollToDurChapter(recyclerView: RecyclerView, index: Int) {
         recyclerView.postDelayed({
             val layoutManager = recyclerView.layoutManager as? LinearLayoutManager
-            layoutManager?.run {
-                val smoothScroller = object : LinearSmoothScroller(this@VideoPlayerActivity) {
-                    override fun getHorizontalSnapPreference(): Int {
-                        return SNAP_TO_START // 滚动到最左边
-                    }
-                }
-                smoothScroller.targetPosition = index
-                this.startSmoothScroll(smoothScroller)
-            }
+            layoutManager?.scrollToPositionWithOffset(index.coerceAtLeast(0), 0)
             val adapter = recyclerView.adapter as? ChapterAdapter
             adapter?.updateSelectedPosition(index)
         }, 200)
+    }
+
+    override val oldBook: Book?
+        get() = VideoPlay.book
+
+    override fun changeTo(source: BookSource, book: Book, toc: List<BookChapter>) {
+        VideoPlay.book = book
+        VideoPlay.source = source
+        VideoPlay.toc = toc
+        VideoPlay.volumes.clear()
+        toc.forEach { chapter ->
+            if (chapter.isVolume) {
+                VideoPlay.volumes.add(chapter)
+            }
+        }
+        VideoPlay.durVolumeIndex = book.durVolumeIndex
+        VideoPlay.chapterInVolumeIndex = book.chapterInVolumeIndex
+        VideoPlay.upEpisodes()
+        initView()
+        upView()
+        VideoPlay.startPlay(playerView)
+        VideoPlay.saveRead()
     }
 
     private fun upView() {

@@ -5,11 +5,14 @@ import android.view.MenuItem
 import android.view.ViewGroup
 import androidx.activity.viewModels
 import androidx.core.os.bundleOf
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
+import io.legado.app.constant.BookSourceType
 import io.legado.app.constant.BookType
+import io.legado.app.data.appDb
 import io.legado.app.data.entities.SearchBook
 import io.legado.app.databinding.ActivityExploreShowBinding
 import io.legado.app.databinding.ViewLoadMoreBinding
@@ -21,6 +24,9 @@ import io.legado.app.ui.widget.recycler.VerticalDivider
 import io.legado.app.utils.applyNavigationBarPadding
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 发现列表
@@ -169,16 +175,22 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
     }
 
     override fun showBookInfo(book: SearchBook) {
-        if (book.type and BookType.video > 0) {
-            openVideo(book)
-            return
-        }
-        startActivity<BookInfoActivity> {
-            putExtra("name", book.name)
-            putExtra("author", book.author)
-            putExtra("bookUrl", book.bookUrl)
-            putExtra("origin", book.origin)
-            putExtra("originName", book.originName)
+        lifecycleScope.launch {
+            val isVideo = withContext(IO) {
+                book.type and BookType.video > 0 ||
+                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video
+            }
+            if (isVideo) {
+                openVideo(book)
+            } else {
+                startActivity<BookInfoActivity> {
+                    putExtra("name", book.name)
+                    putExtra("author", book.author)
+                    putExtra("bookUrl", book.bookUrl)
+                    putExtra("origin", book.origin)
+                    putExtra("originName", book.originName)
+                }
+            }
         }
     }
 

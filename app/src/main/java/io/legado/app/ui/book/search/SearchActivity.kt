@@ -25,6 +25,7 @@ import com.google.android.flexbox.FlexboxLayoutManager
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.AppLog
+import io.legado.app.constant.BookSourceType
 import io.legado.app.constant.BookType
 import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
@@ -511,16 +512,22 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
      * 显示书籍详情
      */
     override fun showBookInfo(book: SearchBook) {
-        if (book.type and BookType.video > 0) {
-            openVideo(book)
-            return
-        }
-        startActivity<BookInfoActivity> {
-            putExtra("name", book.name)
-            putExtra("author", book.author)
-            putExtra("bookUrl", book.bookUrl)
-            putExtra("origin", book.origin)
-            putExtra("originName", book.originName)
+        lifecycleScope.launch {
+            val isVideo = withContext(IO) {
+                book.type and BookType.video > 0 ||
+                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video
+            }
+            if (isVideo) {
+                openVideo(book)
+            } else {
+                startActivity<BookInfoActivity> {
+                    putExtra("name", book.name)
+                    putExtra("author", book.author)
+                    putExtra("bookUrl", book.bookUrl)
+                    putExtra("origin", book.origin)
+                    putExtra("originName", book.originName)
+                }
+            }
         }
     }
 
