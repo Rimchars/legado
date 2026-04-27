@@ -33,6 +33,7 @@
     let pageAnim = 3;
     let currentStyle = {};
     let animating = false;
+    let dragState = null;
 
     function notify(type, payload) {
       if (window.AndroidBridge && AndroidBridge.onEvent) {
@@ -373,11 +374,11 @@
       const viewer = document.getElementById("viewer");
       animating = true;
       viewer.style.transition = "transform 180ms ease-out";
-      viewer.style.transform = `translateY(${-direction * 18}px)`;
+      viewer.style.transform = `translateX(${-direction * 28}px)`;
       setTimeout(() => {
         metrics.scrollTo(targetTop);
         viewer.style.transition = "transform 150ms ease-out";
-        viewer.style.transform = "translateY(0)";
+        viewer.style.transform = "translateX(0)";
         setTimeout(() => {
           viewer.style.transition = "";
           animating = false;
@@ -387,19 +388,19 @@
     }
 
     function animateCover(direction, metrics, targetTop) {
-      const overlay = createAnimOverlay();
+      const overlay = createAnimOverlay(targetTop);
       const from = direction > 0 ? "100%" : "-100%";
       const to = "0";
       animating = true;
-      overlay.style.transform = `translateY(${from})`;
+      overlay.style.transform = `translateX(${from})`;
       requestAnimationFrame(() => {
         overlay.style.transition = "transform 180ms ease-out";
-        overlay.style.transform = `translateY(${to})`;
+        overlay.style.transform = `translateX(${to})`;
       });
       setTimeout(() => {
         metrics.scrollTo(targetTop);
         overlay.style.transition = "transform 180ms ease-in";
-        overlay.style.transform = `translateY(${-direction * 100}%)`;
+        overlay.style.transform = `translateX(${-direction * 100}%)`;
         setTimeout(() => {
           overlay.remove();
           animating = false;
@@ -411,9 +412,9 @@
     function animateSimulation(direction, metrics, targetTop) {
       const viewer = document.getElementById("viewer");
       animating = true;
-      viewer.style.transformOrigin = direction > 0 ? "center bottom" : "center top";
+      viewer.style.transformOrigin = direction > 0 ? "left center" : "right center";
       viewer.style.transition = "transform 150ms ease-out, opacity 150ms ease-out";
-      viewer.style.transform = `perspective(900px) rotateX(${direction * 4}deg) scale(0.985)`;
+      viewer.style.transform = `perspective(900px) rotateY(${-direction * 10}deg) scale(0.985)`;
       viewer.style.opacity = "0.92";
       setTimeout(() => {
         metrics.scrollTo(targetTop);
@@ -429,7 +430,7 @@
       }, 130);
     }
 
-    function createAnimOverlay() {
+    function createAnimOverlay(scrollTop) {
       const overlay = document.createElement("div");
       overlay.style.position = "fixed";
       overlay.style.left = "0";
@@ -439,9 +440,223 @@
       overlay.style.zIndex = "20";
       overlay.style.pointerEvents = "none";
       overlay.style.background = currentStyle.background || "#f7f3ea";
-      overlay.style.boxShadow = "0 -18px 36px rgba(0,0,0,0.12)";
+      overlay.style.boxShadow = "0 0 36px rgba(0,0,0,0.16)";
+      fillOverlayWithSnapshot(overlay, scrollTop);
       document.body.appendChild(overlay);
       return overlay;
+    }
+
+    function fillOverlayWithSnapshot(overlay, scrollTop) {
+      try {
+        const contents = getActiveContents();
+        const doc = contents && contents.document;
+        if (!doc || !doc.documentElement) return;
+        const iframe = document.createElement("iframe");
+        iframe.setAttribute("sandbox", "allow-same-origin");
+        iframe.style.width = "100%";
+        iframe.style.height = "100%";
+        iframe.style.border = "0";
+        iframe.style.display = "block";
+        iframe.style.background = currentStyle.background || "#f7f3ea";
+        const baseHref = doc.location && doc.location.href ? doc.location.href : "";
+        const html = doc.documentElement.outerHTML.replace(
+          /<head([^>]*)>/i,
+          `<head$1><base href="${baseHref}">`
+        );
+        iframe.srcdoc = html;
+        iframe.onload = () => {
+          try {
+            iframe.contentWindow && iframe.contentWindow.scrollTo(0, scrollTop || 0);
+          } catch (e) {
+            // ignore snapshot scroll errors
+          }
+        };
+        overlay.appendChild(iframe);
+      } catch (e) {
+        // keep solid fallback
+      }
+    }
+
+    function beginPageDrag(direction) {
+      if (animating || dragState) return;
+      const metrics = getScrollPort();
+      const step = Math.max(160, Math.floor(metrics.height * 0.86));
+      let targetTop = metrics.top;
+      let boundary = false;
+      if (direction > 0) {
+        if (metrics.top >= metrics.max - 8) {
+          boundary = true;
+        } else {
+          targetTop = Math.min(metrics.max, metrics.top + step);
+        }
+      } else if (direction < 0) {
+        if (metrics.top <= 8) {
+          boundary = true;
+        } else {
+          targetTop = Math.max(0, metrics.top - step);
+        }
+      }
+      dragState = {
+        direction,
+        metrics,
+        targetTop,
+        boundary,
+        width: window.innerWidth || document.documentElement.clientWidth || 1,
+        overlay: null
+      };
+      prepareDragVisual(0);
+    }
+
+    function updatePageDrag(dx) {
+      if (!dragState) return;
+      const width = dragState.width;
+      const direction = dragState.direction;
+      let progress = Math.min(1, Math.abs(dx) / width);
+      if (dragState.boundary) {
+        progress *= 0.35;
+      }
+      const signed = direction * progress;
+      applyDragVisual(signed);
+    }
+
+    function endPageDrag(commit) {
+      if (!dragState) return;
+      const state = dragState;
+      const direction = state.direction;
+      if (state.boundary) {
+        cleanupDragVisual(true);
+        dragState = null;
+        if (commit) {
+          notify("pageBoundary", { direction });
+        }
+        return;
+      }
+      if (commit) {
+        finishDragVisual(direction, () => {
+          state.metrics.scrollTo(state.targetTop);
+          cleanupDragVisual(false);
+          dragState = null;
+          reportLocation();
+        });
+      } else {
+        cleanupDragVisual(true);
+        dragState = null;
+      }
+    }
+
+    function cancelPageDrag() {
+      if (!dragState) return;
+      cleanupDragVisual(true);
+      dragState = null;
+    }
+
+    function prepareDragVisual() {
+      const mode = Number(pageAnim);
+      const viewer = document.getElementById("viewer");
+      viewer.style.willChange = "transform, opacity";
+      if (mode === 0 || mode === 1) {
+        const overlay = createAnimOverlay(dragState.targetTop);
+        overlay.style.transition = "";
+        if (mode === 1) {
+          overlay.style.boxShadow = "none";
+          overlay.style.transform = `translateX(${dragState.direction * dragState.width}px)`;
+        }
+        dragState.overlay = overlay;
+      }
+    }
+
+    function applyDragVisual(signedProgress) {
+      const mode = Number(pageAnim);
+      const viewer = document.getElementById("viewer");
+      const width = dragState.width;
+      const direction = dragState.direction;
+      if (mode === 4) return;
+      if (mode === 0) {
+        const overlay = dragState.overlay;
+        if (!overlay) return;
+        const hidden = direction > 0 ? width : -width;
+        const x = hidden - hidden * Math.abs(signedProgress);
+        overlay.style.transform = `translateX(${x}px)`;
+        return;
+      }
+      if (mode === 1) {
+        const x = -direction * Math.abs(signedProgress) * width;
+        viewer.style.transform = `translateX(${x}px)`;
+        if (dragState.overlay) {
+          dragState.overlay.style.transform = `translateX(${direction * width + x}px)`;
+        }
+        return;
+      }
+      if (mode === 2) {
+        const angle = -direction * Math.abs(signedProgress) * 38;
+        viewer.style.transformOrigin = direction > 0 ? "left center" : "right center";
+        viewer.style.transform = `perspective(900px) rotateY(${angle}deg)`;
+        viewer.style.opacity = String(1 - Math.abs(signedProgress) * 0.18);
+        return;
+      }
+      const x = -direction * Math.abs(signedProgress) * width;
+      viewer.style.transform = `translateX(${x}px)`;
+    }
+
+    function finishDragVisual(direction, done) {
+      const mode = Number(pageAnim);
+      const viewer = document.getElementById("viewer");
+      if (mode === 4) {
+        done();
+        return;
+      }
+      if ((mode === 0 || mode === 1) && dragState.overlay) {
+        const overlay = dragState.overlay;
+        if (mode === 1) {
+          viewer.style.transition = "transform 160ms ease-out";
+          viewer.style.transform = `translateX(${-direction * dragState.width}px)`;
+        }
+        overlay.style.transition = "transform 160ms ease-out";
+        overlay.style.transform = "translateX(0)";
+        setTimeout(done, 170);
+        return;
+      }
+      if (mode === 2) {
+        viewer.style.transition = "transform 180ms ease-out, opacity 180ms ease-out";
+        viewer.style.transform = `perspective(900px) rotateY(${-direction * 86}deg)`;
+        viewer.style.opacity = "0.72";
+        setTimeout(done, 190);
+        return;
+      }
+      viewer.style.transition = "transform 160ms ease-out";
+      viewer.style.transform = `translateX(${-direction * dragState.width}px)`;
+      setTimeout(done, 170);
+    }
+
+    function cleanupDragVisual(animateBack) {
+      const viewer = document.getElementById("viewer");
+      if (animateBack) {
+        viewer.style.transition = "transform 160ms ease-out, opacity 160ms ease-out";
+        viewer.style.transform = "none";
+        viewer.style.opacity = "1";
+      } else {
+        viewer.style.transition = "";
+        viewer.style.transform = "none";
+        viewer.style.opacity = "1";
+      }
+      viewer.style.transformOrigin = "";
+      viewer.style.willChange = "";
+      if (dragState && dragState.overlay) {
+        const overlay = dragState.overlay;
+        if (animateBack) {
+          const direction = dragState.direction;
+          overlay.style.transition = "transform 160ms ease-out";
+          overlay.style.transform = `translateX(${direction > 0 ? 100 : -100}%)`;
+          setTimeout(() => overlay.remove(), 170);
+        } else {
+          overlay.remove();
+        }
+      }
+      if (animateBack) {
+        setTimeout(() => {
+          viewer.style.transition = "";
+        }, 170);
+      }
     }
 
     function display(cfiOrHref) {
