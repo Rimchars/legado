@@ -549,6 +549,10 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 }
             }
 
+            R.id.menu_manga_config -> {
+                showMangaConfigMenu()
+            }
+
             R.id.menu_pre_manga_number -> {
                 showNumberPickerDialog(
                     0,
