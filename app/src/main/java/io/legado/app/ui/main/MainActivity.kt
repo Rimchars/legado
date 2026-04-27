@@ -339,9 +339,11 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
             searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
             val glassLevel = AppConfig.frostedGlassLevel / 100f
-            val blurBoost = 0.75f + glassLevel * 1.25f
-            val tintAlpha = 0.22f + glassLevel * 0.34f
-            val dispersion = 0.28f + glassLevel * 0.24f
+            val blurRadius = (6f + glassLevel * 18f).dpToPx()
+            val tintAlpha = 0.08f + glassLevel * 0.12f
+            val dispersion = 0.46f + glassLevel * 0.32f
+            val refractionHeight = (18f + glassLevel * 14f).dpToPx()
+            val refractionOffset = (72f + glassLevel * 34f).dpToPx()
             bottomNavigationShellOverlay.background = createLiquidGlassShellDrawable(
                 glassLevel = glassLevel,
                 cornerRadius = bottomBarCornerRadius,
@@ -363,9 +365,9 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             setupLiquidGlassView(
                 liquidGlassView = bottomNavigationGlassView,
                 cornerRadius = bottomBarCornerRadius,
-                refractionHeight = 18f.dpToPx(),
-                refractionOffset = 74f.dpToPx(),
-                blurRadius = 28f.dpToPx() * blurBoost,
+                refractionHeight = refractionHeight,
+                refractionOffset = refractionOffset,
+                blurRadius = blurRadius,
                 dispersion = dispersion,
                 tintAlpha = tintAlpha,
                 elasticEnabled = true,
@@ -374,10 +376,10 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             setupLiquidGlassView(
                 liquidGlassView = searchButtonGlassView,
                 cornerRadius = searchButtonCornerRadius,
-                refractionHeight = 18f.dpToPx(),
-                refractionOffset = 74f.dpToPx(),
-                blurRadius = 28f.dpToPx() * blurBoost,
-                dispersion = dispersion,
+                refractionHeight = refractionHeight,
+                refractionOffset = refractionOffset,
+                blurRadius = blurRadius,
+                dispersion = (dispersion + 0.04f).coerceAtMost(1f),
                 tintAlpha = tintAlpha,
                 elasticEnabled = true,
                 touchEffectEnabled = true
@@ -385,11 +387,11 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             setupLiquidGlassView(
                 liquidGlassView = bottomNavigationIndicatorGlassView,
                 cornerRadius = bottomIndicatorCornerRadius,
-                refractionHeight = 16f.dpToPx(),
-                refractionOffset = 46f.dpToPx(),
-                blurRadius = 22f.dpToPx() * blurBoost,
-                dispersion = dispersion + 0.04f,
-                tintAlpha = (tintAlpha + 0.06f).coerceAtMost(0.68f),
+                refractionHeight = (refractionHeight * 0.9f).coerceAtLeast(16f.dpToPx()),
+                refractionOffset = (refractionOffset * 0.72f).coerceAtLeast(46f.dpToPx()),
+                blurRadius = (blurRadius * 0.78f).coerceAtLeast(5f.dpToPx()),
+                dispersion = (dispersion + 0.08f).coerceAtMost(1f),
+                tintAlpha = (tintAlpha + 0.05f).coerceAtMost(0.28f),
                 elasticEnabled = true,
                 touchEffectEnabled = true
             )
@@ -409,11 +411,11 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         } else {
             AppColorUtils.blendColors(baseColor, Color.BLACK, 0.24f)
         }
-        val startAlpha = (0.48f + glassLevel * 0.28f).coerceIn(0f, 0.86f)
-        val centerAlpha = (0.36f + glassLevel * 0.26f).coerceIn(0f, 0.78f)
-        val endAlpha = (0.30f + glassLevel * 0.22f).coerceIn(0f, 0.70f)
-        val selectedBoost = if (selected) 0.10f else 0f
-        val strokeAlpha = (0.24f + glassLevel * 0.20f + selectedBoost).coerceIn(0f, 0.58f)
+        val startAlpha = (0.24f + glassLevel * 0.14f).coerceIn(0f, 0.46f)
+        val centerAlpha = (0.14f + glassLevel * 0.12f).coerceIn(0f, 0.34f)
+        val endAlpha = (0.10f + glassLevel * 0.10f).coerceIn(0f, 0.28f)
+        val selectedBoost = if (selected) 0.08f else 0f
+        val strokeAlpha = (0.22f + glassLevel * 0.22f + selectedBoost).coerceIn(0f, 0.58f)
         return GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(
