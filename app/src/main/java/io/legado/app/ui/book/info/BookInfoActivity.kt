@@ -52,6 +52,7 @@ import io.legado.app.help.WebCacheManager
 import io.legado.app.help.book.addType
 import io.legado.app.help.book.getRemoteUrl
 import io.legado.app.help.book.isAudio
+import io.legado.app.help.book.isEpub
 import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isLocalTxt
@@ -79,6 +80,7 @@ import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.book.audio.AudioPlayActivity
 import io.legado.app.ui.book.changecover.ChangeCoverDialog
 import io.legado.app.ui.book.changesource.ChangeBookSourceDialog
+import io.legado.app.ui.book.epub.EpubJsActivity
 import io.legado.app.ui.book.group.GroupSelectDialog
 import io.legado.app.ui.book.info.edit.BookInfoEditActivity
 import io.legado.app.ui.book.manga.ReadMangaActivity
@@ -1391,8 +1393,11 @@ class BookInfoActivity :
             else -> readBookResult.launch(
                 Intent(
                     this,
-                    if (!book.isLocal && book.isImage && AppConfig.showMangaUi) ReadMangaActivity::class.java
-                    else ReadBookActivity::class.java
+                    when {
+                        book.isEpub -> EpubJsActivity::class.java
+                        !book.isLocal && book.isImage && AppConfig.showMangaUi -> ReadMangaActivity::class.java
+                        else -> ReadBookActivity::class.java
+                    }
                 )
                     .putExtra("bookUrl", book.bookUrl)
                     .putExtra("inBookshelf", viewModel.inBookshelf)
