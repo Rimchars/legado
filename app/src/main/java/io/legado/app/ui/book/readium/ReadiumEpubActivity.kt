@@ -14,11 +14,7 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.databinding.ActivityReadiumEpubBinding
 import io.legado.app.help.book.isEpub
-import io.legado.app.utils.getPrefBoolean
-import io.legado.app.utils.getPrefInt
 import io.legado.app.utils.openUrl
-import io.legado.app.utils.putPrefBoolean
-import io.legado.app.utils.putPrefInt
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.visible
 import kotlinx.coroutines.Dispatchers
@@ -34,8 +30,6 @@ import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
-import org.readium.r2.navigator.preferences.ColumnCount
-import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
@@ -62,11 +56,6 @@ class ReadiumEpubActivity : BaseActivity<ActivityReadiumEpubBinding>(
     private var book: Book? = null
     private var currentLocator: Locator? = null
     private var ignoreSeekChange = false
-    private var readiumFontSize = 1.0
-    private var readiumLineHeight = 1.45
-    private var readiumMargins = 1.0
-    private var readiumScrollMode = true
-    private var readiumPublisherStyles = true
     private val readiumInputListener = object : InputListener {
         override fun onTap(event: TapEvent): Boolean {
             val width = binding.readerContainer.width.takeIf { it > 0 } ?: return false
@@ -84,7 +73,6 @@ class ReadiumEpubActivity : BaseActivity<ActivityReadiumEpubBinding>(
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
-        loadPreferences()
         initMenu()
         lifecycleScope.launch {
             openBook(savedInstanceState)
@@ -117,7 +105,7 @@ class ReadiumEpubActivity : BaseActivity<ActivityReadiumEpubBinding>(
             supportFragmentManager.fragmentFactory = EpubNavigatorFactory(publication)
                 .createFragmentFactory(
                     initialLocator = initialLocator,
-                    initialPreferences = createPreferences(),
+                    initialPreferences = EpubPreferences(),
                     listener = this,
                     configuration = EpubNavigatorFragment.Configuration(
                         servedAssets = listOf(".*")
@@ -140,12 +128,6 @@ class ReadiumEpubActivity : BaseActivity<ActivityReadiumEpubBinding>(
         binding.btnPrev.setOnClickListener { goRelativeChapter(-1) }
         binding.btnNext.setOnClickListener { goRelativeChapter(1) }
         binding.btnToc.setOnClickListener { showTocDialog() }
-        binding.btnFontMinus.setOnClickListener { changeFontSize(-0.1) }
-        binding.btnFontPlus.setOnClickListener { changeFontSize(0.1) }
-        binding.btnLineHeight.setOnClickListener { changeLineHeight() }
-        binding.btnMargin.setOnClickListener { changeMargins() }
-        binding.btnScrollMode.setOnClickListener { toggleScrollMode() }
-        binding.btnPublisherStyle.setOnClickListener { togglePublisherStyles() }
         binding.seekReadProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = Unit
 
@@ -172,76 +154,6 @@ class ReadiumEpubActivity : BaseActivity<ActivityReadiumEpubBinding>(
     private fun showMenu() {
         updateMenuState()
         binding.menuLayer.visible()
-    }
-
-    private fun loadPreferences() {
-        readiumFontSize = getPrefInt(KEY_FONT_SIZE, 100).coerceIn(80, 180) / 100.0
-        readiumLineHeight = getPrefInt(KEY_LINE_HEIGHT, 145).coerceIn(110, 220) / 100.0
-        readiumMargins = getPrefInt(KEY_PAGE_MARGINS, 100).coerceIn(60, 180) / 100.0
-        readiumScrollMode = getPrefBoolean(KEY_SCROLL_MODE, true)
-        readiumPublisherStyles = getPrefBoolean(KEY_PUBLISHER_STYLES, true)
-    }
-
-    private fun createPreferences(): EpubPreferences {
-        return EpubPreferences(
-            fontSize = readiumFontSize,
-            lineHeight = readiumLineHeight,
-            pageMargins = readiumMargins,
-            scroll = readiumScrollMode,
-            publisherStyles = readiumPublisherStyles,
-            columnCount = ColumnCount.ONE,
-            spread = Spread.NEVER
-        )
-    }
-
-    private fun submitPreferences() {
-        navigator?.submitPreferences(createPreferences())
-        updateStyleButtons()
-    }
-
-    private fun changeFontSize(delta: Double) {
-        readiumFontSize = (readiumFontSize + delta).coerceIn(0.8, 1.8)
-        putPrefInt(KEY_FONT_SIZE, (readiumFontSize * 100).toInt())
-        submitPreferences()
-    }
-
-    private fun changeLineHeight() {
-        readiumLineHeight = when {
-            readiumLineHeight < 1.35 -> 1.45
-            readiumLineHeight < 1.6 -> 1.75
-            else -> 1.25
-        }
-        putPrefInt(KEY_LINE_HEIGHT, (readiumLineHeight * 100).toInt())
-        submitPreferences()
-    }
-
-    private fun changeMargins() {
-        readiumMargins = when {
-            readiumMargins < 0.9 -> 1.0
-            readiumMargins < 1.25 -> 1.45
-            else -> 0.7
-        }
-        putPrefInt(KEY_PAGE_MARGINS, (readiumMargins * 100).toInt())
-        submitPreferences()
-    }
-
-    private fun toggleScrollMode() {
-        readiumScrollMode = !readiumScrollMode
-        putPrefBoolean(KEY_SCROLL_MODE, readiumScrollMode)
-        submitPreferences()
-    }
-
-    private fun togglePublisherStyles() {
-        readiumPublisherStyles = !readiumPublisherStyles
-        putPrefBoolean(KEY_PUBLISHER_STYLES, readiumPublisherStyles)
-        submitPreferences()
-    }
-
-    private fun updateStyleButtons() {
-        binding.btnScrollMode.text = if (readiumScrollMode) "滚动开" else "分页"
-        binding.btnPublisherStyle.text = if (readiumPublisherStyles) "原样式" else "净化"
-        binding.btnLineHeight.text = "行距 ${(readiumLineHeight * 100).toInt()}%"
-        binding.btnMargin.text = "边距 ${(readiumMargins * 100).toInt()}%"
     }
 
     private fun hideMenu() {
@@ -292,7 +204,6 @@ class ReadiumEpubActivity : BaseActivity<ActivityReadiumEpubBinding>(
 
     private fun updateMenuState() {
         val publication = publication ?: return
-        updateStyleButtons()
         val index = currentReadingOrderIndex()
         binding.btnPrev.isEnabled = index > 0
         binding.btnNext.isEnabled = index >= 0 && index < publication.readingOrder.lastIndex
@@ -334,32 +245,22 @@ class ReadiumEpubActivity : BaseActivity<ActivityReadiumEpubBinding>(
 
     private fun showTocDialog() {
         val publication = publication ?: return
-        val toc = flattenToc(publication.tableOfContents)
-            .ifEmpty { publication.readingOrder.mapIndexed { index, link -> TocItem(link, "章节 ${index + 1}") } }
+        val toc = publication.tableOfContents.ifEmpty { publication.readingOrder }
         if (toc.isEmpty()) {
             toastOnUi("目录为空")
             return
         }
-        val titles = toc.map { it.title }.toTypedArray()
+        val titles = toc.mapIndexed { index, link ->
+            link.title?.takeIf { it.isNotBlank() } ?: "章节 ${index + 1}"
+        }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle(R.string.chapter_list)
             .setItems(titles) { dialog, which ->
-                navigator?.go(toc[which].link, animated = true)
+                navigator?.go(toc[which], animated = true)
                 dialog.dismiss()
                 hideMenu()
             }
             .show()
-    }
-
-    private fun flattenToc(links: List<Link>, depth: Int = 0): List<TocItem> {
-        return links.flatMapIndexed { index, link ->
-            val title = link.title?.takeIf { it.isNotBlank() } ?: "章节 ${index + 1}"
-            val prefix = if (depth == 0) "" else "　".repeat(depth)
-            buildList {
-                add(TocItem(link, "$prefix$title"))
-                addAll(flattenToc(link.children, depth + 1))
-            }
-        }
     }
 
     override fun shouldFollowInternalLink(
@@ -384,15 +285,5 @@ class ReadiumEpubActivity : BaseActivity<ActivityReadiumEpubBinding>(
         private const val NAVIGATOR_TAG = "readium_epub_navigator"
         private const val READIUM_LOCATOR_KEY = "readiumLocator"
         private const val READIUM_PROGRESS_MAX = 10000
-        private const val KEY_FONT_SIZE = "readiumFontSize"
-        private const val KEY_LINE_HEIGHT = "readiumLineHeight"
-        private const val KEY_PAGE_MARGINS = "readiumPageMargins"
-        private const val KEY_SCROLL_MODE = "readiumScrollMode"
-        private const val KEY_PUBLISHER_STYLES = "readiumPublisherStyles"
     }
-
-    private data class TocItem(
-        val link: Link,
-        val title: String
-    )
 }
