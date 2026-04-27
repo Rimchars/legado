@@ -51,7 +51,7 @@ android {
     }
     defaultConfig {
         applicationId "io.legado.app"
-        minSdk 23
+        minSdk 21
         targetSdk 36
         versionCode buildVersionCode
         versionName version
@@ -310,11 +310,6 @@ dependencies {
 
     //转换繁体
     implementation(libs.quick.chinese.transfer.core)
-
-    // Readium EPUB renderer for complex EPUB 2/3 publications.
-    implementation(libs.readium.shared)
-    implementation(libs.readium.streamer)
-    implementation(libs.readium.navigator)
 
     //加解密类库,有些书源使用
     //noinspection GradleDependency,GradlePackageUpdate

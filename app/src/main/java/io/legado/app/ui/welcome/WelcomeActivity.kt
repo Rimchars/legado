@@ -9,10 +9,8 @@ import io.legado.app.base.BaseActivity
 import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
 import io.legado.app.databinding.ActivityWelcomeBinding
-import io.legado.app.help.book.isEpub
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.ui.book.read.ReadBookActivity
-import io.legado.app.ui.book.readium.ReadiumEpubActivity
 import io.legado.app.ui.main.MainActivity
 import io.legado.app.utils.fullScreen
 import io.legado.app.utils.getPrefBoolean
@@ -54,15 +52,8 @@ open class WelcomeActivity : BaseActivity<ActivityWelcomeBinding>() {
 
     private fun startMainActivity() {
         startActivity<MainActivity>()
-        val lastReadBook = appDb.bookDao.lastReadBook
-        if (getPrefBoolean(PreferKey.defaultToRead) && lastReadBook != null) {
-            if (lastReadBook.isEpub) {
-                startActivity<ReadiumEpubActivity> {
-                    putExtra("bookUrl", lastReadBook.bookUrl)
-                }
-            } else {
-                startActivity<ReadBookActivity>()
-            }
+        if (getPrefBoolean(PreferKey.defaultToRead) && appDb.bookDao.lastReadBook != null) {
+            startActivity<ReadBookActivity>()
         }
         finish()
     }
