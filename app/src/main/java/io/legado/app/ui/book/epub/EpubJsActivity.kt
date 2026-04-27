@@ -6,21 +6,25 @@ import android.util.Base64
 import android.view.MotionEvent
 import android.view.View
 import android.webkit.JavascriptInterface
+import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
+import io.legado.app.constant.PageAnim
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.ActivityEpubJsBinding
 import io.legado.app.help.book.isEpub
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.model.localBook.LocalBook
-import io.legado.app.utils.getPrefBoolean
-import io.legado.app.utils.getPrefInt
-import io.legado.app.utils.putPrefBoolean
-import io.legado.app.utils.putPrefInt
+import io.legado.app.ui.book.toc.TocActivityResult
+import io.legado.app.utils.dpToPx
+import io.legado.app.utils.getPrefString
+import io.legado.app.utils.putPrefString
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
@@ -38,17 +42,22 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
     private var bookBase64: String = ""
     private var tocItems: List<TocItem> = emptyList()
     private var menuVisible = false
-    private var fontScale: Int = 100
-    private var scrollMode: Boolean = false
     private var currentCfi: String = ""
     private var lastPercentage: Double = 0.0
-    private val fontScaleKey = "epubJsFontScale"
-    private val scrollModeKey = "epubJsScrollMode"
+    private var currentHref: String = ""
+    private val fontFamilyKey = "epubJsFontFamily"
     private val cfiKey = "epubJsCfi"
+    private val tocActivity = registerForActivityResult(TocActivityResult()) { result ->
+        val chapterIndex = result?.getOrNull(0) as? Int ?: return@registerForActivityResult
+        lifecycleScope.launch {
+            val chapter = withContext(IO) {
+                book?.bookUrl?.let { appDb.bookChapterDao.getChapter(it, chapterIndex) }
+            } ?: return@launch
+            displayChapter(chapter)
+        }
+    }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
-        fontScale = getPrefInt(fontScaleKey, 100).coerceIn(70, 180)
-        scrollMode = getPrefBoolean(scrollModeKey, false)
         initWebView()
         initMenu()
         loadBook()
@@ -77,23 +86,10 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
     private fun initMenu() {
         binding.btnPrev.setOnClickListener { evaluate("prevPage()") }
         binding.btnNext.setOnClickListener { evaluate("nextPage()") }
-        binding.btnToc.setOnClickListener { showTocDialog() }
-        binding.btnFontMinus.setOnClickListener {
-            fontScale = (fontScale - 5).coerceAtLeast(70)
-            putPrefInt(fontScaleKey, fontScale)
-            evaluate("setStyle()")
-        }
-        binding.btnFontPlus.setOnClickListener {
-            fontScale = (fontScale + 5).coerceAtMost(180)
-            putPrefInt(fontScaleKey, fontScale)
-            evaluate("setStyle()")
-        }
-        binding.btnScroll.setOnClickListener {
-            scrollMode = !scrollMode
-            putPrefBoolean(scrollModeKey, scrollMode)
-            updateScrollButton()
-            evaluate("setScrollMode()")
-        }
+        binding.btnToc.setOnClickListener { showTocPage() }
+        binding.btnLayout.setOnClickListener { showLayoutDialog() }
+        binding.btnPageAnim.setOnClickListener { showPageAnimDialog() }
+        binding.btnSetting.setOnClickListener { showFontDialog() }
         binding.seekProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
@@ -106,7 +102,6 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
         })
-        updateScrollButton()
     }
 
     private fun loadBook() {
@@ -120,6 +115,7 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
                 }
                 book = loadedBook
                 binding.tvTitle.text = loadedBook.name
+                binding.tvSubTitle.text = loadedBook.originName
                 currentCfi = loadedBook.getVariable(cfiKey)
                 bookBase64 = withContext(IO) {
                     LocalBook.getBookInputStream(loadedBook).use {
@@ -134,25 +130,19 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         }
     }
 
-    private fun showTocDialog() {
-        if (tocItems.isEmpty()) {
-            toastOnUi("目录还在加载")
-            return
+    private fun showTocPage() {
+        val targetBook = book ?: return
+        lifecycleScope.launch {
+            val count = withContext(IO) {
+                appDb.bookChapterDao.getChapterCount(targetBook.bookUrl)
+            }
+            if (count <= 0) {
+                toastOnUi("目录还在加载")
+                return@launch
+            }
+            hideMenu()
+            tocActivity.launch(targetBook.bookUrl)
         }
-        val labels = tocItems.map { item ->
-            buildString {
-                repeat(item.level) { append("  ") }
-                append(item.label)
-            }
-        }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle(R.string.chapter_list)
-            .setItems(labels) { dialog, which ->
-                evaluate("display(${JSONObject.quote(tocItems[which].href)})")
-                dialog.dismiss()
-                hideMenu()
-            }
-            .show()
     }
 
     private fun parseToc(payload: String) {
@@ -160,6 +150,7 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
             val root = JSONObject(payload)
             val toc = root.optJSONArray("toc") ?: JSONArray()
             tocItems = flattenToc(toc)
+            syncTocToDatabase()
         }
     }
 
@@ -179,22 +170,41 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         return list
     }
 
+    private fun syncTocToDatabase() {
+        val targetBook = book ?: return
+        val chapters = tocItems.mapIndexed { index, item ->
+            BookChapter(
+                url = item.href,
+                title = item.label,
+                bookUrl = targetBook.bookUrl,
+                index = index
+            )
+        }
+        if (chapters.isEmpty()) return
+        lifecycleScope.launch(IO) {
+            appDb.bookChapterDao.insert(*chapters.toTypedArray())
+            targetBook.totalChapterNum = chapters.size
+            if (targetBook.durChapterTitle.isNullOrBlank()) {
+                targetBook.durChapterTitle = chapters.first().title
+            }
+            targetBook.save()
+        }
+    }
+
     private fun toggleMenu() {
         if (menuVisible) hideMenu() else showMenu()
     }
 
     private fun showMenu() {
         menuVisible = true
+        binding.topMenu.visibility = View.VISIBLE
         binding.menuLayer.visibility = View.VISIBLE
     }
 
     private fun hideMenu() {
         menuVisible = false
+        binding.topMenu.visibility = View.GONE
         binding.menuLayer.visibility = View.GONE
-    }
-
-    private fun updateScrollButton() {
-        binding.btnScroll.text = if (scrollMode) "滚动" else "分页"
     }
 
     private fun evaluate(script: String) {
@@ -214,6 +224,130 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         }
     }
 
+    private fun currentPageAnim(): Int {
+        return book?.getPageAnim() ?: ReadBookConfig.pageAnim
+    }
+
+    private fun displayChapter(chapter: BookChapter) {
+        currentHref = chapter.url
+        binding.tvTitle.text = chapter.title
+        book?.let {
+            it.durChapterIndex = chapter.index
+            it.durChapterTitle = chapter.title
+            lifecycleScope.launch(IO) { it.save() }
+        }
+        evaluate("display(${JSONObject.quote(chapter.url)})")
+    }
+
+    private fun showPageAnimDialog() {
+        val items = arrayOf(
+            getString(R.string.page_anim_cover),
+            getString(R.string.page_anim_slide),
+            getString(R.string.page_anim_simulation),
+            getString(R.string.page_anim_scroll),
+            getString(R.string.page_anim_none)
+        )
+        val checked = currentPageAnim().coerceIn(0, items.lastIndex)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.page_anim)
+            .setSingleChoiceItems(items, checked) { dialog, which ->
+                book?.setPageAnim(which)
+                lifecycleScope.launch(IO) { book?.save() }
+                ReadBookConfig.pageAnim = which
+                ReadBookConfig.save()
+                evaluate("setScrollMode()")
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun showFontDialog() {
+        val values = arrayOf("", "sans-serif", "serif", "monospace")
+        val labels = arrayOf(
+            getString(R.string.default_font),
+            "Sans",
+            "Serif",
+            "Mono"
+        )
+        val current = getPrefString(fontFamilyKey, "") ?: ""
+        AlertDialog.Builder(this)
+            .setTitle(R.string.default_font)
+            .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
+                putPrefString(fontFamilyKey, values[which])
+                evaluate("setStyle()")
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun showLayoutDialog() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(20.dpToPx(), 10.dpToPx(), 20.dpToPx(), 4.dpToPx())
+        }
+        addConfigSeek(root, getString(R.string.text_size), 10, 60, ReadBookConfig.textSize) {
+            ReadBookConfig.textSize = it
+        }
+        addConfigSeek(root, getString(R.string.line_size), 0, 60, ReadBookConfig.lineSpacingExtra) {
+            ReadBookConfig.lineSpacingExtra = it
+        }
+        addConfigSeek(root, getString(R.string.text_letter_spacing), -50, 150, (ReadBookConfig.letterSpacing * 100).toInt()) {
+            ReadBookConfig.letterSpacing = it / 100f
+        }
+        addConfigSeek(root, getString(R.string.paragraph_size), 0, 40, ReadBookConfig.paragraphSpacing) {
+            ReadBookConfig.paragraphSpacing = it
+        }
+        addConfigSeek(root, getString(R.string.padding_left), 0, 60, ReadBookConfig.paddingLeft) {
+            ReadBookConfig.paddingLeft = it
+        }
+        addConfigSeek(root, getString(R.string.padding_right), 0, 60, ReadBookConfig.paddingRight) {
+            ReadBookConfig.paddingRight = it
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.interface_setting)
+            .setView(root)
+            .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                ReadBookConfig.save()
+                evaluate("setStyle()")
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun addConfigSeek(
+        root: LinearLayout,
+        title: String,
+        min: Int,
+        max: Int,
+        value: Int,
+        onChange: (Int) -> Unit
+    ) {
+        val label = TextView(this).apply {
+            text = "$title  $value"
+            textSize = 14f
+            setPadding(0, 10.dpToPx(), 0, 0)
+        }
+        val seekBar = SeekBar(this).apply {
+            this.max = max - min
+            progress = (value - min).coerceIn(0, this.max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    val newValue = progress + min
+                    label.text = "$title  $newValue"
+                    onChange(newValue)
+                    evaluate("setStyle()")
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        root.addView(label)
+        root.addView(seekBar)
+    }
+
     override fun onDestroy() {
         binding.webView.removeJavascriptInterface("AndroidBridge")
         binding.webView.stopLoading()
@@ -230,15 +364,25 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
         fun getSavedCfi(): String = currentCfi
 
         @JavascriptInterface
-        fun isScrollMode(): Boolean = scrollMode
+        fun isScrollMode(): Boolean = currentPageAnim() == PageAnim.scrollPageAnim
 
         @JavascriptInterface
         fun getStyle(): String {
+            val lineHeight = 1.35f + ReadBookConfig.lineSpacingExtra / 50f
+            val fontFamily = getPrefString(fontFamilyKey, "")?.ifBlank { null }
+                ?: "sans-serif"
             val json = JSONObject()
             json.put("background", backgroundColorString())
             json.put("color", colorString(ReadBookConfig.textColor))
-            json.put("fontSize", "$fontScale%")
-            json.put("lineHeight", "1.65")
+            json.put("fontSize", "${(ReadBookConfig.textSize * 5).coerceIn(60, 260)}%")
+            json.put("lineHeight", lineHeight.toString())
+            json.put("fontFamily", fontFamily)
+            json.put("letterSpacing", "${ReadBookConfig.letterSpacing}em")
+            json.put("paragraphSpacing", "${ReadBookConfig.paragraphSpacing / 10f}em")
+            json.put(
+                "padding",
+                "0 ${ReadBookConfig.paddingRight.dpToPx()}px 0 ${ReadBookConfig.paddingLeft.dpToPx()}px"
+            )
             return json.toString()
         }
 
@@ -249,8 +393,7 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
                     "ready" -> binding.progressBar.visibility = View.GONE
                     "toc" -> parseToc(payload)
                     "chapter" -> runCatching {
-                        val title = JSONObject(payload).optString("title")
-                        if (title.isNotBlank()) binding.tvTitle.text = title
+                        handleChapter(payload)
                     }
 
                     "location" -> handleLocation(payload)
@@ -274,6 +417,25 @@ class EpubJsActivity : BaseActivity<ActivityEpubJsBinding>(imageBg = false) {
                 it.durChapterPos = binding.seekProgress.progress
                 lifecycleScope.launch(IO) { it.save() }
             }
+        }
+    }
+
+    private fun handleChapter(payload: String) {
+        val json = JSONObject(payload)
+        val href = json.optString("href")
+        val title = json.optString("title").ifBlank {
+            tocItems.firstOrNull { href.endsWith(it.href) || it.href.endsWith(href) }?.label.orEmpty()
+        }
+        if (title.isNotBlank()) binding.tvTitle.text = title
+        if (href.isNotBlank()) currentHref = href
+        val targetBook = book ?: return
+        val index = tocItems.indexOfFirst { item ->
+            href == item.href || href.endsWith(item.href) || item.href.endsWith(href)
+        }
+        if (index >= 0) {
+            targetBook.durChapterIndex = index
+            targetBook.durChapterTitle = tocItems[index].label
+            lifecycleScope.launch(IO) { targetBook.save() }
         }
     }
 
