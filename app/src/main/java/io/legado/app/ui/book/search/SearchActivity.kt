@@ -515,7 +515,8 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
         lifecycleScope.launch {
             val isVideo = withContext(IO) {
                 book.type and BookType.video > 0 ||
-                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video
+                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video ||
+                        viewModel.searchScope.getSingleBookSourcePart()?.bookSourceType == BookSourceType.video
             }
             if (isVideo) {
                 openVideo(book)

@@ -178,7 +178,8 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
         lifecycleScope.launch {
             val isVideo = withContext(IO) {
                 book.type and BookType.video > 0 ||
-                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video
+                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video ||
+                        viewModel.isVideoSource()
             }
             if (isVideo) {
                 openVideo(book)

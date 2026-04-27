@@ -56,6 +56,7 @@ import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryTextColor
+import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.model.VideoPlay
 import io.legado.app.service.VideoPlayService
 import io.legado.app.ui.about.AppLogDialog
@@ -276,7 +277,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
         tabs.forEachIndexed { tabIndex, tab ->
             val selected = tabIndex == detailTabIndex
             tab.isSelected = selected
-            tab.setTextColor(if (selected) accentColor else primaryTextColor)
+            tab.setTextColor(if (selected) accentColor else secondaryTextColor)
         }
     }
 
@@ -340,8 +341,8 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
                 tvAuthor.text = it
             } ?: tvAuthor.gone()
             showBookIntro(book)
-        showSourceInfo(book)
-        setupSourceActions(book)
+            showSourceInfo(book)
+            setupSourceActions(book)
         }
     }
 
@@ -351,8 +352,8 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             is RssSource -> source.sourceName.ifBlank { source.sourceUrl }
             else -> book.origin
         }.ifBlank { getString(R.string.error_no_source) }
-        binding.tvVideoSource.text = getString(R.string.video_source_label, sourceName)
-        binding.tvVideoOrigin.text = getString(R.string.video_origin_label, book.originName.ifBlank { book.origin })
+        binding.tvVideoSource.text = getString(R.string.origin_format, sourceName)
+        binding.tvVideoOrigin.text = book.originName.ifBlank { book.origin }
     }
 
     private fun setupSourceActions(book: Book) {
@@ -372,7 +373,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
                 }
             }
         }
-        binding.btnLoginSource.visibility =
+        binding.llLoginSource.visibility =
             if (source?.loginUrl.isNullOrBlank()) View.GONE else View.VISIBLE
         binding.btnLoginSource.setOnClickListener {
             source?.let { s ->

@@ -1053,7 +1053,9 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             }
             val isVideo = withContext(IO) {
                 book.type and BookType.video > 0 ||
-                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video
+                        appDb.bookSourceDao.getBookSource(book.origin)?.bookSourceType == BookSourceType.video ||
+                        selectedDiscoverSourcePart?.bookSourceType == BookSourceType.video ||
+                        selectedDiscoverSource?.bookSourceType == BookSourceType.video
             }
             val activityClass = if (isVideo) VideoPlayerActivity::class.java else BookInfoActivity::class.java
             startActivity(Intent(requireContext(), activityClass).apply {

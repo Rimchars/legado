@@ -141,6 +141,13 @@ data class SearchScope(private var scope: String) {
         return list.sortedBy { it.customOrder }
     }
 
+    fun getSingleBookSourcePart(): BookSourcePart? {
+        if (!isSource()) {
+            return null
+        }
+        return appDb.bookSourceDao.getBookSourcePart(scope.substringAfter("::"))
+    }
+
     fun isAll(): Boolean {
         return scope.isEmpty()
     }

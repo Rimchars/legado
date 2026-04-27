@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import io.legado.app.BuildConfig
 import io.legado.app.base.BaseViewModel
 import io.legado.app.constant.AppLog
+import io.legado.app.constant.BookSourceType
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.SearchBook
@@ -122,6 +123,10 @@ class ExploreShowViewModel(application: Application) : BaseViewModel(application
         val bookUrl = book.bookUrl
         val key = if (author.isNotBlank()) "$name-$author" else name
         return bookshelf.contains(key) || bookshelf.contains(bookUrl)
+    }
+
+    fun isVideoSource(): Boolean {
+        return bookSource?.bookSourceType == BookSourceType.video
     }
 
 }
