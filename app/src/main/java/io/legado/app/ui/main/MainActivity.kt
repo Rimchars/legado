@@ -18,10 +18,11 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import androidx.activity.addCallback
 import androidx.activity.viewModels
+import androidx.core.view.doOnPreDraw
 import androidx.core.view.get
 import androidx.core.view.isVisible
-import androidx.core.view.postDelayed
 import androidx.core.view.doOnLayout
+import androidx.core.view.postDelayed
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentStatePagerAdapter
@@ -133,6 +134,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
     }
     private val bottomGlassPulseInterpolator by lazy { AccelerateDecelerateInterpolator() }
+    private var liquidGlassReady = false
     private val hideBottomIndicatorRunnable = Runnable {
         binding.bottomNavigationIndicatorContainer.animate()
             .alpha(0f)
@@ -234,11 +236,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
 
     override fun onResume() {
         super.onResume()
-        binding.bottomControls.post {
-            if (!isFinishing) {
-                setupLiquidGlass()
-            }
-        }
+        scheduleLiquidGlassSetup()
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean = binding.run {
@@ -303,10 +301,11 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             }
             true
         }
-        bottomControls.postDelayed(500) {
-            if (!isFinishing) {
-                setupLiquidGlass()
-            }
+        scheduleLiquidGlassSetup()
+        contentContainer.doOnPreDraw {
+            liquidGlassReady = true
+            scheduleLiquidGlassSetup(delayMillis = 80L)
+            scheduleLiquidGlassSetup(delayMillis = 360L)
         }
         bottomNavigationView.doOnLayout {
             updateBottomNavigationIndicator(animate = false)
@@ -315,6 +314,19 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             val height = windowInsets.navigationBarHeight
             view.bottomPadding = height + 14.dpToPx()
             windowInsets.inset(0, 0, 0, height)
+        }
+    }
+
+    private fun scheduleLiquidGlassSetup(delayMillis: Long = 0L) {
+        val action = {
+            if (!isFinishing) {
+                setupLiquidGlass()
+            }
+        }
+        if (delayMillis > 0L) {
+            binding.bottomControls.postDelayed(delayMillis, action)
+        } else {
+            binding.bottomControls.post(action)
         }
     }
 
@@ -338,6 +350,13 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             searchButtonShellOverlay.isVisible = true
             bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
             searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
+            if (!liquidGlassReady || !contentContainer.isLaidOut || !bottomControls.isLaidOut) {
+                contentContainer.doOnPreDraw {
+                    liquidGlassReady = true
+                    scheduleLiquidGlassSetup(delayMillis = 32L)
+                }
+                return
+            }
             val glassLevel = AppConfig.frostedGlassLevel / 100f
             val blurRadius = (6f + glassLevel * 18f).dpToPx()
             val tintAlpha = 0.08f + glassLevel * 0.12f
