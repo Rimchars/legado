@@ -135,6 +135,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
     private val bottomGlassPulseInterpolator by lazy { AccelerateDecelerateInterpolator() }
     private var liquidGlassReady = false
+    private val boundLiquidGlassViewIds = hashSetOf<Int>()
     private val hideBottomIndicatorRunnable = Runnable {
         binding.bottomNavigationIndicatorContainer.animate()
             .alpha(0f)
@@ -304,8 +305,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         scheduleLiquidGlassSetup()
         contentContainer.doOnPreDraw {
             liquidGlassReady = true
-            scheduleLiquidGlassSetup(delayMillis = 80L)
-            scheduleLiquidGlassSetup(delayMillis = 360L)
+            scheduleLiquidGlassSetup(delayMillis = 32L)
         }
         bottomNavigationView.doOnLayout {
             updateBottomNavigationIndicator(animate = false)
@@ -462,7 +462,9 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         elasticEnabled: Boolean,
         touchEffectEnabled: Boolean,
     ) {
-        liquidGlassView.bind(binding.contentContainer)
+        if (boundLiquidGlassViewIds.add(liquidGlassView.id)) {
+            liquidGlassView.bind(binding.contentContainer)
+        }
         liquidGlassView.setCornerRadius(cornerRadius)
         liquidGlassView.setRefractionHeight(refractionHeight)
         liquidGlassView.setRefractionOffset(refractionOffset)
@@ -477,6 +479,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         liquidGlassView.setTouchEffectEnabled(touchEffectEnabled)
         liquidGlassView.isClickable = false
         liquidGlassView.isFocusable = false
+        liquidGlassView.invalidate()
     }
 
     private fun updateBottomNavigationIndicator(animate: Boolean) {
