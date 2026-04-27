@@ -4,11 +4,16 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.core.view.postDelayed
+import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
 import io.legado.app.constant.PreferKey
+import io.legado.app.data.appDb
 import io.legado.app.databinding.ActivityWelcomeBinding
+import io.legado.app.help.book.isEpub
 import io.legado.app.lib.theme.backgroundColor
+import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.ui.book.readium.ReadiumEpubActivity
 import io.legado.app.ui.main.MainActivity
 import io.legado.app.utils.fullScreen
 import io.legado.app.utils.getPrefBoolean
@@ -16,6 +21,9 @@ import io.legado.app.utils.getPrefInt
 import io.legado.app.utils.setStatusBarColorAuto
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 open class WelcomeActivity : BaseActivity<ActivityWelcomeBinding>() {
 
@@ -49,10 +57,22 @@ open class WelcomeActivity : BaseActivity<ActivityWelcomeBinding>() {
     }
 
     private fun startMainActivity() {
-        startActivity<MainActivity> {
-            putExtra(MainActivity.EXTRA_OPEN_LAST_READ_AFTER_READY, getPrefBoolean(PreferKey.defaultToRead))
+        startActivity<MainActivity>()
+        lifecycleScope.launch {
+            val lastReadBook = withContext(Dispatchers.IO) {
+                appDb.bookDao.lastReadBook
+            }
+            if (getPrefBoolean(PreferKey.defaultToRead) && lastReadBook != null) {
+                if (lastReadBook.isEpub) {
+                    startActivity<ReadiumEpubActivity> {
+                        putExtra("bookUrl", lastReadBook.bookUrl)
+                    }
+                } else {
+                    startActivity<ReadBookActivity>()
+                }
+            }
+            finish()
         }
-        finish()
     }
 
 }
