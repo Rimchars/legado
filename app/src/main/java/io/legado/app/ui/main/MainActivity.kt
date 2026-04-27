@@ -36,6 +36,7 @@ import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.AppConst.appInfo
 import io.legado.app.constant.EventBus
 import io.legado.app.constant.PreferKey
+import io.legado.app.data.appDb
 import io.legado.app.databinding.ActivityMainBinding
 import io.legado.app.databinding.DialogEditTextBinding
 import io.legado.app.help.AppWebDav
@@ -70,10 +71,12 @@ import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.setStatusBarColorAuto
 import io.legado.app.utils.showDialogFragment
+import io.legado.app.utils.startActivityForBook
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.ColorUtils as AppColorUtils
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -135,6 +138,8 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
     private val bottomGlassPulseInterpolator by lazy { AccelerateDecelerateInterpolator() }
     private var liquidGlassReady = false
+    private var pendingOpenLastRead = false
+    private var lastReadOpened = false
     private val boundLiquidGlassViewIds = hashSetOf<Int>()
     private val hideBottomIndicatorRunnable = Runnable {
         binding.bottomNavigationIndicatorContainer.animate()
@@ -179,6 +184,9 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
+        pendingOpenLastRead = savedInstanceState?.getBoolean(KEY_PENDING_OPEN_LAST_READ)
+            ?: intent.getBooleanExtra(EXTRA_OPEN_LAST_READ_AFTER_READY, false)
+        lastReadOpened = savedInstanceState?.getBoolean(KEY_LAST_READ_OPENED) ?: false
         upBottomMenu()
         initView()
         onBackPressedDispatcher.addCallback(this) {
@@ -306,6 +314,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         contentContainer.doOnPreDraw {
             liquidGlassReady = true
             scheduleLiquidGlassSetup(delayMillis = 32L)
+            openLastReadAfterMainReady()
         }
         bottomNavigationView.doOnLayout {
             updateBottomNavigationIndicator(animate = false)
@@ -314,6 +323,21 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             val height = windowInsets.navigationBarHeight
             view.bottomPadding = height + 14.dpToPx()
             windowInsets.inset(0, 0, 0, height)
+        }
+    }
+
+    private fun openLastReadAfterMainReady() {
+        if (!pendingOpenLastRead || lastReadOpened || isFinishing) {
+            return
+        }
+        pendingOpenLastRead = false
+        lastReadOpened = true
+        lifecycleScope.launch {
+            delay(350)
+            val lastReadBook = withContext(IO) {
+                appDb.bookDao.lastReadBook
+            } ?: return@launch
+            startActivityForBook(lastReadBook)
         }
     }
 
@@ -706,6 +730,8 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         if (AppConfig.autoRefreshBook) {
             outState.putBoolean("isAutoRefreshedBook", true)
         }
+        outState.putBoolean(KEY_PENDING_OPEN_LAST_READ, pendingOpenLastRead)
+        outState.putBoolean(KEY_LAST_READ_OPENED, lastReadOpened)
     }
 
     override fun onDestroy() {
@@ -887,6 +913,12 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 ImportReplaceRuleDialog(source)
             )
         }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_LAST_READ_AFTER_READY = "openLastReadAfterReady"
+        private const val KEY_PENDING_OPEN_LAST_READ = "pendingOpenLastRead"
+        private const val KEY_LAST_READ_OPENED = "lastReadOpened"
     }
 
 }
