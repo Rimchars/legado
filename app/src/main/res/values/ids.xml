@@ -17,5 +17,6 @@
     <item name="small_id" type="id" />
     <item name="full_id" type="id" />
     <item name="text_watcher" type="id" />
+    <item name="main_bottom_bar_space_decoration" type="id" />
 
 </resources>

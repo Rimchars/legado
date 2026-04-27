@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Picture
+import android.graphics.Rect
 import android.os.Build
 import android.text.Spanned
 import android.text.style.ImageSpan
@@ -455,10 +456,42 @@ fun View.applyNavigationBarPadding(withInitialPadding: Boolean = false) {
 fun View.applyMainBottomBarPadding(withInitialPadding: Boolean = false) {
     val initialPadding = if (withInitialPadding) bottomPadding else 0
     setOnApplyWindowInsetsListenerCompat { _, windowInsets ->
-        bottomPadding = initialPadding +
-                windowInsets.navigationBarHeight +
+        val bottomSpace = windowInsets.navigationBarHeight +
                 resources.getDimensionPixelSize(R.dimen.main_content_bottom_bar_padding)
+        if (this is RecyclerView) {
+            bottomPadding = initialPadding
+            updateMainBottomBarSpaceDecoration(bottomSpace)
+        } else {
+            bottomPadding = initialPadding + bottomSpace
+        }
         windowInsets
+    }
+}
+
+private fun RecyclerView.updateMainBottomBarSpaceDecoration(bottomSpace: Int) {
+    (getTag(R.id.main_bottom_bar_space_decoration) as? MainBottomBarSpaceDecoration)?.let {
+        if (it.bottomSpace != bottomSpace) {
+            it.bottomSpace = bottomSpace
+            invalidateItemDecorations()
+        }
+        return
+    }
+    val decoration = MainBottomBarSpaceDecoration(bottomSpace)
+    addItemDecoration(decoration)
+    setTag(R.id.main_bottom_bar_space_decoration, decoration)
+}
+
+private class MainBottomBarSpaceDecoration(var bottomSpace: Int) : RecyclerView.ItemDecoration() {
+    override fun getItemOffsets(
+        outRect: Rect,
+        view: View,
+        parent: RecyclerView,
+        state: RecyclerView.State
+    ) {
+        val position = parent.getChildAdapterPosition(view)
+        if (position != RecyclerView.NO_POSITION && position == state.itemCount - 1) {
+            outRect.bottom = bottomSpace
+        }
     }
 }
 
