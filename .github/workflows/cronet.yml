@@ -1,0 +1,53 @@
+name: Update Cronet
+
+on:
+  schedule:
+  # 周一北京时间9点
+    - cron: 0 1 * * 1
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'Luoyacheng/legado' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check Cronet Updates
+        run: source .github/scripts/cronet.sh
+
+      - name: Set up JDK 17
+        if: ${{ env.cronet == 'ok' }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v5
+        if: ${{ env.cronet == 'ok' }}
+
+      - name: Download Cronet
+        if: ${{ env.cronet == 'ok' }}
+        run: |
+          chmod +x gradlew
+          ./gradlew app:downloadCronet
+
+      - name: Create Pull Request
+        if: ${{ env.cronet == 'ok' }}
+        uses: peter-evans/create-pull-request@v8
+        continue-on-error: true
+        with:
+          token: ${{ secrets.ACTIONS_TOKEN }}
+          title: ${{ env.PR_TITLE }}
+          commit-message: |
+            ${{ env.PR_TITLE }}
+            - ${{ env.PR_BODY }}
+          body: ${{ env.PR_BODY }}
+          branch: cronet
+          delete-branch: true
+          add-paths: |
+            *cronet*jar
+            *cronet.json
+            *updateLog.md
+            *gradle.properties
+            *cronet-proguard-rules.pro

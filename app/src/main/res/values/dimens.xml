@@ -1,0 +1,82 @@
+<resources>
+    <!-- Default screen margins, per the Android Design guidelines. -->
+    <dimen name="activity_horizontal_margin">16dp</dimen>
+    <dimen name="activity_vertical_margin">16dp</dimen>
+    <dimen name="nav_header_vertical_spacing">8dp</dimen>
+    <dimen name="nav_header_height">176dp</dimen>
+    <dimen name="fab_margin">16dp</dimen>
+
+    <dimen name="font_size_normal">14sp</dimen>
+    <dimen name="font_size_middle">16sp</dimen>
+    <dimen name="font_size_large">18sp</dimen>
+
+    <dimen name="fast_scroll_min_thumb_height">24dp</dimen>
+
+    <dimen name="line_height">0.8dp</dimen>
+    <dimen name="shadow_height">10dp</dimen>
+
+    <dimen name="desc_icon_size">18sp</dimen>
+
+    <dimen name="toolbar_elevation">4dp</dimen>
+
+    <dimen name="fastscroll_bubble_radius">44dp</dimen>
+    <dimen name="fastscroll_bubble_size">88dp</dimen>
+    <dimen name="fastscroll_bubble_textsize">48sp</dimen>
+    <dimen name="fastscroll_bubble_padding">16dp</dimen>
+
+    <dimen name="fastscroll_handle_height">40dp</dimen>
+    <dimen name="fastscroll_handle_width">8dp</dimen>
+    <dimen name="fastscroll_handle_radius">0dp</dimen>
+
+    <dimen name="fastscroll_track_width">2dp</dimen>
+
+    <dimen name="fastscroll_scrollbar_margin_top">8dp</dimen>
+    <dimen name="fastscroll_scrollbar_margin_bottom">8dp</dimen>
+    <dimen name="fastscroll_scrollbar_padding_start">8dp</dimen>
+    <dimen name="fastscroll_scrollbar_padding_end">8dp</dimen>
+
+    <dimen name="fixed_height_bottom_padding">8dp</dimen>
+
+    <!-- Main floating bottom navigation -->
+    <dimen name="main_bottom_controls_horizontal_padding">20dp</dimen>
+    <dimen name="main_bottom_controls_bottom_padding">10dp</dimen>
+    <dimen name="main_bottom_bar_height">48dp</dimen>
+    <dimen name="main_bottom_bar_gap">10dp</dimen>
+    <dimen name="main_bottom_bar_elevation">12dp</dimen>
+    <dimen name="main_bottom_bar_corner_radius">22dp</dimen>
+    <dimen name="main_bottom_nav_horizontal_padding">10dp</dimen>
+    <dimen name="main_bottom_nav_icon_size">21dp</dimen>
+    <dimen name="main_bottom_indicator_width">44dp</dimen>
+    <dimen name="main_bottom_indicator_height">34dp</dimen>
+    <dimen name="main_bottom_indicator_margin_start">8dp</dimen>
+    <dimen name="main_bottom_indicator_corner_radius">16dp</dimen>
+    <dimen name="main_search_button_size">48dp</dimen>
+    <dimen name="main_search_button_elevation">14dp</dimen>
+    <dimen name="main_search_button_icon_size">22dp</dimen>
+    <dimen name="main_content_bottom_bar_padding">90dp</dimen>
+
+    <!-- Shared bookshelf/discover tag bar -->
+    <dimen name="bookshelf_action_button_size">34dp</dimen>
+    <dimen name="bookshelf_action_button_margin_end">16dp</dimen>
+    <dimen name="bookshelf_action_button_padding">8dp</dimen>
+    <dimen name="bookshelf_title_row_margin_start">16dp</dimen>
+    <dimen name="bookshelf_title_row_margin_top">8dp</dimen>
+    <dimen name="bookshelf_title_row_margin_end">10dp</dimen>
+    <dimen name="bookshelf_title_select_height">42dp</dimen>
+    <dimen name="bookshelf_title_arrow_size">18dp</dimen>
+    <dimen name="bookshelf_title_arrow_margin_start">2dp</dimen>
+    <dimen name="bookshelf_tag_bar_height">38dp</dimen>
+    <dimen name="bookshelf_tag_bar_margin_horizontal">16dp</dimen>
+    <dimen name="bookshelf_tag_bar_margin_top">8dp</dimen>
+    <dimen name="bookshelf_tag_bar_radius">10dp</dimen>
+    <dimen name="bookshelf_tag_bar_padding_horizontal">3dp</dimen>
+    <dimen name="bookshelf_tag_bar_padding_vertical">1dp</dimen>
+    <dimen name="bookshelf_tag_recycler_padding_vertical">4dp</dimen>
+    <dimen name="bookshelf_tag_item_height">28dp</dimen>
+    <dimen name="bookshelf_tag_item_margin_horizontal">2dp</dimen>
+    <dimen name="bookshelf_tag_item_radius">9dp</dimen>
+    <dimen name="bookshelf_tag_item_min_width">36dp</dimen>
+    <dimen name="bookshelf_tag_item_max_width">96dp</dimen>
+    <dimen name="bookshelf_tag_item_padding_horizontal">12dp</dimen>
+    <dimen name="bookshelf_content_margin_top">12dp</dimen>
+</resources>

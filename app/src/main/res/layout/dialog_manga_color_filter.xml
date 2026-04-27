@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <io.legado.app.ui.widget.text.AccentTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/manga_color_filter"
+            android:textSize="18sp" />
+
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_brightness"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:max="255"
+            app:title="@string/brightness" />
+
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_r"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:max="255"
+            app:title="R" />
+
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_g"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:max="255"
+            app:title="G" />
+
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_b"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:max="255"
+            app:title="B" />
+
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_a"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:max="255"
+            app:title="A" />
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

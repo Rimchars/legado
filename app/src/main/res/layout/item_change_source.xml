@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?android:attr/selectableItemBackground"
+    tools:ignore="RtlHardcoded,RtlSymmetry">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/iv_good"
+        android:layout_width="30dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="5dp"
+        android:padding="5dp"
+        android:src="@drawable/ic_praise"
+        android:contentDescription="@string/like_source"
+        app:layout_constraintBottom_toTopOf="@+id/iv_bad"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@color/md_red_A200" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/iv_bad"
+        android:layout_width="30dp"
+        android:layout_height="0dp"
+        android:layout_marginBottom="5dp"
+        android:padding="5dp"
+        android:rotationX="180"
+        android:src="@drawable/ic_praise"
+        android:contentDescription="@string/not_like_source"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/iv_good"
+        app:tint="@color/md_blue_A200" />
+
+    <TextView
+        android:id="@+id/tv_origin"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="30dp"
+        android:layout_marginTop="10dp"
+        android:singleLine="true"
+        android:textColor="@color/primaryText"
+        tools:text="bookSourceName"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@+id/tv_author"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tv_author"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:maxWidth="160dp"
+        android:singleLine="true"
+        tools:text="author"
+        android:textColor="@color/secondaryText"
+        app:layout_constraintRight_toLeftOf="@+id/iv_checked"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tv_last"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="30dp"
+        android:layout_marginBottom="10dp"
+        android:singleLine="true"
+        tools:text="latest chapter name"
+        android:textColor="@color/secondaryText"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@+id/iv_checked"
+        app:layout_constraintTop_toBottomOf="@+id/tv_origin" />
+
+    <TextView
+        android:id="@+id/tv_current_chapter_word_count"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="30dp"
+        android:layout_marginBottom="10dp"
+        android:singleLine="false"
+        tools:text="word count"
+        android:textColor="@color/secondaryText"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@+id/iv_checked"
+        app:layout_constraintTop_toBottomOf="@+id/tv_last" />
+
+    <TextView
+        android:id="@+id/tv_respond_time"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="30dp"
+        android:layout_marginBottom="10dp"
+        android:singleLine="false"
+        tools:text="respond time"
+        android:textColor="@color/secondaryText"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@+id/iv_checked"
+        app:layout_constraintTop_toBottomOf="@+id/tv_current_chapter_word_count" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/iv_checked"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="10dp"
+        android:padding="8dp"
+        android:src="@drawable/ic_check"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@color/primaryText"
+        tools:visibility="visible" />
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>

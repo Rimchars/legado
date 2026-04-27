@@ -1,0 +1,28 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="AlwaysShowAction">
+
+    <item
+        android:id="@+id/menu_precision_search"
+        android:checkable="true"
+        android:title="@string/precision_search"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_source_manage"
+        android:title="@string/book_source_manage"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_search_scope"
+        android:title="@string/groups_or_source"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_log"
+        android:title="@string/log"
+        android:orderInCategory="9999"
+        app:showAsAction="never" />
+
+</menu>

@@ -1,0 +1,692 @@
+package io.legado.app.ui.config
+
+import android.content.SharedPreferences
+import android.os.Bundle
+import android.text.InputType
+import android.view.View
+import androidx.lifecycle.lifecycleScope
+import androidx.preference.Preference
+import io.legado.app.R
+import io.legado.app.constant.EventBus
+import io.legado.app.constant.PreferKey
+import io.legado.app.databinding.DialogAiMcpServerEditBinding
+import io.legado.app.databinding.DialogAiProviderEditBinding
+import io.legado.app.databinding.DialogEditTextBinding
+import io.legado.app.help.config.AppConfig
+import io.legado.app.help.http.newCallResponse
+import io.legado.app.help.http.okHttpClient
+import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.prefs.SwitchPreference
+import io.legado.app.lib.prefs.fragment.PreferenceFragment
+import io.legado.app.lib.theme.primaryColor
+import io.legado.app.ui.main.ai.AiModelConfig
+import io.legado.app.ui.main.ai.AiMcpServerConfig
+import io.legado.app.ui.main.ai.AiProviderConfig
+import io.legado.app.ui.main.ai.AiSkillConfig
+import io.legado.app.utils.postEvent
+import io.legado.app.utils.setEdgeEffectColor
+import io.legado.app.utils.toastOnUi
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+class AiConfigFragment : PreferenceFragment(),
+    SharedPreferences.OnSharedPreferenceChangeListener {
+
+    private val defaultSkillUrls = listOf(
+        "https://raw.githubusercontent.com/DandanLLab/legadoSkill/main/.trae/skills/legado-book-source-tamer/SKILL.md",
+        "https://raw.githubusercontent.com/DandanLLab/legadoSkill/main/skills/SKILLV0.7.md",
+        "https://raw.githubusercontent.com/DandanLLab/legadoSkill/main/SKILL.md"
+    )
+
+    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+        addPreferencesFromResource(R.xml.pref_config_ai)
+        refreshUi()
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        activity?.setTitle(R.string.ai_setting)
+        preferenceManager.sharedPreferences?.registerOnSharedPreferenceChangeListener(this)
+        listView.setEdgeEffectColor(primaryColor)
+    }
+
+    override fun onDestroy() {
+        preferenceManager.sharedPreferences?.unregisterOnSharedPreferenceChangeListener(this)
+        super.onDestroy()
+    }
+
+    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        when (preference.key) {
+            PreferKey.aiCurrentProviderId -> showCurrentProviderSelector()
+            "aiAddProvider" -> showEditProviderDialog()
+            "aiManageProviders" -> showManageProvidersDialog()
+            PreferKey.aiCurrentModelId -> showCurrentModelSelector()
+            "aiAddModel" -> showEditModelDialog()
+            "aiManageModels" -> showManageModelsDialog()
+            "aiAddMcpServer" -> showEditMcpServerDialog()
+            "aiManageMcpServers" -> showManageMcpServersDialog()
+            PreferKey.aiSystemPrompt -> showSystemPromptDialog()
+            "aiImportDefaultSkill" -> importDefaultSkill()
+            PreferKey.aiSkillPrompt -> showManageSkillsDialog()
+        }
+        return super.onPreferenceTreeClick(preference)
+    }
+
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
+        if (key == PreferKey.aiAssistantEnabled) {
+            refreshUi(notifyMain = true)
+        }
+    }
+
+    private fun showCurrentProviderSelector() {
+        val providers = AppConfig.aiProviderList
+        if (providers.isEmpty()) {
+            toastOnUi(R.string.ai_no_providers)
+            return
+        }
+        context?.selector(
+            getString(R.string.ai_current_provider),
+            providers.map { it.name }
+        ) { _, _, index ->
+            AppConfig.aiCurrentProviderId = providers[index].id
+            refreshUi()
+        }
+    }
+
+    private fun showEditProviderDialog(provider: AiProviderConfig? = null) {
+        val binding = DialogAiProviderEditBinding.inflate(layoutInflater).apply {
+            editProviderName.setText(provider?.name.orEmpty())
+            editProviderBaseUrl.setText(provider?.baseUrl.orEmpty())
+            editProviderApiKey.setText(provider?.apiKey.orEmpty())
+        }
+        alert(
+            title = getString(
+                if (provider == null) R.string.ai_add_provider else R.string.ai_edit_provider
+            )
+        ) {
+            customView { binding.root }
+            okButton {
+                val name = binding.editProviderName.text?.toString()?.trim().orEmpty()
+                val baseUrl = binding.editProviderBaseUrl.text?.toString()?.trim().orEmpty()
+                val apiKey = binding.editProviderApiKey.text?.toString()?.trim().orEmpty()
+                when {
+                    name.isEmpty() -> {
+                        toastOnUi(R.string.ai_provider_name_required)
+                        return@okButton
+                    }
+
+                    baseUrl.isEmpty() -> {
+                        toastOnUi(R.string.ai_provider_url_required)
+                        return@okButton
+                    }
+                }
+                val providers = AppConfig.aiProviderList.toMutableList()
+                val updated = provider?.copy(
+                    name = name,
+                    baseUrl = baseUrl,
+                    apiKey = apiKey
+                ) ?: AiProviderConfig(
+                    name = name,
+                    baseUrl = baseUrl,
+                    apiKey = apiKey
+                )
+                val targetIndex = providers.indexOfFirst { it.id == updated.id }
+                if (targetIndex >= 0) {
+                    providers[targetIndex] = updated
+                } else {
+                    providers.add(updated)
+                }
+                AppConfig.aiProviderList = providers
+                AppConfig.aiCurrentProviderId = updated.id
+                refreshUi()
+                toastOnUi(R.string.ai_provider_saved)
+            }
+            cancelButton()
+        }
+    }
+
+    private fun showManageProvidersDialog() {
+        val providers = AppConfig.aiProviderList
+        if (providers.isEmpty()) {
+            toastOnUi(R.string.ai_no_providers)
+            return
+        }
+        context?.selector(
+            getString(R.string.ai_manage_providers),
+            providers.map { it.name }
+        ) { _, _, index ->
+            val provider = providers[index]
+            context?.selector(
+                provider.name,
+                arrayListOf(
+                    getString(R.string.ai_set_current_provider),
+                    getString(R.string.ai_edit_provider),
+                    getString(R.string.ai_remove_provider)
+                )
+            ) { _, action ->
+                when (action) {
+                    0 -> {
+                        AppConfig.aiCurrentProviderId = provider.id
+                        refreshUi()
+                    }
+
+                    1 -> showEditProviderDialog(provider)
+                    2 -> confirmRemoveProvider(provider)
+                }
+            }
+        }
+    }
+
+    private fun confirmRemoveProvider(provider: AiProviderConfig) {
+        val relatedModelCount = AppConfig.aiModelConfigList.count { it.providerId == provider.id }
+        alert(
+            title = provider.name,
+            message = getString(
+                if (relatedModelCount > 0) {
+                    R.string.ai_remove_provider_confirm_with_models
+                } else {
+                    R.string.ai_remove_provider_confirm
+                },
+                relatedModelCount
+            )
+        ) {
+            okButton {
+                AppConfig.aiProviderList = AppConfig.aiProviderList.filterNot { it.id == provider.id }
+                refreshUi()
+                toastOnUi(R.string.ai_provider_removed)
+            }
+            cancelButton()
+        }
+    }
+
+    private fun showCurrentModelSelector() {
+        if (AppConfig.aiCurrentProvider == null) {
+            toastOnUi(R.string.ai_no_providers)
+            return
+        }
+        val models = currentProviderModels()
+        if (models.isEmpty()) {
+            toastOnUi(R.string.ai_no_models)
+            return
+        }
+        context?.selector(
+            getString(R.string.ai_current_model),
+            models.map { it.modelId }
+        ) { _, _, index ->
+            AppConfig.aiCurrentModelId = models[index].id
+            refreshUi()
+        }
+    }
+
+    private fun showEditModelDialog(model: AiModelConfig? = null) {
+        val provider = AppConfig.aiCurrentProvider
+        if (provider == null) {
+            toastOnUi(R.string.ai_no_providers)
+            return
+        }
+        val binding = DialogEditTextBinding.inflate(layoutInflater).apply {
+            editView.hint = getString(R.string.ai_model_input_hint)
+            editView.inputType = InputType.TYPE_CLASS_TEXT
+            editView.setText(model?.modelId.orEmpty())
+            editView.setSelection(editView.text?.length ?: 0)
+        }
+        alert(
+            title = getString(
+                if (model == null) R.string.ai_add_model else R.string.ai_edit_model
+            )
+        ) {
+            customView { binding.root }
+            okButton {
+                val modelId = binding.editView.text?.toString()?.trim().orEmpty()
+                if (modelId.isEmpty()) {
+                    return@okButton
+                }
+                val models = AppConfig.aiModelConfigList.toMutableList()
+                val exists = models.any {
+                    it.providerId == provider.id && it.modelId == modelId && it.id != model?.id
+                }
+                if (exists) {
+                    toastOnUi(R.string.ai_model_exists)
+                    return@okButton
+                }
+                val updated = model?.copy(
+                    providerId = provider.id,
+                    modelId = modelId
+                ) ?: AiModelConfig(
+                    providerId = provider.id,
+                    modelId = modelId
+                )
+                val targetIndex = models.indexOfFirst { it.id == updated.id }
+                if (targetIndex >= 0) {
+                    models[targetIndex] = updated
+                } else {
+                    models.add(updated)
+                }
+                AppConfig.aiModelConfigList = models
+                AppConfig.aiCurrentModelId = updated.id
+                refreshUi()
+                toastOnUi(
+                    if (model == null) R.string.ai_model_added else R.string.ai_model_saved
+                )
+            }
+            cancelButton()
+        }
+    }
+
+    private fun showManageModelsDialog() {
+        if (AppConfig.aiCurrentProvider == null) {
+            toastOnUi(R.string.ai_no_providers)
+            return
+        }
+        val models = currentProviderModels()
+        if (models.isEmpty()) {
+            toastOnUi(R.string.ai_no_models)
+            return
+        }
+        context?.selector(
+            getString(R.string.ai_manage_models),
+            models.map { it.modelId }
+        ) { _, _, index ->
+            val model = models[index]
+            context?.selector(
+                model.modelId,
+                arrayListOf(
+                    getString(R.string.ai_set_current),
+                    getString(R.string.ai_edit_model),
+                    getString(R.string.ai_remove_model)
+                )
+            ) { _, action ->
+                when (action) {
+                    0 -> {
+                        AppConfig.aiCurrentModelId = model.id
+                        refreshUi()
+                    }
+
+                    1 -> showEditModelDialog(model)
+                    2 -> confirmRemoveModel(model)
+                }
+            }
+        }
+    }
+
+    private fun confirmRemoveModel(model: AiModelConfig) {
+        alert(
+            title = model.modelId,
+            message = getString(R.string.ai_remove_model_confirm)
+        ) {
+            okButton {
+                AppConfig.aiModelConfigList =
+                    AppConfig.aiModelConfigList.filterNot { it.id == model.id }
+                refreshUi()
+                toastOnUi(R.string.ai_model_removed)
+            }
+            cancelButton()
+        }
+    }
+
+    private fun currentProviderModels(): List<AiModelConfig> {
+        val providerId = AppConfig.aiCurrentProviderId ?: return emptyList()
+        return AppConfig.aiModelConfigList.filter { it.providerId == providerId }
+    }
+
+    private fun showEditMcpServerDialog(server: AiMcpServerConfig? = null) {
+        val binding = DialogAiMcpServerEditBinding.inflate(layoutInflater).apply {
+            editMcpServerName.setText(server?.name.orEmpty())
+            editMcpServerEndpoint.setText(server?.endpoint.orEmpty())
+            editMcpServerApiKey.setText(server?.apiKey.orEmpty())
+            checkMcpServerEnabled.isChecked = server?.enabled ?: true
+        }
+        alert(
+            title = getString(
+                if (server == null) R.string.ai_add_mcp_server else R.string.ai_edit_mcp_server
+            )
+        ) {
+            customView { binding.root }
+            okButton {
+                val name = binding.editMcpServerName.text?.toString()?.trim().orEmpty()
+                val endpoint = binding.editMcpServerEndpoint.text?.toString()?.trim().orEmpty()
+                val apiKey = binding.editMcpServerApiKey.text?.toString()?.trim().orEmpty()
+                when {
+                    name.isEmpty() -> {
+                        toastOnUi(R.string.ai_mcp_server_name_required)
+                        return@okButton
+                    }
+
+                    endpoint.isEmpty() -> {
+                        toastOnUi(R.string.ai_mcp_server_endpoint_required)
+                        return@okButton
+                    }
+                }
+                val servers = AppConfig.aiMcpServerList.toMutableList()
+                val updated = server?.copy(
+                    name = name,
+                    endpoint = endpoint,
+                    apiKey = apiKey,
+                    enabled = binding.checkMcpServerEnabled.isChecked
+                ) ?: AiMcpServerConfig(
+                    name = name,
+                    endpoint = endpoint,
+                    apiKey = apiKey,
+                    enabled = binding.checkMcpServerEnabled.isChecked
+                )
+                val targetIndex = servers.indexOfFirst { it.id == updated.id }
+                if (targetIndex >= 0) {
+                    servers[targetIndex] = updated
+                } else {
+                    servers.add(updated)
+                }
+                AppConfig.aiMcpServerList = servers
+                refreshUi()
+                toastOnUi(R.string.ai_mcp_server_saved)
+            }
+            cancelButton()
+        }
+    }
+
+    private fun showManageMcpServersDialog() {
+        val servers = AppConfig.aiMcpServerList
+        if (servers.isEmpty()) {
+            toastOnUi(R.string.ai_no_mcp_servers)
+            return
+        }
+        context?.selector(
+            getString(R.string.ai_manage_mcp_servers),
+            servers.map { server ->
+                buildString {
+                    append(server.name)
+                    if (!server.enabled) append(" (off)")
+                }
+            }
+        ) { _, _, index ->
+            val server = servers[index]
+            context?.selector(
+                server.name,
+                arrayListOf(
+                    getString(
+                        if (server.enabled) {
+                            R.string.ai_disable_mcp_server
+                        } else {
+                            R.string.ai_enable_mcp_server
+                        }
+                    ),
+                    getString(R.string.ai_edit_mcp_server),
+                    getString(R.string.ai_remove_mcp_server)
+                )
+            ) { _, action ->
+                when (action) {
+                    0 -> {
+                        AppConfig.aiMcpServerList = AppConfig.aiMcpServerList.map {
+                            if (it.id == server.id) it.copy(enabled = !it.enabled) else it
+                        }
+                        refreshUi()
+                    }
+
+                    1 -> showEditMcpServerDialog(server)
+                    2 -> confirmRemoveMcpServer(server)
+                }
+            }
+        }
+    }
+
+    private fun confirmRemoveMcpServer(server: AiMcpServerConfig) {
+        alert(
+            title = server.name,
+            message = getString(R.string.ai_remove_mcp_server_confirm)
+        ) {
+            okButton {
+                AppConfig.aiMcpServerList = AppConfig.aiMcpServerList.filterNot { it.id == server.id }
+                refreshUi()
+                toastOnUi(R.string.ai_mcp_server_removed)
+            }
+            cancelButton()
+        }
+    }
+
+    private fun showSystemPromptDialog() {
+        val binding = DialogEditTextBinding.inflate(layoutInflater).apply {
+            editView.hint = getString(R.string.ai_system_prompt_hint)
+            editView.inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            editView.minLines = 8
+            editView.setText(AppConfig.aiSystemPrompt)
+            editView.setSelection(editView.text?.length ?: 0)
+        }
+        alert(titleResource = R.string.ai_system_prompt) {
+            customView { binding.root }
+            okButton {
+                AppConfig.aiSystemPrompt = binding.editView.text?.toString().orEmpty()
+                refreshUi()
+            }
+            neutralButton(R.string.restore_default) {
+                AppConfig.aiSystemPrompt = AppConfig.DEFAULT_AI_SYSTEM_PROMPT
+                refreshUi()
+            }
+            cancelButton()
+        }
+    }
+
+    private fun importDefaultSkill() {
+        toastOnUi(R.string.ai_skill_importing)
+        lifecycleScope.launch {
+            val result = withContext(IO) {
+                runCatching {
+                    var lastError = ""
+                    defaultSkillUrls.forEach { skillUrl ->
+                        okHttpClient.newCallResponse {
+                            url(skillUrl)
+                        }.use { response ->
+                            if (response.isSuccessful) {
+                                return@runCatching skillUrl to response.body?.string().orEmpty()
+                            }
+                            lastError = "${response.code} ${response.message}"
+                        }
+                    }
+                    error(lastError.ifBlank { "No available SKILL.md" })
+                }
+            }
+            result.onSuccess { (skillUrl, skill) ->
+                if (skill.isBlank()) {
+                    toastOnUi(R.string.ai_skill_import_empty)
+                    return@onSuccess
+                }
+                val skillConfig = parseSkillConfig(skill, skillUrl)
+                AppConfig.aiSkillList = AppConfig.aiSkillList
+                    .filterNot { it.sourceUrl == skillConfig.sourceUrl || it.name == skillConfig.name }
+                    .plus(skillConfig)
+                refreshUi()
+                toastOnUi(R.string.ai_skill_imported)
+            }.onFailure {
+                toastOnUi(getString(R.string.ai_skill_import_failed, it.localizedMessage ?: "Error"))
+            }
+        }
+    }
+
+    private fun showManageSkillsDialog() {
+        val skills = AppConfig.aiSkillList
+        val actions = mutableListOf(getString(R.string.ai_add_skill_manual))
+        actions += skills.map { skill ->
+            buildString {
+                append(skill.name)
+                append(" · ")
+                append(
+                    getString(
+                        if (skill.enabled) R.string.enabled else R.string.disabled
+                    )
+                )
+            }
+        }
+        context?.selector(getString(R.string.ai_manage_skills), actions) { _, _, index ->
+            if (index == 0) {
+                showSkillEditDialog()
+            } else {
+                showSkillActionDialog(skills[index - 1])
+            }
+        }
+    }
+
+    private fun showSkillActionDialog(skill: AiSkillConfig) {
+        context?.selector(
+            skill.name,
+            arrayListOf(
+                getString(if (skill.enabled) R.string.disable else R.string.enable),
+                getString(R.string.edit),
+                getString(R.string.delete)
+            )
+        ) { _, action ->
+            when (action) {
+                0 -> {
+                    AppConfig.aiSkillList = AppConfig.aiSkillList.map {
+                        if (it.id == skill.id) it.copy(enabled = !it.enabled) else it
+                    }
+                    refreshUi()
+                }
+
+                1 -> showSkillEditDialog(skill)
+                2 -> confirmRemoveSkill(skill)
+            }
+        }
+    }
+
+    private fun showSkillEditDialog(skill: AiSkillConfig? = null) {
+        val binding = DialogEditTextBinding.inflate(layoutInflater).apply {
+            editView.hint = getString(R.string.ai_skill_prompt_hint)
+            editView.inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            editView.minLines = 8
+            editView.setText(skill?.content.orEmpty())
+            editView.setSelection(editView.text?.length ?: 0)
+        }
+        alert(titleResource = R.string.ai_skill_prompt) {
+            customView { binding.root }
+            okButton {
+                val content = binding.editView.text?.toString().orEmpty()
+                if (content.isBlank()) {
+                    toastOnUi(R.string.ai_skill_import_empty)
+                    return@okButton
+                }
+                val updated = parseSkillConfig(content, skill?.sourceUrl.orEmpty(), skill)
+                val skills = AppConfig.aiSkillList.toMutableList()
+                val index = skills.indexOfFirst { it.id == updated.id }
+                if (index >= 0) {
+                    skills[index] = updated
+                } else {
+                    skills.add(updated)
+                }
+                AppConfig.aiSkillList = skills
+                refreshUi()
+            }
+            cancelButton()
+        }
+    }
+
+    private fun confirmRemoveSkill(skill: AiSkillConfig) {
+        alert(
+            title = skill.name,
+            message = getString(R.string.ai_remove_skill_confirm)
+        ) {
+            okButton {
+                AppConfig.aiSkillList = AppConfig.aiSkillList.filterNot { it.id == skill.id }
+                refreshUi()
+            }
+            cancelButton()
+        }
+    }
+
+    private fun parseSkillConfig(
+        content: String,
+        sourceUrl: String = "",
+        oldSkill: AiSkillConfig? = null
+    ): AiSkillConfig {
+        val name = Regex("""(?m)^\s*name:\s*["']?([^"'\n]+)["']?\s*$""")
+            .find(content)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            .orEmpty()
+        val description = Regex("""(?m)^\s*description:\s*["']?([^"'\n]+)["']?\s*$""")
+            .find(content)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            .orEmpty()
+        return (oldSkill ?: AiSkillConfig(
+            name = name.ifBlank { getString(R.string.ai_skill_default_name) },
+            content = content
+        )).copy(
+            name = name.ifBlank { oldSkill?.name ?: getString(R.string.ai_skill_default_name) },
+            description = description.ifBlank { oldSkill?.description.orEmpty() },
+            content = content.trim(),
+            sourceUrl = sourceUrl.ifBlank { oldSkill?.sourceUrl.orEmpty() },
+            enabled = oldSkill?.enabled ?: true
+        )
+    }
+
+    private fun refreshUi(notifyMain: Boolean = false) {
+        val currentProvider = AppConfig.aiCurrentProvider
+        val providerModels = currentProviderModels()
+        val mcpServers = AppConfig.aiMcpServerList
+        val enabledMcpCount = mcpServers.count { it.enabled }
+        val canEnable = AppConfig.aiCurrentModelConfig != null
+        val storedEnabled = preferenceManager.sharedPreferences
+            ?.getBoolean(PreferKey.aiAssistantEnabled, false) == true
+        if (!canEnable && storedEnabled) {
+            AppConfig.aiAssistantEnabled = false
+        }
+        findPreference<SwitchPreference>(PreferKey.aiAssistantEnabled)?.apply {
+            isEnabled = canEnable
+            isChecked = AppConfig.aiAssistantEnabled
+            summary = getString(
+                if (canEnable) R.string.ai_enable_summary else R.string.ai_enable_summary_disabled
+            )
+        }
+        findPreference<Preference>(PreferKey.aiCurrentProviderId)?.summary =
+            currentProvider?.name ?: getString(R.string.ai_current_provider_summary_empty)
+        findPreference<Preference>("aiManageProviders")?.summary =
+            if (AppConfig.aiProviderList.isEmpty()) {
+                getString(R.string.ai_no_providers)
+            } else {
+                getString(R.string.ai_manage_providers_summary, AppConfig.aiProviderList.size)
+            }
+        findPreference<Preference>(PreferKey.aiCurrentModelId)?.summary =
+            AppConfig.aiCurrentModelConfig?.modelId ?: getString(
+                if (currentProvider == null) {
+                    R.string.ai_current_model_summary_empty
+                } else {
+                    R.string.ai_current_model_summary_no_provider_models
+                }
+            )
+        findPreference<Preference>("aiManageModels")?.summary =
+            if (providerModels.isEmpty()) {
+                getString(R.string.ai_no_models)
+            } else {
+                getString(R.string.ai_manage_models_summary, providerModels.size)
+            }
+        findPreference<Preference>("aiManageMcpServers")?.summary =
+            if (mcpServers.isEmpty()) {
+                getString(R.string.ai_no_mcp_servers)
+            } else {
+                getString(
+                    R.string.ai_manage_mcp_servers_summary,
+                    enabledMcpCount,
+                    mcpServers.size
+                )
+            }
+        findPreference<Preference>(PreferKey.aiSystemPrompt)?.summary =
+            getString(R.string.ai_system_prompt_summary)
+        val skills = AppConfig.aiSkillList
+        val enabledSkillCount = skills.count { it.enabled }
+        findPreference<Preference>(PreferKey.aiSkillPrompt)?.summary =
+            if (skills.isEmpty()) {
+                getString(R.string.ai_skill_prompt_summary_empty)
+            } else {
+                getString(R.string.ai_skill_prompt_summary, enabledSkillCount, skills.size)
+            }
+        if (notifyMain || (!canEnable && storedEnabled)) {
+            postEvent(EventBus.NOTIFY_MAIN, false)
+        }
+    }
+}

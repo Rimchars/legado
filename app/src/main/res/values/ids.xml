@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <item name="tag" type="id" />
+    <item name="tag1" type="id" />
+    <item name="tag2" type="id" />
+
+    <item name="menu_group_1" type="id" />
+    <item name="menu_group_2" type="id" />
+
+    <item name="menu_1" type="id" />
+    <item name="menu_rss" type="id" />
+
+    <item name="fast_scroller" type="id" />
+
+    <item name="bettermovementmethod_highlight_background_span" type="id" />
+    <item name="small_id" type="id" />
+    <item name="full_id" type="id" />
+    <item name="text_watcher" type="id" />
+
+</resources>

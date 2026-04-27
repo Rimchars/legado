@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/ai_assistant"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="false"
+            android:key="aiAssistantEnabled"
+            android:summary="@string/ai_enable_summary"
+            android:title="@string/ai_enable"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiSystemPrompt"
+            android:summary="@string/ai_system_prompt_summary"
+            android:title="@string/ai_system_prompt"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiImportDefaultSkill"
+            android:summary="@string/ai_import_default_skill_summary"
+            android:title="@string/ai_import_default_skill"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiSkillPrompt"
+            android:summary="@string/ai_skill_prompt_summary_empty"
+            android:title="@string/ai_skill_prompt"
+            app:iconSpaceReserved="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/ai_provider"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiCurrentProviderId"
+            android:summary="@string/ai_current_provider_summary_empty"
+            android:title="@string/ai_current_provider"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiAddProvider"
+            android:summary="@string/ai_add_provider_summary"
+            android:title="@string/ai_add_provider"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiManageProviders"
+            android:summary="@string/ai_no_providers"
+            android:title="@string/ai_manage_providers"
+            app:iconSpaceReserved="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/ai_model"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiCurrentModelId"
+            android:summary="@string/ai_current_model_summary_empty"
+            android:title="@string/ai_current_model"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiAddModel"
+            android:summary="@string/ai_add_model_summary"
+            android:title="@string/ai_add_model"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiManageModels"
+            android:summary="@string/ai_no_models"
+            android:title="@string/ai_manage_models"
+            app:iconSpaceReserved="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/ai_mcp"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiAddMcpServer"
+            android:summary="@string/ai_add_mcp_server_summary"
+            android:title="@string/ai_add_mcp_server"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiManageMcpServers"
+            android:summary="@string/ai_no_mcp_servers"
+            android:title="@string/ai_manage_mcp_servers"
+            app:iconSpaceReserved="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

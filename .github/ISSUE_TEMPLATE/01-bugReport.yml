@@ -1,0 +1,68 @@
+name: BUG提交 / BUG Report
+description: Report bugs to developers
+labels: ["BUG"]
+body:
+  - type: checkboxes
+    attributes:
+      label: 确认 / Assignments
+      description: 提交issue请确保完成以下前提，否则该issue可能被忽略 / Make sure you read checkboxs below
+      options:
+        - label: 搜索现有issues，不存在相似或相关的issue / No similar or related issues
+          required: true
+        - label: 最新[测试版](https://github.com/gedoor/legado/releases/beta)依然存在此问题 / Latest beta app does not work
+          required: true
+        - label: 此问题和Xposed、Lsposed、Magisk、手机主题、浏览器插件、无障碍服务等无关 / Make sure your machine is not touched by hook frameworks, plugins, accessibility etc
+          required: true
+
+  - type: textarea
+    attributes:
+      label: 问题描述 / Describe Bugs
+      description: |
+        非改版新增功能。请验证官方版也存在问题后去[官方区](https://github.com/gedoor/legado/issues)反馈，
+        本改版相关反馈前请确保已更新到最新版。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 复现步骤 / How to reproduce
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: 确认 / Assignment
+      options:
+        - label: 已经提交复现所需要的附加资料 / Submit additions related with bugs
+          required: true
+  - type: textarea
+    attributes:
+      label: 其他信息 / Additions
+      description: |
+        反馈WEB书架前端问题时请提供浏览器版本信息，如Edge 129.0.2792.89
+      placeholder: "请用```将提交的内容包裹"
+
+  - type: textarea
+    attributes:
+      label: 日志提交 / Relevant log output
+      description: |
+        阅读日志位于我的-关于-崩溃日志、保存日志、书架-右上角-日志，或者自行使用log工具抓取日志
+        如果崩溃日志中包含`java.lang.OutOfMemoryError`，请安装最新测试版，在其他设置里打开记录堆转储，复现崩溃后去关于那里点保存日志，然后去备份目录里将heapDump文件夹里的文件打包压缩一下上传上来
+      placeholder: "请用```将日志内容包裹"
+
+  - type: input
+    attributes:
+      label: 阅读版本 / Legado version
+      placeholder: "3.22.110823"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Android版本 / Android version
+      placeholder: "Android 12"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: 机型 / Model
+      placeholder: "Redmi K30 Pro"
+    validations:
+      required: true
