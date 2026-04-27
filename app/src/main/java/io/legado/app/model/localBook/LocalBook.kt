@@ -258,11 +258,11 @@ object LocalBook {
                 latestChapterTime = updateTime,
                 order = appDb.bookDao.minOrder - 1
             )
-            upBookInfo(book)
+            upBookInfoSafely(book)
             appDb.bookDao.insert(book)
         } else {
             deleteBook(book, false)
-            upBookInfo(book)
+            upBookInfoSafely(book)
             // 触发 isLocalModified
             book.latestChapterTime = 0
             //已有书籍说明是更新,删除原有目录
@@ -277,6 +277,24 @@ object LocalBook {
             book.isUmd -> UmdFile.upBookInfo(book)
             book.isPdf -> PdfFile.upBookInfo(book)
             book.isMobi -> MobiFile.upBookInfo(book)
+        }
+    }
+
+    private fun upBookInfoSafely(book: Book) {
+        if (!book.isEpub) {
+            upBookInfo(book)
+            return
+        }
+        kotlin.runCatching {
+            upBookInfo(book)
+        }.onFailure {
+            AppLog.put("EPUB 元数据解析失败，已先导入书籍\n${it.localizedMessage}", it)
+            if (book.name.isBlank()) {
+                book.name = book.originName.substringBeforeLast(".")
+            }
+            if (book.intro.isNullOrBlank()) {
+                book.intro = "EPUB 已导入，元数据将在阅读时按需加载。"
+            }
         }
     }
 

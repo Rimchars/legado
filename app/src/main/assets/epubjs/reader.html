@@ -28,16 +28,6 @@
     let rendition = null;
     let locationsReady = false;
 
-    function decodeBase64(base64) {
-      const binary = atob(base64);
-      const len = binary.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return bytes.buffer;
-    }
-
     function notify(type, payload) {
       if (window.AndroidBridge && AndroidBridge.onEvent) {
         AndroidBridge.onEvent(type, JSON.stringify(payload || {}));
@@ -74,8 +64,72 @@
         "svg": {
           "max-width": "100%",
           "height": "auto"
+        },
+        "body > div:only-child svg:only-child": {
+          "display": "block",
+          "width": "100%",
+          "height": "auto"
         }
       });
+    }
+
+    function injectContentStyles(contents) {
+      const isScroll = AndroidBridge.isScrollMode();
+      const css = `
+        html, body {
+          background: transparent !important;
+          ${isScroll ? "height: auto !important; min-height: 100% !important; overflow: visible !important;" : ""}
+        }
+        body {
+          box-sizing: border-box !important;
+        }
+        img, svg, image {
+          max-width: 100% !important;
+          object-fit: contain !important;
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+        img {
+          height: auto !important;
+          max-height: none !important;
+        }
+        svg {
+          height: auto !important;
+          max-height: none !important;
+          overflow: visible !important;
+        }
+        body > div:only-child,
+        body > p:only-child,
+        body > figure:only-child {
+          max-height: none !important;
+          overflow: visible !important;
+        }
+        body > div:only-child svg:only-child,
+        body > div:only-child img:only-child,
+        body > p:only-child img:only-child,
+        body > figure:only-child img:only-child {
+          display: block !important;
+          width: 100% !important;
+          height: auto !important;
+          max-height: none !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+        [style*="height: 100%"], [style*="height:100%"] {
+          ${isScroll ? "height: auto !important; max-height: none !important;" : ""}
+        }
+      `;
+      try {
+        contents.addStylesheetRules({ "body": { "background": "transparent !important" } });
+        contents.addStylesheet("data:text/css;charset=utf-8," + encodeURIComponent(css));
+      } catch (e) {
+        const doc = contents.document;
+        if (doc && doc.head) {
+          const style = doc.createElement("style");
+          style.textContent = css;
+          doc.head.appendChild(style);
+        }
+      }
     }
 
     function createRendition() {
@@ -87,6 +141,7 @@
         spread: "none"
       });
       applyTheme();
+      rendition.hooks.content.register(injectContentStyles);
       rendition.on("relocated", location => {
         notify("location", {
           cfi: location.start && location.start.cfi,
@@ -108,9 +163,11 @@
         if (!window.ePub) {
           throw new Error("epub.js lib not loaded");
         }
-        const base64 = AndroidBridge.getBookBase64();
-        const buffer = decodeBase64(base64);
-        book = ePub(buffer);
+        const bookUrl = AndroidBridge.getBookUrl();
+        if (!bookUrl) {
+          throw new Error("EPUB OPF url is empty");
+        }
+        book = ePub(bookUrl);
         createRendition();
         await book.ready;
         notify("toc", {
