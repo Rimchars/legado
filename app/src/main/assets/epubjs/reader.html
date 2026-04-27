@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #f7f3ea;
+    }
+    #viewer {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+  </style>
+  <script src="epub.min.js"></script>
+</head>
+<body>
+  <div id="viewer"></div>
+  <script>
+    let book = null;
+    let rendition = null;
+    let locationsReady = false;
+
+    function decodeBase64(base64) {
+      const binary = atob(base64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    function notify(type, payload) {
+      if (window.AndroidBridge && AndroidBridge.onEvent) {
+        AndroidBridge.onEvent(type, JSON.stringify(payload || {}));
+      }
+    }
+
+    function applyTheme() {
+      if (!rendition || !window.AndroidBridge) return;
+      const style = JSON.parse(AndroidBridge.getStyle());
+      document.body.style.background = style.background || "#f7f3ea";
+      rendition.themes.default({
+        "body": {
+          "background": style.background || "#f7f3ea",
+          "color": style.color || "#2f2a24",
+          "line-height": style.lineHeight || "1.55",
+          "font-size": style.fontSize || "100%"
+        },
+        "img": {
+          "max-width": "100%",
+          "height": "auto",
+          "object-fit": "contain"
+        },
+        "svg": {
+          "max-width": "100%",
+          "height": "auto"
+        }
+      });
+    }
+
+    async function openBook() {
+      try {
+        const base64 = AndroidBridge.getBookBase64();
+        const buffer = decodeBase64(base64);
+        book = ePub(buffer);
+        rendition = book.renderTo("viewer", {
+          width: "100%",
+          height: "100%",
+          flow: AndroidBridge.isScrollMode() ? "scrolled-doc" : "paginated",
+          manager: "default",
+          spread: "none"
+        });
+        applyTheme();
+        rendition.on("relocated", location => {
+          notify("location", {
+            cfi: location.start && location.start.cfi,
+            percentage: book.locations && location.start
+              ? book.locations.percentageFromCfi(location.start.cfi)
+              : 0
+          });
+        });
+        rendition.on("rendered", section => {
+          notify("chapter", { href: section.href, title: section.label || "" });
+        });
+        await book.ready;
+        notify("toc", {
+          toc: (book.navigation && book.navigation.toc) || []
+        });
+        book.locations.generate(1200).then(() => {
+          locationsReady = true;
+        });
+        const saved = AndroidBridge.getSavedCfi();
+        await rendition.display(saved || undefined);
+        notify("ready", {});
+      } catch (e) {
+        notify("error", { message: String(e && e.message ? e.message : e) });
+      }
+    }
+
+    function nextPage() {
+      if (rendition) rendition.next();
+    }
+
+    function prevPage() {
+      if (rendition) rendition.prev();
+    }
+
+    function display(cfiOrHref) {
+      if (rendition && cfiOrHref) rendition.display(cfiOrHref);
+    }
+
+    function displayByPercentage(percentage) {
+      if (!book || !book.locations || !locationsReady) return;
+      const cfi = book.locations.cfiFromPercentage(percentage);
+      if (cfi && rendition) rendition.display(cfi);
+    }
+
+    function setStyle() {
+      applyTheme();
+    }
+
+    function setScrollMode() {
+      const cfi = AndroidBridge.getSavedCfi();
+      if (rendition) rendition.destroy();
+      rendition = book.renderTo("viewer", {
+        width: "100%",
+        height: "100%",
+        flow: AndroidBridge.isScrollMode() ? "scrolled-doc" : "paginated",
+        manager: "default",
+        spread: "none"
+      });
+      applyTheme();
+      rendition.display(cfi || undefined);
+    }
+
+    document.addEventListener("DOMContentLoaded", openBook);
+  </script>
+</body>
+</html>
