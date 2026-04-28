@@ -132,6 +132,9 @@ class EpubFile(var book: Book) {
         val contents = epubBookContents ?: return null
         val nextChapterFirstResourceHref = chapter.getVariable("nextUrl").substringBeforeLast("#")
         val currentChapterFirstResourceHref = chapter.url.substringBeforeLast("#")
+        findEpubResource(currentChapterFirstResourceHref)?.takeIf { it.isEpubBookInfoResource() }?.let {
+            return ""
+        }
         val isLastChapter = nextChapterFirstResourceHref.isBlank()
         val startFragmentId = chapter.startFragmentId
         val endFragmentId = chapter.endFragmentId
@@ -1118,6 +1121,14 @@ class EpubFile(var book: Book) {
                     desc
                 }
             }
+            findEpubBookInfo()?.let { info ->
+                if (info.author.isNotBlank()) {
+                    book.author = info.author
+                }
+                if (info.intro.isNotBlank()) {
+                    book.intro = info.intro
+                }
+            }
         }
     }
 
@@ -1132,6 +1143,10 @@ class EpubFile(var book: Book) {
                 val size = spineReferences.size
                 while (i < size) {
                     val resource = spineReferences[i].resource
+                    if (resource.isEpubBookInfoResource()) {
+                        i++
+                        continue
+                    }
                     var title = resource.title
                     if (TextUtils.isEmpty(title)) {
                         try {
@@ -1186,6 +1201,10 @@ class EpubFile(var book: Book) {
                 i++
                 continue
             }
+            if (content.isEpubBookInfoResource()) {
+                i++
+                continue
+            }
             /**
              * 检索到第一章href停止
              * completeHref可能有fragment(#id) 必须去除
@@ -1226,6 +1245,12 @@ class EpubFile(var book: Book) {
     ) {
         refs?.forEach { ref ->
             if (ref.resource != null) {
+                if (ref.resource.isEpubBookInfoResource()) {
+                    if (ref.children != null && ref.children.isNotEmpty()) {
+                        parseMenu(chapterList, ref.children, level + 1)
+                    }
+                    return@forEach
+                }
                 val chapter = BookChapter()
                 chapter.bookUrl = book.bookUrl
                 chapter.title = ref.title
@@ -1248,6 +1273,78 @@ class EpubFile(var book: Book) {
             }
         }
     }
+
+    private fun findEpubBookInfo(): EpubBookInfo? {
+        return epubBook?.contents
+            ?.asSequence()
+            ?.filter { it.mediaType.toString().contains("htm") }
+            ?.mapNotNull { it.extractEpubBookInfo() }
+            ?.firstOrNull()
+    }
+
+    private fun Resource.isEpubBookInfoResource(): Boolean {
+        return extractEpubBookInfo() != null
+    }
+
+    private fun Resource.extractEpubBookInfo(): EpubBookInfo? {
+        val doc = runCatching { Jsoup.parse(String(data, mCharset)) }.getOrNull() ?: return null
+        if (!doc.isEpubBookInfoDocument()) return null
+        val lines = doc.body().select("h1,h2,h3,h4,p,div:not(:has(p)):not(:has(div))")
+            .map { it.text().cleanEpubInfoText() }
+            .filter { it.isNotBlank() }
+            .distinct()
+        val author = lines.mapNotNull { line -> line.substringAfterLabel("作者") }.firstOrNull().orEmpty()
+        val introLines = arrayListOf<String>()
+        var inIntro = false
+        lines.forEach { line ->
+            val intro = line.substringAfterLabel("简介")
+            when {
+                intro != null -> {
+                    inIntro = true
+                    if (intro.isNotBlank()) introLines.add(intro)
+                }
+                inIntro && !line.isEpubInfoMetaLine() -> introLines.add(line)
+            }
+        }
+        val intro = introLines.joinToString("\n").trim()
+        return EpubBookInfo(author = author, intro = intro)
+    }
+
+    private fun Document.isEpubBookInfoDocument(): Boolean {
+        val title = select("[title*=书籍信息], [title*=版权信息], [title*=简介]").firstOrNull()
+        if (title != null) return true
+        val text = body().text().cleanEpubInfoText()
+        val hasIntro = text.contains("简介")
+        val hasBookMeta = text.contains("作者") || text.contains("首发") || text.contains("完本")
+        val hasInfoClass = select(".sjmc,.jj01,.jj02,.copyright,.book-info").isNotEmpty()
+        return hasIntro && hasBookMeta && hasInfoClass
+    }
+
+    private fun String.cleanEpubInfoText(): String {
+        return replace('\u00A0', ' ')
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .trim('　')
+            .trim()
+    }
+
+    private fun String.substringAfterLabel(label: String): String? {
+        val regex = Regex("^\\s*$label\\s*[：:]\\s*(.*)$")
+        return regex.find(this)?.groupValues?.getOrNull(1)?.cleanEpubInfoText()
+    }
+
+    private fun String.isEpubInfoMetaLine(): Boolean {
+        return substringAfterLabel("作者") != null ||
+            substringAfterLabel("首发") != null ||
+            substringAfterLabel("完本") != null ||
+            equals("简介", ignoreCase = true) ||
+            equals("简介：", ignoreCase = true)
+    }
+
+    private data class EpubBookInfo(
+        val author: String,
+        val intro: String
+    )
 
     private fun normalizeChapterList(chapterList: ArrayList<BookChapter>) {
         if (chapterList.isEmpty()) return
