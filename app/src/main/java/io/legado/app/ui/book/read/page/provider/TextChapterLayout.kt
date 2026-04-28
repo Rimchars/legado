@@ -1,14 +1,20 @@
 package io.legado.app.ui.book.read.page.provider
 
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.text.Layout
 import android.text.Spanned
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
 import android.text.style.ImageSpan
 import android.text.style.RelativeSizeSpan
 import android.text.style.ReplacementSpan
+import android.text.style.StrikethroughSpan
+import android.text.style.StyleSpan
+import android.text.style.UnderlineSpan
 import android.text.style.URLSpan
 import io.legado.app.constant.AppLog
 import io.legado.app.constant.AppPattern
@@ -18,6 +24,7 @@ import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookContent
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.getBookSource
+import io.legado.app.help.book.isEpub
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.coroutine.Coroutine
@@ -224,7 +231,7 @@ class TextChapterLayout(
         val imageStyle = book.getImageStyle()
         val isSingleImageStyle = imageStyle.equals(Book.imgStyleSingle, true)
 
-        if (titleMode != 2 || bookChapter.isVolume || contents.isEmpty()) {
+        if (!book.isEpub && (titleMode != 2 || bookChapter.isVolume || contents.isEmpty())) {
             var firstLine = true
             //标题非隐藏
             displayTitle.splitNotBlank("\n").forEach { text ->
@@ -338,10 +345,11 @@ class TextChapterLayout(
                 if (text == "[newpage]") {
                     prepareNextPageIfNeed()
                     return@forEach
-                } else if (text.startsWith("<usehtml>")) {
-                    val endInt = text.lastIndexOf("<")
-                    if (endInt > 9) {
-                        setTypeHtml(imageStyle, book, text.substring(9, endInt))
+                } else if (text.startsWith("<usehtml")) {
+                    val contentStart = text.indexOf('>')
+                    val contentEnd = text.lastIndexOf("<")
+                    if (contentStart >= 0 && contentEnd > contentStart) {
+                        setTypeHtml(imageStyle, book, text.substring(contentStart + 1, contentEnd))
                         return@forEach
                     }
                 }
@@ -635,6 +643,10 @@ class TextChapterLayout(
             when (node) {
                 is TextNode -> htmlBuffer.append(node.outerHtml())
                 is Element -> {
+                    if (node.hasEpubPageBreakBefore()) {
+                        flushHtmlBuffer()
+                        prepareNextPageIfNeed()
+                    }
                     if (node.normalName() == "table") {
                         flushHtmlBuffer()
                         setTypeHtmlText(imageStyle, book, node.toReadableTableHtml())
@@ -658,6 +670,10 @@ class TextChapterLayout(
                             flushHtmlBuffer()
                         }
                     }
+                    if (node.hasEpubPageBreakAfter()) {
+                        flushHtmlBuffer()
+                        prepareNextPageIfNeed()
+                    }
                 }
                 else -> htmlBuffer.append(node.outerHtml())
             }
@@ -668,6 +684,34 @@ class TextChapterLayout(
             renderNode(node)
         }
         flushHtmlBuffer()
+    }
+
+    private fun Element.hasEpubPageBreakBefore(): Boolean {
+        return epubCssValue("page-break-before").isEpubAlwaysBreak() ||
+            epubCssValue("break-before").isEpubAlwaysBreak()
+    }
+
+    private fun Element.hasEpubPageBreakAfter(): Boolean {
+        return epubCssValue("page-break-after").isEpubAlwaysBreak() ||
+            epubCssValue("break-after").isEpubAlwaysBreak()
+    }
+
+    private fun Element.epubCssValue(name: String): String {
+        val style = attr("style")
+        if (style.isBlank()) return ""
+        style.split(';').forEach { item ->
+            val index = item.indexOf(':')
+            if (index <= 0) return@forEach
+            if (item.substring(0, index).trim().equals(name, ignoreCase = true)) {
+                return item.substring(index + 1).trim()
+            }
+        }
+        return ""
+    }
+
+    private fun String.isEpubAlwaysBreak(): Boolean {
+        val value = trim().lowercase()
+        return value == "always" || value == "page" || value == "left" || value == "right"
     }
 
     private fun Element.toReadableTableHtml(): String {
@@ -963,7 +1007,12 @@ class TextChapterLayout(
                                 HR_PLACE_STR,
                                 textSize,
                                 textColor,
-                                linkUrl
+                                linkUrl,
+                                isBold = spanned.hasStyleSpan(charIndex, Typeface.BOLD),
+                                isItalic = spanned.hasStyleSpan(charIndex, Typeface.ITALIC),
+                                isUnderline = spanned.hasSpan(charIndex, UnderlineSpan::class.java),
+                                isStrikethrough = spanned.hasSpan(charIndex, StrikethroughSpan::class.java),
+                                backgroundColor = extractBackgroundColor(spanned, charIndex)
                             )
                         )
                         needAddText = false
@@ -977,7 +1026,12 @@ class TextChapterLayout(
                             char,
                             textSize,
                             textColor,
-                            linkUrl
+                            linkUrl,
+                            isBold = spanned.hasStyleSpan(charIndex, Typeface.BOLD),
+                            isItalic = spanned.hasStyleSpan(charIndex, Typeface.ITALIC),
+                            isUnderline = spanned.hasSpan(charIndex, UnderlineSpan::class.java),
+                            isStrikethrough = spanned.hasSpan(charIndex, StrikethroughSpan::class.java),
+                            backgroundColor = extractBackgroundColor(spanned, charIndex)
                         )
                     )
                 }
@@ -1091,16 +1145,31 @@ class TextChapterLayout(
         relativeSpans.firstOrNull()?.let { span ->
             return defaultSize * span.sizeChange
         }
-//        val sizeSpans = spanned.getSpans(index, index + 1, AbsoluteSizeSpan::class.java)
-//        sizeSpans.firstOrNull()?.let { span ->
-//            return span.size.toFloat()
-//        }
+        val sizeSpans = spanned.getSpans(index, index + 1, AbsoluteSizeSpan::class.java)
+        sizeSpans.firstOrNull()?.let { span ->
+            return if (span.dip) span.size.toFloat().dpToPx() else span.size.toFloat()
+        }
         return defaultSize
     }
 
     private fun extractTextColor(spanned: Spanned, index: Int): Int? {
         val foregroundSpans = spanned.getSpans(index, index + 1, ForegroundColorSpan::class.java)
         return foregroundSpans.firstOrNull()?.foregroundColor
+    }
+
+    private fun extractBackgroundColor(spanned: Spanned, index: Int): Int? {
+        val backgroundSpans = spanned.getSpans(index, index + 1, BackgroundColorSpan::class.java)
+        return backgroundSpans.firstOrNull()?.backgroundColor
+    }
+
+    private fun <T> Spanned.hasSpan(index: Int, clazz: Class<T>): Boolean {
+        return getSpans(index, index + 1, clazz).isNotEmpty()
+    }
+
+    private fun Spanned.hasStyleSpan(index: Int, style: Int): Boolean {
+        return getSpans(index, index + 1, StyleSpan::class.java).any { span ->
+            span.style == style || span.style == Typeface.BOLD_ITALIC
+        }
     }
 
     private fun extractLinkUrl(spanned: Spanned, index: Int): String? {
