@@ -139,6 +139,7 @@ class EpubFile(var book: Book) {
         val startFragmentId = chapter.startFragmentId
         val endFragmentId = chapter.endFragmentId
         val elements = Elements()
+        val rawResources = linkedMapOf<String, String>()
         var findChapterFirstSource = false
         val includeNextChapterResource = !endFragmentId.isNullOrBlank()
         /*一些书籍依靠href索引的resource会包含多个章节，需要依靠fragmentId来截取到当前章节的内容*/
@@ -148,6 +149,7 @@ class EpubFile(var book: Book) {
                 if (currentChapterFirstResourceHref != res.href) continue
                 findChapterFirstSource = true
                 // 第一个xhtml文件
+                rawResources[res.href] = String(res.data, mCharset)
                 elements.add(
                     getBody(res, startFragmentId, endFragmentId)
                 )
@@ -157,11 +159,13 @@ class EpubFile(var book: Book) {
             }
             if (nextChapterFirstResourceHref != res.href) {
                 // 其余部分
+                rawResources[res.href] = String(res.data, mCharset)
                 elements.add(getBody(res, null, null))
             } else {
                 // 下一章节的第一个xhtml
                 if (includeNextChapterResource) {
                     //有Fragment 则添加到上一章节
+                    rawResources[res.href] = String(res.data, mCharset)
                     elements.add(getBody(res, null, endFragmentId))
                 }
                 break
@@ -180,6 +184,7 @@ class EpubFile(var book: Book) {
         val html = elements.joinToString("\n") { element ->
             element.html().trim()
         }.trim()
+        dumpEpubChapterDebug(chapter, rawResources, html)
         if (html.isBlank()) {
             return HtmlFormatter.formatKeepImg(elements.outerHtml())
         }
@@ -241,6 +246,7 @@ class EpubFile(var book: Book) {
         }
         bodyElement.applyEpubCss(doc, res)
         bodyElement.propagateEpubInheritedStyles()
+        bodyElement.materializeMediaElements(res)
         bodyElement.select("[style]")
             .sortedByDescending { it.parents().size }
             .forEach { element ->
@@ -283,6 +289,38 @@ class EpubFile(var book: Book) {
             }
         }
         return bodyElement
+    }
+
+    private fun dumpEpubChapterDebug(
+        chapter: BookChapter,
+        rawResources: Map<String, String>,
+        renderedHtml: String
+    ) {
+        runCatching {
+            val root = File(FileUtils.getSdCardPath(), "Download/阅读Archive/epub-debug")
+            val bookDirName = book.name
+                .ifBlank { book.originName }
+                .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                .take(80)
+            val chapterDirName = "${chapter.index}_${chapter.title}"
+                .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                .take(96)
+            val dir = File(root, "$bookDirName/$chapterDirName")
+            FileUtils.createFolderIfNotExist(dir.absolutePath)
+            rawResources.forEach { (href, source) ->
+                val fileName = href.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    .ifBlank { "chapter.xhtml" }
+                    .takeLast(120)
+                FileUtils.writeText(File(dir, "raw_$fileName").absolutePath, source)
+            }
+            FileUtils.writeText(File(dir, "rendered.html").absolutePath, renderedHtml)
+            FileUtils.writeText(
+                File(dir, "README.txt").absolutePath,
+                "raw_*.xhtml/html 是 EPUB 解压后的原文；rendered.html 是应用解析 CSS 和资源路径后送入阅读器的内容。\n"
+            )
+        }.onFailure {
+            AppLog.putDebug("写入 EPUB 调试原文失败\n${it.localizedMessage}", it)
+        }
     }
 
     private fun Element.applyEpubCss(doc: Document, res: Resource) {
@@ -531,6 +569,37 @@ class EpubFile(var book: Book) {
             ?: declarations["background"]?.extractCssColor()?.toEpubColorTag()
             ?: return
         prepend("""<span data-epub-page-bg="$colorTag"></span>""")
+    }
+
+    private fun Element.materializeMediaElements(res: Resource) {
+        select("video,audio,source,iframe,embed,object").forEach { media ->
+            val src = media.attr("src")
+                .ifBlank { media.attr("href") }
+                .ifBlank { media.attr("data") }
+                .ifBlank {
+                    media.selectFirst("source[src]")?.attr("src").orEmpty()
+                }
+                .trim()
+            val resolvedHref = src.takeIf { it.isNotBlank() }?.let {
+                resolveEpubResourceHref(res.href, it)
+            }.orEmpty()
+            val label = when (media.normalName()) {
+                "audio" -> "EPUB音频"
+                else -> "EPUB视频"
+            }
+            val title = media.attr("title")
+                .ifBlank { media.attr("alt") }
+                .ifBlank { resolvedHref.substringAfterLast('/').ifBlank { label } }
+            val href = if (resolvedHref.isBlank()) {
+                "legado-epub-media:missing"
+            } else {
+                "legado-epub-media:${resolvedHref.encodeURI()}"
+            }
+            media.after(
+                """<p class="epub-media-placeholder" style="margin:1em 5%;padding:0.8em;text-align:center;background:rgba(68,150,211,0.12);border:1px solid rgba(68,150,211,0.55);border-radius:8px;color:#225577"><a href="$href">[$label] $title</a></p>"""
+            )
+            media.remove()
+        }
     }
 
     private fun Element.materializeBackgroundImages(res: Resource) {
