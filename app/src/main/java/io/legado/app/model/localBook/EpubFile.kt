@@ -290,6 +290,9 @@ class EpubFile(var book: Book) {
             options["style"]?.let { style ->
                 it.attr("data-legado-style", style)
             }
+            if (!isBackground && options.isNotEmpty()) {
+                it.attr("src", resolvedHref.withEpubImageOptions(options))
+            }
         }
         bodyElement.select("a[href]").forEach {
             val href = it.attr("href").trim()
@@ -959,21 +962,57 @@ class EpubFile(var book: Book) {
         if (width.isNotBlank()) {
             options["width"] = normalizeImageWidth(width)
         }
+        val height = attr("height").ifBlank { declarations["height"].orEmpty() }
+        if (height.isNotBlank()) {
+            normalizeImageLength(height)?.let {
+                options["height"] = it
+            }
+        }
         if (attr("data-epub-single-page") == "true") {
             options["style"] = Book.imgStyleSingle
             options.putIfAbsent("width", "100%")
+        } else if (options["width"].isInlineEpubImageWidth()) {
+            options["style"] = "text"
         }
         return options
     }
 
     private fun normalizeImageWidth(width: String): String {
+        return normalizeImageLength(width) ?: "100%"
+    }
+
+    private fun normalizeImageLength(width: String): String? {
         val clean = width.trim().lowercase(Locale.ROOT)
         return when {
             clean.endsWith("%") -> clean
+            clean.endsWith("em") || clean.endsWith("rem") -> clean
             clean.endsWith("px") -> clean.dropLast(2).substringBefore(".")
             clean.toIntOrNull() != null -> clean
-            else -> ""
-        }.ifBlank { "100%" }
+            else -> null
+        }
+    }
+
+    private fun String?.isInlineEpubImageWidth(): Boolean {
+        val clean = this?.trim()?.lowercase(Locale.ROOT) ?: return false
+        return when {
+            clean.endsWith("em") -> (clean.dropLast(2).toFloatOrNull() ?: Float.MAX_VALUE) <= 3f
+            clean.endsWith("rem") -> (clean.dropLast(3).toFloatOrNull() ?: Float.MAX_VALUE) <= 3f
+            clean.endsWith("px") -> (clean.dropLast(2).toFloatOrNull() ?: Float.MAX_VALUE) <= 96f
+            clean.endsWith("%") -> (clean.dropLast(1).toFloatOrNull() ?: Float.MAX_VALUE) <= 12f
+            else -> (clean.toFloatOrNull() ?: Float.MAX_VALUE) <= 96f
+        }
+    }
+
+    private fun String.withEpubImageOptions(options: Map<String, String>): String {
+        if (options.isEmpty()) return this
+        val json = options.entries.joinToString(",", prefix = "{", postfix = "}") { (key, value) ->
+            """"${key.escapeJson()}":"${value.escapeJson()}""""
+        }
+        return "$this,$json"
+    }
+
+    private fun String.escapeJson(): String {
+        return replace("\\", "\\\\").replace("\"", "\\\"")
     }
 
     private fun getImage(href: String): InputStream? {

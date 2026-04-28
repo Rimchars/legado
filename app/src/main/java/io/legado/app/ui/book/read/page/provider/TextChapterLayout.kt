@@ -135,6 +135,7 @@ class TextChapterLayout(
     private var absStartX = paddingLeft
     private var floatArray = FloatArray(128)
     private var pendingSingleImagePageBreak = false
+    private var activeEpubBlockDecoration: ActiveEpubBlockDecoration? = null
 
     private var isCompleted = false
     private val job: Coroutine<*>
@@ -277,18 +278,7 @@ class TextChapterLayout(
                                 }
                             }
                         width?.let {
-                            if (width.endsWith("%")) {
-                                width.dropLast(1).toIntOrNull()?.let { percentage ->
-                                    val imgWidth = visibleWidth * percentage / 100
-                                    val (sizeHeight, sizeWidth) = imgSize
-                                    imgSize = Size(imgWidth, sizeHeight * imgWidth / sizeWidth)
-                                }
-                            } else {
-                                width.toIntOrNull()?.let { width ->
-                                    val (sizeHeight, sizeWidth) = imgSize
-                                    imgSize = Size(width, sizeHeight * width / sizeWidth)
-                                }
-                            }
+                            imgSize = imgSize.applyWidth(it)
                         }
                     }
                     if (style == null) {
@@ -424,18 +414,7 @@ class TextChapterLayout(
                                 }
                             }
                             width?.let {
-                                if (width.endsWith("%")) {
-                                    width.dropLast(1).toIntOrNull()?.let { percentage ->
-                                        val imgWidth = visibleWidth * percentage / 100
-                                        val (sizeHeight, sizeWidth) = imgSize
-                                        imgSize = Size(imgWidth, sizeHeight * imgWidth / sizeWidth)
-                                    }
-                                } else {
-                                    width.toIntOrNull()?.let { width ->
-                                        val (sizeHeight, sizeWidth) = imgSize
-                                        imgSize = Size(width, sizeHeight * width / sizeWidth)
-                                    }
-                                }
+                                imgSize = imgSize.applyWidth(it)
                             }
                         }
                         if (style == null) {
@@ -618,6 +597,7 @@ class TextChapterLayout(
             calcTextLinePosition(textPages, textLine, stringBuilder.length)
             stringBuilder.append(" ") // 确保翻页时索引计算正确
             pendingTextPage.addLine(textLine)
+            upsertActiveEpubBlockDecoration(pendingTextPage, textPages.size)
             if (normalizedImageStyle == Book.imgStyleSingle) {
                 pendingSingleImagePageBreak = true
             }
@@ -760,14 +740,18 @@ class TextChapterLayout(
             style.paddingLeft - style.paddingRight - style.borderWidth * 2)
             .roundToInt()
             .coerceAtLeast((visibleWidth * 0.45f).roundToInt())
-        setTypeHtmlText(
-            imageStyle = imageStyle,
-            book = book,
-            htmlContent = element.outerHtml(),
-            layoutStartOffset = layoutOffset,
-            layoutWidth = layoutWidth
-        )
-        addEpubBlockDecorations(startPageIndex, startLineIndex, style)
+        activeEpubBlockDecoration = ActiveEpubBlockDecoration(style, startPageIndex, startLineIndex)
+        try {
+            setTypeHtmlText(
+                imageStyle = imageStyle,
+                book = book,
+                htmlContent = element.outerHtml(),
+                layoutStartOffset = layoutOffset,
+                layoutWidth = layoutWidth
+            )
+        } finally {
+            activeEpubBlockDecoration = null
+        }
     }
 
     private fun addEpubBlockDecorations(
@@ -798,6 +782,49 @@ class TextChapterLayout(
             )
             page.invalidate()
         }
+    }
+
+    private fun upsertActiveEpubBlockDecoration(page: TextPage, pageIndex: Int) {
+        val active = activeEpubBlockDecoration ?: return
+        upsertEpubBlockDecoration(
+            page = page,
+            pageIndex = pageIndex,
+            startLineIndex = active.startLineIndex,
+            style = active.style
+        )
+    }
+
+    private fun upsertEpubBlockDecoration(
+        page: TextPage,
+        pageIndex: Int,
+        startLineIndex: Int,
+        style: EpubBlockDecorationStyle
+    ) {
+        val active = activeEpubBlockDecoration
+        val fromLine = if (pageIndex == active?.startPageIndex) startLineIndex else 0
+        val targetLines = page.lines.drop(fromLine)
+        if (targetLines.isEmpty()) return
+        val top = (targetLines.first().lineTop - style.paddingTop).coerceAtLeast(0f)
+        val bottom = (targetLines.last().lineBottom + style.paddingBottom).coerceAtMost(viewHeight.toFloat())
+        if (bottom <= top) return
+        val left = (paddingLeft + style.marginLeft).coerceAtLeast(0f)
+        val right = (paddingLeft + visibleWidth - style.marginRight).coerceAtMost(viewWidth.toFloat())
+        active?.pageDecorations?.remove(pageIndex)?.let { oldDecoration ->
+            page.epubDecorations.remove(oldDecoration)
+        }
+        val decoration = TextPage.EpubDecoration(
+            left = left,
+            top = top,
+            right = right,
+            bottom = bottom,
+            backgroundColor = style.backgroundColor,
+            borderColor = style.borderColor,
+            borderWidth = style.borderWidth,
+            radius = style.radius
+        )
+        active?.pageDecorations?.put(pageIndex, decoration)
+        page.epubDecorations.add(decoration)
+        page.invalidate()
     }
 
     private suspend fun addEpubBlockSpacingBefore(element: Element) {
@@ -935,7 +962,8 @@ class TextChapterLayout(
         val declarations = EpubCss.declarations(attr("style"))
         return declarations.keys.any { key ->
             key == "background" || key == "background-color" || key == "border" ||
-                key == "border-color" || key == "border-radius"
+                key == "border-color" || key == "border-width" || key == "border-style" ||
+                key == "border-radius" || key.startsWith("border-")
         }
     }
 
@@ -951,6 +979,14 @@ class TextChapterLayout(
             ?: declarations["background"]?.extractCssColor()?.toEpubCssColor()
         val borderColor = declarations["border-color"]?.toEpubCssColor()
             ?: declarations["border"]?.extractCssColor()?.toEpubCssColor()
+            ?: declarations["border-top-color"]?.toEpubCssColor()
+            ?: declarations["border-right-color"]?.toEpubCssColor()
+            ?: declarations["border-bottom-color"]?.toEpubCssColor()
+            ?: declarations["border-left-color"]?.toEpubCssColor()
+            ?: declarations["border-top"]?.extractCssColor()?.toEpubCssColor()
+            ?: declarations["border-right"]?.extractCssColor()?.toEpubCssColor()
+            ?: declarations["border-bottom"]?.extractCssColor()?.toEpubCssColor()
+            ?: declarations["border-left"]?.extractCssColor()?.toEpubCssColor()
         if (backgroundColor == null && borderColor == null) return null
         val padding = declarations["padding"]?.toEpubBoxLengths().orEmpty()
         val margin = declarations["margin"]?.toEpubBoxLengths().orEmpty()
@@ -977,9 +1013,18 @@ class TextChapterLayout(
         val marginRight = declarations["margin-right"]?.toEpubHorizontalPx()
             ?: margin.getOrNull(1)?.toEpubHorizontalPx()
             ?: 0f
-        val radius = declarations["border-radius"]?.toEpubHorizontalPx() ?: 0f
+        val radius = declarations["border-radius"]?.let { EpubCss.splitValueList(it).firstOrNull() ?: it }
+            ?.toEpubHorizontalPx() ?: 0f
         val borderWidth = declarations["border-width"]?.toEpubHorizontalPx()
             ?: declarations["border"]?.extractCssLength()?.toEpubHorizontalPx()
+            ?: declarations["border-top-width"]?.toEpubHorizontalPx()
+            ?: declarations["border-right-width"]?.toEpubHorizontalPx()
+            ?: declarations["border-bottom-width"]?.toEpubHorizontalPx()
+            ?: declarations["border-left-width"]?.toEpubHorizontalPx()
+            ?: declarations["border-top"]?.extractCssLength()?.toEpubHorizontalPx()
+            ?: declarations["border-right"]?.extractCssLength()?.toEpubHorizontalPx()
+            ?: declarations["border-bottom"]?.extractCssLength()?.toEpubHorizontalPx()
+            ?: declarations["border-left"]?.extractCssLength()?.toEpubHorizontalPx()
             ?: 1.dpToPx().toFloat()
         return EpubBlockDecorationStyle(
             backgroundColor = backgroundColor,
@@ -1124,6 +1169,13 @@ class TextChapterLayout(
         val paddingRight: Float
     )
 
+    private data class ActiveEpubBlockDecoration(
+        val style: EpubBlockDecorationStyle,
+        val startPageIndex: Int,
+        val startLineIndex: Int,
+        val pageDecorations: MutableMap<Int, TextPage.EpubDecoration> = linkedMapOf()
+    )
+
     private fun Element.toReadableTableHtml(): String {
         val rows = select("tr").ifEmpty { children() }
         val rowHtml = rows.mapNotNull { row ->
@@ -1157,8 +1209,14 @@ class TextChapterLayout(
                 is Element -> {
                     when (child.normalName()) {
                         "br" -> builder.append("<br>")
-                        "img" -> child.attr("alt").takeIf { it.isNotBlank() }?.let {
-                            builder.append(it)
+                        "img" -> {
+                            if (child.attr("src").isNotBlank()) {
+                                builder.append(child.outerHtml())
+                            } else {
+                                child.attr("alt").takeIf { it.isNotBlank() }?.let {
+                                    builder.append(it)
+                                }
+                            }
                         }
                         "b", "strong" -> builder.append("<b>")
                             .append(child.toReadableInlineHtml())
@@ -1248,6 +1306,14 @@ class TextChapterLayout(
             clean.endsWith("%") -> {
                 val percentage = clean.dropLast(1).toFloatOrNull() ?: return this
                 (visibleWidth * percentage / 100f).roundToInt()
+            }
+            clean.endsWith("em") -> {
+                val em = clean.dropLast(2).toFloatOrNull() ?: return this
+                (contentPaintTextHeight * em).roundToInt()
+            }
+            clean.endsWith("rem") -> {
+                val rem = clean.dropLast(3).toFloatOrNull() ?: return this
+                (contentPaintTextHeight * rem).roundToInt()
             }
             clean.endsWith("px") -> clean.dropLast(2).substringBefore(".").toIntOrNull() ?: return this
             else -> clean.substringBefore(".").toIntOrNull() ?: return this
@@ -1343,18 +1409,7 @@ class TextChapterLayout(
                         val click = urlOption["click"]
                         var imgSize = ImageProvider.getImageSize(book, source, ReadBook.bookSource)
                         width?.let {
-                            if (width.endsWith("%")) {
-                                width.dropLast(1).toIntOrNull()?.let { percentage ->
-                                    val imgWidth = visibleWidth * percentage / 100
-                                    val (sizeHeight, sizeWidth) = imgSize
-                                    imgSize = Size(imgWidth, sizeHeight * imgWidth / sizeWidth)
-                                }
-                            } else {
-                                width.toIntOrNull()?.let { width ->
-                                    val (sizeHeight, sizeWidth) = imgSize
-                                    imgSize = Size(width, sizeHeight * width / sizeWidth)
-                                }
-                            }
+                            imgSize = imgSize.applyWidth(it)
                         }
                         if (iStyle == null) {
                             iStyle = if (imgSize.width < 80 && imgSize.height < 80) {
@@ -1452,6 +1507,7 @@ class TextChapterLayout(
             stringBuilder.append(lineText)
             val textPage = pendingTextPage
             textPage.addLine(textLine)
+            upsertActiveEpubBlockDecoration(textPage, textPages.size)
             durY += lineHeight * lineSpacingExtra //行距
             if (textPage.height < durY) {
                 textPage.height = durY
