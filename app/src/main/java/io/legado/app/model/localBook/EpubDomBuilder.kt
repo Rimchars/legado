@@ -127,31 +127,37 @@ internal class EpubDomBuilder(
     private fun applyGeneratedContent(body: Element, rules: List<EpubCss.GeneratedContentRule>) {
         if (rules.isEmpty()) return
         rules.forEach { rule ->
-            val content = rule.declarations.generatedContentText() ?: return@forEach
             val style = rule.declarations
                 .filterNot { it.name == "content" }
                 .joinToString(";") { declaration -> "${declaration.name}:${declaration.value}" }
             runCatching {
                 if (body.`is`(rule.selector)) {
-                    body.addGeneratedContent(content, style, rule.before)
+                    rule.declarations.generatedContentText(body)?.let { content ->
+                        body.addGeneratedContent(content, style, rule.before)
+                    }
                 }
                 body.select(rule.selector).forEach { element ->
-                    element.addGeneratedContent(content, style, rule.before)
+                    rule.declarations.generatedContentText(element)?.let { content ->
+                        element.addGeneratedContent(content, style, rule.before)
+                    }
                 }
             }
         }
     }
 
-    private fun List<EpubCss.Declaration>.generatedContentText(): String? {
+    private fun List<EpubCss.Declaration>.generatedContentText(element: Element): String? {
         val value = lastOrNull { it.name == "content" }?.value?.trim() ?: return null
         if (value.equals("none", ignoreCase = true) || value.equals("normal", ignoreCase = true)) return null
-        return value
-            .split(Regex("\\s+"))
+        val tokens = EpubCss.splitValueList(value)
+        return tokens
             .joinToString("") { token ->
                 when {
                     token.startsWith("'") && token.endsWith("'") && token.length >= 2 -> token.substring(1, token.lastIndex)
                     token.startsWith("\"") && token.endsWith("\"") && token.length >= 2 -> token.substring(1, token.lastIndex)
-                    token.startsWith("attr(", ignoreCase = true) -> ""
+                    token.startsWith("attr(", ignoreCase = true) && token.endsWith(")") -> {
+                        val name = token.substringAfter('(').substringBeforeLast(')').trim()
+                        element.attr(name)
+                    }
                     else -> ""
                 }
             }
