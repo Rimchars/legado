@@ -339,6 +339,18 @@ data class TextPage(
         return hasEpubBackground() || epubNativeCommands.isNotEmpty()
     }
 
+    fun findEpubLinkAt(x: Float, y: Float): String? {
+        if (epubNativeCommands.isEmpty()) return null
+        val localX = x - epubDrawOffsetX
+        val localY = y - epubDrawOffsetY
+        return epubNativeCommands.asReversed().firstNotNullOfOrNull { command ->
+            val text = command as? EpubTextRun ?: return@firstNotNullOfOrNull null
+            val href = text.linkHref?.takeIf { it.isNotBlank() } ?: return@firstNotNullOfOrNull null
+            val rect = RectF(text.x, text.y, text.x + text.width, text.y + text.height)
+            if (rect.contains(localX, localY)) href else null
+        }
+    }
+
     fun draw(view: ContentTextView, canvas: Canvas, relativeOffset: Float) {
         if (AppConfig.optimizeRender) {
             render(view)

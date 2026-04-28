@@ -6,11 +6,13 @@ import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 import io.legado.app.R
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.help.book.isOnLineTxt
 import io.legado.app.help.config.AppConfig
 import io.legado.app.model.ReadBook
+import io.legado.app.model.localBook.EpubFile
 import io.legado.app.ui.association.OpenUrlConfirmActivity
 import io.legado.app.ui.book.read.page.delegate.PageDelegate
 import io.legado.app.ui.book.read.page.entities.TextLine
@@ -272,6 +274,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         } else {
             false
         }
+        handleEpubNoteClick(x, y)?.let { return it }
         var handled = false
         touch(x, y) { _, textPos, textPage, textLine, column ->
             when (column) {
@@ -343,6 +346,25 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             }
         }
         return handled
+    }
+
+    private fun handleEpubNoteClick(x: Float, y: Float): Boolean? {
+        val book = ReadBook.book ?: return null
+        for (relativePos in 0..2) {
+            if (relativePos > 0 && !callBack.isScroll) break
+            val offset = relativeOffset(relativePos)
+            if (relativePos > 0 && offset >= ChapterProvider.visibleHeight) break
+            val page = relativePage(relativePos)
+            val href = page.findEpubLinkAt(x, y - offset) ?: continue
+            if (!href.contains("#")) return null
+            val note = EpubFile.getFootnote(book, href) ?: return null
+            AlertDialog.Builder(context)
+                .setMessage(note)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return true
+        }
+        return null
     }
 
     /**
