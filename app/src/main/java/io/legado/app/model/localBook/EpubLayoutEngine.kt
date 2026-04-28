@@ -414,6 +414,9 @@ internal class EpubLayoutEngine(
         var lineWidthLimit = (width - firstLineIndent).coerceAtLeast(width * 0.35f)
 
         fun flushLine(force: Boolean = false) {
+            while (lineSegments.lastOrNull()?.isBlankText() == true) {
+                lineWidth -= lineSegments.removeAt(lineSegments.lastIndex).width
+            }
             if (lineSegments.isEmpty() && !force) return
             if (lineSegments.isNotEmpty()) {
                 addInlineLine(
@@ -494,9 +497,15 @@ internal class EpubLayoutEngine(
                     val descent = metrics.descent
                     normalized.forEach { char ->
                         val value = char.toString()
+                        if (lineSegments.isEmpty() && value.isBlank()) {
+                            return@forEach
+                        }
                         val charWidth = paint.measureText(value) + item.style.extraCharacterSpacing(value)
                         if (lineSegments.isNotEmpty() && lineWidth + charWidth > lineWidthLimit) {
                             flushLine()
+                            if (value.isBlank()) {
+                                return@forEach
+                            }
                         }
                         lineSegments.add(
                             LineSegment(
@@ -1656,7 +1665,11 @@ internal class EpubLayoutEngine(
         val backgroundPaddingBottom: Float,
         val shadow: EpubShadow?,
         val sourcePath: String
-    )
+    ) {
+        fun isBlankText(): Boolean {
+            return imageSrc == null && text.isBlank()
+        }
+    }
 
     private data class InlinePadding(
         val left: Float,
