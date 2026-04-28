@@ -19,6 +19,7 @@
             android:layout_height="wrap_content"
             android:lineSpacingExtra="2dp"
             android:minHeight="40dp"
+            android:minWidth="96dp"
             android:paddingStart="15dp"
             android:paddingTop="10dp"
             android:paddingEnd="15dp"

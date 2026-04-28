@@ -2,11 +2,13 @@ package io.legado.app.help.ai
 
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.http.addHeaders
 import io.legado.app.help.http.newCallResponse
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.help.http.postJson
 import io.legado.app.ui.main.ai.AiChatException
 import io.legado.app.ui.main.ai.AiChatMessage
+import io.legado.app.ui.main.ai.AiProviderConfig
 import org.json.JSONArray
 import org.json.JSONObject
 import splitties.init.appCtx
@@ -31,11 +33,44 @@ object AiChatService {
     private data class AssistantTurn(
         val content: String,
         val toolCalls: List<ToolCall>,
-        val rawMessage: JSONObject
+        val rawMessage: JSONObject,
+        val reasoningContent: String = ""
     )
 
     suspend fun chat(messages: List<AiChatMessage>): String {
         return chatStream(messages, onPartial = {})
+    }
+
+    suspend fun fetchModels(provider: AiProviderConfig): List<String> {
+        val baseUrl = provider.baseUrl.trim()
+        require(baseUrl.isNotBlank()) { "Base URL is empty" }
+        val response = okHttpClient.newCallResponse {
+            url(resolveModelsUrl(baseUrl))
+            addHeader("Accept", "application/json")
+            provider.apiKey.trim().takeIf { it.isNotBlank() }?.let {
+                addHeader("Authorization", "Bearer $it")
+            }
+            addHeaders(parseCustomHeaders(provider.headers.orEmpty()))
+        }
+        response.use { rawResponse ->
+            val payload = rawResponse.body?.string().orEmpty()
+            if (!rawResponse.isSuccessful) {
+                throw AiChatException(
+                    message = extractError(payload).ifBlank {
+                        "${rawResponse.code} ${rawResponse.message}"
+                    },
+                    debugLog = "url=${resolveModelsUrl(baseUrl)}\nresponse=$payload\n"
+                )
+            }
+            val root = JSONObject(payload)
+            val data = root.optJSONArray("data") ?: return emptyList()
+            return buildList {
+                for (index in 0 until data.length()) {
+                    val item = data.optJSONObject(index) ?: continue
+                    item.optString("id").trim().takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }.distinct()
+        }
     }
 
     suspend fun chatStream(
@@ -64,6 +99,7 @@ object AiChatService {
                 baseUrl = baseUrl,
                 model = model,
                 providerApiKey = provider?.apiKey.orEmpty(),
+                providerHeaders = provider?.headers.orEmpty(),
                 conversation = conversation,
                 tools = tools,
                 requestLog = requestLog,
@@ -86,6 +122,7 @@ object AiChatService {
         baseUrl: String,
         model: String,
         providerApiKey: String,
+        providerHeaders: String,
         conversation: MutableList<JSONObject>,
         tools: List<AiResolvedTool>,
         requestLog: StringBuilder,
@@ -99,6 +136,7 @@ object AiChatService {
                 baseUrl = baseUrl,
                 model = model,
                 providerApiKey = providerApiKey,
+                providerHeaders = providerHeaders,
                 messages = conversation,
                 tools = tools,
                 requestLog = requestLog,
@@ -140,6 +178,7 @@ object AiChatService {
             baseUrl = baseUrl,
             model = model,
             providerApiKey = providerApiKey,
+            providerHeaders = providerHeaders,
             messages = conversation,
             tools = emptyList(),
             requestLog = requestLog,
@@ -224,6 +263,7 @@ object AiChatService {
         baseUrl: String,
         model: String,
         providerApiKey: String,
+        providerHeaders: String,
         messages: List<JSONObject>,
         tools: List<AiResolvedTool>,
         requestLog: StringBuilder,
@@ -241,6 +281,7 @@ object AiChatService {
             providerApiKey.trim().takeIf { it.isNotBlank() }?.let {
                 addHeader("Authorization", "Bearer $it")
             }
+            addHeaders(parseCustomHeaders(providerHeaders))
             postJson(requestBody)
         }
         response.use { rawResponse ->
@@ -263,6 +304,7 @@ object AiChatService {
             }
             val rendered = StringBuilder()
             val rawRendered = StringBuilder()
+            val reasoningRendered = StringBuilder()
             val rawPayload = StringBuilder()
             val toolCallBuilders = linkedMapOf<Int, ToolCallBuilder>()
             body.byteStream().bufferedReader().use { reader ->
@@ -273,9 +315,9 @@ object AiChatService {
                     if (rawLine.startsWith("data:")) {
                         val payload = rawLine.removePrefix("data:").trim()
                         if (payload == "[DONE]") break
-                        consumeStreamPayload(payload, rawRendered, rendered, toolCallBuilders, onPartial, onThinking)
+                        consumeStreamPayload(payload, rawRendered, rendered, reasoningRendered, toolCallBuilders, onPartial, onThinking)
                     } else if (rawLine.startsWith("{")) {
-                        consumeStreamPayload(rawLine, rawRendered, rendered, toolCallBuilders, onPartial, onThinking)
+                        consumeStreamPayload(rawLine, rawRendered, rendered, reasoningRendered, toolCallBuilders, onPartial, onThinking)
                     }
                 }
             }
@@ -295,14 +337,16 @@ object AiChatService {
                     return AssistantTurn(
                         visibleFallback,
                         emptyList(),
-                        buildAssistantRawMessage(visibleFallback, emptyList())
+                        buildAssistantRawMessage(visibleFallback, emptyList(), reasoningRendered.toString()),
+                        reasoningRendered.toString()
                     )
                 }
             }
             return AssistantTurn(
                 content = rendered.toString(),
                 toolCalls = toolCalls,
-                rawMessage = buildAssistantRawMessage(rendered.toString(), toolCalls)
+                rawMessage = buildAssistantRawMessage(rendered.toString(), toolCalls, reasoningRendered.toString()),
+                reasoningContent = reasoningRendered.toString()
             )
         }
     }
@@ -332,6 +376,7 @@ object AiChatService {
         payload: String,
         rawRendered: StringBuilder,
         rendered: StringBuilder,
+        reasoningRendered: StringBuilder,
         toolCallBuilders: MutableMap<Int, ToolCallBuilder>,
         onPartial: (String) -> Unit,
         onThinking: (String) -> Unit
@@ -346,6 +391,7 @@ object AiChatService {
             .ifBlank { extractContentText(delta.opt("reasoning")) }
             .ifBlank { extractContentText(delta.opt("thinking")) }
         if (reasoningText.isNotBlank()) {
+            reasoningRendered.append(reasoningText)
             onThinking(reasoningText)
         }
         val deltaText = extractContentText(delta.opt("content"))
@@ -376,11 +422,15 @@ object AiChatService {
 
     private fun buildAssistantRawMessage(
         content: String,
-        toolCalls: List<ToolCall>
+        toolCalls: List<ToolCall>,
+        reasoningContent: String = ""
     ): JSONObject {
         return JSONObject().apply {
             put("role", "assistant")
             put("content", if (content.isBlank()) JSONObject.NULL else content)
+            if (reasoningContent.isNotBlank()) {
+                put("reasoning_content", reasoningContent)
+            }
             if (toolCalls.isNotEmpty()) {
                 put(
                     "tool_calls",
@@ -450,7 +500,17 @@ object AiChatService {
                     "role",
                     if (message.role == AiChatMessage.Role.USER) "user" else "assistant"
                 )
-                put("content", stripSearchResultBlocks(message.content))
+                if (message.role == AiChatMessage.Role.ASSISTANT) {
+                    val (visibleContent, reasoningContent) = splitInlineThinking(
+                        stripSearchResultBlocks(message.content)
+                    )
+                    put("content", visibleContent)
+                    if (reasoningContent.isNotBlank()) {
+                        put("reasoning_content", reasoningContent)
+                    }
+                } else {
+                    put("content", stripSearchResultBlocks(message.content))
+                }
             }
         }
         return conversation
@@ -490,6 +550,9 @@ object AiChatService {
             ?.optJSONObject("message")
             ?: JSONObject()
         val content = extractContentText(message.opt("content"))
+        val reasoningContent = extractContentText(message.opt("reasoning_content"))
+            .ifBlank { extractContentText(message.opt("reasoning")) }
+            .ifBlank { extractContentText(message.opt("thinking")) }
         val toolCalls = buildList {
             val array = message.optJSONArray("tool_calls") ?: JSONArray()
             for (index in 0 until array.length()) {
@@ -510,6 +573,9 @@ object AiChatService {
             rawMessage = JSONObject().apply {
                 put("role", "assistant")
                 put("content", if (content.isBlank()) JSONObject.NULL else content)
+                if (reasoningContent.isNotBlank()) {
+                    put("reasoning_content", reasoningContent)
+                }
                 if (toolCalls.isNotEmpty()) {
                     put(
                         "tool_calls",
@@ -532,8 +598,34 @@ object AiChatService {
                         }
                     )
                 }
-            }
+            },
+            reasoningContent = reasoningContent
         )
+    }
+
+    private fun parseCustomHeaders(rawHeaders: String): Map<String, String> {
+        val text = rawHeaders.trim()
+        if (text.isBlank()) return emptyMap()
+        runCatching {
+            val json = JSONObject(text)
+            return buildMap {
+                json.keys().forEach { key ->
+                    val value = json.optString(key)
+                    if (key.isNotBlank() && value.isNotBlank()) put(key, value)
+                }
+            }
+        }
+        return text.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() && !it.startsWith("#") }
+            .mapNotNull { line ->
+                val separator = line.indexOf(':').takeIf { it > 0 } ?: line.indexOf('=').takeIf { it > 0 }
+                separator?.let {
+                    line.substring(0, it).trim() to line.substring(it + 1).trim()
+                }
+            }
+            .filter { it.first.isNotBlank() && it.second.isNotBlank() }
+            .toMap()
     }
 
     private fun resolveChatUrl(baseUrl: String): String {
@@ -542,6 +634,16 @@ object AiChatService {
             normalized.endsWith("/chat/completions") -> normalized
             normalized.endsWith("/v1") -> "$normalized/chat/completions"
             else -> "$normalized/v1/chat/completions"
+        }
+    }
+
+    private fun resolveModelsUrl(baseUrl: String): String {
+        val normalized = baseUrl.trim().trimEnd('/')
+        return when {
+            normalized.endsWith("/models") -> normalized
+            normalized.endsWith("/chat/completions") -> normalized.removeSuffix("/chat/completions") + "/models"
+            normalized.endsWith("/v1") -> "$normalized/models"
+            else -> "$normalized/v1/models"
         }
     }
 
@@ -576,13 +678,20 @@ object AiChatService {
         text: String,
         onThinking: (String) -> Unit
     ): String {
+        val (visible, reasoning) = splitInlineThinking(text)
+        reasoning.takeIf { it.isNotBlank() }?.let(onThinking)
+        return visible.trimStart()
+    }
+
+    private fun splitInlineThinking(text: String): Pair<String, String> {
         var visible = text
+        val reasoningParts = mutableListOf<String>()
         val closedThinkRegex = Regex("<think>([\\s\\S]*?)</think>", RegexOption.IGNORE_CASE)
         closedThinkRegex.findAll(text).forEach { match ->
             match.groups[1]?.value
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
-                ?.let(onThinking)
+                ?.let(reasoningParts::add)
         }
         visible = closedThinkRegex.replace(visible, "")
         val openMatch = Regex("<think>", RegexOption.IGNORE_CASE).find(visible)
@@ -591,11 +700,11 @@ object AiChatService {
                 .replace(Regex("</think>", RegexOption.IGNORE_CASE), "")
                 .trim()
             if (thinking.isNotBlank()) {
-                onThinking(thinking)
+                reasoningParts += thinking
             }
             visible = visible.substring(0, openMatch.range.first)
         }
-        return visible.trimStart()
+        return visible.trimStart() to reasoningParts.joinToString("\n\n")
     }
 
     private fun extractToolArguments(arguments: Any?): String {

@@ -30,6 +30,7 @@ import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.ui.widget.image.CoverImageView
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
+import io.legado.app.utils.sendToClip
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.ext.tables.TablePlugin
@@ -291,6 +292,10 @@ class AiChatAdapter(
             binding.tvMessage.background = createBubble(bubbleColor, strokeColor, isUser = true)
             binding.tvMessage.setTextColor(context.primaryTextColor)
             binding.tvMessage.alpha = 1f
+            binding.tvMessage.setOnLongClickListener {
+                context.sendToClip(message.content)
+                true
+            }
         }
     }
 
@@ -315,14 +320,25 @@ class AiChatAdapter(
                 )
             }
             val strokeColor = ColorUtils.adjustAlpha(context.secondaryTextColor, 0.08f)
+            binding.messageContainer.minimumWidth = if (message.pending) 220.dpToPx() else 0
             binding.tvMessage.background = createBubble(bubbleColor, strokeColor, isUser = false)
             binding.tvMessage.setTextColor(context.primaryTextColor)
             binding.tvMessage.alpha = if (message.pending) 0.76f else 1f
-            binding.tvMessage.movementMethod = LinkMovementMethod.getInstance()
-            binding.tvMessage.linksClickable = true
             binding.tvMessage.isVisible = parsed.content.isNotBlank()
-            markwon.setMarkdown(binding.tvMessage, parsed.content.ifBlank { " " })
-            installSearchBookLinks(binding.tvMessage)
+            binding.tvMessage.setOnLongClickListener {
+                context.sendToClip(parsed.content.ifBlank { message.content })
+                true
+            }
+            if (message.pending) {
+                binding.tvMessage.movementMethod = null
+                binding.tvMessage.linksClickable = false
+                binding.tvMessage.text = parsed.content.ifBlank { " " }
+            } else {
+                binding.tvMessage.movementMethod = LinkMovementMethod.getInstance()
+                binding.tvMessage.linksClickable = true
+                markwon.setMarkdown(binding.tvMessage, parsed.content.ifBlank { " " })
+                installSearchBookLinks(binding.tvMessage)
+            }
             bindSearchCards(binding, parsed.searchCards)
         }
     }

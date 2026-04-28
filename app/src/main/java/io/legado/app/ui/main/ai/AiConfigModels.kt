@@ -8,7 +8,8 @@ data class AiProviderConfig(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val baseUrl: String,
-    val apiKey: String = ""
+    val apiKey: String = "",
+    val headers: String? = ""
 )
 
 @Keep

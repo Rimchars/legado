@@ -12,6 +12,7 @@ import io.legado.app.constant.PreferKey
 import io.legado.app.databinding.DialogAiMcpServerEditBinding
 import io.legado.app.databinding.DialogAiProviderEditBinding
 import io.legado.app.databinding.DialogEditTextBinding
+import io.legado.app.help.ai.AiChatService
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.http.newCallResponse
 import io.legado.app.help.http.okHttpClient
@@ -64,6 +65,7 @@ class AiConfigFragment : PreferenceFragment(),
             "aiManageProviders" -> showManageProvidersDialog()
             PreferKey.aiCurrentModelId -> showCurrentModelSelector()
             "aiAddModel" -> showEditModelDialog()
+            "aiFetchModels" -> fetchModelsFromCurrentProvider()
             "aiManageModels" -> showManageModelsDialog()
             "aiAddMcpServer" -> showEditMcpServerDialog()
             "aiManageMcpServers" -> showManageMcpServersDialog()
@@ -100,6 +102,7 @@ class AiConfigFragment : PreferenceFragment(),
             editProviderName.setText(provider?.name.orEmpty())
             editProviderBaseUrl.setText(provider?.baseUrl.orEmpty())
             editProviderApiKey.setText(provider?.apiKey.orEmpty())
+            editProviderHeaders.setText(provider?.headers.orEmpty())
         }
         alert(
             title = getString(
@@ -111,6 +114,7 @@ class AiConfigFragment : PreferenceFragment(),
                 val name = binding.editProviderName.text?.toString()?.trim().orEmpty()
                 val baseUrl = binding.editProviderBaseUrl.text?.toString()?.trim().orEmpty()
                 val apiKey = binding.editProviderApiKey.text?.toString()?.trim().orEmpty()
+                val headers = binding.editProviderHeaders.text?.toString()?.trim().orEmpty()
                 when {
                     name.isEmpty() -> {
                         toastOnUi(R.string.ai_provider_name_required)
@@ -126,11 +130,13 @@ class AiConfigFragment : PreferenceFragment(),
                 val updated = provider?.copy(
                     name = name,
                     baseUrl = baseUrl,
-                    apiKey = apiKey
+                    apiKey = apiKey,
+                    headers = headers
                 ) ?: AiProviderConfig(
                     name = name,
                     baseUrl = baseUrl,
-                    apiKey = apiKey
+                    apiKey = apiKey,
+                    headers = headers
                 )
                 val targetIndex = providers.indexOfFirst { it.id == updated.id }
                 if (targetIndex >= 0) {
@@ -307,6 +313,46 @@ class AiConfigFragment : PreferenceFragment(),
                     1 -> showEditModelDialog(model)
                     2 -> confirmRemoveModel(model)
                 }
+            }
+        }
+    }
+
+    private fun fetchModelsFromCurrentProvider() {
+        val provider = AppConfig.aiCurrentProvider
+        if (provider == null) {
+            toastOnUi(R.string.ai_no_providers)
+            return
+        }
+        toastOnUi(R.string.ai_fetch_models_loading)
+        lifecycleScope.launch {
+            val result = withContext(IO) {
+                runCatching { AiChatService.fetchModels(provider) }
+            }
+            result.onSuccess { modelIds ->
+                if (modelIds.isEmpty()) {
+                    toastOnUi(R.string.ai_fetch_models_empty)
+                    return@onSuccess
+                }
+                val oldModels = AppConfig.aiModelConfigList
+                val existingIds = oldModels
+                    .filter { it.providerId == provider.id }
+                    .map { it.modelId }
+                    .toSet()
+                val newModels = modelIds
+                    .filterNot { it in existingIds }
+                    .map { AiModelConfig(providerId = provider.id, modelId = it) }
+                if (newModels.isEmpty()) {
+                    toastOnUi(R.string.ai_fetch_models_no_new)
+                    return@onSuccess
+                }
+                AppConfig.aiModelConfigList = oldModels + newModels
+                if (AppConfig.aiCurrentProviderId == provider.id && AppConfig.aiCurrentModelId.isNullOrBlank()) {
+                    AppConfig.aiCurrentModelId = newModels.first().id
+                }
+                refreshUi()
+                toastOnUi(getString(R.string.ai_fetch_models_success, newModels.size))
+            }.onFailure {
+                toastOnUi(getString(R.string.ai_fetch_models_failed, it.localizedMessage ?: "Error"))
             }
         }
     }

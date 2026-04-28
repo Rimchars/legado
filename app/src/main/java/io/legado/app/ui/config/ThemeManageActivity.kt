@@ -11,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.SimpleItemAnimator
 import com.jaredrummler.android.colorpicker.ColorPickerDialog
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
 import io.legado.app.R
@@ -61,6 +62,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private var pendingBlur = 0
     private var pendingMainBackgroundPath: String? = null
     private var pendingBookInfoBackgroundPath: String? = null
+    private var loadVersion = 0
     private val selectImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
             val targetPath = copySelectedImage(uri, if (it.requestCode == requestMainBackground) "main" else "book_info")
@@ -95,6 +97,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private fun initView() = binding.run {
         recyclerView.layoutManager = LinearLayoutManager(this@ThemeManageActivity)
         recyclerView.adapter = adapter
+        (recyclerView.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
         btnDay.setOnClickListener {
             if (isNightTheme) {
                 isNightTheme = false
@@ -123,33 +126,35 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     private fun loadThemes() {
-        binding.tvSummary.text = "正在读取本地主题..."
+        val version = ++loadVersion
+        val useCloud = AppConfig.syncThemePackages
+        binding.tvSummary.text = if (useCloud) "正在读取主题..." else "正在读取本地主题..."
         lifecycleScope.launch {
             kotlin.runCatching {
-                ThemePackageManager.loadLocalOnly(isNightTheme)
+                if (useCloud) {
+                    ThemePackageManager.load(isNightTheme)
+                } else {
+                    ThemePackageManager.loadLocalOnly(isNightTheme)
+                }
             }.onSuccess {
+                if (version != loadVersion) return@launch
                 adapter.items = it
                 binding.tvSummary.text = if (it.isEmpty()) {
                     "暂无主题。添加会保存当前${if (isNightTheme) "夜间" else "日间"}主题。"
                 } else {
-                    "共 ${it.size} 个本地主题。"
+                    if (useCloud) {
+                        "共 ${it.size} 个主题，已合并本地和云端 ZIP 状态。"
+                    } else {
+                        "共 ${it.size} 个本地主题。"
+                    }
                 }
             }.onFailure {
-                binding.tvSummary.text = "读取失败：${it.localizedMessage}"
-            }
-            if (!AppConfig.syncThemePackages) return@launch
-            binding.tvSummary.text = "正在合并云端主题..."
-            kotlin.runCatching {
-                ThemePackageManager.load(isNightTheme)
-            }.onSuccess {
-                adapter.items = it
-                binding.tvSummary.text = if (it.isEmpty()) {
-                    "暂无主题。添加会保存当前${if (isNightTheme) "夜间" else "日间"}主题。"
+                if (version != loadVersion) return@launch
+                binding.tvSummary.text = if (useCloud) {
+                    "云端读取失败：${it.localizedMessage}"
                 } else {
-                    "共 ${it.size} 个主题，已合并本地和云端 ZIP 状态。"
+                    "读取失败：${it.localizedMessage}"
                 }
-            }.onFailure {
-                binding.tvSummary.text = "云端读取失败，已显示本地主题：${it.localizedMessage}"
             }
         }
     }
