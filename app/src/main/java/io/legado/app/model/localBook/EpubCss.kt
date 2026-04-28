@@ -693,24 +693,13 @@ internal object EpubCss {
         val selector = trim()
             .dropUnsupportedSelectorPseudo()
             .replace(Regex("\\s+>\\s+"), " > ")
+            .replace(Regex("\\s*\\+\\s*"), " + ")
+            .replace(Regex("\\s*~\\s*"), " ~ ")
             .replace("|", "\\:")
         if (selector.isBlank()) return null
-        if (selector.hasUnsupportedSelectorCombinator()) return null
         return selector.takeIf {
-            it.matches(Regex("[a-zA-Z0-9_#.*%\\-\\s>\\[\\]=~\\^$|:'\",\\\\]+"))
+            it.indexOfAny(charArrayOf('{', '}', ';')) < 0
         }
-    }
-
-    private fun String.hasUnsupportedSelectorCombinator(): Boolean {
-        var bracketDepth = 0
-        for (char in this) {
-            when (char) {
-                '[' -> bracketDepth++
-                ']' -> if (bracketDepth > 0) bracketDepth--
-                '+', '~' -> if (bracketDepth == 0) return true
-            }
-        }
-        return false
     }
 
     private fun String.dropUnsupportedSelectorPseudo(): String {

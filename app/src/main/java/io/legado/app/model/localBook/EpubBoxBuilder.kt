@@ -57,6 +57,12 @@ internal class EpubBoxBuilder {
                 )
             }
             else -> {
+                val isBlock = element.isBlock()
+                val childParentStyle = if (isBlock) {
+                    element.style.withoutInheritedTextIndent()
+                } else {
+                    element.style
+                }
                 val children = arrayListOf<EpubBoxNode>()
                 element.style.pageBackgroundColor()?.let { color ->
                     if (element.tagName == "body") {
@@ -83,9 +89,9 @@ internal class EpubBoxBuilder {
                     }
                 }
                 children.addAll(element.children.mapNotNull { child ->
-                    buildNode(child, element.style)
+                    buildNode(child, childParentStyle)
                 })
-                if (element.isBlock()) {
+                if (isBlock) {
                     EpubBlockNode(
                         tagName = element.tagName,
                         attributes = element.attributes,
@@ -109,7 +115,8 @@ internal class EpubBoxBuilder {
     private fun EpubDomElement.isBlock(): Boolean {
         val display = style["display"]?.lowercase(Locale.ROOT)
         if (display != null) {
-            if (display == "inline" || display == "inline-block" || display == "inline-flex") return false
+            if (display == "inline" || display == "inline-flex") return false
+            if (display == "inline-block") return true
             if (display in blockDisplays) return true
         }
         return tagName in blockTags
@@ -117,9 +124,10 @@ internal class EpubBoxBuilder {
 
     private fun EpubDomElement.shouldPromoteBackgroundImage(): Boolean {
         if (tagName == "body" || tagName == "html") return true
-        val size = style["background-size"]?.lowercase(Locale.ROOT)
+        val size = (style["background-size"] ?: style["background"]?.extractBackgroundSize())?.lowercase(Locale.ROOT)
         val attachment = style["background-attachment"]?.lowercase(Locale.ROOT)
-        return size == "cover" || attachment == "fixed"
+        val repeat = (style["background-repeat"] ?: style["background"]?.extractBackgroundRepeat())?.lowercase(Locale.ROOT)
+        return size == "cover" || attachment == "fixed" || repeat == "no-repeat"
     }
 
     private fun EpubComputedStyle.backgroundImageSrc(): String? {
@@ -183,6 +191,29 @@ internal class EpubBoxBuilder {
         return parts.firstOrNull { part ->
             part.startsWith("#") || part.startsWith("rgb", true) || part.toNamedCssColor() != null
         }
+    }
+
+    private fun String.extractBackgroundRepeat(): String? {
+        val clean = lowercase(Locale.ROOT)
+        return when {
+            clean.contains("no-repeat") -> "no-repeat"
+            clean.contains("repeat-x") -> "repeat-x"
+            clean.contains("repeat-y") -> "repeat-y"
+            clean.contains("repeat") -> "repeat"
+            else -> null
+        }
+    }
+
+    private fun String.extractBackgroundSize(): String? {
+        val slash = indexOf('/')
+        if (slash < 0) return null
+        return substring(slash + 1)
+            .split(' ', ';')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(2)
+            .joinToString(" ")
+            .takeIf { it.isNotBlank() }
     }
 
     private fun String.toNamedCssColor(): String? {

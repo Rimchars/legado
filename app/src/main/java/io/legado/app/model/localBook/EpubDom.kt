@@ -28,6 +28,11 @@ internal data class EpubComputedStyle(
 ) {
     operator fun get(name: String): String? = declarations[name]?.value
 
+    fun withoutInheritedTextIndent(): EpubComputedStyle {
+        if (!declarations.containsKey("text-indent")) return this
+        return EpubComputedStyle(declarations - "text-indent")
+    }
+
     fun inheritedOnly(): EpubComputedStyle {
         val inherited = declarations
             .filterKeys { it in inheritableProperties }
@@ -56,7 +61,6 @@ internal data class EpubComputedStyle(
             "text-decoration-line",
             "text-decoration-style",
             "text-shadow",
-            "text-indent",
             "text-transform",
             "visibility",
             "white-space",
