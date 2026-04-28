@@ -692,9 +692,11 @@ class EpubFile(var book: Book) {
         runCatching { URLDecoder.decode(clean, "UTF-8") }.getOrNull()?.let { candidates.add(it) }
         candidates.toList().forEach { candidate ->
             candidates.add(candidate.trimStart('/'))
+            candidates.addAll(candidate.epubPathFallbacks())
             candidates.add(candidate.encodeURI())
             runCatching { URLDecoder.decode(candidate.encodeURI(), "UTF-8") }.getOrNull()?.let {
                 candidates.add(it)
+                candidates.addAll(it.epubPathFallbacks())
             }
         }
         candidates.forEach { candidate ->
@@ -707,6 +709,26 @@ class EpubFile(var book: Book) {
             val lower = resourceHref.lowercase(Locale.ROOT)
             lower in normalized || lower.endsWith("/$fileName") || lower == fileName
         }
+    }
+
+    private fun String.epubPathFallbacks(): List<String> {
+        val clean = trimStart('/')
+        val parts = clean.split('/').filter { it.isNotBlank() }
+        if (parts.isEmpty()) return emptyList()
+        val fallbacks = linkedSetOf<String>()
+        val markerIndexes = parts.mapIndexedNotNull { index, part ->
+            if (part.equals("OEBPS", ignoreCase = true) || part.equals("OPS", ignoreCase = true)) index else null
+        }
+        markerIndexes.forEach { index ->
+            fallbacks.add(parts.drop(index).joinToString("/"))
+        }
+        val imageIndex = parts.indexOfLast { it.equals("Images", ignoreCase = true) || it.equals("Image", ignoreCase = true) }
+        if (imageIndex >= 0) {
+            fallbacks.add(parts.drop(imageIndex).joinToString("/"))
+            fallbacks.add(parts.drop(imageIndex + 1).joinToString("/"))
+        }
+        fallbacks.add(parts.last())
+        return fallbacks.filter { it.isNotBlank() && it != clean }
     }
 
     private fun String.extractCssColor(): String? {

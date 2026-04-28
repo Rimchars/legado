@@ -105,6 +105,7 @@ data class TextPage(
      * 底部对齐更新行位置
      */
     fun upLinesPosition() {
+        if (hasEpubBackground()) return
         if (!ReadBookConfig.textBottomJustify) return
         if (textLines.size <= 1) return
         if (leftLineSize == 0) {
