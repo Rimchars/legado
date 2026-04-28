@@ -17,12 +17,14 @@ internal class EpubLayoutEngine(
     private var currentCommands = arrayListOf<EpubDrawCommand>()
     private var cursorY = 0f
     private var firstLineIndent = 0f
+    private var pageHasFullBackground = false
 
     fun layout(document: EpubDomDocument): EpubLayoutDocument {
         pages.clear()
         currentCommands = arrayListOf()
         cursorY = 0f
         firstLineIndent = 0f
+        pageHasFullBackground = false
         layoutChildren(document.body.children, document.body.style, left = 0f, width = viewportWidth.toFloat())
         flushPageIfNeeded(force = true)
         return EpubLayoutDocument(
@@ -66,26 +68,28 @@ internal class EpubLayoutEngine(
             layoutImage(element, left, width)
             return
         }
-        val marginTop = element.style.lengthPx("margin-top", width)
-        val marginBottom = element.style.lengthPx("margin-bottom", width)
-        val paddingTop = element.style.lengthPx("padding-top", width)
-        val paddingBottom = element.style.lengthPx("padding-bottom", width)
+        val marginTop = element.style.verticalLengthPx("margin-top", width)
+        val marginBottom = element.style.verticalLengthPx("margin-bottom", width)
+        val paddingTop = element.style.verticalLengthPx("padding-top", width)
+        val paddingBottom = element.style.verticalLengthPx("padding-bottom", width)
         val paddingLeft = element.style.lengthPx("padding-left", width)
         val paddingRight = element.style.lengthPx("padding-right", width)
         val marginLeft = element.style.lengthPx("margin-left", width)
         val marginRight = element.style.lengthPx("margin-right", width)
         val borderWidth = element.style.borderWidthPx()
         cursorY += marginTop
-        val boxTop = cursorY
+        var boxTop = cursorY
         val listMarkerWidth = if (element.tagName == "li") basePaint.textSize * 1.2f else 0f
         val contentLeft = left + marginLeft + borderWidth + paddingLeft + listMarkerWidth
         val contentWidth = (width - marginLeft - marginRight - borderWidth * 2 - paddingLeft - paddingRight - listMarkerWidth)
             .coerceAtLeast(width * 0.35f)
-        val requestedHeight = element.style.lengthPx("height", viewportHeight.toFloat())
+        val requestedHeight = element.style.verticalLengthPx("height", width)
             .takeIf { it > 0f }
-            ?: element.style.lengthPx("min-height", viewportHeight.toFloat()).takeIf { it > 0f }
+            ?: element.style.verticalLengthPx("min-height", width).takeIf { it > 0f }
         if (requestedHeight != null && boxTop + requestedHeight > viewportHeight && currentCommands.isNotEmpty()) {
             flushPageIfNeeded(force = true)
+            cursorY += marginTop
+            boxTop = cursorY
         }
         cursorY += borderWidth + paddingTop
         val blockCommandIndex = currentCommands.size
@@ -135,9 +139,6 @@ internal class EpubLayoutEngine(
             }
         }
         cursorY += marginBottom
-        if (element.isBlockElement()) {
-            cursorY += element.style.lengthPx("line-height", width).takeIf { it > 0f } ?: 0f
-        }
         flushPageIfNeeded()
     }
 
@@ -229,6 +230,7 @@ internal class EpubLayoutEngine(
                     sourcePath = element.sourcePath
                 )
             )
+            pageHasFullBackground = true
             return
         }
         val imageWidth = element.style.lengthPx("width", width)
@@ -289,15 +291,12 @@ internal class EpubLayoutEngine(
         currentCommands = arrayListOf()
         cursorY = 0f
         firstLineIndent = 0f
+        pageHasFullBackground = false
     }
 
     private fun lineHeight(style: EpubComputedStyle): Float {
         val fontSize = style.fontSizePx()
-        return style.lengthPx("line-height", viewportWidth.toFloat()).takeIf { it > 0f } ?: (fontSize * 1.35f)
-    }
-
-    private fun EpubDomElement.isBlockElement(): Boolean {
-        return tagName in blockTags
+        return style["line-height"]?.toLineHeightPx(fontSize)?.takeIf { it > 0f } ?: (fontSize * 1.35f)
     }
 
     private fun EpubDomElement.blockStyle(): BlockStyle? {
@@ -317,6 +316,16 @@ internal class EpubLayoutEngine(
 
     private fun EpubComputedStyle.lengthPx(name: String, relativeTo: Float): Float {
         return this[name]?.toCssLengthPx(relativeTo) ?: 0f
+    }
+
+    private fun EpubComputedStyle.verticalLengthPx(name: String, width: Float): Float {
+        val value = this[name] ?: return 0f
+        val relativeTo = if (pageHasFullBackground && value.trim().endsWith("%")) {
+            viewportHeight.toFloat()
+        } else {
+            width
+        }
+        return value.toCssLengthPx(relativeTo) ?: 0f
     }
 
     private fun EpubComputedStyle.borderWidthPx(): Float {
@@ -365,6 +374,20 @@ internal class EpubLayoutEngine(
             clean.endsWith("rem") -> clean.dropLast(3).toFloatOrNull()?.let { basePaint.textSize * it }
             clean.endsWith("px") -> clean.dropLast(2).toFloatOrNull()
             else -> clean.toFloatOrNull()
+        }
+    }
+
+    private fun String.toLineHeightPx(fontSize: Float): Float? {
+        val clean = trim().lowercase(Locale.ROOT)
+        if (clean.isBlank() || clean == "normal") return null
+        return when {
+            clean.endsWith("%") -> clean.dropLast(1).toFloatOrNull()?.let { fontSize * it / 100f }
+            clean.endsWith("em") -> clean.dropLast(2).toFloatOrNull()?.let { fontSize * it }
+            clean.endsWith("rem") -> clean.dropLast(3).toFloatOrNull()?.let { basePaint.textSize * it }
+            clean.endsWith("px") -> clean.dropLast(2).toFloatOrNull()
+            else -> clean.toFloatOrNull()?.let { value ->
+                if (value in 0f..8f) fontSize * value else value
+            }
         }
     }
 
@@ -468,13 +491,4 @@ internal class EpubLayoutEngine(
         val radius: Float
     )
 
-    private companion object {
-        val blockTags = setOf(
-            "address", "article", "aside", "blockquote", "body", "center", "dd", "details",
-            "dialog", "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer",
-            "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "main",
-            "nav", "ol", "p", "pre", "section", "table", "tbody", "td", "tfoot", "th",
-            "thead", "tr", "ul"
-        )
-    }
 }
