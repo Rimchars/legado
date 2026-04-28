@@ -143,6 +143,85 @@ internal object EpubCss {
         val order: Int
     )
 
+    data class GeneratedContentRule(
+        val selector: String,
+        val before: Boolean,
+        val declarations: List<Declaration>,
+        val specificity: Int,
+        val order: Int
+    )
+
+    fun parseGeneratedContentRules(css: String): List<GeneratedContentRule> {
+        if (css.isBlank()) return emptyList()
+        val cleanCss = css.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
+            .expandSupportedAtRules()
+        val rules = arrayListOf<GeneratedContentRule>()
+        var order = 0
+        var index = 0
+        while (index < cleanCss.length) {
+            val start = cleanCss.indexOf('{', index)
+            if (start < 0) break
+            val end = cleanCss.findMatchingCssBrace(start)
+            if (end < 0) break
+            val selectorText = cleanCss.substring(index, start)
+            val declarations = parseDeclarations(cleanCss.substring(start + 1, end))
+            selectorText.split(',')
+                .map { it.trim() }
+                .forEach { selector ->
+                    val lower = selector.lowercase(Locale.ROOT)
+                    val before = lower.endsWith("::before") || lower.endsWith(":before")
+                    val after = lower.endsWith("::after") || lower.endsWith(":after")
+                    if (!before && !after) return@forEach
+                    val baseSelector = selector
+                        .replace(Regex(":{1,2}(before|after)\\s*$", RegexOption.IGNORE_CASE), "")
+                        .toSupportedSelector()
+                        ?: return@forEach
+                    rules.add(
+                        GeneratedContentRule(
+                            selector = baseSelector,
+                            before = before,
+                            declarations = declarations,
+                            specificity = baseSelector.cssSpecificity() + 1,
+                            order = order
+                        )
+                    )
+                }
+            order++
+            index = end + 1
+        }
+        return rules
+    }
+
+    fun parseFontFaces(css: String, resolveUrl: (String) -> String = { it }): List<EpubFontFace> {
+        if (css.isBlank()) return emptyList()
+        val cleanCss = css.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
+        val faces = arrayListOf<EpubFontFace>()
+        var index = 0
+        while (index < cleanCss.length) {
+            val at = cleanCss.indexOf("@font-face", index, ignoreCase = true)
+            if (at < 0) break
+            val start = cleanCss.indexOf('{', at)
+            if (start < 0) break
+            val end = cleanCss.findMatchingCssBrace(start)
+            if (end < 0) break
+            val declarations = declarations(cleanCss.substring(start + 1, end))
+            val family = declarations["font-family"]?.cleanCssFontFamily()
+            val src = declarations["src"]?.extractCssUrl()?.let(resolveUrl)
+            if (!family.isNullOrBlank() && !src.isNullOrBlank()) {
+                faces.add(
+                    EpubFontFace(
+                        family = family,
+                        src = src,
+                        weight = declarations["font-weight"],
+                        style = declarations["font-style"]
+                    )
+                )
+            }
+            index = end + 1
+        }
+        return faces
+    }
+
     fun parseRules(css: String, supportedOnly: Boolean = true): List<Rule> {
         if (css.isBlank()) return emptyList()
         val cleanCss = css.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
@@ -531,7 +610,7 @@ internal object EpubCss {
             lower in namedColorTokens
     }
 
-    private fun String.extractCssUrl(): String? {
+    fun extractCssUrl(): String? {
         val start = indexOf("url(", ignoreCase = true)
         if (start < 0) return null
         val end = indexOf(')', start + 4)
@@ -540,6 +619,14 @@ internal object EpubCss {
             .trim()
             .trim('\'', '"')
             .takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+    }
+
+    fun String.cleanCssFontFamily(): String {
+        return split(',')
+            .firstOrNull()
+            .orEmpty()
+            .trim()
+            .trim('\'', '"')
     }
 
     private fun String.extractCssColor(): String? {

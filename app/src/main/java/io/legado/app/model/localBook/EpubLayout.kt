@@ -1,5 +1,7 @@
 package io.legado.app.model.localBook
 
+import android.graphics.Typeface
+
 internal data class EpubLayoutDocument(
     val href: String,
     val pages: List<EpubLayoutPage>,
@@ -34,6 +36,7 @@ internal data class EpubTextRun(
     val backgroundColor: Int?,
     val bold: Boolean,
     val italic: Boolean,
+    val typeface: Typeface?,
     val underline: Boolean,
     val overline: Boolean,
     val strikeThrough: Boolean,

@@ -673,10 +673,11 @@ data class TextPage(
         paint.textSkewX = if (text.italic) -0.25f else 0f
         paint.isUnderlineText = false
         paint.isStrikeThruText = false
+        val baseTypeface = text.typeface ?: ChapterProvider.contentPaint.typeface
         paint.typeface = if (text.bold) {
-            Typeface.create(ChapterProvider.contentPaint.typeface, Typeface.BOLD)
+            Typeface.create(baseTypeface, Typeface.BOLD)
         } else {
-            ChapterProvider.contentPaint.typeface
+            baseTypeface
         }
         text.backgroundColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
             val bgPaint = PaintPool.obtain()

@@ -3,6 +3,7 @@ package io.legado.app.model.localBook
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.Typeface
 import android.os.ParcelFileDescriptor
 import android.text.TextUtils
 import android.util.Size
@@ -38,6 +39,7 @@ import java.net.URLDecoder
 import java.nio.charset.Charset
 import java.util.IdentityHashMap
 import java.util.Locale
+import splitties.init.appCtx
 
 class EpubFile(var book: Book) {
 
@@ -98,6 +100,7 @@ class EpubFile(var book: Book) {
     private val nativeDomCache = linkedMapOf<String, EpubDomDocument>()
     private val nativeLayoutCache = linkedMapOf<String, EpubLayoutDocument>()
     private val imageSizeCache = linkedMapOf<String, Size>()
+    private val fontTypefaceCache = linkedMapOf<String, Typeface?>()
     private var nativeLayoutWidth = 0
     private var nativeLayoutHeight = 0
     private var nativeLayoutStyleKey = ""
@@ -367,6 +370,7 @@ class EpubFile(var book: Book) {
         return runCatching {
             EpubLayoutEngine(
                 imageSizeResolver = ::getEpubImageSize,
+                fontResolver = ::getEpubTypeface,
                 viewportWidth = width,
                 viewportHeight = height
             ).layout(document)
@@ -435,6 +439,64 @@ class EpubFile(var book: Book) {
         }
         imageSizeCache[cleanHref] = size
         return size
+    }
+
+    private fun getEpubTypeface(
+        family: String,
+        bold: Boolean,
+        italic: Boolean,
+        fontFaces: List<EpubFontFace>
+    ): Typeface? {
+        if (fontFaces.isEmpty()) return null
+        val normalizedFamily = family.trim().trim('\'', '"')
+        if (normalizedFamily.isBlank()) return null
+        val face = fontFaces
+            .filter { it.family.equals(normalizedFamily, ignoreCase = true) }
+            .minByOrNull { it.fontMatchScore(bold, italic) }
+            ?: return null
+        val cleanHref = face.src.stripUrlOptions()
+        val cacheKey = "$cleanHref|$bold|$italic"
+        return fontTypefaceCache.getOrPut(cacheKey) {
+            runCatching {
+                val data = findEpubResource(cleanHref)?.data ?: return@getOrPut null
+                val dir = File(appCtx.cacheDir, "epub-fonts").apply { mkdirs() }
+                val suffix = cleanHref.substringAfterLast('.', "ttf")
+                    .takeIf { it.length in 2..5 }
+                    ?: "ttf"
+                val file = File(dir, "${book.bookUrl.hashCode()}_${cleanHref.hashCode()}.$suffix")
+                if (!file.exists() || file.length() != data.size.toLong()) {
+                    FileOutputStream(file).use { output -> output.write(data) }
+                }
+                val typeface = Typeface.createFromFile(file)
+                val style = when {
+                    bold && italic -> Typeface.BOLD_ITALIC
+                    bold -> Typeface.BOLD
+                    italic -> Typeface.ITALIC
+                    else -> Typeface.NORMAL
+                }
+                Typeface.create(typeface, style)
+            }.onFailure {
+                AppLog.putDebug("加载 EPUB 内嵌字体失败: family=$family, href=$cleanHref\n${it.localizedMessage}", it)
+            }.getOrNull()
+        }
+    }
+
+    private fun EpubFontFace.fontMatchScore(bold: Boolean, italic: Boolean): Int {
+        val weightValue = weight?.toIntOrNull()
+            ?: when (weight?.trim()?.lowercase(Locale.ROOT)) {
+                "bold", "bolder" -> 700
+                "light", "lighter" -> 300
+                else -> 400
+            }
+        val targetWeight = if (bold) 700 else 400
+        val styleScore = if (italic == style.equals("italic", ignoreCase = true) ||
+            italic == style.equals("oblique", ignoreCase = true)
+        ) {
+            0
+        } else {
+            1000
+        }
+        return kotlin.math.abs(weightValue - targetWeight) + styleScore
     }
 
     private fun dumpEpubChapterDebug(
