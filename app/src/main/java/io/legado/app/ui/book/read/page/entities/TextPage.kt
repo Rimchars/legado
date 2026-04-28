@@ -424,14 +424,16 @@ data class TextPage(
         if (epubNativeCommands.isEmpty()) return
         val paint = PaintPool.obtain()
         val textPaint = TextPaint(ChapterProvider.contentPaint)
-        epubNativeCommands.forEach { command ->
-            when (command) {
-                is EpubBlockBox -> drawEpubNativeBlock(canvas, paint, command)
-                is EpubBullet -> drawEpubNativeBullet(canvas, textPaint, command)
-                is EpubImageBox -> drawEpubNativeImage(view, canvas, command)
-                is EpubPageColor -> Unit
-                is EpubRuleLine -> drawEpubNativeRuleLine(canvas, paint, command)
-                is EpubTextRun -> drawEpubNativeText(canvas, textPaint, command)
+        canvas.withTranslation(ChapterProvider.paddingLeft.toFloat(), ChapterProvider.paddingTop.toFloat()) {
+            epubNativeCommands.forEach { command ->
+                when (command) {
+                    is EpubBlockBox -> drawEpubNativeBlock(this, paint, command)
+                    is EpubBullet -> drawEpubNativeBullet(this, textPaint, command)
+                    is EpubImageBox -> drawEpubNativeImage(view, this, command)
+                    is EpubPageColor -> Unit
+                    is EpubRuleLine -> drawEpubNativeRuleLine(this, paint, command)
+                    is EpubTextRun -> drawEpubNativeText(this, textPaint, command)
+                }
             }
         }
         PaintPool.recycle(paint)
@@ -478,7 +480,7 @@ data class TextPage(
         paint.color = bullet.color ?: ChapterProvider.contentPaint.color
         paint.isFakeBoldText = false
         paint.textSkewX = 0f
-        paint.typeface = Typeface.DEFAULT
+        paint.typeface = ChapterProvider.contentPaint.typeface
         canvas.drawText(bullet.text, bullet.x, bullet.baseline, paint)
     }
 
@@ -487,7 +489,11 @@ data class TextPage(
         paint.color = text.color ?: ChapterProvider.contentPaint.color
         paint.isFakeBoldText = text.bold
         paint.textSkewX = if (text.italic) -0.25f else 0f
-        paint.typeface = if (text.bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        paint.typeface = if (text.bold) {
+            Typeface.create(ChapterProvider.contentPaint.typeface, Typeface.BOLD)
+        } else {
+            ChapterProvider.contentPaint.typeface
+        }
         canvas.drawText(text.text, text.x, text.baseline, paint)
     }
 
@@ -533,12 +539,12 @@ data class TextPage(
         }
         epubNativeCommands.maxOfOrNull { command ->
             when (command) {
-                is EpubBlockBox -> command.y + command.height
-                is EpubBullet -> command.baseline + command.size
-                is EpubImageBox -> command.y + command.height
+                is EpubBlockBox -> ChapterProvider.paddingTop + command.y + command.height
+                is EpubBullet -> ChapterProvider.paddingTop + command.baseline + command.size
+                is EpubImageBox -> ChapterProvider.paddingTop + command.y + command.height
                 is EpubPageColor -> ChapterProvider.viewHeight.toFloat()
-                is EpubRuleLine -> command.y + command.strokeWidth
-                is EpubTextRun -> command.baseline + command.size
+                is EpubRuleLine -> ChapterProvider.paddingTop + command.y + command.strokeWidth
+                is EpubTextRun -> ChapterProvider.paddingTop + command.baseline + command.size
             }
         }?.let { nativeBottom ->
             renderHeight = max(renderHeight, ceil(nativeBottom).toInt())
