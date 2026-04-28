@@ -729,7 +729,18 @@ class TextChapterLayout(
         }
         val startPageIndex = textPages.size
         val startLineIndex = pendingTextPage.lines.size
-        setTypeHtmlText(imageStyle, book, element.outerHtml())
+        val layoutOffset = style.marginLeft + style.borderWidth + style.paddingLeft
+        val layoutWidth = (visibleWidth - style.marginLeft - style.marginRight -
+            style.paddingLeft - style.paddingRight - style.borderWidth * 2)
+            .roundToInt()
+            .coerceAtLeast((visibleWidth * 0.45f).roundToInt())
+        setTypeHtmlText(
+            imageStyle = imageStyle,
+            book = book,
+            htmlContent = element.outerHtml(),
+            layoutStartOffset = layoutOffset,
+            layoutWidth = layoutWidth
+        )
         addEpubBlockDecorations(startPageIndex, startLineIndex, style)
     }
 
@@ -1223,11 +1234,14 @@ class TextChapterLayout(
         imageStyle: String?,
         book: Book,
         htmlContent: String,
+        layoutStartOffset: Float = 0f,
+        layoutWidth: Int = visibleWidth
     ) {
         breakAfterSingleImageIfNeed()
         val textViewTagHandler = TextViewTagHandler()
         val spanned = htmlContent.parseAsHtml(HtmlCompat.FROM_HTML_MODE_COMPACT, tagHandler = textViewTagHandler)
-        val width = visibleWidth
+        val width = layoutWidth.coerceIn(1, visibleWidth)
+        val lineAbsStartX = absStartX + layoutStartOffset
         val textPaint = contentPaint
         val textColor = ReadBookConfig.textColor
         if (textPaint.color != textColor) {
@@ -1262,7 +1276,7 @@ class TextChapterLayout(
             val textLine = TextLine(isHtml = true)
             val lineText = StringBuilder()
             val lineLeft = staticLayout.getLineLeft(lineIndex)
-            textLine.startX = absStartX + lineLeft //x坐标
+            textLine.startX = lineAbsStartX + lineLeft //x坐标
             val mLineTop = staticLayout.getLineTop(lineIndex).toFloat()
             val mLineBottom = staticLayout.getLineBottom(lineIndex).toFloat()
             val lineHeight = mLineBottom - mLineTop
@@ -1328,8 +1342,8 @@ class TextChapterLayout(
                                 ImageProvider.cacheImage(book, source, ReadBook.bookSource)
                                 columns.add(
                                     ImageColumn(
-                                        start = absStartX + charX,
-                                        end = absStartX + charRight,
+                                        start = lineAbsStartX + charX,
+                                        end = lineAbsStartX + charRight,
                                         src = source,
                                         click = click
                                     )
@@ -1363,8 +1377,8 @@ class TextChapterLayout(
                     if (char == HR_PLACE_CHAR) {
                         columns.add(
                             TextHtmlColumn(
-                                absStartX.toFloat(),
-                                (absStartX + width - paddingRight).toFloat(),
+                                lineAbsStartX,
+                                lineAbsStartX + width,
                                 HR_PLACE_STR,
                                 textSize,
                                 textColor,
@@ -1382,8 +1396,8 @@ class TextChapterLayout(
                 if (needAddText) {
                     columns.add(
                         TextHtmlColumn(
-                            absStartX + charX,
-                            absStartX + charRight,
+                            lineAbsStartX + charX,
+                            lineAbsStartX + charRight,
                             char,
                             textSize,
                             textColor,
@@ -1404,7 +1418,7 @@ class TextChapterLayout(
             }
             textLine.text = lineText.toString()
             if (textFullJustify && !textLine.isParagraphEnd) {
-                justifyHtmlLine(columns, textLine, visibleWidth)
+                justifyHtmlLine(columns, textLine, width)
             } else {
                 textLine.addColumns(columns)
             }
