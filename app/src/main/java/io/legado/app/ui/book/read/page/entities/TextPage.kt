@@ -1,6 +1,7 @@
 package io.legado.app.ui.book.read.page.entities
 
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.os.Build
@@ -62,7 +63,9 @@ data class TextPage(
     var isCompleted = false
     var hasReadAloudSpan = false
     var epubBackgroundSrc: String? = null
+    var epubBackgroundColor: Int? = null
     var fallbackChapterPosition: Int = 0
+    val epubDecorations = arrayListOf<EpubDecoration>()
 
     @JvmField
     var textChapter = emptyTextChapter
@@ -305,7 +308,7 @@ data class TextPage(
     }
 
     fun hasEpubBackground(): Boolean {
-        return epubBackgroundSrc != null
+        return epubBackgroundSrc != null || epubBackgroundColor != null
     }
 
     fun draw(view: ContentTextView, canvas: Canvas, relativeOffset: Float) {
@@ -338,6 +341,7 @@ data class TextPage(
 
     private fun drawPage(view: ContentTextView, canvas: Canvas) {
         drawEpubBackground(view, canvas)
+        drawEpubDecorations(canvas)
         for (i in lines.indices) {
             val line = lines[i]
             canvas.withTranslation(0f, line.lineTop) {
@@ -347,6 +351,13 @@ data class TextPage(
     }
 
     private fun drawEpubBackground(view: ContentTextView, canvas: Canvas) {
+        epubBackgroundColor?.let { color ->
+            val paint = PaintPool.obtain()
+            paint.style = Paint.Style.FILL
+            paint.color = color
+            canvas.drawColor(color)
+            PaintPool.recycle(paint)
+        }
         val src = epubBackgroundSrc ?: return
         val book = ReadBook.book ?: return
         val left = 0f
@@ -376,9 +387,29 @@ data class TextPage(
         canvas.restore()
     }
 
+    private fun drawEpubDecorations(canvas: Canvas) {
+        if (epubDecorations.isEmpty()) return
+        val paint = PaintPool.obtain()
+        epubDecorations.forEach { decoration ->
+            val rect = RectF(decoration.left, decoration.top, decoration.right, decoration.bottom)
+            decoration.backgroundColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
+                paint.style = Paint.Style.FILL
+                paint.color = color
+                canvas.drawRoundRect(rect, decoration.radius, decoration.radius, paint)
+            }
+            decoration.borderColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = decoration.borderWidth
+                paint.color = color
+                canvas.drawRoundRect(rect, decoration.radius, decoration.radius, paint)
+            }
+        }
+        PaintPool.recycle(paint)
+    }
+
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
-        val recorderHeight = if (epubBackgroundSrc != null) {
+        val recorderHeight = if (hasEpubBackground()) {
             max(renderHeight, ChapterProvider.viewHeight) + 10.dpToPx()
         } else {
             renderHeight + 10.dpToPx()
@@ -412,11 +443,11 @@ data class TextPage(
 
     fun upRenderHeight() {
         renderHeight = if (lines.isEmpty()) {
-            if (epubBackgroundSrc != null) ChapterProvider.viewHeight else 0
+            if (hasEpubBackground()) ChapterProvider.viewHeight else 0
         } else {
             ceil(lines.last().lineBottom).toInt()
         }
-        if (epubBackgroundSrc != null) {
+        if (hasEpubBackground()) {
             renderHeight = max(renderHeight, ChapterProvider.viewHeight)
         }
         if (leftLineSize > 0 && leftLineSize != lines.size) {
@@ -424,4 +455,15 @@ data class TextPage(
             renderHeight = max(renderHeight, leftHeight)
         }
     }
+
+    data class EpubDecoration(
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+        val backgroundColor: Int?,
+        val borderColor: Int?,
+        val borderWidth: Float,
+        val radius: Float
+    )
 }

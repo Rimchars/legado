@@ -249,6 +249,7 @@ class EpubFile(var book: Book) {
         if (bodyElement.hasAttr("style")) {
             bodyElement.applyEpubInlineStyle()
         }
+        bodyElement.materializePageBackgroundColor()
         bodyElement.materializeBackgroundImages(res)
         bodyElement.markEpubOverlayImagePage()
         bodyElement.markSingleImagePage()
@@ -470,13 +471,18 @@ class EpubFile(var book: Book) {
                 remove()
             }
         }
+        val useBlockDecoration = isEpubDecoratedBlock(declarations)
         val backgroundColor = declarations["background-color"]?.toEpubColorTag()
             ?: declarations["background"]?.extractCssColor()?.toEpubColorTag()
         backgroundColor?.let { colorTag ->
-            wrapInnerHtml("epubbg$colorTag")
+            if (normalName() != "body" && !useBlockDecoration) {
+                wrapInnerHtml("epubbg$colorTag")
+            }
         }
         declarations["border"]?.extractCssColor()?.toEpubColorTag()?.let { colorTag ->
-            wrapInnerHtml("epubbg$colorTag")
+            if (normalName() != "body" && !useBlockDecoration) {
+                wrapInnerHtml("epubbg$colorTag")
+            }
         }
         declarations["font-size"]?.let { size ->
             val normalized = size.trim().lowercase(Locale.ROOT)
@@ -495,15 +501,41 @@ class EpubFile(var book: Book) {
         }
     }
 
+    private fun Element.isEpubDecoratedBlock(declarations: Map<String, String>): Boolean {
+        val name = normalName()
+        val isBlock = name in setOf(
+            "address", "article", "aside", "blockquote", "body", "dd", "div", "dl", "dt",
+            "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3",
+            "h4", "h5", "h6", "header", "li", "main", "nav", "ol", "p", "pre",
+            "section", "table", "td", "th", "tr", "ul"
+        )
+        if (!isBlock) return false
+        return declarations.containsKey("border") ||
+            declarations.containsKey("border-color") ||
+            declarations.containsKey("border-radius") ||
+            declarations.containsKey("padding") ||
+            declarations.keys.any { it.startsWith("padding-") }
+    }
+
     private fun Element.wrapInnerHtml(tag: String, attributes: String = "") {
         val name = normalName()
         if (name == tag || html().isBlank()) return
         html("<$tag$attributes>${html()}</$tag>")
     }
 
+    private fun Element.materializePageBackgroundColor() {
+        if (normalName() != "body") return
+        val declarations = EpubCss.declarations(attr("style"))
+        val colorTag = attr("bgcolor").takeIf { it.isNotBlank() }?.toEpubColorTag()
+            ?: declarations["background-color"]?.toEpubColorTag()
+            ?: declarations["background"]?.extractCssColor()?.toEpubColorTag()
+            ?: return
+        prepend("""<span data-epub-page-bg="$colorTag"></span>""")
+    }
+
     private fun Element.materializeBackgroundImages(res: Resource) {
         val elements = linkedSetOf<Element>().apply {
-            if (attr("style").contains("background", ignoreCase = true)) {
+            if (attr("style").contains("background", ignoreCase = true) || attr("background").isNotBlank()) {
                 add(this@materializeBackgroundImages)
             }
             addAll(select("[style*=background]"))
