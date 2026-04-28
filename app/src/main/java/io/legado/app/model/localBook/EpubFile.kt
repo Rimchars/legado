@@ -16,6 +16,7 @@ import io.legado.app.utils.HtmlFormatter
 import io.legado.app.utils.encodeURI
 import io.legado.app.utils.isXml
 import io.legado.app.utils.printOnDebug
+import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import me.ag2s.epublib.domain.EpubBook
 import me.ag2s.epublib.domain.Resource
 import me.ag2s.epublib.domain.TOCReference
@@ -87,6 +88,7 @@ class EpubFile(var book: Book) {
     private val cssTextCache = linkedMapOf<String, String>()
     private val cssRuleCache = linkedMapOf<String, List<EpubCss.Rule>>()
     private val nativeDomCache = linkedMapOf<String, EpubDomDocument>()
+    private val nativeLayoutCache = linkedMapOf<String, EpubLayoutDocument>()
 
     /**
      *持有引用，避免被回收
@@ -309,7 +311,7 @@ class EpubFile(var book: Book) {
 
     private fun buildNativeDom(doc: Document, bodyElement: Element, res: Resource) {
         runCatching {
-            nativeDomCache[res.href] = EpubDomBuilder(
+            val document = EpubDomBuilder(
                 loadCss = ::loadCss,
                 resolveHref = ::resolveEpubResourceHref
             ).build(
@@ -317,6 +319,10 @@ class EpubFile(var book: Book) {
                 body = bodyElement,
                 baseHref = res.href
             )
+            nativeDomCache[res.href] = document
+            if (ChapterProvider.visibleWidth > 0 && ChapterProvider.visibleHeight > 0) {
+                nativeLayoutCache[res.href] = EpubLayoutEngine(book).layout(document)
+            }
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生 DOM 失败: ${res.href}\n${it.localizedMessage}", it)
         }
