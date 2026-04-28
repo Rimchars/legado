@@ -178,6 +178,10 @@ class TextChapterLayout(
         textPage.title = displayTitle
         textPage.doublePage = doublePage
         textPage.paddingTop = paddingTop
+        textPage.fallbackChapterPosition = textPage.lines.firstOrNull()?.chapterPosition
+            ?: textPages.lastOrNull()?.let { lastPage ->
+                lastPage.chapterPosition + lastPage.charSize
+            } ?: 0
         textPage.isCompleted = true
         textPage.textChapter = textChapter
         textPage.upLinesPosition()
@@ -1265,12 +1269,16 @@ class TextChapterLayout(
 
     private fun extractTextColor(spanned: Spanned, index: Int): Int? {
         val foregroundSpans = spanned.getSpans(index, index + 1, ForegroundColorSpan::class.java)
-        return foregroundSpans.firstOrNull()?.foregroundColor
+        return foregroundSpans.minByOrNull { span ->
+            spanned.getSpanEnd(span) - spanned.getSpanStart(span)
+        }?.foregroundColor
     }
 
     private fun extractBackgroundColor(spanned: Spanned, index: Int): Int? {
         val backgroundSpans = spanned.getSpans(index, index + 1, BackgroundColorSpan::class.java)
-        return backgroundSpans.firstOrNull()?.backgroundColor
+        return backgroundSpans.minByOrNull { span ->
+            spanned.getSpanEnd(span) - spanned.getSpanStart(span)
+        }?.backgroundColor
     }
 
     private fun <T> Spanned.hasSpan(index: Int, clazz: Class<T>): Boolean {
