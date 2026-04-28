@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.ParcelFileDescriptor
 import android.text.TextUtils
+import android.util.Size
 import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
@@ -12,6 +13,7 @@ import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.FileUtils
+import io.legado.app.utils.SvgUtils
 import io.legado.app.utils.encodeURI
 import io.legado.app.utils.isXml
 import io.legado.app.utils.printOnDebug
@@ -26,6 +28,7 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.parser.Parser
 import org.jsoup.select.Elements
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -94,6 +97,7 @@ class EpubFile(var book: Book) {
     private val cssRuleCache = linkedMapOf<String, List<EpubCss.Rule>>()
     private val nativeDomCache = linkedMapOf<String, EpubDomDocument>()
     private val nativeLayoutCache = linkedMapOf<String, EpubLayoutDocument>()
+    private val imageSizeCache = linkedMapOf<String, Size>()
     private var nativeLayoutWidth = 0
     private var nativeLayoutHeight = 0
 
@@ -402,14 +406,28 @@ class EpubFile(var book: Book) {
         }.getOrNull()
     }
 
-    private fun getEpubImageSize(href: String): android.util.Size? {
-        val resource = findEpubResource(href) ?: return null
+    private fun getEpubImageSize(href: String): Size? {
+        val cleanHref = href.stripUrlOptions()
+        imageSizeCache[cleanHref]?.let { return it }
+        val data = if (cleanHref == "cover.jpeg") {
+            epubBook?.coverImage?.data
+        } else {
+            findEpubResource(cleanHref)?.data
+        } ?: return null
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
         }
-        BitmapFactory.decodeByteArray(resource.data, 0, resource.data.size, options)
-        if (options.outWidth <= 0 || options.outHeight <= 0) return null
-        return android.util.Size(options.outWidth, options.outHeight)
+        BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        val size = if (options.outWidth > 0 && options.outHeight > 0) {
+            Size(options.outWidth, options.outHeight)
+        } else {
+            SvgUtils.getSize(ByteArrayInputStream(data))
+        } ?: run {
+            AppLog.put("EPUB Native Image size unknown: href=$href")
+            return null
+        }
+        imageSizeCache[cleanHref] = size
+        return size
     }
 
     private fun dumpEpubChapterDebug(
