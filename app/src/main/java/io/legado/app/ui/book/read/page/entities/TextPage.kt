@@ -18,9 +18,11 @@ import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.model.ImageProvider
 import io.legado.app.model.ReadBook
 import io.legado.app.model.localBook.EpubBlockBox
+import io.legado.app.model.localBook.EpubBullet
 import io.legado.app.model.localBook.EpubDrawCommand
 import io.legado.app.model.localBook.EpubImageBox
 import io.legado.app.model.localBook.EpubPageColor
+import io.legado.app.model.localBook.EpubRuleLine
 import io.legado.app.model.localBook.EpubTextRun
 import io.legado.app.ui.book.read.page.ContentTextView
 import io.legado.app.ui.book.read.page.entities.TextChapter.Companion.emptyTextChapter
@@ -425,8 +427,10 @@ data class TextPage(
         epubNativeCommands.forEach { command ->
             when (command) {
                 is EpubBlockBox -> drawEpubNativeBlock(canvas, paint, command)
+                is EpubBullet -> drawEpubNativeBullet(canvas, textPaint, command)
                 is EpubImageBox -> drawEpubNativeImage(view, canvas, command)
                 is EpubPageColor -> Unit
+                is EpubRuleLine -> drawEpubNativeRuleLine(canvas, paint, command)
                 is EpubTextRun -> drawEpubNativeText(canvas, textPaint, command)
             }
         }
@@ -460,6 +464,22 @@ data class TextPage(
         )
         val rect = RectF(image.x, image.y, image.x + image.width, image.y + image.height)
         canvas.drawBitmap(bitmap, null, rect, view.imagePaint)
+    }
+
+    private fun drawEpubNativeRuleLine(canvas: Canvas, paint: Paint, line: EpubRuleLine) {
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = line.strokeWidth
+        paint.color = line.color ?: ChapterProvider.contentPaint.color
+        canvas.drawLine(line.x, line.y, line.x + line.width, line.y, paint)
+    }
+
+    private fun drawEpubNativeBullet(canvas: Canvas, paint: TextPaint, bullet: EpubBullet) {
+        paint.textSize = bullet.size
+        paint.color = bullet.color ?: ChapterProvider.contentPaint.color
+        paint.isFakeBoldText = false
+        paint.textSkewX = 0f
+        paint.typeface = Typeface.DEFAULT
+        canvas.drawText(bullet.text, bullet.x, bullet.baseline, paint)
     }
 
     private fun drawEpubNativeText(canvas: Canvas, paint: TextPaint, text: EpubTextRun) {
@@ -514,8 +534,10 @@ data class TextPage(
         epubNativeCommands.maxOfOrNull { command ->
             when (command) {
                 is EpubBlockBox -> command.y + command.height
+                is EpubBullet -> command.baseline + command.size
                 is EpubImageBox -> command.y + command.height
                 is EpubPageColor -> ChapterProvider.viewHeight.toFloat()
+                is EpubRuleLine -> command.y + command.strokeWidth
                 is EpubTextRun -> command.baseline + command.size
             }
         }?.let { nativeBottom ->
