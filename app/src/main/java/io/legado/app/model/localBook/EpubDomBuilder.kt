@@ -93,7 +93,7 @@ internal class EpubDomBuilder(
         matchedRules: IdentityHashMap<Element, MutableList<EpubCss.Rule>>,
         sourcePath: String
     ): EpubDomElement {
-        val style = computeStyle(element, parentStyle, matchedRules[element].orEmpty())
+        val style = computeStyle(element, parentStyle, matchedRules[element].orEmpty(), baseHref)
         val attributes = element.attributes().associate { attr ->
             val value = when (attr.key.lowercase()) {
                 "src", "href", "xlink:href" -> attr.value.takeIf { it.isNotBlank() }?.let {
@@ -124,7 +124,8 @@ internal class EpubDomBuilder(
     private fun computeStyle(
         element: Element,
         parentStyle: EpubComputedStyle,
-        rules: List<EpubCss.Rule>
+        rules: List<EpubCss.Rule>,
+        baseHref: String
     ): EpubComputedStyle {
         val merged = linkedMapOf<String, EpubStyleValue>()
         parentStyle.declarations.forEach { (name, value) ->
@@ -157,6 +158,90 @@ internal class EpubDomBuilder(
         EpubCss.parseDeclarations(element.attr("style")).forEach { declaration ->
             putDeclaration(declaration, sourceRank = 1, specificity = 1000, ruleOrder = Int.MAX_VALUE)
         }
-        return EpubComputedStyle(merged)
+        return EpubComputedStyle(merged.resolveBackgroundUrls(baseHref))
+    }
+
+    private fun LinkedHashMap<String, EpubStyleValue>.resolveBackgroundUrls(
+        baseHref: String
+    ): LinkedHashMap<String, EpubStyleValue> {
+        listOf("background", "background-image").forEach { name ->
+            val value = this[name] ?: return@forEach
+            val resolved = value.value.rewriteCssUrls { href ->
+                resolveHref(baseHref, href)
+            }
+            if (resolved != value.value) {
+                this[name] = value.copy(value = resolved)
+            }
+        }
+        return this
+    }
+
+    private fun String.rewriteCssUrls(resolve: (String) -> String): String {
+        val builder = StringBuilder(length)
+        var index = 0
+        while (index < length) {
+            val start = indexOf("url(", index, ignoreCase = true)
+            if (start < 0) {
+                builder.append(substring(index))
+                break
+            }
+            builder.append(substring(index, start))
+            val valueStart = start + 4
+            val end = findCssUrlEnd(valueStart)
+            if (end < 0) {
+                builder.append(substring(start))
+                break
+            }
+            val raw = substring(valueStart, end).trim()
+            val quote = raw.firstOrNull()?.takeIf { it == '\'' || it == '"' }
+            val clean = raw.trimMatchingQuote()
+            val resolved = if (clean.startsWith("data:", true) ||
+                clean.startsWith("http://", true) ||
+                clean.startsWith("https://", true)
+            ) {
+                clean
+            } else {
+                resolve(clean)
+            }
+            builder.append("url(")
+            if (quote != null) {
+                builder.append(quote).append(resolved).append(quote)
+            } else {
+                builder.append(resolved)
+            }
+            builder.append(")")
+            index = end + 1
+        }
+        return builder.toString()
+    }
+
+    private fun String.findCssUrlEnd(start: Int): Int {
+        var quote: Char? = null
+        for (index in start until length) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                ')' -> return index
+            }
+        }
+        return -1
+    }
+
+    private fun String.trimMatchingQuote(): String {
+        val clean = trim()
+        if (clean.length >= 2) {
+            val first = clean.first()
+            val last = clean.last()
+            if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
+                return clean.substring(1, clean.lastIndex)
+            }
+        }
+        return clean
     }
 }

@@ -56,9 +56,34 @@ internal class EpubBoxBuilder {
                 )
             }
             else -> {
-                val children = element.children.mapNotNull { child ->
-                    buildNode(child, element.style)
+                val children = arrayListOf<EpubBoxNode>()
+                element.style.pageBackgroundColor()?.let { color ->
+                    if (element.tagName == "body") {
+                        children.add(
+                            EpubPageColorNode(
+                                colorValue = color,
+                                style = element.style,
+                                sourcePath = element.sourcePath
+                            )
+                        )
+                    }
                 }
+                element.style.backgroundImageSrc()?.let { src ->
+                    if (element.shouldPromoteBackgroundImage()) {
+                        children.add(
+                            EpubImageNode(
+                                src = src,
+                                attributes = element.attributes,
+                                style = element.style,
+                                isBackground = true,
+                                sourcePath = element.sourcePath
+                            )
+                        )
+                    }
+                }
+                children.addAll(element.children.mapNotNull { child ->
+                    buildNode(child, element.style)
+                })
                 if (element.isBlock()) {
                     EpubBlockNode(
                         tagName = element.tagName,
@@ -87,6 +112,98 @@ internal class EpubBoxBuilder {
             if (display in blockDisplays) return true
         }
         return tagName in blockTags
+    }
+
+    private fun EpubDomElement.shouldPromoteBackgroundImage(): Boolean {
+        if (tagName == "body" || tagName == "html") return true
+        val size = style["background-size"]?.lowercase(Locale.ROOT)
+        val attachment = style["background-attachment"]?.lowercase(Locale.ROOT)
+        return size == "cover" || attachment == "fixed"
+    }
+
+    private fun EpubComputedStyle.backgroundImageSrc(): String? {
+        val background = this["background-image"]
+            ?: this["background"]
+            ?: return null
+        return background.extractCssUrl()
+    }
+
+    private fun EpubComputedStyle.pageBackgroundColor(): String? {
+        return this["background-color"]
+            ?: this["background"]?.takeIf { it.extractCssUrl() == null }?.extractCssColor()
+    }
+
+    private fun String.extractCssUrl(): String? {
+        val start = indexOf("url(", ignoreCase = true)
+        if (start < 0) return null
+        val valueStart = start + 4
+        val end = findCssUrlEnd(valueStart)
+        if (end < 0) return null
+        return substring(valueStart, end).trim().trimMatchingQuote()
+            .takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+    }
+
+    private fun String.findCssUrlEnd(start: Int): Int {
+        var quote: Char? = null
+        for (index in start until length) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                ')' -> return index
+            }
+        }
+        return -1
+    }
+
+    private fun String.trimMatchingQuote(): String {
+        val clean = trim()
+        if (clean.length >= 2) {
+            val first = clean.first()
+            val last = clean.last()
+            if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
+                return clean.substring(1, clean.lastIndex)
+            }
+        }
+        return clean
+    }
+
+    private fun String.extractCssColor(): String? {
+        val clean = trim()
+        if (clean.startsWith("#") || clean.startsWith("rgb", true)) return clean
+        val parts = clean.split(' ', ',', '/')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        return parts.firstOrNull { part ->
+            part.startsWith("#") || part.startsWith("rgb", true) || part.toNamedCssColor() != null
+        }
+    }
+
+    private fun String.toNamedCssColor(): String? {
+        return when (lowercase(Locale.ROOT)) {
+            "black" -> "#000000"
+            "white" -> "#FFFFFF"
+            "red" -> "#FF0000"
+            "green" -> "#008000"
+            "blue" -> "#0000FF"
+            "cyan", "aqua" -> "#00FFFF"
+            "magenta", "fuchsia" -> "#FF00FF"
+            "yellow" -> "#FFFF00"
+            "gray", "grey" -> "#808080"
+            "silver" -> "#C0C0C0"
+            "maroon" -> "#800000"
+            "purple" -> "#800080"
+            "teal" -> "#008080"
+            "navy" -> "#000080"
+            "orange" -> "#FFA500"
+            "transparent" -> "#00000000"
+            else -> null
+        }
     }
 
     private companion object {
