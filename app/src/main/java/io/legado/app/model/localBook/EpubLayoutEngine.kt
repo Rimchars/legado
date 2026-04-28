@@ -16,11 +16,13 @@ internal class EpubLayoutEngine(
     private val pages = arrayListOf<MutableList<EpubDrawCommand>>()
     private var currentCommands = arrayListOf<EpubDrawCommand>()
     private var cursorY = 0f
+    private var firstLineIndent = 0f
 
     fun layout(document: EpubDomDocument): EpubLayoutDocument {
         pages.clear()
         currentCommands = arrayListOf()
         cursorY = 0f
+        firstLineIndent = 0f
         layoutChildren(document.body.children, document.body.style, left = 0f, width = viewportWidth.toFloat())
         flushPageIfNeeded(force = true)
         return EpubLayoutDocument(
@@ -56,6 +58,10 @@ internal class EpubLayoutEngine(
             cursorY += lineHeight(element.style)
             return
         }
+        if (element.tagName == "hr") {
+            layoutRuleLine(element, left, width)
+            return
+        }
         if (element.tagName == "img" || element.tagName == "image") {
             layoutImage(element, left, width)
             return
@@ -71,9 +77,16 @@ internal class EpubLayoutEngine(
         val borderWidth = element.style.borderWidthPx()
         cursorY += marginTop
         val boxTop = cursorY
-        val contentLeft = left + marginLeft + borderWidth + paddingLeft
-        val contentWidth = (width - marginLeft - marginRight - borderWidth * 2 - paddingLeft - paddingRight)
+        val listMarkerWidth = if (element.tagName == "li") basePaint.textSize * 1.2f else 0f
+        val contentLeft = left + marginLeft + borderWidth + paddingLeft + listMarkerWidth
+        val contentWidth = (width - marginLeft - marginRight - borderWidth * 2 - paddingLeft - paddingRight - listMarkerWidth)
             .coerceAtLeast(width * 0.35f)
+        val requestedHeight = element.style.lengthPx("height", viewportHeight.toFloat())
+            .takeIf { it > 0f }
+            ?: element.style.lengthPx("min-height", viewportHeight.toFloat()).takeIf { it > 0f }
+        if (requestedHeight != null && boxTop + requestedHeight > viewportHeight && currentCommands.isNotEmpty()) {
+            flushPageIfNeeded(force = true)
+        }
         cursorY += borderWidth + paddingTop
         val blockCommandIndex = currentCommands.size
         val blockStyle = element.blockStyle()
@@ -92,12 +105,33 @@ internal class EpubLayoutEngine(
                 )
             )
         }
+        if (element.tagName == "li") {
+            currentCommands.add(
+                EpubBullet(
+                    text = "•",
+                    x = left + marginLeft + borderWidth + paddingLeft,
+                    baseline = cursorY + element.style.fontSizePx(),
+                    size = element.style.fontSizePx(),
+                    color = element.style.colorInt(),
+                    sourcePath = element.sourcePath
+                )
+            )
+        }
+        val previousTextIndent = firstLineIndent
+        firstLineIndent = element.style.lengthPx("text-indent", contentWidth)
         layoutChildren(element.children, element.style, contentLeft, contentWidth)
+        firstLineIndent = previousTextIndent
         cursorY += paddingBottom + borderWidth
         if (blockStyle != null) {
             val old = currentCommands.getOrNull(blockCommandIndex) as? EpubBlockBox
             if (old != null) {
-                currentCommands[blockCommandIndex] = old.copy(height = (cursorY - boxTop).coerceAtLeast(0f))
+                val boxHeight = requestedHeight ?: (cursorY - boxTop)
+                currentCommands[blockCommandIndex] = old.copy(height = boxHeight.coerceAtLeast(0f))
+            }
+        }
+        requestedHeight?.let { height ->
+            if (cursorY < boxTop + height) {
+                cursorY = boxTop + height
             }
         }
         cursorY += marginBottom
@@ -123,38 +157,50 @@ internal class EpubLayoutEngine(
         val lineHeight = lineHeight(style)
         var line = StringBuilder()
         var lineWidth = 0f
+        var lineLeft = left + firstLineIndent
+        var lineWidthLimit = (width - firstLineIndent).coerceAtLeast(width * 0.35f)
         normalized.forEach { char ->
             val value = char.toString()
             val charWidth = paint.measureText(value)
-            if (line.isNotEmpty() && lineWidth + charWidth > width) {
-                addTextLine(line.toString(), left, cursorY, paint.textSize, color, style, sourcePath)
+            if (line.isNotEmpty() && lineWidth + charWidth > lineWidthLimit) {
+                addTextLine(line.toString(), lineLeft, cursorY, lineWidth, lineWidthLimit, paint.textSize, color, style, sourcePath)
                 cursorY += lineHeight
                 flushPageIfNeedForHeight(cursorY + lineHeight)
                 line = StringBuilder()
                 lineWidth = 0f
+                lineLeft = left
+                lineWidthLimit = width
             }
             line.append(char)
             lineWidth += charWidth
         }
         if (line.isNotEmpty()) {
-            addTextLine(line.toString(), left, cursorY, paint.textSize, color, style, sourcePath)
+            addTextLine(line.toString(), lineLeft, cursorY, lineWidth, lineWidthLimit, paint.textSize, color, style, sourcePath)
             cursorY += lineHeight
         }
+        firstLineIndent = 0f
     }
 
     private fun addTextLine(
         text: String,
         left: Float,
         top: Float,
+        lineWidth: Float,
+        availableWidth: Float,
         size: Float,
         color: Int?,
         style: EpubComputedStyle,
         sourcePath: String
     ) {
+        val x = when (style["text-align"]?.lowercase(Locale.ROOT)) {
+            "center" -> left + ((availableWidth - lineWidth) / 2f).coerceAtLeast(0f)
+            "right", "end" -> left + (availableWidth - lineWidth).coerceAtLeast(0f)
+            else -> left
+        }
         currentCommands.add(
             EpubTextRun(
                 text = text,
-                x = left,
+                x = x,
                 baseline = top + size,
                 size = size,
                 color = color,
@@ -208,6 +254,25 @@ internal class EpubLayoutEngine(
         cursorY += imageHeight
     }
 
+    private fun layoutRuleLine(element: EpubDomElement, left: Float, width: Float) {
+        val marginTop = element.style.lengthPx("margin-top", width).takeIf { it > 0f } ?: lineHeight(element.style) * 0.5f
+        val marginBottom = element.style.lengthPx("margin-bottom", width).takeIf { it > 0f } ?: lineHeight(element.style) * 0.5f
+        val strokeWidth = element.style.borderWidthPx().takeIf { it > 0f } ?: 1f
+        flushPageIfNeedForHeight(cursorY + marginTop + strokeWidth + marginBottom)
+        cursorY += marginTop
+        currentCommands.add(
+            EpubRuleLine(
+                x = left,
+                y = cursorY,
+                width = width,
+                strokeWidth = strokeWidth,
+                color = element.style.borderColor() ?: element.style.colorInt(),
+                sourcePath = element.sourcePath
+            )
+        )
+        cursorY += strokeWidth + marginBottom
+    }
+
     private fun flushPageIfNeedForHeight(requestHeight: Float) {
         if (requestHeight > viewportHeight && currentCommands.isNotEmpty()) {
             flushPageIfNeeded(force = true)
@@ -223,6 +288,7 @@ internal class EpubLayoutEngine(
         pages.add(currentCommands)
         currentCommands = arrayListOf()
         cursorY = 0f
+        firstLineIndent = 0f
     }
 
     private fun lineHeight(style: EpubComputedStyle): Float {
