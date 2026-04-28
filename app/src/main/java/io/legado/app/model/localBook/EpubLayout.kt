@@ -15,6 +15,11 @@ internal sealed class EpubDrawCommand {
     abstract val sourcePath: String
 }
 
+internal data class EpubPageColor(
+    val color: Int,
+    override val sourcePath: String
+) : EpubDrawCommand()
+
 internal data class EpubTextRun(
     val text: String,
     val x: Float,
@@ -32,6 +37,7 @@ internal data class EpubImageBox(
     val y: Float,
     val width: Float,
     val height: Float,
+    val isBackground: Boolean,
     override val sourcePath: String
 ) : EpubDrawCommand()
 

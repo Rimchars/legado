@@ -69,6 +69,10 @@ import io.legado.app.help.TextViewTagHandler.Companion.HR_PLACE_CHAR
 import io.legado.app.help.TextViewTagHandler.Companion.HR_PLACE_STR
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
 import io.legado.app.model.localBook.EpubCss
+import io.legado.app.model.localBook.EpubFile
+import io.legado.app.model.localBook.EpubImageBox
+import io.legado.app.model.localBook.EpubLayoutDocument
+import io.legado.app.model.localBook.EpubPageColor
 import io.legado.app.ui.book.read.page.entities.column.BaseColumn
 import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
 import io.legado.app.ui.book.read.page.provider.ChapterProvider.reviewChar
@@ -174,7 +178,11 @@ class TextChapterLayout(
 
     private fun onPageCompleted() {
         val textPage = pendingTextPage
-        if (textPage.lines.isEmpty() && !textPage.hasEpubBackground() && stringBuilder.isBlank()) {
+        if (textPage.lines.isEmpty() &&
+            textPage.epubNativeCommands.isEmpty() &&
+            !textPage.hasEpubBackground() &&
+            stringBuilder.isBlank()
+        ) {
             return
         }
         textPage.index = textPages.size
@@ -352,6 +360,9 @@ class TextChapterLayout(
                     val contentStart = text.indexOf('>')
                     val contentEnd = text.lastIndexOf("<")
                     if (contentStart >= 0 && contentEnd > contentStart) {
+                        if (setTypeNativeEpubLayout(text)) {
+                            return@forEach
+                        }
                         setTypeHtml(imageStyle, book, text.substring(contentStart + 1, contentEnd))
                         return@forEach
                     }
@@ -609,6 +620,60 @@ class TextChapterLayout(
         if (!pendingSingleImagePageBreak) return
         pendingSingleImagePageBreak = false
         if (pendingTextPage.lines.isNotEmpty()) {
+            prepareNextPageIfNeed()
+        }
+    }
+
+    /**
+     * 排版html样式
+     */
+    private suspend fun setTypeNativeEpubLayout(rawUseHtml: String): Boolean {
+        if (!book.isEpub) return false
+        val wrapper = Jsoup.parse(rawUseHtml).selectFirst("usehtml[data-epub-native-href]")
+            ?: return false
+        val href = wrapper.attr("data-epub-native-href").trim()
+        if (href.isBlank()) return false
+        val layout = EpubFile.getNativeLayout(book, href) ?: return false
+        if (layout.pages.isEmpty()) return false
+        setTypeNativeEpubLayout(layout)
+        return true
+    }
+
+    private suspend fun setTypeNativeEpubLayout(layout: EpubLayoutDocument) {
+        if (pendingTextPage.lines.isNotEmpty() ||
+            pendingTextPage.epubNativeCommands.isNotEmpty() ||
+            pendingTextPage.hasEpubBackground() ||
+            stringBuilder.isNotBlank()
+        ) {
+            prepareNextPageIfNeed()
+        }
+        layout.pages.forEach { layoutPage ->
+            currentCoroutineContext().ensureActive()
+            val backgroundImage = layoutPage.commands
+                .filterIsInstance<EpubImageBox>()
+                .firstOrNull { it.isBackground }
+            val backgroundColor = layoutPage.commands
+                .filterIsInstance<EpubPageColor>()
+                .firstOrNull()
+            layoutPage.commands.forEach { command ->
+                if (command is EpubImageBox) {
+                    ImageProvider.cacheImage(book, command.src, ReadBook.bookSource)
+                }
+            }
+            if (backgroundColor != null) {
+                pendingTextPage.epubBackgroundColor = backgroundColor.color
+            }
+            if (backgroundImage != null) {
+                pendingTextPage.epubBackgroundSrc = backgroundImage.src
+            }
+            pendingTextPage.epubNativeCommands.addAll(
+                layoutPage.commands.filterNot { command ->
+                    command is EpubPageColor || command is EpubImageBox && command.isBackground
+                }
+            )
+            pendingTextPage.height = layoutPage.height.coerceAtLeast(viewHeight.toFloat())
+            durY = pendingTextPage.height
+            stringBuilder.append(' ')
             prepareNextPageIfNeed()
         }
     }

@@ -3,12 +3,11 @@ package io.legado.app.model.localBook
 import android.graphics.Color
 import android.text.TextPaint
 import android.util.Size
-import io.legado.app.data.entities.Book
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import java.util.Locale
 
 internal class EpubLayoutEngine(
-    private val book: Book,
+    private val imageSizeResolver: (String) -> Size? = { null },
     private val viewportWidth: Int = ChapterProvider.visibleWidth,
     private val viewportHeight: Int = ChapterProvider.visibleHeight,
     private val basePaint: TextPaint = ChapterProvider.contentPaint
@@ -48,6 +47,11 @@ internal class EpubLayoutEngine(
 
     private fun layoutElement(element: EpubDomElement, left: Float, width: Float) {
         if (element.style["display"].equals("none", ignoreCase = true)) return
+        element.attributes["data-epub-page-bg"]?.toEpubPageColor()?.let { color ->
+            if (currentCommands.isNotEmpty()) flushPageIfNeeded(force = true)
+            currentCommands.add(EpubPageColor(color = color, sourcePath = element.sourcePath))
+            return
+        }
         if (element.tagName == "br") {
             cursorY += lineHeight(element.style)
             return
@@ -91,8 +95,10 @@ internal class EpubLayoutEngine(
         layoutChildren(element.children, element.style, contentLeft, contentWidth)
         cursorY += paddingBottom + borderWidth
         if (blockStyle != null) {
-            val old = currentCommands[blockCommandIndex] as EpubBlockBox
-            currentCommands[blockCommandIndex] = old.copy(height = (cursorY - boxTop).coerceAtLeast(0f))
+            val old = currentCommands.getOrNull(blockCommandIndex) as? EpubBlockBox
+            if (old != null) {
+                currentCommands[blockCommandIndex] = old.copy(height = (cursorY - boxTop).coerceAtLeast(0f))
+            }
         }
         cursorY += marginBottom
         if (element.isBlockElement()) {
@@ -164,6 +170,21 @@ internal class EpubLayoutEngine(
             ?: element.attributes["xlink:href"]
             ?: element.attributes["href"]
             ?: return
+        if (element.attributes["data-epub-background"] == "true") {
+            if (currentCommands.isNotEmpty()) flushPageIfNeeded(force = true)
+            currentCommands.add(
+                EpubImageBox(
+                    src = src,
+                    x = 0f,
+                    y = 0f,
+                    width = viewportWidth.toFloat(),
+                    height = viewportHeight.toFloat(),
+                    isBackground = true,
+                    sourcePath = element.sourcePath
+                )
+            )
+            return
+        }
         val imageWidth = element.style.lengthPx("width", width)
             .takeIf { it > 0f }
             ?: element.attributes["width"]?.toCssLengthPx(width)
@@ -171,7 +192,7 @@ internal class EpubLayoutEngine(
         val imageHeight = element.style.lengthPx("height", width)
             .takeIf { it > 0f }
             ?: element.attributes["height"]?.toCssLengthPx(width)
-            ?: Size(0, 0).scaledHeight(imageWidth)
+            ?: imageSizeResolver(src).scaledHeight(imageWidth)
         flushPageIfNeedForHeight(cursorY + imageHeight)
         currentCommands.add(
             EpubImageBox(
@@ -180,6 +201,7 @@ internal class EpubLayoutEngine(
                 y = cursorY,
                 width = imageWidth.coerceAtLeast(1f),
                 height = imageHeight.coerceAtLeast(1f),
+                isBackground = false,
                 sourcePath = element.sourcePath
             )
         )
@@ -261,8 +283,10 @@ internal class EpubLayoutEngine(
         return value == "italic" || value == "oblique"
     }
 
-    private fun Size.scaledHeight(width: Float): Float {
-        if (this.width <= 0 || this.height <= 0 || width <= 0f) return ChapterProvider.contentPaintTextHeight
+    private fun Size?.scaledHeight(width: Float): Float {
+        if (this == null || this.width <= 0 || this.height <= 0 || width <= 0f) {
+            return ChapterProvider.contentPaintTextHeight
+        }
         return this.height * width / this.width
     }
 
@@ -303,6 +327,16 @@ internal class EpubLayoutEngine(
             clean.startsWith("#") -> runCatching { Color.parseColor(clean.normalizeHexColor()) }.getOrNull()
             else -> clean.toNamedCssColor()?.let { runCatching { Color.parseColor(it) }.getOrNull() }
         }
+    }
+
+    private fun String.toEpubPageColor(): Int? {
+        val clean = trim().removePrefix("#")
+        val hex = when (clean.length) {
+            6 -> "FF$clean"
+            8 -> clean
+            else -> return toCssColor()
+        }
+        return hex.toLongOrNull(16)?.toInt()
     }
 
     private fun String.normalizeHexColor(): String {
