@@ -38,7 +38,7 @@ import java.util.Locale
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
-        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"4\">"
+        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"5\">"
         private var eFile: EpubFile? = null
 
         @Synchronized
@@ -247,6 +247,7 @@ class EpubFile(var book: Book) {
             bodyElement.applyEpubInlineStyle()
         }
         bodyElement.materializeBackgroundImages(res)
+        bodyElement.markEpubOverlayImagePage()
         bodyElement.markSingleImagePage()
         bodyElement.select("img").forEach {
             val src = it.attr("src").trim()
@@ -984,6 +985,22 @@ class EpubFile(var book: Book) {
         val text = text().trim()
         if (text.isNotBlank()) return
         images.first()?.attr("data-epub-single-page", "true")
+    }
+
+    private fun Element.markEpubOverlayImagePage() {
+        val images = select("img")
+        if (images.size != 1) return
+        val image = images.first() ?: return
+        if (image.attr("data-epub-background") == "true") return
+        val text = text().trim()
+        if (text.isBlank() || text.length > 80) return
+        val firstElement = children().firstOrNull { child ->
+            child.normalName() !in setOf("style", "link", "script")
+        } ?: return
+        if (firstElement != image && firstElement.selectFirst("img") != image) return
+        val hasOverlayBlock = select("h1,h2,h3,h4,h5,h6,table,.vol-title").isNotEmpty()
+        if (!hasOverlayBlock) return
+        image.attr("data-epub-background", "true")
     }
 
     private fun Element.epubImageOptions(): Map<String, String> {
