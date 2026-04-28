@@ -282,8 +282,9 @@ internal class EpubLayoutEngine(
         flushPageIfNeedForHeight(cursorY + lineHeight(style))
 
         val rows = node.tableRows()
-        val maxColumns = rows.maxOfOrNull { row -> row.tableCells().size } ?: 0
-        val intrinsicWidth = node.intrinsicTableWidth(rows)
+        val grid = rows.buildTableGrid()
+        val maxColumns = grid.columnCount
+        val intrinsicWidth = node.intrinsicTableWidth(grid)
         val rawMarginLeft = style["margin-left"]
         val rawMarginRight = style["margin-right"]
         val marginLeftValue = rawMarginLeft?.toCssLengthPx(width) ?: 0f
@@ -330,50 +331,62 @@ internal class EpubLayoutEngine(
             )
             currentCommands.lastIndex
         }
-        val columnWidths = node.tableColumnWidths(rows, tableWidth, maxColumns)
-        val rowSpanDebt = MutableList(maxColumns) { 0 }
-        rows.forEach { row ->
+        val (horizontalSpacing, verticalSpacing) = node.tableSpacing(width)
+        val contentTableWidth = (tableWidth - horizontalSpacing * (maxColumns - 1).coerceAtLeast(0))
+            .coerceAtLeast(1f)
+        val columnWidths = node.tableColumnWidths(grid, contentTableWidth)
+        grid.rows.forEachIndexed { rowIndex, row ->
             if (cursorY + lineHeight(row.style) > viewportHeight && currentCommands.isNotEmpty()) {
                 flushPageIfNeeded(force = true)
             }
             val rowTop = cursorY
-            var rowBottom = rowTop
-            var cellLeft = tableLeft
-            var columnIndex = 0
-            row.tableCells().forEach { cell ->
-                while (columnIndex < maxColumns && rowSpanDebt[columnIndex] > 0) {
-                    cellLeft += columnWidths.getOrNull(columnIndex) ?: 0f
-                    columnIndex++
-                }
+            val measuredCells = row.cells.map { gridCell ->
                 val oldCursor = cursorY
-                val span = cell.attributes["colspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
-                val rowSpan = cell.attributes["rowspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                val commandBuffer = currentCommands
+                val oldCommandsSize = currentCommands.size
+                val cell = gridCell.node
+                val cellLeft = tableLeft +
+                    columnWidths.take(gridCell.column).sum() +
+                    horizontalSpacing * gridCell.column
                 val cellWidth = columnWidths
-                    .drop(columnIndex)
-                    .take(span)
+                    .drop(gridCell.column)
+                    .take(gridCell.colSpan)
                     .sum()
+                    .plus(horizontalSpacing * (gridCell.colSpan - 1).coerceAtLeast(0))
                     .takeIf { it > 0f }
-                    ?: (tableWidth / maxColumns)
+                    ?: (contentTableWidth / maxColumns)
                 cursorY = rowTop
                 layoutBlockNode(
                     node = cell,
                     left = cellLeft,
                     width = cellWidth
                 )
-                rowBottom = maxOf(rowBottom, cursorY)
-                cursorY = oldCursor
-                cellLeft += cellWidth
-                if (rowSpan > 1) {
-                    for (index in columnIndex until (columnIndex + span).coerceAtMost(maxColumns)) {
-                        rowSpanDebt[index] = maxOf(rowSpanDebt[index], rowSpan)
+                val cellBottom = cursorY
+                val cellCommands = if (commandBuffer === currentCommands && oldCommandsSize <= currentCommands.size) {
+                    currentCommands.subList(oldCommandsSize, currentCommands.size).toList().also {
+                        currentCommands.subList(oldCommandsSize, currentCommands.size).clear()
                     }
+                } else {
+                    emptyList()
                 }
-                columnIndex += span
+                cursorY = oldCursor
+                MeasuredTableCell(
+                    gridCell = gridCell,
+                    left = cellLeft,
+                    width = cellWidth,
+                    height = (cellBottom - rowTop).coerceAtLeast(0f),
+                    commands = cellCommands
+                )
             }
-            rowSpanDebt.indices.forEach { index ->
-                if (rowSpanDebt[index] > 0) rowSpanDebt[index]--
+            val rowHeight = measuredCells.maxOfOrNull { it.height } ?: lineHeight(row.style)
+            measuredCells.forEach { measured ->
+                val offsetY = measured.gridCell.node.style.tableVerticalOffset(rowHeight, measured.height)
+                currentCommands.addAll(measured.commands.offsetBy(dy = offsetY))
             }
-            cursorY = rowBottom
+            cursorY = rowTop + rowHeight
+            if (rowIndex < grid.rows.lastIndex) {
+                cursorY += verticalSpacing
+            }
         }
         blockCommandIndex?.let { index ->
             val old = currentCommands.getOrNull(index) as? EpubBlockBox
@@ -1140,6 +1153,45 @@ internal class EpubLayoutEngine(
         }
     }
 
+    private fun EpubComputedStyle.tableVerticalOffset(rowHeight: Float, cellHeight: Float): Float {
+        val freeSpace = (rowHeight - cellHeight).coerceAtLeast(0f)
+        return when (this["vertical-align"]?.trim()?.lowercase(Locale.ROOT)) {
+            "middle", "center" -> freeSpace / 2f
+            "bottom", "text-bottom" -> freeSpace
+            else -> 0f
+        }
+    }
+
+    private fun EpubBlockNode.tableSpacing(relativeTo: Float): Pair<Float, Float> {
+        if (style["border-collapse"].equals("collapse", ignoreCase = true)) {
+            return 0f to 0f
+        }
+        val raw = style["border-spacing"]
+            ?: attributes["cellspacing"]
+            ?: return 0f to 0f
+        val parts = raw.split(' ', '\t', '\n')
+            .mapNotNull { it.trim().takeIf { value -> value.isNotBlank() }?.toCssLengthPx(relativeTo) }
+        return when (parts.size) {
+            0 -> 0f to 0f
+            1 -> parts[0] to parts[0]
+            else -> parts[0] to parts[1]
+        }
+    }
+
+    private fun List<EpubDrawCommand>.offsetBy(dy: Float): List<EpubDrawCommand> {
+        if (dy == 0f) return this
+        return map { command ->
+            when (command) {
+                is EpubTextRun -> command.copy(y = command.y + dy, baseline = command.baseline + dy)
+                is EpubImageBox -> command.copy(y = command.y + dy)
+                is EpubBlockBox -> command.copy(y = command.y + dy)
+                is EpubRuleLine -> command.copy(y = command.y + dy)
+                is EpubBullet -> command.copy(baseline = command.baseline + dy)
+                is EpubPageColor -> command
+            }
+        }
+    }
+
     private fun EpubComputedStyle.resolveHorizontalSize(containingWidth: Float): Float? {
         val width = this["width"]?.toCssLengthPx(containingWidth)
             ?.takeIf { it > 0f }
@@ -1546,20 +1598,24 @@ internal class EpubLayoutEngine(
     }
 
     private fun EpubBlockNode.tableColumnWidths(
-        rows: List<EpubBlockNode>,
-        tableWidth: Float,
-        maxColumns: Int
+        grid: TableGrid,
+        tableWidth: Float
     ): List<Float> {
+        val maxColumns = grid.columnCount
         if (maxColumns <= 0) return emptyList()
         val widths = MutableList(maxColumns) { 0f }
-        rows.forEach { row ->
-            row.tableCells().forEachIndexed { index, cell ->
-                if (index >= widths.size) return@forEachIndexed
-                val width = cell.style.resolveHorizontalSize(tableWidth)
+        grid.rows.forEach { row ->
+            row.cells.forEach { gridCell ->
+                val cell = gridCell.node
+                val requestedWidth = cell.style.resolveHorizontalSize(tableWidth)
                     ?: cell.attributes["width"]?.toCssLengthPx(tableWidth)
                     ?: 0f
-                if (width > widths[index]) {
-                    widths[index] = width
+                if (requestedWidth <= 0f) return@forEach
+                val widthPerColumn = requestedWidth / gridCell.colSpan.coerceAtLeast(1)
+                for (index in gridCell.column until (gridCell.column + gridCell.colSpan).coerceAtMost(widths.size)) {
+                    if (widthPerColumn > widths[index]) {
+                        widths[index] = widthPerColumn
+                    }
                 }
             }
         }
@@ -1572,16 +1628,62 @@ internal class EpubLayoutEngine(
         return widths.map { width -> if (width > 0f) width else autoWidth }
     }
 
-    private fun EpubBlockNode.intrinsicTableWidth(rows: List<EpubBlockNode>): Float {
-        return rows.maxOfOrNull { row ->
-            row.tableCells().sumOf { cell ->
-                val span = cell.attributes["colspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    private fun EpubBlockNode.intrinsicTableWidth(grid: TableGrid): Float {
+        return grid.rows.maxOfOrNull { row ->
+            row.cells.sumOf { gridCell ->
+                val cell = gridCell.node
                 val width = cell.style.resolveHorizontalSize(viewportWidth.toFloat())
                     ?: cell.attributes["width"]?.toCssLengthPx(viewportWidth.toFloat())
                     ?: 0f
-                (width * span).toDouble()
+                width.toDouble()
             }.toFloat()
         } ?: 0f
+    }
+
+    private fun List<EpubBlockNode>.buildTableGrid(): TableGrid {
+        val rowSpanSlots = arrayListOf<Int>()
+        val gridRows = map { row ->
+            var column = 0
+            val cells = arrayListOf<TableGridCell>()
+            row.tableCells().forEach { cell ->
+                while (column < rowSpanSlots.size && rowSpanSlots[column] > 0) {
+                    column++
+                }
+                val colSpan = cell.attributes["colspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                val rowSpan = cell.attributes["rowspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                while (rowSpanSlots.size < column + colSpan) {
+                    rowSpanSlots.add(0)
+                }
+                cells.add(
+                    TableGridCell(
+                        node = cell,
+                        column = column,
+                        colSpan = colSpan,
+                        rowSpan = rowSpan
+                    )
+                )
+                if (rowSpan > 1) {
+                    for (index in column until column + colSpan) {
+                        rowSpanSlots[index] = maxOf(rowSpanSlots[index], rowSpan)
+                    }
+                }
+                column += colSpan
+            }
+            rowSpanSlots.indices.forEach { index ->
+                if (rowSpanSlots[index] > 0) rowSpanSlots[index]--
+            }
+            TableGridRow(
+                node = row,
+                cells = cells
+            )
+        }
+        val columnCount = gridRows.maxOfOrNull { row ->
+            row.cells.maxOfOrNull { cell -> cell.column + cell.colSpan } ?: 0
+        } ?: 0
+        return TableGrid(
+            rows = gridRows,
+            columnCount = columnCount
+        )
     }
 
     private fun buildLayoutSnapshotId(href: String): Int {
@@ -1613,6 +1715,34 @@ internal class EpubLayoutEngine(
         val style: BlockStyle,
         val sourcePath: String,
         var openCommandIndex: Int? = null
+    )
+
+    private data class TableGrid(
+        val rows: List<TableGridRow>,
+        val columnCount: Int
+    )
+
+    private data class TableGridRow(
+        val node: EpubBlockNode,
+        val cells: List<TableGridCell>
+    ) {
+        val style: EpubComputedStyle
+            get() = node.style
+    }
+
+    private data class TableGridCell(
+        val node: EpubBlockNode,
+        val column: Int,
+        val colSpan: Int,
+        val rowSpan: Int
+    )
+
+    private data class MeasuredTableCell(
+        val gridCell: TableGridCell,
+        val left: Float,
+        val width: Float,
+        val height: Float,
+        val commands: List<EpubDrawCommand>
     )
 
     private sealed class InlineItem
