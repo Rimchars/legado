@@ -286,7 +286,9 @@ internal class EpubLayoutEngine(
 
     private fun layoutImageNode(node: EpubImageNode, left: Float, width: Float) {
         if (node.isBackground) {
-            if (currentCommands.isNotEmpty()) flushPageIfNeeded(force = true)
+            if (currentCommands.any { it !is EpubPageColor }) {
+                flushPageIfNeeded(force = true)
+            }
             currentCommands.add(
                 EpubImageBox(
                     src = node.src,
