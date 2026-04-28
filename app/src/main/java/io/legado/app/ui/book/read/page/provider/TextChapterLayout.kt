@@ -67,6 +67,7 @@ import io.legado.app.help.TextViewTagHandler
 import io.legado.app.help.TextViewTagHandler.Companion.HR_PLACE_CHAR
 import io.legado.app.help.TextViewTagHandler.Companion.HR_PLACE_STR
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
+import io.legado.app.model.localBook.EpubCss
 import io.legado.app.ui.book.read.page.entities.column.BaseColumn
 import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
 import io.legado.app.ui.book.read.page.provider.ChapterProvider.reviewChar
@@ -742,14 +743,12 @@ class TextChapterLayout(
     private fun Element.epubCssValue(name: String): String {
         val declarations = epubCssDeclarations()
         declarations[name]?.let { return it }
-        val style = attr("style")
-        if (style.isBlank()) return ""
         val shorthand = when {
             name.startsWith("margin-") -> "margin"
             name.startsWith("padding-") -> "padding"
             else -> return ""
         }
-        val values = declarations[shorthand]?.splitCssValueList().orEmpty()
+        val values = declarations[shorthand]?.let { EpubCss.splitValueList(it) }.orEmpty()
         if (values.isEmpty()) return ""
         val top = values.getOrNull(0).orEmpty()
         val right = values.getOrNull(1) ?: top
@@ -765,73 +764,8 @@ class TextChapterLayout(
     }
 
     private fun Element.epubCssDeclarations(): Map<String, String> {
-        val declarations = linkedMapOf<String, String>()
         val style = attr("style")
-        if (style.isBlank()) return declarations
-        style.splitCssDeclarations().forEach { item ->
-            val index = item.indexOf(':')
-            if (index <= 0) return@forEach
-            val key = item.substring(0, index).trim().lowercase()
-            val value = item.substring(index + 1).trim()
-            if (key.isNotBlank() && value.isNotBlank()) declarations[key] = value
-        }
-        return declarations
-    }
-
-    private fun String.splitCssDeclarations(): List<String> {
-        val result = arrayListOf<String>()
-        var quote: Char? = null
-        var parenDepth = 0
-        var start = 0
-        for (index in indices) {
-            val char = this[index]
-            if (quote != null) {
-                if (char == quote && getOrNull(index - 1) != '\\') {
-                    quote = null
-                }
-                continue
-            }
-            when (char) {
-                '\'', '"' -> quote = char
-                '(' -> parenDepth++
-                ')' -> if (parenDepth > 0) parenDepth--
-                ';' -> if (parenDepth == 0) {
-                    result.add(substring(start, index))
-                    start = index + 1
-                }
-            }
-        }
-        if (start <= lastIndex) result.add(substring(start))
-        return result
-    }
-
-    private fun String.splitCssValueList(): List<String> {
-        val result = arrayListOf<String>()
-        var quote: Char? = null
-        var parenDepth = 0
-        var start = 0
-        for (index in indices) {
-            val char = this[index]
-            if (quote != null) {
-                if (char == quote && getOrNull(index - 1) != '\\') {
-                    quote = null
-                }
-                continue
-            }
-            when (char) {
-                '\'', '"' -> quote = char
-                '(' -> parenDepth++
-                ')' -> if (parenDepth > 0) parenDepth--
-                ' ', '\t', '\r', '\n' -> if (parenDepth == 0) {
-                    val item = substring(start, index).trim()
-                    if (item.isNotBlank()) result.add(item)
-                    start = index + 1
-                }
-            }
-        }
-        val last = substring(start).trim()
-        if (last.isNotBlank()) result.add(last)
-        return result
+        return if (style.isBlank()) emptyMap() else EpubCss.declarations(style)
     }
 
     private fun String.isEpubAlwaysBreak(): Boolean {
@@ -986,15 +920,7 @@ class TextChapterLayout(
     private fun Element.cssWidth(): String {
         val style = attr("style")
         if (style.isBlank()) return ""
-        style.split(';').forEach { item ->
-            val index = item.indexOf(':')
-            if (index <= 0) return@forEach
-            val name = item.substring(0, index).trim()
-            if (name.equals("width", ignoreCase = true)) {
-                return item.substring(index + 1).trim()
-            }
-        }
-        return ""
+        return EpubCss.declarations(style)["width"].orEmpty()
     }
 
     private fun Size.applyWidth(width: String): Size {
