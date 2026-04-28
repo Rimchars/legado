@@ -275,6 +275,23 @@ internal class EpubDomBuilder(
                 merged[declaration.name] = value
             }
         }
+        element.attr("align")
+            .trim()
+            .lowercase()
+            .normalizeTextAlign()
+            ?.let { align ->
+                putDeclaration(
+                    declaration = EpubCss.Declaration(
+                        name = "text-align",
+                        value = align,
+                        important = false,
+                        order = -1
+                    ),
+                    sourceRank = -1,
+                    specificity = 0,
+                    ruleOrder = -1
+                )
+            }
         rules.forEach { rule ->
             rule.declarations.forEach { declaration ->
                 putDeclaration(declaration, sourceRank = 0, specificity = rule.specificity, ruleOrder = rule.order)
@@ -284,6 +301,16 @@ internal class EpubDomBuilder(
             putDeclaration(declaration, sourceRank = 1, specificity = 1000, ruleOrder = Int.MAX_VALUE)
         }
         return EpubComputedStyle(merged.resolveBackgroundUrls(baseHref))
+    }
+
+    private fun String.normalizeTextAlign(): String? {
+        return when (this) {
+            "center", "middle", "-webkit-center", "-moz-center" -> "center"
+            "left", "start" -> "left"
+            "right", "end" -> "right"
+            "justify" -> "justify"
+            else -> null
+        }
     }
 
     private fun LinkedHashMap<String, EpubStyleValue>.resolveBackgroundUrls(
