@@ -676,8 +676,8 @@ class TextChapterLayout(
                         }
                     }
                     if (node.isHtmlBlock() && node.hasEpubBlockSpacingAfter()) {
-                        htmlBuffer.append("<br>")
                         flushHtmlBuffer()
+                        addEpubBlockSpacingAfter(node)
                     }
                     if (node.hasEpubPageBreakAfter()) {
                         flushHtmlBuffer()
@@ -698,6 +698,18 @@ class TextChapterLayout(
     private suspend fun addEpubBlockSpacingBefore(element: Element) {
         val spacing = element.epubCssValue("margin-top").toEpubSpacingPx()
             ?: element.epubCssValue("padding-top").toEpubSpacingPx()
+            ?: contentPaintTextHeight
+        if (spacing <= 0f) return
+        prepareNextPageIfNeed(durY + spacing)
+        durY += spacing
+        if (pendingTextPage.height < durY) {
+            pendingTextPage.height = durY
+        }
+    }
+
+    private suspend fun addEpubBlockSpacingAfter(element: Element) {
+        val spacing = element.epubCssValue("margin-bottom").toEpubSpacingPx()
+            ?: element.epubCssValue("padding-bottom").toEpubSpacingPx()
             ?: contentPaintTextHeight
         if (spacing <= 0f) return
         prepareNextPageIfNeed(durY + spacing)
@@ -728,16 +740,98 @@ class TextChapterLayout(
     }
 
     private fun Element.epubCssValue(name: String): String {
+        val declarations = epubCssDeclarations()
+        declarations[name]?.let { return it }
         val style = attr("style")
         if (style.isBlank()) return ""
-        style.split(';').forEach { item ->
+        val shorthand = when {
+            name.startsWith("margin-") -> "margin"
+            name.startsWith("padding-") -> "padding"
+            else -> return ""
+        }
+        val values = declarations[shorthand]?.splitCssValueList().orEmpty()
+        if (values.isEmpty()) return ""
+        val top = values.getOrNull(0).orEmpty()
+        val right = values.getOrNull(1) ?: top
+        val bottom = values.getOrNull(2) ?: top
+        val left = values.getOrNull(3) ?: right
+        return when (name.substringAfter('-')) {
+            "top" -> top
+            "right" -> right
+            "bottom" -> bottom
+            "left" -> left
+            else -> ""
+        }
+    }
+
+    private fun Element.epubCssDeclarations(): Map<String, String> {
+        val declarations = linkedMapOf<String, String>()
+        val style = attr("style")
+        if (style.isBlank()) return declarations
+        style.splitCssDeclarations().forEach { item ->
             val index = item.indexOf(':')
             if (index <= 0) return@forEach
-            if (item.substring(0, index).trim().equals(name, ignoreCase = true)) {
-                return item.substring(index + 1).trim()
+            val key = item.substring(0, index).trim().lowercase()
+            val value = item.substring(index + 1).trim()
+            if (key.isNotBlank() && value.isNotBlank()) declarations[key] = value
+        }
+        return declarations
+    }
+
+    private fun String.splitCssDeclarations(): List<String> {
+        val result = arrayListOf<String>()
+        var quote: Char? = null
+        var parenDepth = 0
+        var start = 0
+        for (index in indices) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                '(' -> parenDepth++
+                ')' -> if (parenDepth > 0) parenDepth--
+                ';' -> if (parenDepth == 0) {
+                    result.add(substring(start, index))
+                    start = index + 1
+                }
             }
         }
-        return ""
+        if (start <= lastIndex) result.add(substring(start))
+        return result
+    }
+
+    private fun String.splitCssValueList(): List<String> {
+        val result = arrayListOf<String>()
+        var quote: Char? = null
+        var parenDepth = 0
+        var start = 0
+        for (index in indices) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                '(' -> parenDepth++
+                ')' -> if (parenDepth > 0) parenDepth--
+                ' ', '\t', '\r', '\n' -> if (parenDepth == 0) {
+                    val item = substring(start, index).trim()
+                    if (item.isNotBlank()) result.add(item)
+                    start = index + 1
+                }
+            }
+        }
+        val last = substring(start).trim()
+        if (last.isNotBlank()) result.add(last)
+        return result
     }
 
     private fun String.isEpubAlwaysBreak(): Boolean {
