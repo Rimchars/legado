@@ -107,6 +107,7 @@ class TextChapterLayout(
     private val paragraphSpacing = ChapterProvider.paragraphSpacing
 
     private val visibleHeight = ChapterProvider.visibleHeight
+    private val viewHeight = ChapterProvider.viewHeight
     private val visibleWidth = ChapterProvider.visibleWidth
 
     private val viewWidth = ChapterProvider.viewWidth
@@ -860,8 +861,8 @@ class TextChapterLayout(
                 prepareNextPageIfNeed()
             }
             pendingTextPage.epubBackgroundSrc = src
-            if (pendingTextPage.height < visibleHeight) {
-                pendingTextPage.height = visibleHeight.toFloat()
+            if (pendingTextPage.height < viewHeight) {
+                pendingTextPage.height = viewHeight.toFloat()
             }
             return
         }
