@@ -646,8 +646,14 @@ class TextChapterLayout(
                 setTypeEpubDiagnosticPage(reason, rawNativeEntry.take(180))
                 return true
             }
-        val href = wrapper.attr("data-href").trim()
-        if (href.isBlank()) {
+        val hrefs = wrapper.attr("data-hrefs")
+            .takeIf { it.isNotBlank() }
+            ?.split("|")
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.distinct()
+            ?: listOf(wrapper.attr("data-href").trim()).filter { it.isNotBlank() }
+        if (hrefs.isEmpty()) {
             val reason = "data-href 为空"
             AppLog.put(
                 "EPUB Native Layout error: $reason, " +
@@ -658,32 +664,36 @@ class TextChapterLayout(
         }
         AppLog.put(
             "EPUB Native Layout request: chapter=${bookChapter.index}:${bookChapter.title}, " +
-                "href=$href, view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
+                "hrefs=${hrefs.joinToString()}, view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
         )
-        val layout = EpubFile.getNativeLayout(book, href) ?: run {
-            val reason = "getNativeLayout 返回 null"
+        var rendered = false
+        hrefs.forEach { href ->
+            val layout = EpubFile.getNativeLayout(book, href) ?: run {
+                AppLog.put(
+                    "EPUB Native Layout skip: getNativeLayout 返回 null, " +
+                        "chapter=${bookChapter.index}:${bookChapter.title}, href=$href, " +
+                        "view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
+                )
+                return@forEach
+            }
+            if (layout.pages.isEmpty()) {
+                AppLog.put(
+                    "EPUB Native Layout skip: layout 页数为 0, " +
+                        "chapter=${bookChapter.index}:${bookChapter.title}, href=$href"
+                )
+                return@forEach
+            }
             AppLog.put(
-                "EPUB Native Layout error: $reason, " +
-                    "chapter=${bookChapter.index}:${bookChapter.title}, href=$href, " +
-                    "view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
+                "EPUB Native Layout success: chapter=${bookChapter.index}:${bookChapter.title}, " +
+                    "href=$href, pages=${layout.pages.size}"
             )
-            setTypeEpubDiagnosticPage(reason, "href=$href")
-            return true
+            setTypeNativeEpubLayout(layout)
+            rendered = true
         }
-        if (layout.pages.isEmpty()) {
-            val reason = "layout 页数为 0"
-            AppLog.put(
-                "EPUB Native Layout error: $reason, " +
-                    "chapter=${bookChapter.index}:${bookChapter.title}, href=$href"
-            )
-            setTypeEpubDiagnosticPage(reason, "href=$href")
-            return true
+        if (!rendered) {
+            val reason = "getNativeLayout 全部返回空"
+            setTypeEpubDiagnosticPage(reason, "hrefs=${hrefs.joinToString()}")
         }
-        AppLog.put(
-            "EPUB Native Layout success: chapter=${bookChapter.index}:${bookChapter.title}, " +
-                "href=$href, pages=${layout.pages.size}"
-        )
-        setTypeNativeEpubLayout(layout)
         return true
     }
 
