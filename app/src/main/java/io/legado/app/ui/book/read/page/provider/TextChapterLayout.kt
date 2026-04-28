@@ -356,11 +356,15 @@ class TextChapterLayout(
                 if (text == "[newpage]") {
                     prepareNextPageIfNeed()
                     return@forEach
+                } else if (text.startsWith(EpubFile.NATIVE_CONTENT_FLAG)) {
+                    setTypeNativeEpubLayout(text)
+                    return@forEach
                 } else if (text.startsWith("<usehtml")) {
                     val contentStart = text.indexOf('>')
                     val contentEnd = text.lastIndexOf("<")
                     if (contentStart >= 0 && contentEnd > contentStart) {
-                        if (setTypeNativeEpubLayout(text)) {
+                        if (book.isEpub) {
+                            setTypeEpubDiagnosticPage("旧 EPUB 缓存仍是 usehtml，请重新打开或刷新章节缓存", text.take(180))
                             return@forEach
                         }
                         setTypeHtml(imageStyle, book, text.substring(contentStart + 1, contentEnd))
@@ -627,45 +631,53 @@ class TextChapterLayout(
     /**
      * 排版html样式
      */
-    private suspend fun setTypeNativeEpubLayout(rawUseHtml: String): Boolean {
+    private suspend fun setTypeNativeEpubLayout(rawNativeEntry: String): Boolean {
         if (!book.isEpub) {
-            AppLog.put("EPUB Native Layout fallback: 当前书籍不是 EPUB, book=${book.name}")
+            AppLog.put("EPUB Native Layout abort: 当前书籍不是 EPUB, book=${book.name}")
             return false
         }
-        val wrapper = Jsoup.parse(rawUseHtml).selectFirst("usehtml[data-epub-native-href]")
+        val wrapper = Jsoup.parse(rawNativeEntry).selectFirst("epub-native[data-href]")
             ?: run {
+                val reason = "未找到 epub-native[data-href]"
                 AppLog.put(
-                    "EPUB Native Layout fallback: 未找到 data-epub-native-href, " +
-                        "chapter=${bookChapter.index}:${bookChapter.title}, rawHead=${rawUseHtml.take(160)}"
+                    "EPUB Native Layout error: $reason, " +
+                        "chapter=${bookChapter.index}:${bookChapter.title}, rawHead=${rawNativeEntry.take(160)}"
                 )
-                return false
+                setTypeEpubDiagnosticPage(reason, rawNativeEntry.take(180))
+                return true
             }
-        val href = wrapper.attr("data-epub-native-href").trim()
+        val href = wrapper.attr("data-href").trim()
         if (href.isBlank()) {
+            val reason = "data-href 为空"
             AppLog.put(
-                "EPUB Native Layout fallback: data-epub-native-href 为空, " +
+                "EPUB Native Layout error: $reason, " +
                     "chapter=${bookChapter.index}:${bookChapter.title}"
             )
-            return false
+            setTypeEpubDiagnosticPage(reason, rawNativeEntry.take(180))
+            return true
         }
         AppLog.put(
             "EPUB Native Layout request: chapter=${bookChapter.index}:${bookChapter.title}, " +
                 "href=$href, view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
         )
         val layout = EpubFile.getNativeLayout(book, href) ?: run {
+            val reason = "getNativeLayout 返回 null"
             AppLog.put(
-                "EPUB Native Layout fallback: getNativeLayout 返回 null, " +
+                "EPUB Native Layout error: $reason, " +
                     "chapter=${bookChapter.index}:${bookChapter.title}, href=$href, " +
                     "view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
             )
-            return false
+            setTypeEpubDiagnosticPage(reason, "href=$href")
+            return true
         }
         if (layout.pages.isEmpty()) {
+            val reason = "layout 页数为 0"
             AppLog.put(
-                "EPUB Native Layout fallback: layout 页数为 0, " +
+                "EPUB Native Layout error: $reason, " +
                     "chapter=${bookChapter.index}:${bookChapter.title}, href=$href"
             )
-            return false
+            setTypeEpubDiagnosticPage(reason, "href=$href")
+            return true
         }
         AppLog.put(
             "EPUB Native Layout success: chapter=${bookChapter.index}:${bookChapter.title}, " +
@@ -673,6 +685,36 @@ class TextChapterLayout(
         )
         setTypeNativeEpubLayout(layout)
         return true
+    }
+
+
+    private suspend fun setTypeEpubDiagnosticPage(reason: String, detail: String) {
+        if (pendingTextPage.lines.isNotEmpty() ||
+            pendingTextPage.epubNativeCommands.isNotEmpty() ||
+            pendingTextPage.hasEpubBackground() ||
+            stringBuilder.isNotBlank()
+        ) {
+            prepareNextPageIfNeed()
+        }
+        val message = buildString {
+            append("EPUB 原生排版失败")
+            append("\n")
+            append(reason)
+            if (detail.isNotBlank()) {
+                append("\n")
+                append(detail)
+            }
+        }
+        setTypeText(
+            book = book,
+            text = message,
+            textPaint = contentPaint,
+            textHeight = contentPaintTextHeight,
+            fontMetrics = contentPaintFontMetrics,
+            imageStyle = Book.imgStyleDefault,
+            clickList = null
+        )
+        prepareNextPageIfNeed()
     }
 
     private suspend fun setTypeNativeEpubLayout(layout: EpubLayoutDocument) {
