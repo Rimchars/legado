@@ -476,14 +476,17 @@ data class TextPage(
             ?.split(' ', '\t')
             ?.filter { it.isNotBlank() }
             .orEmpty()
-        var horizontal = 0f
-        var vertical = 0f
+        var horizontal: Float? = null
+        var vertical: Float? = null
         tokens.forEach { token ->
             when (token) {
                 "left" -> horizontal = 0f
                 "center" -> {
-                    horizontal = (targetWidth - drawWidth) / 2f
-                    vertical = (targetHeight - drawHeight) / 2f
+                    if (horizontal == null) {
+                        horizontal = (targetWidth - drawWidth) / 2f
+                    } else if (vertical == null) {
+                        vertical = (targetHeight - drawHeight) / 2f
+                    }
                 }
                 "right" -> horizontal = targetWidth - drawWidth
                 "top" -> vertical = 0f
@@ -499,11 +502,8 @@ data class TextPage(
                 }
             }
         }
-        if (tokens.isEmpty()) {
-            horizontal = (targetWidth - drawWidth) / 2f
-            vertical = (targetHeight - drawHeight) / 2f
-        }
-        return horizontal to vertical
+        return (horizontal ?: (targetWidth - drawWidth) / 2f) to
+            (vertical ?: (targetHeight - drawHeight) / 2f)
     }
 
     private fun String.cssBackgroundLength(relativeTo: Float): Float? {
