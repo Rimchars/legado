@@ -627,6 +627,9 @@ data class TextPage(
 
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
+        if ((epubNativeCommands.isNotEmpty() || hasEpubBackground()) && !canvasRecorder.needRecord()) {
+            return false
+        }
         val pageHeight = if (epubNativeCommands.isNotEmpty() || hasEpubBackground()) {
             height.toInt().coerceAtLeast(renderHeight).coerceAtLeast(1)
         } else {

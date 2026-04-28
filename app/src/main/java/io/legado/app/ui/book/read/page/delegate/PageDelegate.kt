@@ -8,6 +8,8 @@ import android.widget.Scroller
 import androidx.annotation.CallSuper
 import com.google.android.material.snackbar.Snackbar
 import io.legado.app.R
+import io.legado.app.help.book.isEpub
+import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.page.PageView
 import io.legado.app.ui.book.read.page.ReadView
 import io.legado.app.ui.book.read.page.entities.PageDirection
@@ -191,6 +193,7 @@ abstract class PageDelegate(protected val readView: ReadView) {
     }
 
     fun postInvalidate() {
+        if (ReadBook.book?.isEpub == true) return
         if (isStarted && isRunning && this is HorizontalPageDelegate) {
             readView.post {
                 if (isStarted && isRunning) {
