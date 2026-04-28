@@ -12,10 +12,17 @@ internal object EpubCss {
         "font-size",
         "font-family",
         "font",
+        "font-variant",
+        "font-variant-caps",
+        "font-stretch",
+        "font-size-adjust",
         "text-indent",
         "text-transform",
+        "text-orientation",
         "text-decoration",
         "text-decoration-line",
+        "text-decoration-color",
+        "text-decoration-style",
         "line-height",
         "text-shadow",
         "box-shadow",
@@ -23,11 +30,20 @@ internal object EpubCss {
         "letter-spacing",
         "word-spacing",
         "white-space",
+        "word-break",
+        "overflow-wrap",
+        "word-wrap",
+        "hyphens",
+        "direction",
+        "unicode-bidi",
+        "writing-mode",
         "vertical-align",
         "page-break-before",
         "page-break-after",
+        "page-break-inside",
         "break-before",
         "break-after",
+        "break-inside",
         "margin",
         "margin-left",
         "margin-right",
@@ -51,6 +67,7 @@ internal object EpubCss {
         "background-attachment",
         "background-clip",
         "background-origin",
+        "background-blend-mode",
         "border",
         "border-left",
         "border-right",
@@ -82,17 +99,33 @@ internal object EpubCss {
         "overflow-y",
         "object-fit",
         "object-position",
+        "float",
+        "clear",
+        "position",
+        "left",
+        "right",
+        "top",
+        "bottom",
+        "z-index",
         "list-style",
         "list-style-type",
+        "list-style-position",
+        "list-style-image",
         "border-collapse",
         "border-spacing",
+        "empty-cells",
+        "table-layout",
         "caption-side",
+        "display-inside",
+        "display-outside",
         "width",
         "height",
         "min-width",
         "min-height",
         "max-width",
-        "max-height"
+        "max-height",
+        "orphans",
+        "widows"
     )
 
     data class Rule(
@@ -179,6 +212,7 @@ internal object EpubCss {
         }
         return declarations
             .expandFontShorthand()
+            .expandTextDecorationShorthand()
             .expandBorderShorthand()
             .expandBorderRadiusShorthand()
             .expandBackgroundShorthand()
@@ -330,6 +364,30 @@ internal object EpubCss {
         return expanded
     }
 
+    private fun List<Declaration>.expandTextDecorationShorthand(): List<Declaration> {
+        val expanded = arrayListOf<Declaration>()
+        forEach { declaration ->
+            expanded.add(declaration)
+            if (declaration.name != "text-decoration") return@forEach
+            val tokens = splitValueList(declaration.value)
+            val line = tokens.filter { it.lowercase(Locale.ROOT) in textDecorationLines }
+                .joinToString(" ")
+                .takeIf { it.isNotBlank() }
+            val style = tokens.firstOrNull { it.lowercase(Locale.ROOT) in textDecorationStyles }
+            val color = tokens.firstOrNull { it.isCssColorToken() }
+            line?.let {
+                expanded.add(declaration.copy(name = "text-decoration-line", value = it, order = expanded.size))
+            }
+            style?.let {
+                expanded.add(declaration.copy(name = "text-decoration-style", value = it, order = expanded.size))
+            }
+            color?.let {
+                expanded.add(declaration.copy(name = "text-decoration-color", value = it, order = expanded.size))
+            }
+        }
+        return expanded
+    }
+
     private fun List<Declaration>.expandBackgroundShorthand(): List<Declaration> {
         val expanded = arrayListOf<Declaration>()
         forEach { declaration ->
@@ -360,10 +418,21 @@ internal object EpubCss {
         forEach { declaration ->
             expanded.add(declaration)
             if (declaration.name != "list-style") return@forEach
-            val type = splitValueList(declaration.value)
-                .firstOrNull { it.lowercase(Locale.ROOT) in listStyleTypes }
+            val tokens = splitValueList(declaration.value)
+            val type = tokens.firstOrNull { it.lowercase(Locale.ROOT) in listStyleTypes }
+            val position = tokens.firstOrNull {
+                val lower = it.lowercase(Locale.ROOT)
+                lower == "inside" || lower == "outside"
+            }
+            val image = declaration.value.extractCssUrl()
             type?.let {
                 expanded.add(declaration.copy(name = "list-style-type", value = it, order = expanded.size))
+            }
+            position?.let {
+                expanded.add(declaration.copy(name = "list-style-position", value = it, order = expanded.size))
+            }
+            image?.let {
+                expanded.add(declaration.copy(name = "list-style-image", value = "url('$it')", order = expanded.size))
             }
         }
         return expanded
@@ -440,6 +509,15 @@ internal object EpubCss {
             lower.endsWith("px") ||
             lower.endsWith("em") ||
             lower.endsWith("rem") ||
+            lower.endsWith("pt") ||
+            lower.endsWith("pc") ||
+            lower.endsWith("in") ||
+            lower.endsWith("cm") ||
+            lower.endsWith("mm") ||
+            lower.endsWith("vw") ||
+            lower.endsWith("vh") ||
+            lower.endsWith("vmin") ||
+            lower.endsWith("vmax") ||
             lower.endsWith("%") ||
             lower.toFloatOrNull() != null
     }
@@ -448,6 +526,7 @@ internal object EpubCss {
         val lower = lowercase(Locale.ROOT)
         return lower.startsWith("#") ||
             lower.startsWith("rgb") ||
+            lower.startsWith("hsl") ||
             lower == "transparent" ||
             lower in namedColorTokens
     }
@@ -513,6 +592,15 @@ internal object EpubCss {
                 lower.endsWith("px") ||
                 lower.endsWith("em") ||
                 lower.endsWith("rem") ||
+                lower.endsWith("pt") ||
+                lower.endsWith("pc") ||
+                lower.endsWith("in") ||
+                lower.endsWith("cm") ||
+                lower.endsWith("mm") ||
+                lower.endsWith("vw") ||
+                lower.endsWith("vh") ||
+                lower.endsWith("vmin") ||
+                lower.endsWith("vmax") ||
                 token.toFloatOrNull() != null
         }
         return positionTokens.take(2).joinToString(" ").takeIf { it.isNotBlank() }
@@ -698,6 +786,10 @@ internal object EpubCss {
     )
 
     private val borderWidthKeywords = setOf("thin", "medium", "thick")
+
+    private val textDecorationLines = setOf("none", "underline", "overline", "line-through", "blink")
+
+    private val textDecorationStyles = setOf("solid", "double", "dotted", "dashed", "wavy")
 
     private val backgroundRepeatTokens = setOf("repeat", "repeat-x", "repeat-y", "no-repeat", "space", "round")
 

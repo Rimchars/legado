@@ -61,6 +61,9 @@ internal class EpubLayoutEngine(
             return
         }
         val style = node.style
+        if (style.shouldForceBreakBefore() && currentCommands.isNotEmpty()) {
+            flushPageIfNeeded(force = true)
+        }
         val marginTop = style.verticalLengthPx("margin-top", width)
         val marginBottom = style.verticalLengthPx("margin-bottom", width)
         val paddingTop = style.verticalLengthPx("padding-top", width)
@@ -117,6 +120,7 @@ internal class EpubLayoutEngine(
                     backgroundColor = blockStyle.backgroundColor,
                     borderColor = blockStyle.borderColor,
                     borderWidth = borderWidth,
+                    borderStyle = blockStyle.borderStyle,
                     radius = blockStyle.radius,
                     shadow = blockStyle.shadow,
                     sourcePath = node.sourcePath
@@ -182,6 +186,10 @@ internal class EpubLayoutEngine(
             }
         }
         cursorY += marginBottom
+        if (style.shouldForceBreakAfter()) {
+            flushPageIfNeeded(force = true)
+            return
+        }
         flushPageIfNeeded()
     }
 
@@ -216,6 +224,7 @@ internal class EpubLayoutEngine(
                     backgroundColor = blockStyle.backgroundColor,
                     borderColor = blockStyle.borderColor,
                     borderWidth = style.borderWidthPx(),
+                    borderStyle = blockStyle.borderStyle,
                     radius = blockStyle.radius,
                     shadow = blockStyle.shadow,
                     sourcePath = node.sourcePath
@@ -326,7 +335,9 @@ internal class EpubLayoutEngine(
                                 bold = false,
                                 italic = false,
                                 underline = false,
+                                overline = false,
                                 strikeThrough = false,
+                                decorationColor = null,
                                 baselineShift = item.image.style.baselineShiftPx(),
                                 shadow = null,
                                 sourcePath = item.image.sourcePath
@@ -346,7 +357,7 @@ internal class EpubLayoutEngine(
                     val itemLineHeight = lineHeight(item.style)
                     normalized.forEach { char ->
                         val value = char.toString()
-                        val charWidth = paint.measureText(value)
+                        val charWidth = paint.measureText(value) + item.style.extraCharacterSpacing(value)
                         if (lineSegments.isNotEmpty() && lineWidth + charWidth > lineWidthLimit) {
                             flushLine()
                         }
@@ -363,7 +374,9 @@ internal class EpubLayoutEngine(
                                 bold = item.style.isBold(),
                                 italic = item.style.isItalic(),
                                 underline = item.style.hasTextDecoration("underline"),
+                                overline = item.style.hasTextDecoration("overline"),
                                 strikeThrough = item.style.hasTextDecoration("line-through"),
+                                decorationColor = item.style.colorInt("text-decoration-color"),
                                 baselineShift = item.style.baselineShiftPx(),
                                 shadow = item.style.textShadow(),
                                 sourcePath = item.sourcePath
@@ -405,7 +418,9 @@ internal class EpubLayoutEngine(
                 last.bold == segment.bold &&
                 last.italic == segment.italic &&
                 last.underline == segment.underline &&
+                last.overline == segment.overline &&
                 last.strikeThrough == segment.strikeThrough &&
+                last.decorationColor == segment.decorationColor &&
                 last.baselineShift == segment.baselineShift &&
                 last.shadow == segment.shadow &&
                 last.sourcePath == segment.sourcePath
@@ -443,7 +458,9 @@ internal class EpubLayoutEngine(
                         bold = segment.bold,
                         italic = segment.italic,
                         underline = segment.underline,
+                        overline = segment.overline,
                         strikeThrough = segment.strikeThrough,
+                        decorationColor = segment.decorationColor,
                         baselineShift = segment.baselineShift,
                         shadow = segment.shadow,
                         sourcePath = segment.sourcePath
@@ -477,6 +494,8 @@ internal class EpubLayoutEngine(
                     backgroundSize = node.style.backgroundSizeValue(),
                     backgroundPosition = node.style.backgroundPositionValue(),
                     backgroundRepeat = node.style.backgroundRepeatValue(),
+                    objectFit = null,
+                    objectPosition = null,
                     sourcePath = node.sourcePath
                 )
             )
@@ -508,6 +527,8 @@ internal class EpubLayoutEngine(
                 width = imageWidth.coerceAtLeast(1f),
                 height = imageHeight.coerceAtLeast(1f),
                 isBackground = false,
+                objectFit = node.style["object-fit"],
+                objectPosition = node.style["object-position"],
                 sourcePath = node.sourcePath
             )
         )
@@ -560,11 +581,13 @@ internal class EpubLayoutEngine(
     private fun EpubComputedStyle.blockStyle(): BlockStyle? {
         val backgroundColor = colorInt("background-color") ?: backgroundColor()
         val borderColor = colorInt("border-color") ?: borderColor()
+        val borderStyle = borderStyle()
         val shadow = boxShadow()
         if (backgroundColor == null && borderColor == null && shadow == null) return null
         return BlockStyle(
             backgroundColor = backgroundColor,
             borderColor = borderColor,
+            borderStyle = borderStyle,
             radius = lengthPx("border-radius", viewportWidth.toFloat()),
             shadow = shadow
         )
@@ -640,6 +663,7 @@ internal class EpubLayoutEngine(
     }
 
     private fun EpubComputedStyle.borderWidthPx(): Float {
+        if (borderStyle() == "none" || borderStyle() == "hidden") return 0f
         return this["border-width"]?.toCssBorderWidthPx(viewportWidth.toFloat())
             ?: this["border"]?.extractCssLength()?.toCssLengthPx(viewportWidth.toFloat())
             ?: this["border-top-width"]?.toCssBorderWidthPx(viewportWidth.toFloat())
@@ -681,7 +705,7 @@ internal class EpubLayoutEngine(
     }
 
     private fun EpubComputedStyle.textShadow(): EpubShadow? {
-        return this["text-shadow"]?.toCssShadow()
+        return this["text-shadow"]?.toCssShadow()?.withOpacity(opacity())
     }
 
     private fun EpubComputedStyle.boxShadow(): EpubShadow? {
@@ -701,6 +725,26 @@ internal class EpubLayoutEngine(
     private fun EpubComputedStyle.hasTextDecoration(name: String): Boolean {
         return this["text-decoration"]?.lowercase(Locale.ROOT)?.contains(name) == true ||
             this["text-decoration-line"]?.lowercase(Locale.ROOT)?.contains(name) == true
+    }
+
+    private fun EpubComputedStyle.shouldForceBreakBefore(): Boolean {
+        val value = this["break-before"] ?: this["page-break-before"] ?: return false
+        return value.trim().lowercase(Locale.ROOT) in forcedBreakValues
+    }
+
+    private fun EpubComputedStyle.shouldForceBreakAfter(): Boolean {
+        val value = this["break-after"] ?: this["page-break-after"] ?: return false
+        return value.trim().lowercase(Locale.ROOT) in forcedBreakValues
+    }
+
+    private fun EpubComputedStyle.borderStyle(): String? {
+        val style = this["border-style"]
+            ?: this["border-top-style"]
+            ?: this["border-right-style"]
+            ?: this["border-bottom-style"]
+            ?: this["border-left-style"]
+            ?: this["border"]?.extractCssBorderStyle()
+        return style?.lowercase(Locale.ROOT)
     }
 
     private fun EpubComputedStyle.listMarkerText(): String? {
@@ -796,8 +840,27 @@ internal class EpubLayoutEngine(
             clean.endsWith("em") -> clean.dropLast(2).toFloatOrNull()?.let { basePaint.textSize * it }
             clean.endsWith("rem") -> clean.dropLast(3).toFloatOrNull()?.let { basePaint.textSize * it }
             clean.endsWith("px") -> clean.dropLast(2).toFloatOrNull()
+            clean.endsWith("pt") -> clean.dropLast(2).toFloatOrNull()?.let { it * 4f / 3f }
+            clean.endsWith("pc") -> clean.dropLast(2).toFloatOrNull()?.let { it * 16f }
+            clean.endsWith("in") -> clean.dropLast(2).toFloatOrNull()?.let { it * 96f }
+            clean.endsWith("cm") -> clean.dropLast(2).toFloatOrNull()?.let { it * 96f / 2.54f }
+            clean.endsWith("mm") -> clean.dropLast(2).toFloatOrNull()?.let { it * 96f / 25.4f }
+            clean.endsWith("vw") -> clean.dropLast(2).toFloatOrNull()?.let { viewportWidth * it / 100f }
+            clean.endsWith("vh") -> clean.dropLast(2).toFloatOrNull()?.let { viewportHeight * it / 100f }
+            clean.endsWith("vmin") -> clean.dropLast(4).toFloatOrNull()?.let { minOf(viewportWidth, viewportHeight) * it / 100f }
+            clean.endsWith("vmax") -> clean.dropLast(4).toFloatOrNull()?.let { maxOf(viewportWidth, viewportHeight) * it / 100f }
             else -> clean.toFloatOrNull()
         }
+    }
+
+    private fun EpubComputedStyle.extraCharacterSpacing(text: String): Float {
+        val letterSpacing = this["letter-spacing"]?.toCssLengthPx(basePaint.textSize) ?: 0f
+        val wordSpacing = if (text == " ") {
+            this["word-spacing"]?.toCssLengthPx(basePaint.textSize) ?: 0f
+        } else {
+            0f
+        }
+        return letterSpacing + wordSpacing
     }
 
     private fun String.toCssBorderWidthPx(relativeTo: Float): Float? {
@@ -834,6 +897,11 @@ internal class EpubLayoutEngine(
                 value.endsWith("px", true) || value.endsWith("em", true) ||
                     value.endsWith("rem", true) || value.toFloatOrNull() != null
             }
+    }
+
+    private fun String.extractCssBorderStyle(): String? {
+        return EpubCss.splitValueList(this)
+            .firstOrNull { token -> token.lowercase(Locale.ROOT) in borderStyleTokens }
     }
 
     private fun String.extractCssColor(): String? {
@@ -873,6 +941,10 @@ internal class EpubLayoutEngine(
     }
 
     private fun String.transformCssText(style: EpubComputedStyle): String {
+        val variant = style["font-variant-caps"] ?: style["font-variant"]
+        if (variant?.contains("small-caps", ignoreCase = true) == true) {
+            return uppercase(Locale.ROOT)
+        }
         return when (style["text-transform"]?.trim()?.lowercase(Locale.ROOT)) {
             "uppercase" -> uppercase(Locale.ROOT)
             "lowercase" -> lowercase(Locale.ROOT)
@@ -909,6 +981,7 @@ internal class EpubLayoutEngine(
         val clean = trim()
         return when {
             clean.startsWith("rgba", true) || clean.startsWith("rgb", true) -> clean.parseRgbCssColor()
+            clean.startsWith("hsla", true) || clean.startsWith("hsl", true) -> clean.parseHslCssColor()
             clean.startsWith("#") -> runCatching { Color.parseColor(clean.normalizeHexColor()) }.getOrNull()
             else -> clean.toNamedCssColor()?.let { runCatching { Color.parseColor(it) }.getOrNull() }
         }
@@ -957,6 +1030,41 @@ internal class EpubLayoutEngine(
             }
         } ?: 255
         return Color.argb(alpha.coerceIn(0, 255), component(parts[0]), component(parts[1]), component(parts[2]))
+    }
+
+    private fun String.parseHslCssColor(): Int? {
+        val start = indexOf('(')
+        val end = lastIndexOf(')')
+        if (start < 0 || end <= start) return null
+        val parts = substring(start + 1, end)
+            .replace(",", " ")
+            .split(' ', '/')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (parts.size < 3) return null
+        val hue = parts[0].removeSuffix("deg").toFloatOrNull()?.let { ((it % 360f) + 360f) % 360f } ?: return null
+        val saturation = parts[1].removeSuffix("%").toFloatOrNull()?.div(100f)?.coerceIn(0f, 1f) ?: return null
+        val lightness = parts[2].removeSuffix("%").toFloatOrNull()?.div(100f)?.coerceIn(0f, 1f) ?: return null
+        val alpha = parts.getOrNull(3)?.let { value ->
+            if (value.endsWith("%")) {
+                ((value.dropLast(1).toFloatOrNull() ?: 100f) * 2.55f).toInt()
+            } else {
+                ((value.toFloatOrNull() ?: 1f) * 255f).toInt()
+            }
+        } ?: 255
+        val chroma = (1f - kotlin.math.abs(2f * lightness - 1f)) * saturation
+        val x = chroma * (1f - kotlin.math.abs((hue / 60f) % 2f - 1f))
+        val m = lightness - chroma / 2f
+        val (r1, g1, b1) = when {
+            hue < 60f -> Triple(chroma, x, 0f)
+            hue < 120f -> Triple(x, chroma, 0f)
+            hue < 180f -> Triple(0f, chroma, x)
+            hue < 240f -> Triple(0f, x, chroma)
+            hue < 300f -> Triple(x, 0f, chroma)
+            else -> Triple(chroma, 0f, x)
+        }
+        fun channel(value: Float): Int = ((value + m) * 255f).toInt().coerceIn(0, 255)
+        return Color.argb(alpha.coerceIn(0, 255), channel(r1), channel(g1), channel(b1))
     }
 
     private fun String.toNamedCssColor(): String? {
@@ -1069,6 +1177,7 @@ internal class EpubLayoutEngine(
     private data class BlockStyle(
         val backgroundColor: Int?,
         val borderColor: Int?,
+        val borderStyle: String?,
         val radius: Float,
         val shadow: EpubShadow?
     )
@@ -1108,7 +1217,9 @@ internal class EpubLayoutEngine(
         val bold: Boolean,
         val italic: Boolean,
         val underline: Boolean,
+        val overline: Boolean,
         val strikeThrough: Boolean,
+        val decorationColor: Int?,
         val baselineShift: Float,
         val shadow: EpubShadow?,
         val sourcePath: String
@@ -1116,6 +1227,10 @@ internal class EpubLayoutEngine(
 
     private companion object {
         val backgroundPositionKeywords = setOf("left", "center", "right", "top", "bottom")
+        val borderStyleTokens = setOf(
+            "none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"
+        )
+        val forcedBreakValues = setOf("always", "page", "left", "right", "recto", "verso")
     }
 
 }

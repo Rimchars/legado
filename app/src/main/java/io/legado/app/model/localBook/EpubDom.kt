@@ -46,15 +46,21 @@ internal data class EpubComputedStyle(
             "font-size",
             "font-style",
             "font-weight",
+            "font-variant",
+            "font-variant-caps",
             "letter-spacing",
             "line-height",
             "text-align",
             "text-decoration",
+            "text-decoration-color",
+            "text-decoration-line",
+            "text-decoration-style",
             "text-shadow",
             "text-indent",
             "text-transform",
             "visibility",
             "white-space",
+            "word-break",
             "word-spacing"
         )
     }
