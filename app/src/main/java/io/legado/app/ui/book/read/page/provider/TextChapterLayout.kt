@@ -188,6 +188,9 @@ class TextChapterLayout(
             } ?: 0
         textPage.isCompleted = true
         textPage.textChapter = textChapter
+        if (textPage.hasEpubBackground()) {
+            textPage.height = textPage.height.coerceAtLeast(viewHeight.toFloat())
+        }
         textPage.upLinesPosition()
         textPage.upRenderHeight()
         textPages.add(textPage)

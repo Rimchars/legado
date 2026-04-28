@@ -281,8 +281,23 @@ object ThemePackageManager {
     private fun resolvePath(path: String?, dir: File): String? {
         if (path.isNullOrBlank() || path.startsWith("http", ignoreCase = true)) return path
         val file = File(path)
-        if (file.isAbsolute) return path
-        return File(dir, path).absolutePath
+        if (file.isAbsolute) {
+            if (file.exists()) return path
+            findPackagedAsset(dir, file.name)?.let { return it.absolutePath }
+            return path
+        }
+        val packagedFile = File(dir, path)
+        if (packagedFile.exists()) return packagedFile.absolutePath
+        findPackagedAsset(dir, file.name)?.let { return it.absolutePath }
+        return packagedFile.absolutePath
+    }
+
+    private fun findPackagedAsset(dir: File, fileName: String): File? {
+        if (fileName.isBlank()) return null
+        val lowerName = fileName.lowercase()
+        return dir.walkTopDown().firstOrNull { file ->
+            file.isFile && file.name.lowercase() == lowerName
+        }
     }
 
     fun localDir(isNightTheme: Boolean, dirName: String): File {
