@@ -888,11 +888,12 @@ class TextChapterLayout(
         }
         if (rowHtml.isEmpty()) {
             val text = toReadableInlineHtml()
-            return if (text.isBlank()) "" else """<p align="${htmlAlign()}">$text</p>"""
+            val align = htmlAlignOrNull()?.let { """ align="$it"""" }.orEmpty()
+            return if (text.isBlank()) "" else """<p$align>$text</p>"""
         }
-        val align = htmlAlign()
+        val align = htmlAlignOrNull()?.let { """ align="$it"""" }.orEmpty()
         return rowHtml.joinToString("") { row ->
-            """<p align="$align">$row</p>"""
+            """<p$align>$row</p>"""
         }
     }
 
@@ -922,24 +923,6 @@ class TextChapterLayout(
         val own = builder.toString().trim()
         if (own.isNotBlank()) return own
         return ownText().trim()
-    }
-
-    private fun Element.htmlAlign(): String {
-        attr("align").trim().lowercase().takeIf { it in setOf("left", "center", "right") }?.let {
-            return it
-        }
-        val style = attr("style")
-        if (style.isBlank()) return "center"
-        style.split(';').forEach { item ->
-            val index = item.indexOf(':')
-            if (index <= 0) return@forEach
-            val name = item.substring(0, index).trim()
-            val value = item.substring(index + 1).trim().lowercase()
-            if (name.equals("text-align", ignoreCase = true) && value in setOf("left", "center", "right")) {
-                return value
-            }
-        }
-        return "center"
     }
 
     private suspend fun setTypeHtmlImage(
@@ -1043,7 +1026,7 @@ class TextChapterLayout(
         if (textPaint.color != textColor) {
             textPaint.color = textColor
         }
-        val alignment = htmlContent.htmlLayoutAlignment()
+        val alignment = htmlContent.epubResourceAlignment()
         val staticLayout = if (atLeastApi28) {
             StaticLayout.Builder.obtain(spanned, 0, spanned.length, textPaint, width)
                 .setAlignment(alignment)
@@ -1323,11 +1306,21 @@ class TextChapterLayout(
         return defaultSize
     }
 
-    private fun String.htmlLayoutAlignment(): Layout.Alignment {
+    private fun String.epubResourceAlignment(): Layout.Alignment {
         val body = Jsoup.parseBodyFragment(this).body()
-        val element = body.children().firstOrNull()
-            ?: return Layout.Alignment.ALIGN_NORMAL
-        return when (element.htmlAlignOrNull()) {
+        var align: String? = null
+        body.children().forEach { element ->
+            if (align != null) return@forEach
+            align = element.htmlAlignOrNull()
+            if (align == null) {
+                element.select("*").forEach { child ->
+                    if (align == null) {
+                        align = child.htmlAlignOrNull()
+                    }
+                }
+            }
+        }
+        return when (align) {
             "center" -> Layout.Alignment.ALIGN_CENTER
             "right" -> Layout.Alignment.ALIGN_OPPOSITE
             else -> Layout.Alignment.ALIGN_NORMAL
