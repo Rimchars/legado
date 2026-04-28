@@ -572,6 +572,18 @@ data class TextPage(
 
     private fun drawEpubNativeBlock(canvas: Canvas, paint: Paint, block: EpubBlockBox) {
         val rect = RectF(block.x, block.y, block.x + block.width, block.y + block.height)
+        block.shadow?.let { shadow ->
+            paint.style = Paint.Style.FILL
+            paint.color = shadow.color
+            val inset = shadow.blur.coerceAtLeast(0f) / 2f
+            val shadowRect = RectF(
+                rect.left + shadow.dx - inset,
+                rect.top + shadow.dy - inset,
+                rect.right + shadow.dx + inset,
+                rect.bottom + shadow.dy + inset
+            )
+            canvas.drawRoundRect(shadowRect, block.radius, block.radius, paint)
+        }
         block.backgroundColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
             paint.style = Paint.Style.FILL
             paint.color = color
@@ -627,7 +639,24 @@ data class TextPage(
         } else {
             ChapterProvider.contentPaint.typeface
         }
+        text.backgroundColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
+            val bgPaint = PaintPool.obtain()
+            bgPaint.style = Paint.Style.FILL
+            bgPaint.color = color
+            canvas.drawRect(
+                text.x,
+                text.y,
+                text.x + text.width,
+                text.y + text.height,
+                bgPaint
+            )
+            PaintPool.recycle(bgPaint)
+        }
+        text.shadow?.let { shadow ->
+            paint.setShadowLayer(shadow.blur, shadow.dx, shadow.dy, shadow.color)
+        }
         canvas.drawText(text.text, text.x, text.baseline + text.baselineShift, paint)
+        paint.clearShadowLayer()
         paint.isUnderlineText = false
         paint.isStrikeThruText = false
     }

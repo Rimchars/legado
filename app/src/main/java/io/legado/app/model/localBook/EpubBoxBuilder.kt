@@ -32,6 +32,7 @@ internal class EpubBoxBuilder {
 
     private fun buildElement(element: EpubDomElement): EpubBoxNode? {
         if (element.style["display"].equals("none", ignoreCase = true)) return null
+        if (element.style["visibility"].equals("hidden", ignoreCase = true)) return null
         element.attributes["data-epub-page-bg"]?.let { color ->
             return EpubPageColorNode(
                 colorValue = color,

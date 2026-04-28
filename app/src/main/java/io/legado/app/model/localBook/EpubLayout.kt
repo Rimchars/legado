@@ -25,14 +25,19 @@ internal data class EpubPageColor(
 internal data class EpubTextRun(
     val text: String,
     val x: Float,
+    val y: Float,
     val baseline: Float,
+    val width: Float,
+    val height: Float,
     val size: Float,
     val color: Int?,
+    val backgroundColor: Int?,
     val bold: Boolean,
     val italic: Boolean,
     val underline: Boolean,
     val strikeThrough: Boolean,
     val baselineShift: Float,
+    val shadow: EpubShadow?,
     override val sourcePath: String
 ) : EpubDrawCommand()
 
@@ -58,8 +63,16 @@ internal data class EpubBlockBox(
     val borderColor: Int?,
     val borderWidth: Float,
     val radius: Float,
+    val shadow: EpubShadow?,
     override val sourcePath: String
 ) : EpubDrawCommand()
+
+internal data class EpubShadow(
+    val dx: Float,
+    val dy: Float,
+    val blur: Float,
+    val color: Int
+)
 
 internal data class EpubRuleLine(
     val x: Float,

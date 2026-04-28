@@ -13,9 +13,13 @@ internal object EpubCss {
         "font-family",
         "font",
         "text-indent",
+        "text-transform",
         "text-decoration",
         "text-decoration-line",
         "line-height",
+        "text-shadow",
+        "box-shadow",
+        "opacity",
         "letter-spacing",
         "word-spacing",
         "white-space",
@@ -41,7 +45,12 @@ internal object EpubCss {
         "background-color",
         "background-size",
         "background-position",
+        "background-position-x",
+        "background-position-y",
         "background-repeat",
+        "background-attachment",
+        "background-clip",
+        "background-origin",
         "border",
         "border-left",
         "border-right",
@@ -63,6 +72,21 @@ internal object EpubCss {
         "border-bottom-width",
         "border-bottom-style",
         "border-radius",
+        "border-top-left-radius",
+        "border-top-right-radius",
+        "border-bottom-right-radius",
+        "border-bottom-left-radius",
+        "box-sizing",
+        "overflow",
+        "overflow-x",
+        "overflow-y",
+        "object-fit",
+        "object-position",
+        "list-style",
+        "list-style-type",
+        "border-collapse",
+        "border-spacing",
+        "caption-side",
         "width",
         "height",
         "min-width",
@@ -131,7 +155,7 @@ internal object EpubCss {
 
     fun declarations(style: String): LinkedHashMap<String, String> {
         val map = linkedMapOf<String, String>()
-        parseDeclarations(style).expandFontShorthand().forEach { declaration ->
+        parseDeclarations(style).forEach { declaration ->
             map[declaration.name] = declaration.value
         }
         return map
@@ -153,7 +177,12 @@ internal object EpubCss {
                 declarations.add(Declaration(name, value, important, declarations.size))
             }
         }
-        return declarations.expandFontShorthand()
+        return declarations
+            .expandFontShorthand()
+            .expandBorderShorthand()
+            .expandBorderRadiusShorthand()
+            .expandBackgroundShorthand()
+            .expandListStyleShorthand()
     }
 
     fun splitDeclarations(style: String): List<String> {
@@ -246,6 +275,100 @@ internal object EpubCss {
         return expanded.values.toList()
     }
 
+    private fun List<Declaration>.expandBorderShorthand(): List<Declaration> {
+        val expanded = arrayListOf<Declaration>()
+        forEach { declaration ->
+            expanded.add(declaration)
+            val sides = when (declaration.name) {
+                "border" -> listOf("top", "right", "bottom", "left")
+                "border-top" -> listOf("top")
+                "border-right" -> listOf("right")
+                "border-bottom" -> listOf("bottom")
+                "border-left" -> listOf("left")
+                else -> emptyList()
+            }
+            if (sides.isEmpty()) return@forEach
+            val tokens = splitValueList(declaration.value)
+            val width = tokens.firstOrNull { it.isCssBorderWidthToken() }
+            val style = tokens.firstOrNull { it.lowercase(Locale.ROOT) in borderStyles }
+            val color = tokens.firstOrNull { it.isCssColorToken() }
+            sides.forEach { side ->
+                width?.let {
+                    expanded.add(declaration.copy(name = "border-$side-width", value = it, order = expanded.size))
+                }
+                style?.let {
+                    expanded.add(declaration.copy(name = "border-$side-style", value = it, order = expanded.size))
+                }
+                color?.let {
+                    expanded.add(declaration.copy(name = "border-$side-color", value = it, order = expanded.size))
+                }
+            }
+        }
+        return expanded
+    }
+
+    private fun List<Declaration>.expandBorderRadiusShorthand(): List<Declaration> {
+        val expanded = arrayListOf<Declaration>()
+        forEach { declaration ->
+            expanded.add(declaration)
+            if (declaration.name != "border-radius") return@forEach
+            val horizontal = declaration.value.substringBefore('/').trim()
+            val values = splitValueList(horizontal).takeIf { it.isNotEmpty() } ?: return@forEach
+            val topLeft = values.getOrNull(0).orEmpty()
+            val topRight = values.getOrNull(1) ?: topLeft
+            val bottomRight = values.getOrNull(2) ?: topLeft
+            val bottomLeft = values.getOrNull(3) ?: topRight
+            listOf(
+                "border-top-left-radius" to topLeft,
+                "border-top-right-radius" to topRight,
+                "border-bottom-right-radius" to bottomRight,
+                "border-bottom-left-radius" to bottomLeft
+            ).forEach { (name, value) ->
+                expanded.add(declaration.copy(name = name, value = value, order = expanded.size))
+            }
+        }
+        return expanded
+    }
+
+    private fun List<Declaration>.expandBackgroundShorthand(): List<Declaration> {
+        val expanded = arrayListOf<Declaration>()
+        forEach { declaration ->
+            expanded.add(declaration)
+            if (declaration.name != "background") return@forEach
+            val value = declaration.value
+            value.extractCssUrl()?.let { url ->
+                expanded.add(declaration.copy(name = "background-image", value = "url('$url')", order = expanded.size))
+            }
+            value.extractCssColor()?.let { color ->
+                expanded.add(declaration.copy(name = "background-color", value = color, order = expanded.size))
+            }
+            value.extractBackgroundRepeat()?.let { repeat ->
+                expanded.add(declaration.copy(name = "background-repeat", value = repeat, order = expanded.size))
+            }
+            value.extractBackgroundPosition()?.let { position ->
+                expanded.add(declaration.copy(name = "background-position", value = position, order = expanded.size))
+            }
+            value.extractBackgroundSize()?.let { size ->
+                expanded.add(declaration.copy(name = "background-size", value = size, order = expanded.size))
+            }
+        }
+        return expanded
+    }
+
+    private fun List<Declaration>.expandListStyleShorthand(): List<Declaration> {
+        val expanded = arrayListOf<Declaration>()
+        forEach { declaration ->
+            expanded.add(declaration)
+            if (declaration.name != "list-style") return@forEach
+            val type = splitValueList(declaration.value)
+                .firstOrNull { it.lowercase(Locale.ROOT) in listStyleTypes }
+            type?.let {
+                expanded.add(declaration.copy(name = "list-style-type", value = it, order = expanded.size))
+            }
+        }
+        return expanded
+    }
+
     private fun List<Declaration>.expandFontShorthand(): List<Declaration> {
         val expanded = arrayListOf<Declaration>()
         forEach { declaration ->
@@ -253,15 +376,13 @@ internal object EpubCss {
             if (declaration.name != "font") return@forEach
             val parsed = declaration.value.parseFontShorthand()
             parsed.forEach { (name, value) ->
-                if (expanded.none { it.name == name }) {
-                    expanded.add(
-                        declaration.copy(
-                            name = name,
-                            value = value,
-                            order = expanded.size
-                        )
+                expanded.add(
+                    declaration.copy(
+                        name = name,
+                        value = value,
+                        order = expanded.size
                     )
-                }
+                )
             }
         }
         return expanded
@@ -311,6 +432,90 @@ internal object EpubCss {
                 "x-large", "xx-large", "smaller", "larger"
             ) ||
             sizePart.toFloatOrNull() != null
+    }
+
+    private fun String.isCssBorderWidthToken(): Boolean {
+        val lower = lowercase(Locale.ROOT)
+        return lower in borderWidthKeywords ||
+            lower.endsWith("px") ||
+            lower.endsWith("em") ||
+            lower.endsWith("rem") ||
+            lower.endsWith("%") ||
+            lower.toFloatOrNull() != null
+    }
+
+    private fun String.isCssColorToken(): Boolean {
+        val lower = lowercase(Locale.ROOT)
+        return lower.startsWith("#") ||
+            lower.startsWith("rgb") ||
+            lower == "transparent" ||
+            lower in namedColorTokens
+    }
+
+    private fun String.extractCssUrl(): String? {
+        val start = indexOf("url(", ignoreCase = true)
+        if (start < 0) return null
+        val end = indexOf(')', start + 4)
+        if (end < 0) return null
+        return substring(start + 4, end)
+            .trim()
+            .trim('\'', '"')
+            .takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+    }
+
+    private fun String.extractCssColor(): String? {
+        val clean = trim()
+        if (clean.startsWith("#") || clean.startsWith("rgb", true)) return clean
+        val parts = splitValueList(clean)
+        return parts.firstOrNull { it.isCssColorToken() }
+    }
+
+    private fun String.extractBackgroundRepeat(): String? {
+        val clean = lowercase(Locale.ROOT)
+        return when {
+            clean.contains("no-repeat") -> "no-repeat"
+            clean.contains("repeat-x") -> "repeat-x"
+            clean.contains("repeat-y") -> "repeat-y"
+            clean.contains("repeat") -> "repeat"
+            else -> null
+        }
+    }
+
+    private fun String.extractBackgroundSize(): String? {
+        val slash = indexOf('/')
+        if (slash < 0) return null
+        return splitValueList(substring(slash + 1))
+            .takeWhile { token ->
+                val lower = token.lowercase(Locale.ROOT)
+                lower !in backgroundRepeatTokens &&
+                    lower !in backgroundAttachmentTokens &&
+                    !token.isCssColorToken()
+            }
+            .take(2)
+            .joinToString(" ")
+            .takeIf { it.isNotBlank() }
+    }
+
+    private fun String.extractBackgroundPosition(): String? {
+        val beforeSlash = substringBefore('/')
+        val tokens = splitValueList(beforeSlash)
+            .filterNot { token ->
+                val lower = token.lowercase(Locale.ROOT)
+                token.extractCssUrl() != null ||
+                    token.isCssColorToken() ||
+                    lower in backgroundRepeatTokens ||
+                    lower in backgroundAttachmentTokens
+            }
+        val positionTokens = tokens.filter { token ->
+            val lower = token.lowercase(Locale.ROOT)
+            lower in backgroundPositionTokens ||
+                token.endsWith("%") ||
+                lower.endsWith("px") ||
+                lower.endsWith("em") ||
+                lower.endsWith("rem") ||
+                token.toFloatOrNull() != null
+        }
+        return positionTokens.take(2).joinToString(" ").takeIf { it.isNotBlank() }
     }
 
     private fun List<Declaration>.toStyleString(): String {
@@ -487,4 +692,27 @@ internal object EpubCss {
         }
         return ids * 100 + classes * 10 + tags
     }
+
+    private val borderStyles = setOf(
+        "none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"
+    )
+
+    private val borderWidthKeywords = setOf("thin", "medium", "thick")
+
+    private val backgroundRepeatTokens = setOf("repeat", "repeat-x", "repeat-y", "no-repeat", "space", "round")
+
+    private val backgroundAttachmentTokens = setOf("scroll", "fixed", "local")
+
+    private val backgroundPositionTokens = setOf("left", "center", "right", "top", "bottom")
+
+    private val listStyleTypes = setOf(
+        "none", "disc", "circle", "square", "decimal", "decimal-leading-zero",
+        "lower-roman", "upper-roman", "lower-alpha", "upper-alpha", "lower-latin", "upper-latin",
+        "cjk-ideographic", "simp-chinese-informal", "simp-chinese-formal"
+    )
+
+    private val namedColorTokens = setOf(
+        "black", "white", "red", "green", "blue", "cyan", "aqua", "magenta", "fuchsia",
+        "yellow", "gray", "grey", "silver", "maroon", "purple", "teal", "navy", "orange"
+    )
 }
