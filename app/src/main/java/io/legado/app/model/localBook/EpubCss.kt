@@ -17,6 +17,7 @@ internal object EpubCss {
         "font-stretch",
         "font-size-adjust",
         "text-indent",
+        "duokan-text-indent",
         "text-transform",
         "text-orientation",
         "text-decoration",
@@ -286,7 +287,13 @@ internal object EpubCss {
                 .trim()
                 .replace("\"", "'")
             if (name.isNotBlank() && value.isNotBlank()) {
-                declarations.add(Declaration(name, value, important, declarations.size))
+                val normalizedName = if (name == "duokan-text-indent") "text-indent" else name
+                val normalizedValue = if (name == "duokan-text-indent") {
+                    splitValueList(value).lastOrNull().orEmpty().ifBlank { value }
+                } else {
+                    value
+                }
+                declarations.add(Declaration(normalizedName, normalizedValue, important, declarations.size))
             }
         }
         return declarations

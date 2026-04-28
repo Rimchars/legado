@@ -353,6 +353,18 @@ internal class EpubDomBuilder(
             "strike", "s", "del" -> add("text-decoration", "line-through")
             "big" -> add("font-size", "larger")
             "small" -> add("font-size", "smaller")
+            "sup" -> {
+                add("font-size", "smaller")
+                add("vertical-align", "super")
+            }
+            "sub" -> {
+                add("font-size", "smaller")
+                add("vertical-align", "sub")
+            }
+            "a" -> {
+                add("text-decoration", "underline")
+                add("color", "#3366CC")
+            }
             "center" -> add("text-align", "center")
             "h1" -> {
                 add("font-size", "2em")
