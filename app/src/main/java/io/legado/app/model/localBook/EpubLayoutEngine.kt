@@ -224,15 +224,29 @@ internal class EpubLayoutEngine(
         val style = node.style
         val marginTop = style.verticalLengthPx("margin-top", width)
         val marginBottom = style.verticalLengthPx("margin-bottom", width)
-        val marginLeft = style.lengthPx("margin-left", width)
-        val marginRight = style.lengthPx("margin-right", width)
-        val tableLeft = left + marginLeft
-        val tableWidth = (width - marginLeft - marginRight).coerceAtLeast(width * 0.35f)
         cursorY += marginTop
         flushPageIfNeedForHeight(cursorY + lineHeight(style))
 
         val rows = node.tableRows()
         val maxColumns = rows.maxOfOrNull { row -> row.tableCells().size } ?: 0
+        val intrinsicWidth = node.intrinsicTableWidth(rows)
+        val rawMarginLeft = style["margin-left"]
+        val rawMarginRight = style["margin-right"]
+        val marginLeftValue = rawMarginLeft?.toCssLengthPx(width) ?: 0f
+        val marginRightValue = rawMarginRight?.toCssLengthPx(width) ?: 0f
+        val requestedWidth = style.resolveHorizontalSize(width)
+            ?: node.attributes["width"]?.toCssLengthPx(width)
+            ?: intrinsicWidth
+                .takeIf { it > 0f && (rawMarginLeft.isAutoCssValue() || rawMarginRight.isAutoCssValue()) }
+            ?: (width - marginLeftValue - marginRightValue)
+        val tableWidth = requestedWidth.coerceIn(1f, width)
+        val remainingWidth = (width - tableWidth - marginLeftValue - marginRightValue).coerceAtLeast(0f)
+        val marginLeft = when {
+            rawMarginLeft.isAutoCssValue() && rawMarginRight.isAutoCssValue() -> remainingWidth / 2f
+            rawMarginLeft.isAutoCssValue() -> remainingWidth
+            else -> marginLeftValue
+        }
+        val tableLeft = left + marginLeft
         if (rows.isEmpty() || maxColumns <= 0) {
             node.children.forEach { child -> layoutBoxNode(child, tableLeft, tableWidth) }
             cursorY += marginBottom
@@ -396,6 +410,11 @@ internal class EpubLayoutEngine(
                                 decorationColor = null,
                                 decorationStyle = null,
                                 baselineShift = item.image.style.baselineShiftPx(),
+                                backgroundRadius = 0f,
+                                backgroundPaddingLeft = 0f,
+                                backgroundPaddingTop = 0f,
+                                backgroundPaddingRight = 0f,
+                                backgroundPaddingBottom = 0f,
                                 shadow = null,
                                 sourcePath = item.image.sourcePath
                             )
@@ -411,7 +430,10 @@ internal class EpubLayoutEngine(
                     val normalized = item.normalizedText().transformCssText(item.style)
                     if (normalized.isBlank()) return@forEach
                     val paint = item.style.toTextPaint()
-                    val itemLineHeight = lineHeight(item.style)
+                    val inlinePadding = item.style.inlinePadding(width)
+                    val itemLineHeight = lineHeight(item.style) +
+                        inlinePadding.top +
+                        inlinePadding.bottom
                     normalized.forEach { char ->
                         val value = char.toString()
                         val charWidth = paint.measureText(value) + item.style.extraCharacterSpacing(value)
@@ -437,6 +459,11 @@ internal class EpubLayoutEngine(
                                 decorationColor = item.style.colorInt("text-decoration-color"),
                                 decorationStyle = item.style["text-decoration-style"]?.lowercase(Locale.ROOT),
                                 baselineShift = item.style.baselineShiftPx(),
+                                backgroundRadius = item.style.inlineBackgroundRadius(width),
+                                backgroundPaddingLeft = inlinePadding.left,
+                                backgroundPaddingTop = inlinePadding.top,
+                                backgroundPaddingRight = inlinePadding.right,
+                                backgroundPaddingBottom = inlinePadding.bottom,
                                 shadow = item.style.textShadow(),
                                 sourcePath = item.sourcePath
                             )
@@ -483,6 +510,11 @@ internal class EpubLayoutEngine(
                 last.decorationColor == segment.decorationColor &&
                 last.decorationStyle == segment.decorationStyle &&
                 last.baselineShift == segment.baselineShift &&
+                last.backgroundRadius == segment.backgroundRadius &&
+                last.backgroundPaddingLeft == segment.backgroundPaddingLeft &&
+                last.backgroundPaddingTop == segment.backgroundPaddingTop &&
+                last.backgroundPaddingRight == segment.backgroundPaddingRight &&
+                last.backgroundPaddingBottom == segment.backgroundPaddingBottom &&
                 last.shadow == segment.shadow &&
                 last.sourcePath == segment.sourcePath
             ) {
@@ -525,6 +557,11 @@ internal class EpubLayoutEngine(
                         decorationColor = segment.decorationColor,
                         decorationStyle = segment.decorationStyle,
                         baselineShift = segment.baselineShift,
+                        backgroundRadius = segment.backgroundRadius,
+                        backgroundPaddingLeft = segment.backgroundPaddingLeft,
+                        backgroundPaddingTop = segment.backgroundPaddingTop,
+                        backgroundPaddingRight = segment.backgroundPaddingRight,
+                        backgroundPaddingBottom = segment.backgroundPaddingBottom,
                         shadow = segment.shadow,
                         sourcePath = segment.sourcePath
                     )
@@ -874,6 +911,33 @@ internal class EpubLayoutEngine(
                     .takeIf { it > 0f } ?: lengthPx("border-radius", viewportWidth.toFloat())
             )
         )
+    }
+
+    private fun EpubComputedStyle.inlinePadding(relativeTo: Float): InlinePadding {
+        val padding = lengthPx("padding", relativeTo)
+        val horizontal = lengthPx("padding-left", relativeTo)
+            .takeIf { it > 0f }
+            ?: lengthPx("padding-right", relativeTo)
+                .takeIf { it > 0f }
+            ?: padding
+        val vertical = verticalLengthPx("padding-top", relativeTo)
+            .takeIf { it > 0f }
+            ?: verticalLengthPx("padding-bottom", relativeTo)
+                .takeIf { it > 0f }
+            ?: padding
+        return InlinePadding(
+            left = lengthPx("padding-left", relativeTo).takeIf { it > 0f } ?: horizontal,
+            top = verticalLengthPx("padding-top", relativeTo).takeIf { it > 0f } ?: vertical,
+            right = lengthPx("padding-right", relativeTo).takeIf { it > 0f } ?: horizontal,
+            bottom = verticalLengthPx("padding-bottom", relativeTo).takeIf { it > 0f } ?: vertical
+        )
+    }
+
+    private fun EpubComputedStyle.inlineBackgroundRadius(relativeTo: Float): Float {
+        return lengthPx("border-radius", relativeTo)
+            .takeIf { it > 0f }
+            ?: lengthPx("border-top-left-radius", relativeTo).takeIf { it > 0f }
+            ?: 0f
     }
 
     private fun EpubBorder.hasVisibleBorder(): Boolean {
@@ -1404,6 +1468,18 @@ internal class EpubLayoutEngine(
         return widths.map { width -> if (width > 0f) width else autoWidth }
     }
 
+    private fun EpubBlockNode.intrinsicTableWidth(rows: List<EpubBlockNode>): Float {
+        return rows.maxOfOrNull { row ->
+            row.tableCells().sumOf { cell ->
+                val span = cell.attributes["colspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                val width = cell.style.resolveHorizontalSize(viewportWidth.toFloat())
+                    ?: cell.attributes["width"]?.toCssLengthPx(viewportWidth.toFloat())
+                    ?: 0f
+                (width * span).toDouble()
+            }.toFloat()
+        } ?: 0f
+    }
+
     private fun buildLayoutSnapshotId(href: String): Int {
         var result = href.hashCode()
         result = 31 * result + viewportWidth
@@ -1476,8 +1552,20 @@ internal class EpubLayoutEngine(
         val decorationColor: Int?,
         val decorationStyle: String?,
         val baselineShift: Float,
+        val backgroundRadius: Float,
+        val backgroundPaddingLeft: Float,
+        val backgroundPaddingTop: Float,
+        val backgroundPaddingRight: Float,
+        val backgroundPaddingBottom: Float,
         val shadow: EpubShadow?,
         val sourcePath: String
+    )
+
+    private data class InlinePadding(
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float
     )
 
     private companion object {
