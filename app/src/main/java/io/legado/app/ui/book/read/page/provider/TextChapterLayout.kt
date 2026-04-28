@@ -621,7 +621,10 @@ class TextChapterLayout(
             when (node) {
                 is TextNode -> htmlBuffer.append(node.outerHtml())
                 is Element -> {
-                    if (node.normalName() == "img") {
+                    if (node.normalName() == "table") {
+                        flushHtmlBuffer()
+                        setTypeHtmlText(imageStyle, book, node.toReadableTableHtml())
+                    } else if (node.normalName() == "img") {
                         flushHtmlBuffer()
                         setTypeHtmlImage(imageStyle, book, node)
                     } else if (node.hasHtmlImage()) {
@@ -651,6 +654,76 @@ class TextChapterLayout(
             renderNode(node)
         }
         flushHtmlBuffer()
+    }
+
+    private fun Element.toReadableTableHtml(): String {
+        val rows = select("tr").ifEmpty { children() }
+        val rowHtml = rows.mapNotNull { row ->
+            val cells = row.select("th,td").ifEmpty { row.children() }
+                .mapNotNull { cell ->
+                    cell.toReadableInlineHtml().takeIf { it.isNotBlank() }
+                }
+            val rowText = if (cells.isEmpty()) {
+                row.toReadableInlineHtml()
+            } else {
+                cells.joinToString("　")
+            }.trim()
+            rowText.takeIf { it.isNotBlank() }
+        }
+        if (rowHtml.isEmpty()) {
+            val text = toReadableInlineHtml()
+            return if (text.isBlank()) "" else """<p align="${htmlAlign()}">$text</p>"""
+        }
+        val align = htmlAlign()
+        return rowHtml.joinToString("") { row ->
+            """<p align="$align">$row</p>"""
+        }
+    }
+
+    private fun Element.toReadableInlineHtml(): String {
+        val builder = StringBuilder()
+        childNodes().forEach { child ->
+            when (child) {
+                is TextNode -> builder.append(child.outerHtml())
+                is Element -> {
+                    when (child.normalName()) {
+                        "br" -> builder.append("<br>")
+                        "img" -> child.attr("alt").takeIf { it.isNotBlank() }?.let {
+                            builder.append(it)
+                        }
+                        "b", "strong" -> builder.append("<b>")
+                            .append(child.toReadableInlineHtml())
+                            .append("</b>")
+                        "i", "em" -> builder.append("<i>")
+                            .append(child.toReadableInlineHtml())
+                            .append("</i>")
+                        "font" -> builder.append(child.outerHtml())
+                        else -> builder.append(child.toReadableInlineHtml())
+                    }
+                }
+            }
+        }
+        val own = builder.toString().trim()
+        if (own.isNotBlank()) return own
+        return ownText().trim()
+    }
+
+    private fun Element.htmlAlign(): String {
+        attr("align").trim().lowercase().takeIf { it in setOf("left", "center", "right") }?.let {
+            return it
+        }
+        val style = attr("style")
+        if (style.isBlank()) return "center"
+        style.split(';').forEach { item ->
+            val index = item.indexOf(':')
+            if (index <= 0) return@forEach
+            val name = item.substring(0, index).trim()
+            val value = item.substring(index + 1).trim().lowercase()
+            if (name.equals("text-align", ignoreCase = true) && value in setOf("left", "center", "right")) {
+                return value
+            }
+        }
+        return "center"
     }
 
     private suspend fun setTypeHtmlImage(
