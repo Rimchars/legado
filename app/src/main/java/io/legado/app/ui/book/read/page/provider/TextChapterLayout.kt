@@ -124,6 +124,7 @@ class TextChapterLayout(
     private var durY = 0f
     private var absStartX = paddingLeft
     private var floatArray = FloatArray(128)
+    private var pendingSingleImagePageBreak = false
 
     private var isCompleted = false
     private val job: Coroutine<*>
@@ -524,11 +525,13 @@ class TextChapterLayout(
         size: Size,
         click: String?
     ) {
+        breakAfterSingleImageIfNeed()
         if (size.width > 0 && size.height > 0) {
             prepareNextPageIfNeed(durY)
             var height = size.height
             var width = size.width
-            when (imageStyle?.uppercase()) {
+            val normalizedImageStyle = imageStyle?.uppercase()
+            when (normalizedImageStyle) {
                 Book.imgStyleFull -> {
                     width = visibleWidth
                     height = size.height * visibleWidth / size.width
@@ -577,7 +580,7 @@ class TextChapterLayout(
             durY += height
             textLine.lineBottom = durY + paddingTop
             val (start, end) = if (visibleWidth > width) {
-                when (imageStyle?.uppercase()) {
+                when (normalizedImageStyle) {
                     "RIGHT" -> Pair(visibleWidth - width, visibleWidth)
                     "LEFT" -> Pair(0f, width)
                     else -> {
@@ -594,8 +597,19 @@ class TextChapterLayout(
             calcTextLinePosition(textPages, textLine, stringBuilder.length)
             stringBuilder.append(" ") // 确保翻页时索引计算正确
             pendingTextPage.addLine(textLine)
+            if (normalizedImageStyle == Book.imgStyleSingle) {
+                pendingSingleImagePageBreak = true
+            }
         }
         durY += textHeight * paragraphSpacing / 10f
+    }
+
+    private suspend fun breakAfterSingleImageIfNeed() {
+        if (!pendingSingleImagePageBreak) return
+        pendingSingleImagePageBreak = false
+        if (pendingTextPage.lines.isNotEmpty()) {
+            prepareNextPageIfNeed()
+        }
     }
 
     /**
@@ -807,6 +821,7 @@ class TextChapterLayout(
         book: Book,
         htmlContent: String,
     ) {
+        breakAfterSingleImageIfNeed()
         val textViewTagHandler = TextViewTagHandler()
         val spanned = htmlContent.parseAsHtml(HtmlCompat.FROM_HTML_MODE_COMPACT, tagHandler = textViewTagHandler)
         val width = visibleWidth
@@ -1116,6 +1131,7 @@ class TextChapterLayout(
         srcList: LinkedList<String>? = null,
         clickList: LinkedList<String?>?
     ) {
+        breakAfterSingleImageIfNeed()
         val widthsArray = allocateFloatArray(text.length)
         textPaint.getTextWidthsCompat(text, widthsArray, reviewCharWidth)
         val layout = if (useZhLayout) {

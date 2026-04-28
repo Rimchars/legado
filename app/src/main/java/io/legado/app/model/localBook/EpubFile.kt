@@ -494,7 +494,7 @@ class EpubFile(var book: Book) {
             options["width"] = normalizeImageWidth(width)
         }
         if (attr("data-epub-single-page") == "true") {
-            options["style"] = "full"
+            options["style"] = Book.imgStyleSingle
             options.putIfAbsent("width", "100%")
         }
         return options
