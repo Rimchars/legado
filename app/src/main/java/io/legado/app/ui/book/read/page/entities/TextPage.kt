@@ -762,9 +762,9 @@ data class TextPage(
             bgPaint.color = color
             val rect = RectF(
                 text.x - text.backgroundPaddingLeft,
-                text.y - text.backgroundPaddingTop,
+                text.y,
                 text.x + text.width + text.backgroundPaddingRight,
-                text.y + text.height + text.backgroundPaddingBottom
+                text.y + text.height
             )
             if (text.backgroundRadius > 0f) {
                 canvas.drawRoundRect(rect, text.backgroundRadius, text.backgroundRadius, bgPaint)
