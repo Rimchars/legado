@@ -486,6 +486,8 @@ class EpubFile(var book: Book) {
             "padding",
             "padding-left",
             "padding-right",
+            "padding-top",
+            "padding-bottom",
             "display",
             "background",
             "background-image",
@@ -504,6 +506,7 @@ class EpubFile(var book: Book) {
             "max-height"
         )
         return style.toCssDeclarationMap()
+            .expandEpubBoxShorthand()
             .filterKeys { it in supported }
             .entries
             .joinToString(";") { (name, value) -> "$name:$value" }
@@ -660,6 +663,54 @@ class EpubFile(var book: Book) {
             }
         }
         return map
+    }
+
+    private fun LinkedHashMap<String, String>.expandEpubBoxShorthand(): LinkedHashMap<String, String> {
+        expandEpubBoxShorthand("margin")
+        expandEpubBoxShorthand("padding")
+        return this
+    }
+
+    private fun LinkedHashMap<String, String>.expandEpubBoxShorthand(name: String) {
+        val shorthand = this[name] ?: return
+        val values = shorthand.splitCssValueList().takeIf { it.isNotEmpty() } ?: return
+        val top = values.getOrNull(0).orEmpty()
+        val right = values.getOrNull(1) ?: top
+        val bottom = values.getOrNull(2) ?: top
+        val left = values.getOrNull(3) ?: right
+        putIfAbsent("$name-top", top)
+        putIfAbsent("$name-right", right)
+        putIfAbsent("$name-bottom", bottom)
+        putIfAbsent("$name-left", left)
+    }
+
+    private fun String.splitCssValueList(): List<String> {
+        val result = arrayListOf<String>()
+        var quote: Char? = null
+        var parenDepth = 0
+        var start = 0
+        for (index in indices) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                '(' -> parenDepth++
+                ')' -> if (parenDepth > 0) parenDepth--
+                ' ', '\t', '\r', '\n' -> if (parenDepth == 0) {
+                    val item = substring(start, index).trim()
+                    if (item.isNotBlank()) result.add(item)
+                    start = index + 1
+                }
+            }
+        }
+        val last = substring(start).trim()
+        if (last.isNotBlank()) result.add(last)
+        return result
     }
 
     private fun String.splitCssDeclarations(): List<String> {
