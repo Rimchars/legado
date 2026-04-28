@@ -28,10 +28,17 @@ internal class EpubLayoutEngine(
         val boxDocument = EpubBoxBuilder().build(document)
         layoutBlockNode(boxDocument.root, left = 0f, width = viewportWidth.toFloat())
         flushPageIfNeeded(force = true)
+        val snapshotId = buildLayoutSnapshotId(document.href)
         return EpubLayoutDocument(
             href = document.href,
+            snapshotId = snapshotId,
             pages = pages.mapIndexed { index, commands ->
-                EpubLayoutPage(index = index, commands = commands, height = viewportHeight.toFloat())
+                EpubLayoutPage(
+                    index = index,
+                    commands = commands,
+                    height = viewportHeight.toFloat(),
+                    snapshotId = snapshotId
+                )
             }
         )
     }
@@ -49,6 +56,10 @@ internal class EpubLayoutEngine(
     }
 
     private fun layoutBlockNode(node: EpubBlockNode, left: Float, width: Float) {
+        if (node.tagName == "table") {
+            layoutTableNode(node, left, width)
+            return
+        }
         val style = node.style
         val marginTop = style.verticalLengthPx("margin-top", width)
         val marginBottom = style.verticalLengthPx("margin-bottom", width)
@@ -135,6 +146,73 @@ internal class EpubLayoutEngine(
         requestedHeight?.let { height ->
             if (cursorY < boxTop + height) {
                 cursorY = boxTop + height
+            }
+        }
+        cursorY += marginBottom
+        flushPageIfNeeded()
+    }
+
+    private fun layoutTableNode(node: EpubBlockNode, left: Float, width: Float) {
+        val style = node.style
+        val marginTop = style.verticalLengthPx("margin-top", width)
+        val marginBottom = style.verticalLengthPx("margin-bottom", width)
+        val marginLeft = style.lengthPx("margin-left", width)
+        val marginRight = style.lengthPx("margin-right", width)
+        val tableLeft = left + marginLeft
+        val tableWidth = (width - marginLeft - marginRight).coerceAtLeast(width * 0.35f)
+        cursorY += marginTop
+        flushPageIfNeedForHeight(cursorY + lineHeight(style))
+
+        val rows = node.tableRows()
+        val maxColumns = rows.maxOfOrNull { row -> row.tableCells().size } ?: 0
+        if (rows.isEmpty() || maxColumns <= 0) {
+            node.children.forEach { child -> layoutBoxNode(child, tableLeft, tableWidth) }
+            cursorY += marginBottom
+            flushPageIfNeeded()
+            return
+        }
+
+        val tableTop = cursorY
+        val blockCommandIndex = style.blockStyle()?.let { blockStyle ->
+            currentCommands.add(
+                EpubBlockBox(
+                    x = tableLeft,
+                    y = tableTop,
+                    width = tableWidth,
+                    height = 0f,
+                    backgroundColor = blockStyle.backgroundColor,
+                    borderColor = blockStyle.borderColor,
+                    borderWidth = style.borderWidthPx(),
+                    radius = blockStyle.radius,
+                    sourcePath = node.sourcePath
+                )
+            )
+            currentCommands.lastIndex
+        }
+        val columnWidth = tableWidth / maxColumns
+        rows.forEach { row ->
+            if (cursorY + lineHeight(row.style) > viewportHeight && currentCommands.isNotEmpty()) {
+                flushPageIfNeeded(force = true)
+            }
+            val rowTop = cursorY
+            var rowBottom = rowTop
+            row.tableCells().forEachIndexed { index, cell ->
+                val oldCursor = cursorY
+                cursorY = rowTop
+                layoutBlockNode(
+                    node = cell,
+                    left = tableLeft + index * columnWidth,
+                    width = columnWidth
+                )
+                rowBottom = maxOf(rowBottom, cursorY)
+                cursorY = oldCursor
+            }
+            cursorY = rowBottom
+        }
+        blockCommandIndex?.let { index ->
+            val old = currentCommands.getOrNull(index) as? EpubBlockBox
+            if (old != null) {
+                currentCommands[index] = old.copy(height = (cursorY - tableTop).coerceAtLeast(0f))
             }
         }
         cursorY += marginBottom
@@ -306,6 +384,9 @@ internal class EpubLayoutEngine(
                     width = viewportWidth.toFloat(),
                     height = viewportHeight.toFloat(),
                     isBackground = true,
+                    backgroundSize = node.style.backgroundSizeValue(),
+                    backgroundPosition = node.style.backgroundPositionValue(),
+                    backgroundRepeat = node.style.backgroundRepeatValue(),
                     sourcePath = node.sourcePath
                 )
             )
@@ -611,6 +692,88 @@ internal class EpubLayoutEngine(
         }
     }
 
+    private fun EpubComputedStyle.backgroundSizeValue(): String? {
+        return this["background-size"]
+            ?: this["background"]?.extractBackgroundSize()
+    }
+
+    private fun EpubComputedStyle.backgroundPositionValue(): String? {
+        return this["background-position"]
+            ?: this["background"]?.extractBackgroundPosition()
+    }
+
+    private fun EpubComputedStyle.backgroundRepeatValue(): String? {
+        return this["background-repeat"]
+            ?: this["background"]?.extractBackgroundRepeat()
+    }
+
+    private fun String.extractBackgroundRepeat(): String? {
+        val clean = lowercase(Locale.ROOT)
+        return when {
+            clean.contains("no-repeat") -> "no-repeat"
+            clean.contains("repeat-x") -> "repeat-x"
+            clean.contains("repeat-y") -> "repeat-y"
+            clean.contains("repeat") -> "repeat"
+            else -> null
+        }
+    }
+
+    private fun String.extractBackgroundSize(): String? {
+        val slash = indexOf('/')
+        if (slash < 0) return null
+        return substring(slash + 1)
+            .split(' ', ';')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(2)
+            .joinToString(" ")
+            .takeIf { it.isNotBlank() }
+    }
+
+    private fun String.extractBackgroundPosition(): String? {
+        val tokens = lowercase(Locale.ROOT)
+            .replace(Regex("url\\([^)]*\\)"), " ")
+            .split(' ', '\t', '\n', ',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        val positionTokens = tokens.filter { token ->
+            token in backgroundPositionKeywords ||
+                token.endsWith("%") ||
+                token.endsWith("px") ||
+                token.endsWith("em") ||
+                token.toFloatOrNull() != null
+        }
+        return positionTokens.take(2).joinToString(" ").takeIf { it.isNotBlank() }
+    }
+
+    private fun EpubBlockNode.tableRows(): List<EpubBlockNode> {
+        if (tagName == "tr") return listOf(this)
+        return children.flatMap { child ->
+            when (child) {
+                is EpubBlockNode -> child.tableRows()
+                else -> emptyList()
+            }
+        }
+    }
+
+    private fun EpubBlockNode.tableCells(): List<EpubBlockNode> {
+        return children.filterIsInstance<EpubBlockNode>()
+            .filter { it.tagName == "td" || it.tagName == "th" }
+    }
+
+    private fun buildLayoutSnapshotId(href: String): Int {
+        var result = href.hashCode()
+        result = 31 * result + viewportWidth
+        result = 31 * result + viewportHeight
+        result = 31 * result + basePaint.textSize.toBits()
+        result = 31 * result + basePaint.color
+        result = 31 * result + pages.size
+        pages.forEach { commands ->
+            result = 31 * result + commands.size
+        }
+        return result
+    }
+
     private data class BlockStyle(
         val backgroundColor: Int?,
         val borderColor: Int?,
@@ -653,5 +816,9 @@ internal class EpubLayoutEngine(
         val baselineShift: Float,
         val sourcePath: String
     )
+
+    private companion object {
+        val backgroundPositionKeywords = setOf("left", "center", "right", "top", "bottom")
+    }
 
 }
