@@ -254,6 +254,7 @@ internal class EpubLayoutEngine(
             currentCommands.lastIndex
         }
         val columnWidths = node.tableColumnWidths(rows, tableWidth, maxColumns)
+        val rowSpanDebt = MutableList(maxColumns) { 0 }
         rows.forEach { row ->
             if (cursorY + lineHeight(row.style) > viewportHeight && currentCommands.isNotEmpty()) {
                 flushPageIfNeeded(force = true)
@@ -263,8 +264,13 @@ internal class EpubLayoutEngine(
             var cellLeft = tableLeft
             var columnIndex = 0
             row.tableCells().forEach { cell ->
+                while (columnIndex < maxColumns && rowSpanDebt[columnIndex] > 0) {
+                    cellLeft += columnWidths.getOrNull(columnIndex) ?: 0f
+                    columnIndex++
+                }
                 val oldCursor = cursorY
                 val span = cell.attributes["colspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                val rowSpan = cell.attributes["rowspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
                 val cellWidth = columnWidths
                     .drop(columnIndex)
                     .take(span)
@@ -280,7 +286,15 @@ internal class EpubLayoutEngine(
                 rowBottom = maxOf(rowBottom, cursorY)
                 cursorY = oldCursor
                 cellLeft += cellWidth
+                if (rowSpan > 1) {
+                    for (index in columnIndex until (columnIndex + span).coerceAtMost(maxColumns)) {
+                        rowSpanDebt[index] = maxOf(rowSpanDebt[index], rowSpan)
+                    }
+                }
                 columnIndex += span
+            }
+            rowSpanDebt.indices.forEach { index ->
+                if (rowSpanDebt[index] > 0) rowSpanDebt[index]--
             }
             cursorY = rowBottom
         }
