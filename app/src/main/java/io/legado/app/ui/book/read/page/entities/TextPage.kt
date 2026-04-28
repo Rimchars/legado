@@ -4,9 +4,11 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
+import android.text.TextPaint
 import androidx.annotation.Keep
 import androidx.core.graphics.withTranslation
 import io.legado.app.R
@@ -15,6 +17,11 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.model.ImageProvider
 import io.legado.app.model.ReadBook
+import io.legado.app.model.localBook.EpubBlockBox
+import io.legado.app.model.localBook.EpubDrawCommand
+import io.legado.app.model.localBook.EpubImageBox
+import io.legado.app.model.localBook.EpubPageColor
+import io.legado.app.model.localBook.EpubTextRun
 import io.legado.app.ui.book.read.page.ContentTextView
 import io.legado.app.ui.book.read.page.entities.TextChapter.Companion.emptyTextChapter
 import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
@@ -66,6 +73,7 @@ data class TextPage(
     var epubBackgroundColor: Int? = null
     var fallbackChapterPosition: Int = 0
     val epubDecorations = arrayListOf<EpubDecoration>()
+    internal val epubNativeCommands = arrayListOf<EpubDrawCommand>()
 
     @JvmField
     var textChapter = emptyTextChapter
@@ -343,6 +351,7 @@ data class TextPage(
 
     private fun drawPage(view: ContentTextView, canvas: Canvas) {
         drawEpubBackground(view, canvas)
+        drawEpubNativeCommands(view, canvas)
         drawEpubDecorations(canvas)
         for (i in lines.indices) {
             val line = lines[i]
@@ -409,6 +418,59 @@ data class TextPage(
         PaintPool.recycle(paint)
     }
 
+    private fun drawEpubNativeCommands(view: ContentTextView, canvas: Canvas) {
+        if (epubNativeCommands.isEmpty()) return
+        val paint = PaintPool.obtain()
+        val textPaint = TextPaint(ChapterProvider.contentPaint)
+        epubNativeCommands.forEach { command ->
+            when (command) {
+                is EpubBlockBox -> drawEpubNativeBlock(canvas, paint, command)
+                is EpubImageBox -> drawEpubNativeImage(view, canvas, command)
+                is EpubPageColor -> Unit
+                is EpubTextRun -> drawEpubNativeText(canvas, textPaint, command)
+            }
+        }
+        PaintPool.recycle(paint)
+    }
+
+    private fun drawEpubNativeBlock(canvas: Canvas, paint: Paint, block: EpubBlockBox) {
+        val rect = RectF(block.x, block.y, block.x + block.width, block.y + block.height)
+        block.backgroundColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
+            paint.style = Paint.Style.FILL
+            paint.color = color
+            canvas.drawRoundRect(rect, block.radius, block.radius, paint)
+        }
+        block.borderColor?.takeIf { it != Color.TRANSPARENT && block.borderWidth > 0f }?.let { color ->
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = block.borderWidth
+            paint.color = color
+            canvas.drawRoundRect(rect, block.radius, block.radius, paint)
+        }
+    }
+
+    private fun drawEpubNativeImage(view: ContentTextView, canvas: Canvas, image: EpubImageBox) {
+        if (image.isBackground) return
+        val book = ReadBook.book ?: return
+        val bitmap = ImageProvider.getImage(
+            book = book,
+            src = image.src,
+            width = image.width.toInt().coerceAtLeast(1),
+            height = image.height.toInt().coerceAtLeast(1),
+            cacheKeySuffix = "epub-native-${image.width.toInt()}x${image.height.toInt()}"
+        )
+        val rect = RectF(image.x, image.y, image.x + image.width, image.y + image.height)
+        canvas.drawBitmap(bitmap, null, rect, view.imagePaint)
+    }
+
+    private fun drawEpubNativeText(canvas: Canvas, paint: TextPaint, text: EpubTextRun) {
+        paint.textSize = text.size
+        paint.color = text.color ?: ChapterProvider.contentPaint.color
+        paint.isFakeBoldText = text.bold
+        paint.textSkewX = if (text.italic) -0.25f else 0f
+        paint.typeface = if (text.bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        canvas.drawText(text.text, text.x, text.baseline, paint)
+    }
+
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
         val recorderHeight = if (hasEpubBackground()) {
@@ -445,9 +507,19 @@ data class TextPage(
 
     fun upRenderHeight() {
         renderHeight = if (lines.isEmpty()) {
-            if (hasEpubBackground()) ChapterProvider.viewHeight else 0
+            if (hasEpubBackground() || epubNativeCommands.isNotEmpty()) ChapterProvider.viewHeight else 0
         } else {
             ceil(lines.last().lineBottom).toInt()
+        }
+        epubNativeCommands.maxOfOrNull { command ->
+            when (command) {
+                is EpubBlockBox -> command.y + command.height
+                is EpubImageBox -> command.y + command.height
+                is EpubPageColor -> ChapterProvider.viewHeight.toFloat()
+                is EpubTextRun -> command.baseline + command.size
+            }
+        }?.let { nativeBottom ->
+            renderHeight = max(renderHeight, ceil(nativeBottom).toInt())
         }
         if (hasEpubBackground()) {
             renderHeight = max(renderHeight, ChapterProvider.viewHeight)

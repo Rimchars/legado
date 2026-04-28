@@ -40,7 +40,7 @@ import java.util.Locale
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
-        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"6\">"
+        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"6\""
         private const val ENABLE_EPUB_DEBUG_DUMP = false
         private var eFile: EpubFile? = null
 
@@ -64,6 +64,11 @@ class EpubFile(var book: Book) {
         @Synchronized
         override fun getContent(book: Book, chapter: BookChapter): String? {
             return getEFile(book).getContent(chapter)
+        }
+
+        @Synchronized
+        internal fun getNativeLayout(book: Book, href: String): EpubLayoutDocument? {
+            return getEFile(book).getNativeLayout(href)
         }
 
         @Synchronized
@@ -202,7 +207,8 @@ class EpubFile(var book: Book) {
         if (html.isBlank()) {
             return HtmlFormatter.formatKeepImg(elements.outerHtml())
         }
-        return "$HTML_CONTENT_FLAG${html.compactForUseHtml()}</usehtml>"
+        val nativeHref = TextUtils.htmlEncode(currentChapterFirstResourceHref)
+        return """<usehtml data-epub-render="6" data-epub-native-href="$nativeHref">${html.compactForUseHtml()}</usehtml>"""
     }
 
     private fun getBody(res: Resource, startFragmentId: String?, endFragmentId: String?): Element {
@@ -258,7 +264,6 @@ class EpubFile(var book: Book) {
             it.tagName("img", Parser.NamespaceHtml)
             it.attr("src", it.attr("xlink:href").ifBlank { it.attr("href") })
         }
-        buildNativeDom(doc, bodyElement, res)
         bodyElement.applyEpubCss(doc, res)
         bodyElement.propagateEpubInheritedStyles()
         bodyElement.materializeMediaElements(res)
@@ -306,6 +311,7 @@ class EpubFile(var book: Book) {
                 it.attr("href", resolvedHref)
             }
         }
+        buildNativeDom(doc, bodyElement, res)
         return bodyElement
     }
 
@@ -321,11 +327,36 @@ class EpubFile(var book: Book) {
             )
             nativeDomCache[res.href] = document
             if (ChapterProvider.visibleWidth > 0 && ChapterProvider.visibleHeight > 0) {
-                nativeLayoutCache[res.href] = EpubLayoutEngine(book).layout(document)
+                nativeLayoutCache[res.href] = EpubLayoutEngine(
+                    imageSizeResolver = ::getEpubImageSize
+                ).layout(document)
             }
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生 DOM 失败: ${res.href}\n${it.localizedMessage}", it)
         }
+    }
+
+    private fun getNativeLayout(href: String): EpubLayoutDocument? {
+        nativeLayoutCache[href]?.let { return it }
+        if (ChapterProvider.visibleWidth <= 0 || ChapterProvider.visibleHeight <= 0) return null
+        val document = nativeDomCache[href] ?: return null
+        return runCatching {
+            EpubLayoutEngine(imageSizeResolver = ::getEpubImageSize).layout(document)
+        }.onSuccess {
+            nativeLayoutCache[href] = it
+        }.onFailure {
+            AppLog.putDebug("构建 EPUB 原生布局失败: $href\n${it.localizedMessage}", it)
+        }.getOrNull()
+    }
+
+    private fun getEpubImageSize(href: String): android.util.Size? {
+        val resource = findEpubResource(href) ?: return null
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeByteArray(resource.data, 0, resource.data.size, options)
+        if (options.outWidth <= 0 || options.outHeight <= 0) return null
+        return android.util.Size(options.outWidth, options.outHeight)
     }
 
     private fun dumpEpubChapterDebug(
