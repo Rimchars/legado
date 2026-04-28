@@ -84,7 +84,7 @@ internal object EpubCss {
         val order: Int
     )
 
-    fun parseRules(css: String): List<Rule> {
+    fun parseRules(css: String, supportedOnly: Boolean = true): List<Rule> {
         if (css.isBlank()) return emptyList()
         val cleanCss = css.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
             .expandSupportedAtRules()
@@ -97,7 +97,11 @@ internal object EpubCss {
             val end = cleanCss.findMatchingCssBrace(start)
             if (end < 0) break
             val selectorText = cleanCss.substring(index, start)
-            val declarations = normalizeSupportedDeclarations(cleanCss.substring(start + 1, end))
+            val declarations = if (supportedOnly) {
+                normalizeSupportedDeclarations(cleanCss.substring(start + 1, end))
+            } else {
+                parseDeclarations(cleanCss.substring(start + 1, end))
+            }
             val style = declarations.toStyleString()
             if (style.isNotBlank()) {
                 selectorText.split(',')

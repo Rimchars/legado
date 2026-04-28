@@ -86,6 +86,7 @@ class EpubFile(var book: Book) {
     private var mCharset: Charset = Charset.defaultCharset()
     private val cssTextCache = linkedMapOf<String, String>()
     private val cssRuleCache = linkedMapOf<String, List<EpubCss.Rule>>()
+    private val nativeDomCache = linkedMapOf<String, EpubDomDocument>()
 
     /**
      *持有引用，避免被回收
@@ -255,6 +256,7 @@ class EpubFile(var book: Book) {
             it.tagName("img", Parser.NamespaceHtml)
             it.attr("src", it.attr("xlink:href").ifBlank { it.attr("href") })
         }
+        buildNativeDom(doc, bodyElement, res)
         bodyElement.applyEpubCss(doc, res)
         bodyElement.propagateEpubInheritedStyles()
         bodyElement.materializeMediaElements(res)
@@ -303,6 +305,21 @@ class EpubFile(var book: Book) {
             }
         }
         return bodyElement
+    }
+
+    private fun buildNativeDom(doc: Document, bodyElement: Element, res: Resource) {
+        runCatching {
+            nativeDomCache[res.href] = EpubDomBuilder(
+                loadCss = ::loadCss,
+                resolveHref = ::resolveEpubResourceHref
+            ).build(
+                doc = doc,
+                body = bodyElement,
+                baseHref = res.href
+            )
+        }.onFailure {
+            AppLog.putDebug("构建 EPUB 原生 DOM 失败: ${res.href}\n${it.localizedMessage}", it)
+        }
     }
 
     private fun dumpEpubChapterDebug(

@@ -1,0 +1,79 @@
+package io.legado.app.model.localBook
+
+internal data class EpubDomDocument(
+    val href: String,
+    val title: String?,
+    val body: EpubDomElement
+)
+
+internal sealed class EpubDomNode {
+    abstract val sourcePath: String
+}
+
+internal data class EpubDomElement(
+    val tagName: String,
+    val attributes: Map<String, String>,
+    val style: EpubComputedStyle,
+    val children: List<EpubDomNode>,
+    override val sourcePath: String
+) : EpubDomNode()
+
+internal data class EpubDomText(
+    val text: String,
+    override val sourcePath: String
+) : EpubDomNode()
+
+internal data class EpubComputedStyle(
+    val declarations: Map<String, EpubStyleValue>
+) {
+    operator fun get(name: String): String? = declarations[name]?.value
+
+    fun inheritedOnly(): EpubComputedStyle {
+        val inherited = declarations
+            .filterKeys { it in inheritableProperties }
+            .mapValues { (_, value) ->
+                value.copy(sourceRank = -1, specificity = 0, ruleOrder = -1, declarationOrder = -1)
+            }
+        return EpubComputedStyle(inherited)
+    }
+
+    companion object {
+        val empty = EpubComputedStyle(emptyMap())
+
+        private val inheritableProperties = setOf(
+            "color",
+            "font-family",
+            "font-size",
+            "font-style",
+            "font-weight",
+            "letter-spacing",
+            "line-height",
+            "text-align",
+            "text-decoration",
+            "text-indent",
+            "visibility",
+            "white-space",
+            "word-spacing"
+        )
+    }
+}
+
+internal data class EpubStyleValue(
+    val value: String,
+    val important: Boolean,
+    val sourceRank: Int,
+    val specificity: Int,
+    val ruleOrder: Int,
+    val declarationOrder: Int
+) {
+    fun hasHigherPriorityThan(other: EpubStyleValue): Boolean {
+        return compareValuesBy(
+            this,
+            other,
+            EpubStyleValue::sourceRank,
+            EpubStyleValue::specificity,
+            EpubStyleValue::ruleOrder,
+            EpubStyleValue::declarationOrder
+        ) > 0
+    }
+}
