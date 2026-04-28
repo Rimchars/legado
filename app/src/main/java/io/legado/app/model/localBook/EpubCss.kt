@@ -58,6 +58,14 @@ internal object EpubCss {
         val selector: String,
         val style: String,
         val specificity: Int,
+        val order: Int,
+        val declarations: List<Declaration> = EpubCss.parseDeclarations(style)
+    )
+
+    data class Declaration(
+        val name: String,
+        val value: String,
+        val important: Boolean,
         val order: Int
     )
 
@@ -74,13 +82,14 @@ internal object EpubCss {
             val end = cleanCss.findMatchingCssBrace(start)
             if (end < 0) break
             val selectorText = cleanCss.substring(index, start)
-            val style = normalizeSupportedStyle(cleanCss.substring(start + 1, end))
+            val declarations = normalizeSupportedDeclarations(cleanCss.substring(start + 1, end))
+            val style = declarations.toStyleString()
             if (style.isNotBlank()) {
                 selectorText.split(',')
                     .map { it.trim() }
                     .mapNotNull { it.toSupportedSelector() }
                     .forEach { selector ->
-                        rules.add(Rule(selector, style, selector.cssSpecificity(), order))
+                        rules.add(Rule(selector, style, selector.cssSpecificity(), order, declarations))
                     }
                 order++
             }
@@ -90,29 +99,40 @@ internal object EpubCss {
     }
 
     fun normalizeSupportedStyle(style: String): String {
-        return declarations(style)
+        return normalizeSupportedDeclarations(style).toStyleString()
+    }
+
+    fun normalizeSupportedDeclarations(style: String): List<Declaration> {
+        return parseDeclarations(style)
             .expandBoxShorthand()
-            .filterKeys { it in supportedProperties }
-            .entries
-            .joinToString(";") { (name, value) -> "$name:$value" }
+            .filter { it.name in supportedProperties }
     }
 
     fun declarations(style: String): LinkedHashMap<String, String> {
         val map = linkedMapOf<String, String>()
+        parseDeclarations(style).forEach { declaration ->
+            map[declaration.name] = declaration.value
+        }
+        return map
+    }
+
+    fun parseDeclarations(style: String): List<Declaration> {
+        val declarations = arrayListOf<Declaration>()
         splitDeclarations(style).forEach { item ->
             val index = item.indexOf(':')
             if (index <= 0) return@forEach
             val name = item.substring(0, index).trim().lowercase(Locale.ROOT)
             val rawValue = item.substring(index + 1)
             val importantIndex = rawValue.indexOf("!important", ignoreCase = true)
+            val important = importantIndex >= 0
             val value = (if (importantIndex >= 0) rawValue.substring(0, importantIndex) else rawValue)
                 .trim()
                 .replace("\"", "'")
             if (name.isNotBlank() && value.isNotBlank()) {
-                map[name] = value
+                declarations.add(Declaration(name, value, important, declarations.size))
             }
         }
-        return map
+        return declarations
     }
 
     fun splitDeclarations(style: String): List<String> {
@@ -177,6 +197,45 @@ internal object EpubCss {
         expandBoxShorthand("margin")
         expandBoxShorthand("padding")
         return this
+    }
+
+    private fun List<Declaration>.expandBoxShorthand(): List<Declaration> {
+        val expanded = linkedMapOf<String, Declaration>()
+        forEach { declaration ->
+            expanded[declaration.name] = declaration
+            if (declaration.name == "margin" || declaration.name == "padding") {
+                val values = splitValueList(declaration.value).takeIf { it.isNotEmpty() } ?: return@forEach
+                val top = values.getOrNull(0).orEmpty()
+                val right = values.getOrNull(1) ?: top
+                val bottom = values.getOrNull(2) ?: top
+                val left = values.getOrNull(3) ?: right
+                listOf(
+                    "${declaration.name}-top" to top,
+                    "${declaration.name}-right" to right,
+                    "${declaration.name}-bottom" to bottom,
+                    "${declaration.name}-left" to left
+                ).forEach { (name, value) ->
+                    expanded.putIfAbsent(
+                        name,
+                        declaration.copy(name = name, value = value, order = expanded.size)
+                    )
+                }
+            }
+        }
+        return expanded.values.toList()
+    }
+
+    private fun List<Declaration>.toStyleString(): String {
+        return joinToString(";") { declaration ->
+            buildString {
+                append(declaration.name)
+                append(':')
+                append(declaration.value)
+                if (declaration.important) {
+                    append(" !important")
+                }
+            }
+        }
     }
 
     private fun LinkedHashMap<String, String>.expandBoxShorthand(name: String) {
