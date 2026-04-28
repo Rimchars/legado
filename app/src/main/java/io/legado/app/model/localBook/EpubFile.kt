@@ -237,6 +237,7 @@ class EpubFile(var book: Book) {
             it.attr("src", it.attr("xlink:href").ifBlank { it.attr("href") })
         }
         bodyElement.applyEpubCss(doc, res)
+        bodyElement.propagateEpubInheritedStyles()
         bodyElement.select("[style]")
             .sortedByDescending { it.parents().size }
             .forEach { element ->
@@ -372,13 +373,14 @@ class EpubFile(var book: Book) {
     private fun parseCssRules(css: String): List<CssRule> {
         if (css.isBlank()) return emptyList()
         val cleanCss = css.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
+            .expandSupportedAtRules()
         val rules = arrayListOf<CssRule>()
         var order = 0
         var index = 0
         while (index < cleanCss.length) {
             val start = cleanCss.indexOf('{', index)
             if (start < 0) break
-            val end = cleanCss.indexOf('}', start + 1)
+            val end = cleanCss.findMatchingCssBrace(start)
             if (end < 0) break
             val selectorText = cleanCss.substring(index, start)
             val style = normalizeSupportedCss(cleanCss.substring(start + 1, end))
@@ -394,6 +396,63 @@ class EpubFile(var book: Book) {
             index = end + 1
         }
         return rules
+    }
+
+    private fun String.expandSupportedAtRules(): String {
+        val builder = StringBuilder(length)
+        var index = 0
+        while (index < length) {
+            val at = indexOf('@', index)
+            if (at < 0) {
+                builder.append(substring(index))
+                break
+            }
+            builder.append(substring(index, at))
+            val nameEnd = indexOfAny(charArrayOf(' ', '\t', '\r', '\n', '{', ';'), at + 1)
+                .takeIf { it >= 0 } ?: length
+            val name = substring(at + 1, nameEnd).trim().lowercase(Locale.ROOT)
+            val blockStart = indexOf('{', nameEnd)
+            val semicolon = indexOf(';', nameEnd).takeIf { it >= 0 }
+            if (blockStart < 0 || (semicolon != null && semicolon < blockStart)) {
+                index = (semicolon ?: nameEnd) + 1
+                continue
+            }
+            val blockEnd = findMatchingCssBrace(blockStart)
+            if (blockEnd < 0) {
+                break
+            }
+            if (name == "media" || name == "supports") {
+                builder.append(substring(blockStart + 1, blockEnd))
+            }
+            index = blockEnd + 1
+        }
+        return builder.toString()
+    }
+
+    private fun String.findMatchingCssBrace(start: Int): Int {
+        var depth = 0
+        var quote: Char? = null
+        var index = start
+        while (index < length) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && this.getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                index++
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                '{' -> depth++
+                '}' -> {
+                    depth--
+                    if (depth == 0) return index
+                }
+            }
+            index++
+        }
+        return -1
     }
 
     private fun normalizeSupportedCss(style: String): String {
@@ -436,36 +495,98 @@ class EpubFile(var book: Book) {
             "max-width",
             "max-height"
         )
-        return style.split(';')
-            .mapNotNull { item ->
-                val index = item.indexOf(':')
-                if (index <= 0) return@mapNotNull null
-                val name = item.substring(0, index).trim().lowercase(Locale.ROOT)
-                val value = item.substring(index + 1).trim()
-                    .replace("\"", "'")
-                if (name in supported && value.isNotBlank()) {
-                    "$name:$value"
-                } else {
-                    null
-                }
-            }
-            .joinToString(";")
+        return style.toCssDeclarationMap()
+            .filterKeys { it in supported }
+            .entries
+            .joinToString(";") { (name, value) -> "$name:$value" }
     }
 
     private fun String.toSupportedSelector(): String? {
         val selector = trim()
-            .substringBefore(":")
+            .dropUnsupportedSelectorPseudo()
             .replace(Regex("\\s+>\\s+"), " > ")
+            .replace("|", "\\:")
         if (selector.isBlank()) return null
-        if (selector.contains(Regex("[+~\\[\\]=]"))) return null
+        if (selector.hasUnsupportedSelectorCombinator()) return null
         return selector.takeIf {
-            it.matches(Regex("[a-zA-Z0-9_#.*\\-\\s>]+"))
+            it.matches(Regex("[a-zA-Z0-9_#.*%\\-\\s>\\[\\]=~\\^$|:'\",\\\\]+"))
         }
+    }
+
+    private fun String.hasUnsupportedSelectorCombinator(): Boolean {
+        var bracketDepth = 0
+        for (char in this) {
+            when (char) {
+                '[' -> bracketDepth++
+                ']' -> if (bracketDepth > 0) bracketDepth--
+                '+', '~' -> if (bracketDepth == 0) return true
+            }
+        }
+        return false
+    }
+
+    private fun String.dropUnsupportedSelectorPseudo(): String {
+        val builder = StringBuilder(length)
+        var index = 0
+        var bracketDepth = 0
+        while (index < length) {
+            val char = this[index]
+            when {
+                char == '[' -> {
+                    bracketDepth++
+                    builder.append(char)
+                    index++
+                }
+                char == ']' -> {
+                    if (bracketDepth > 0) bracketDepth--
+                    builder.append(char)
+                    index++
+                }
+                char == ':' && bracketDepth == 0 -> {
+                    index++
+                    while (index < length && (this[index].isLetterOrDigit() || this[index] == '-' || this[index] == '_')) {
+                        index++
+                    }
+                    if (index < length && this[index] == '(') {
+                        val end = findMatchingParenthesis(index)
+                        index = if (end >= 0) end + 1 else length
+                    }
+                }
+                else -> {
+                    builder.append(char)
+                    index++
+                }
+            }
+        }
+        return builder.toString().trim()
+    }
+
+    private fun String.findMatchingParenthesis(start: Int): Int {
+        var depth = 0
+        var quote: Char? = null
+        for (index in start until length) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                '(' -> depth++
+                ')' -> {
+                    depth--
+                    if (depth == 0) return index
+                }
+            }
+        }
+        return -1
     }
 
     private fun String.cssSpecificity(): Int {
         val ids = count { it == '#' }
-        val classes = count { it == '.' }
+        val classes = count { it == '.' } + count { it == '[' }
         val tags = split(Regex("[\\s>]+")).count { part ->
             part.isNotBlank() && !part.startsWith(".") && !part.startsWith("#") && part != "*"
         }
@@ -474,9 +595,92 @@ class EpubFile(var book: Book) {
 
     private fun Element.mergeInlineStyle(style: String) {
         if (style.isBlank()) return
-        val oldStyle = attr("style").trim().trimEnd(';')
-        val newStyle = if (oldStyle.isBlank()) style else "$oldStyle;$style"
-        attr("style", newStyle)
+        val merged = linkedMapOf<String, String>()
+        merged.putAll(attr("style").toCssDeclarationMap())
+        merged.putAll(style.toCssDeclarationMap())
+        attr("style", merged.entries.joinToString(";") { (name, value) -> "$name:$value" })
+    }
+
+    private fun Element.propagateEpubInheritedStyles() {
+        val inheritable = setOf(
+            "color",
+            "font-family",
+            "font-size",
+            "font-style",
+            "font-weight",
+            "line-height",
+            "text-align",
+            "text-decoration",
+            "text-indent"
+        )
+        fun Element.walkWithInherited(parentStyle: Map<String, String>) {
+            val ownStyle = attr("style").toCssDeclarationMap()
+            val inherited = parentStyle.filterKeys { it in inheritable }
+            var changed = false
+            inherited.forEach { (name, value) ->
+                if (!ownStyle.containsKey(name)) {
+                    ownStyle[name] = value
+                    changed = true
+                }
+            }
+            if (changed) {
+                attr("style", ownStyle.entries.joinToString(";") { (name, value) -> "$name:$value" })
+            }
+            val nextInherited = ownStyle.filterKeys { it in inheritable }
+            children().forEach { child ->
+                child.walkWithInherited(nextInherited)
+            }
+        }
+        children().forEach { child ->
+            child.walkWithInherited(attr("style").toCssDeclarationMap())
+        }
+    }
+
+    private fun String.toCssDeclarationMap(): LinkedHashMap<String, String> {
+        val map = linkedMapOf<String, String>()
+        splitCssDeclarations().forEach { item ->
+            val index = item.indexOf(':')
+            if (index <= 0) return@forEach
+            val name = item.substring(0, index).trim().lowercase(Locale.ROOT)
+            val rawValue = item.substring(index + 1)
+            val importantIndex = rawValue.indexOf("!important", ignoreCase = true)
+            val value = (if (importantIndex >= 0) rawValue.substring(0, importantIndex) else rawValue)
+                .trim()
+                .replace("\"", "'")
+            if (name.isNotBlank() && value.isNotBlank()) {
+                map[name] = value
+            }
+        }
+        return map
+    }
+
+    private fun String.splitCssDeclarations(): List<String> {
+        val result = arrayListOf<String>()
+        var quote: Char? = null
+        var parenDepth = 0
+        var start = 0
+        for (index in indices) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                '(' -> parenDepth++
+                ')' -> if (parenDepth > 0) parenDepth--
+                ';' -> if (parenDepth == 0) {
+                    result.add(substring(start, index))
+                    start = index + 1
+                }
+            }
+        }
+        if (start <= lastIndex) {
+            result.add(substring(start))
+        }
+        return result
     }
 
     private fun String.compactForUseHtml(): String {
