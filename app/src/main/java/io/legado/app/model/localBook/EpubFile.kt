@@ -328,6 +328,10 @@ class EpubFile(var book: Book) {
                 baseHref = res.href
             )
             nativeDomCache[res.href] = document
+            AppLog.putDebug(
+                "EPUB Native DOM ready: href=${res.href}, " +
+                    "children=${document.body.children.size}, title=${document.title.orEmpty()}"
+            )
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生 DOM 失败: ${res.href}\n${it.localizedMessage}", it)
         }
@@ -336,13 +340,27 @@ class EpubFile(var book: Book) {
     private fun getNativeLayout(href: String): EpubLayoutDocument? {
         val width = ChapterProvider.visibleWidth
         val height = ChapterProvider.visibleHeight
-        if (width <= 0 || height <= 0) return null
+        AppLog.putDebug(
+            "EPUB Native Layout enter: href=$href, view=${width}x$height, " +
+                "domCache=${nativeDomCache.containsKey(href)}, layoutCache=${nativeLayoutCache.containsKey(href)}"
+        )
+        if (width <= 0 || height <= 0) {
+            AppLog.putDebug("EPUB Native Layout abort: 阅读区尺寸无效, href=$href, view=${width}x$height")
+            return null
+        }
         if (nativeLayoutWidth != width || nativeLayoutHeight != height) {
+            AppLog.putDebug(
+                "EPUB Native Layout cache clear: old=${nativeLayoutWidth}x$nativeLayoutHeight, " +
+                    "new=${width}x$height"
+            )
             nativeLayoutCache.clear()
             nativeLayoutWidth = width
             nativeLayoutHeight = height
         }
-        nativeLayoutCache[href]?.let { return it }
+        nativeLayoutCache[href]?.let {
+            AppLog.putDebug("EPUB Native Layout cache hit: href=$href, pages=${it.pages.size}")
+            return it
+        }
         val document = nativeDomCache[href] ?: rebuildNativeDom(href) ?: return null
         return runCatching {
             EpubLayoutEngine(
@@ -352,16 +370,29 @@ class EpubFile(var book: Book) {
             ).layout(document)
         }.onSuccess {
             nativeLayoutCache[href] = it
+            AppLog.putDebug(
+                "EPUB Native Layout built: href=$href, pages=${it.pages.size}, " +
+                    "commands=${it.pages.sumOf { page -> page.commands.size }}"
+            )
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生布局失败: $href\n${it.localizedMessage}", it)
         }.getOrNull()
     }
 
     private fun rebuildNativeDom(href: String): EpubDomDocument? {
-        val resource = findEpubResource(href) ?: return null
+        AppLog.putDebug("EPUB Native DOM rebuild start: href=$href")
+        val resource = findEpubResource(href) ?: run {
+            AppLog.putDebug("EPUB Native DOM rebuild failed: 找不到资源 href=$href")
+            return null
+        }
         return runCatching {
             getBody(resource, null, null)
-            nativeDomCache[href]
+            nativeDomCache[href].also { document ->
+                AppLog.putDebug(
+                    "EPUB Native DOM rebuild result: href=$href, " +
+                        "success=${document != null}, children=${document?.body?.children?.size ?: 0}"
+                )
+            }
         }.onFailure {
             AppLog.putDebug("重建 EPUB 原生 DOM 失败: $href\n${it.localizedMessage}", it)
         }.getOrNull()
