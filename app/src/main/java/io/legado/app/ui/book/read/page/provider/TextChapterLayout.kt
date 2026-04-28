@@ -629,12 +629,12 @@ class TextChapterLayout(
      */
     private suspend fun setTypeNativeEpubLayout(rawUseHtml: String): Boolean {
         if (!book.isEpub) {
-            AppLog.putDebug("EPUB Native Layout fallback: 当前书籍不是 EPUB, book=${book.name}")
+            AppLog.put("EPUB Native Layout fallback: 当前书籍不是 EPUB, book=${book.name}")
             return false
         }
         val wrapper = Jsoup.parse(rawUseHtml).selectFirst("usehtml[data-epub-native-href]")
             ?: run {
-                AppLog.putDebug(
+                AppLog.put(
                     "EPUB Native Layout fallback: 未找到 data-epub-native-href, " +
                         "chapter=${bookChapter.index}:${bookChapter.title}, rawHead=${rawUseHtml.take(160)}"
                 )
@@ -642,18 +642,18 @@ class TextChapterLayout(
             }
         val href = wrapper.attr("data-epub-native-href").trim()
         if (href.isBlank()) {
-            AppLog.putDebug(
+            AppLog.put(
                 "EPUB Native Layout fallback: data-epub-native-href 为空, " +
                     "chapter=${bookChapter.index}:${bookChapter.title}"
             )
             return false
         }
-        AppLog.putDebug(
+        AppLog.put(
             "EPUB Native Layout request: chapter=${bookChapter.index}:${bookChapter.title}, " +
                 "href=$href, view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
         )
         val layout = EpubFile.getNativeLayout(book, href) ?: run {
-            AppLog.putDebug(
+            AppLog.put(
                 "EPUB Native Layout fallback: getNativeLayout 返回 null, " +
                     "chapter=${bookChapter.index}:${bookChapter.title}, href=$href, " +
                     "view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
@@ -661,13 +661,13 @@ class TextChapterLayout(
             return false
         }
         if (layout.pages.isEmpty()) {
-            AppLog.putDebug(
+            AppLog.put(
                 "EPUB Native Layout fallback: layout 页数为 0, " +
                     "chapter=${bookChapter.index}:${bookChapter.title}, href=$href"
             )
             return false
         }
-        AppLog.putDebug(
+        AppLog.put(
             "EPUB Native Layout success: chapter=${bookChapter.index}:${bookChapter.title}, " +
                 "href=$href, pages=${layout.pages.size}"
         )
