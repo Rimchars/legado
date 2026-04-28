@@ -4,12 +4,8 @@ import android.graphics.Color
 import android.text.TextPaint
 import android.util.Size
 import io.legado.app.data.entities.Book
-import io.legado.app.model.ImageProvider
-import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
-import io.legado.app.utils.dpToPx
 import java.util.Locale
-import kotlin.math.roundToInt
 
 internal class EpubLayoutEngine(
     private val book: Book,
@@ -168,7 +164,6 @@ internal class EpubLayoutEngine(
             ?: element.attributes["xlink:href"]
             ?: element.attributes["href"]
             ?: return
-        val intrinsic = ImageProvider.getImageSize(book, src, ReadBook.bookSource)
         val imageWidth = element.style.lengthPx("width", width)
             .takeIf { it > 0f }
             ?: element.attributes["width"]?.toCssLengthPx(width)
@@ -176,7 +171,7 @@ internal class EpubLayoutEngine(
         val imageHeight = element.style.lengthPx("height", width)
             .takeIf { it > 0f }
             ?: element.attributes["height"]?.toCssLengthPx(width)
-            ?: intrinsic.scaledHeight(imageWidth)
+            ?: Size(0, 0).scaledHeight(imageWidth)
         flushPageIfNeedForHeight(cursorY + imageHeight)
         currentCommands.add(
             EpubImageBox(
