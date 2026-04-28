@@ -367,6 +367,11 @@ internal class EpubDomBuilder(
                 add("font-weight", "bold")
             }
             "h4", "h5", "h6" -> add("font-weight", "bold")
+            "th" -> {
+                add("font-weight", "bold")
+                add("text-align", "center")
+            }
+            "caption" -> add("text-align", "center")
         }
         if (normalName() == "font") {
             attr("color").takeIf { it.isNotBlank() }?.let { add("color", it) }

@@ -79,10 +79,11 @@ internal class EpubLayoutEngine(
         }
         val marginTop = style.verticalLengthPx("margin-top", width)
         val marginBottom = style.verticalLengthPx("margin-bottom", width)
-        val paddingTop = style.verticalLengthPx("padding-top", width)
-        val paddingBottom = style.verticalLengthPx("padding-bottom", width)
-        val paddingLeft = style.lengthPx("padding-left", width)
-        val paddingRight = style.lengthPx("padding-right", width)
+        val padding = style.boxPadding(width)
+        val paddingTop = padding.top
+        val paddingBottom = padding.bottom
+        val paddingLeft = padding.left
+        val paddingRight = padding.right
         val requestedWidth = style.resolveHorizontalSize(width)
         val rawMarginLeft = style["margin-left"]
         val rawMarginRight = style["margin-right"]
@@ -332,6 +333,7 @@ internal class EpubLayoutEngine(
             currentCommands.lastIndex
         }
         val (horizontalSpacing, verticalSpacing) = node.tableSpacing(width)
+        val cellPadding = node.tableCellPadding(width)
         val contentTableWidth = (tableWidth - horizontalSpacing * (maxColumns - 1).coerceAtLeast(0))
             .coerceAtLeast(1f)
         val columnWidths = node.tableColumnWidths(grid, contentTableWidth)
@@ -344,7 +346,7 @@ internal class EpubLayoutEngine(
                 val oldCursor = cursorY
                 val commandBuffer = currentCommands
                 val oldCommandsSize = currentCommands.size
-                val cell = gridCell.node
+                val cell = gridCell.node.withTableCellPadding(cellPadding)
                 val cellLeft = tableLeft +
                     columnWidths.take(gridCell.column).sum() +
                     horizontalSpacing * gridCell.column
@@ -381,7 +383,7 @@ internal class EpubLayoutEngine(
             val rowHeight = measuredCells.maxOfOrNull { it.height } ?: lineHeight(row.style)
             measuredCells.forEach { measured ->
                 val offsetY = measured.gridCell.node.style.tableVerticalOffset(rowHeight, measured.height)
-                currentCommands.addAll(measured.commands.offsetBy(dy = offsetY))
+                currentCommands.addAll(measured.commands.fitTableCell(measured, rowHeight, offsetY))
             }
             cursorY = rowTop + rowHeight
             if (rowIndex < grid.rows.lastIndex) {
@@ -865,13 +867,13 @@ internal class EpubLayoutEngine(
     private fun estimateBlockHeight(node: EpubBlockNode, width: Float): Float {
         val style = node.style
         val borderWidth = style.borderWidthPx()
-        val paddingVertical = style.verticalLengthPx("padding-top", width) +
-            style.verticalLengthPx("padding-bottom", width)
+        val padding = style.boxPadding(width)
+        val paddingVertical = padding.top + padding.bottom
         val marginVertical = style.verticalLengthPx("margin-top", width) +
             style.verticalLengthPx("margin-bottom", width)
         val contentWidth = (width -
-            style.lengthPx("padding-left", width) -
-            style.lengthPx("padding-right", width) -
+            padding.left -
+            padding.right -
             borderWidth * 2).coerceAtLeast(1f)
         val explicitHeight = style.resolveVerticalSize(width)
         if (explicitHeight != null) return explicitHeight + marginVertical
@@ -1031,6 +1033,10 @@ internal class EpubLayoutEngine(
     }
 
     private fun EpubComputedStyle.inlinePadding(relativeTo: Float): InlinePadding {
+        return boxPadding(relativeTo)
+    }
+
+    private fun EpubComputedStyle.boxPadding(relativeTo: Float): InlinePadding {
         val padding = lengthPx("padding", relativeTo)
         val horizontal = lengthPx("padding-left", relativeTo)
             .takeIf { it > 0f }
@@ -1178,6 +1184,51 @@ internal class EpubLayoutEngine(
         }
     }
 
+    private fun EpubBlockNode.tableCellPadding(relativeTo: Float): Float {
+        return attributes["cellpadding"]?.toCssLengthPx(relativeTo)
+            ?: style["cellpadding"]?.toCssLengthPx(relativeTo)
+            ?: 0f
+    }
+
+    private fun EpubBlockNode.withTableCellPadding(cellPadding: Float): EpubBlockNode {
+        if (cellPadding <= 0f || tagName !in setOf("td", "th")) return this
+        val declarations = linkedMapOf<String, EpubStyleValue>()
+        declarations.putAll(style.declarations)
+        val value = EpubStyleValue(
+            value = "${cellPadding}px",
+            important = false,
+            sourceRank = -2,
+            specificity = 0,
+            ruleOrder = -1,
+            declarationOrder = -1
+        )
+        listOf("padding-top", "padding-right", "padding-bottom", "padding-left").forEach { name ->
+            if (!declarations.containsKey(name) && !declarations.containsKey("padding")) {
+                declarations[name] = value
+            }
+        }
+        if (declarations.size == style.declarations.size) return this
+        return copy(style = EpubComputedStyle(declarations))
+    }
+
+    private fun List<EpubDrawCommand>.fitTableCell(
+        measured: MeasuredTableCell,
+        rowHeight: Float,
+        contentOffsetY: Float
+    ): List<EpubDrawCommand> {
+        if (isEmpty()) return this
+        val cellHasDecoration = measured.gridCell.node.style.blockStyle() != null
+        var consumedCellBox = false
+        return map { command ->
+            if (cellHasDecoration && !consumedCellBox && command is EpubBlockBox) {
+                consumedCellBox = true
+                command.copy(height = rowHeight.coerceAtLeast(command.height))
+            } else {
+                command.offsetBy(dy = contentOffsetY)
+            }
+        }
+    }
+
     private fun List<EpubDrawCommand>.offsetBy(dy: Float): List<EpubDrawCommand> {
         if (dy == 0f) return this
         return map { command ->
@@ -1189,6 +1240,18 @@ internal class EpubLayoutEngine(
                 is EpubBullet -> command.copy(baseline = command.baseline + dy)
                 is EpubPageColor -> command
             }
+        }
+    }
+
+    private fun EpubDrawCommand.offsetBy(dy: Float): EpubDrawCommand {
+        if (dy == 0f) return this
+        return when (this) {
+            is EpubTextRun -> copy(y = y + dy, baseline = baseline + dy)
+            is EpubImageBox -> copy(y = y + dy)
+            is EpubBlockBox -> copy(y = y + dy)
+            is EpubRuleLine -> copy(y = y + dy)
+            is EpubBullet -> copy(baseline = baseline + dy)
+            is EpubPageColor -> this
         }
     }
 
