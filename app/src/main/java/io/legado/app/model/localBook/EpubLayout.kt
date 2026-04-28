@@ -52,3 +52,21 @@ internal data class EpubBlockBox(
     val radius: Float,
     override val sourcePath: String
 ) : EpubDrawCommand()
+
+internal data class EpubRuleLine(
+    val x: Float,
+    val y: Float,
+    val width: Float,
+    val strokeWidth: Float,
+    val color: Int?,
+    override val sourcePath: String
+) : EpubDrawCommand()
+
+internal data class EpubBullet(
+    val text: String,
+    val x: Float,
+    val baseline: Float,
+    val size: Float,
+    val color: Int?,
+    override val sourcePath: String
+) : EpubDrawCommand()
