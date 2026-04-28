@@ -21,6 +21,7 @@ internal class EpubLayoutEngine(
     private var firstLineIndent = 0f
     private var pageHasFullBackground = false
     private val activeBlockStack = arrayListOf<ActiveBlockDecoration>()
+    private val activeFloats = arrayListOf<ActiveFloat>()
     private var documentFontFaces: List<EpubFontFace> = emptyList()
 
     fun layout(document: EpubDomDocument): EpubLayoutDocument {
@@ -30,6 +31,7 @@ internal class EpubLayoutEngine(
         firstLineIndent = 0f
         pageHasFullBackground = false
         activeBlockStack.clear()
+        activeFloats.clear()
         documentFontFaces = document.fontFaces
         val boxDocument = EpubBoxBuilder().build(document)
         layoutBlockNode(boxDocument.root, left = 0f, width = viewportWidth.toFloat())
@@ -67,6 +69,13 @@ internal class EpubLayoutEngine(
             return
         }
         val style = node.style
+        if (style.floatSide() != null) {
+            layoutFloatNode(node, left, width)
+            return
+        }
+        style.clearFloatSide()?.let { side ->
+            cursorY = activeFloats.clearY(cursorY, side)
+        }
         if (style.shouldForceBreakBefore() && currentCommands.isNotEmpty()) {
             flushPageIfNeeded(force = true)
         }
@@ -85,6 +94,7 @@ internal class EpubLayoutEngine(
         val paddingLeft = padding.left
         val paddingRight = padding.right
         val requestedWidth = style.resolveHorizontalSize(width)
+        val boxSizing = style["box-sizing"]?.trim()?.lowercase(Locale.ROOT)
         val rawMarginLeft = style["margin-left"]
         val rawMarginRight = style["margin-right"]
         val marginLeftValue = rawMarginLeft?.toCssLengthPx(width) ?: 0f
@@ -95,12 +105,20 @@ internal class EpubLayoutEngine(
         val listMarker = if (node.tagName == "li") style.listMarkerText() else null
         val listMarkerWidth = if (listMarker != null) basePaint.textSize * 1.2f else 0f
         val availableWidth = (width - listMarkerWidth).coerceAtLeast(1f)
-        val outerWidth = requestedWidth
-            ?.plus(borderWidth * 2)
-            ?.plus(paddingLeft)
-            ?.plus(paddingRight)
-            ?.coerceAtMost(availableWidth)
-            ?: (width - marginLeftValue - marginRightValue - listMarkerWidth)
+        val outerWidth = when {
+            requestedWidth != null && boxSizing == "border-box" -> requestedWidth
+            requestedWidth != null -> requestedWidth + borderWidth * 2 + paddingLeft + paddingRight
+            else -> width - marginLeftValue - marginRightValue - listMarkerWidth
+        }.let { value ->
+            if (requestedWidth == null) {
+                value.applyMinMax(
+                    minValue = style["min-width"]?.toCssLengthPx(width),
+                    maxValue = style["max-width"]?.toCssLengthPx(width)
+                )
+            } else {
+                value
+            }
+        }.coerceIn(1f, availableWidth)
         val remainingWidth = (width - outerWidth - listMarkerWidth).coerceAtLeast(0f)
         val marginLeft = when {
             rawMarginLeft.isAutoCssValue() && rawMarginRight.isAutoCssValue() -> remainingWidth / 2f
@@ -116,8 +134,9 @@ internal class EpubLayoutEngine(
         val relativeOffsetY = style.relativeOffsetY(viewportHeight.toFloat())
         val visualLeft = left + relativeOffsetX
         var visualBoxTop = boxTop + relativeOffsetY
-        val contentLeft = visualLeft + marginLeft + borderWidth + paddingLeft + listMarkerWidth
-        val contentWidth = (outerWidth - borderWidth * 2 - paddingLeft - paddingRight)
+        val floatInset = activeFloats.insetAt(cursorY)
+        val contentLeft = visualLeft + marginLeft + borderWidth + paddingLeft + listMarkerWidth + floatInset.left
+        val contentWidth = (outerWidth - borderWidth * 2 - paddingLeft - paddingRight - floatInset.left - floatInset.right)
             .coerceAtLeast(1f)
         val requestedHeight = style.resolveVerticalSize(width)
         if (requestedHeight != null && boxTop + requestedHeight > viewportHeight && currentCommands.isNotEmpty()) {
@@ -188,7 +207,10 @@ internal class EpubLayoutEngine(
                 is EpubBreakNode -> inlineItems.addAll(collectInlineItems(child))
                 else -> {
                     flushInlineItems()
-                    if (child.isOutOfFlowPositioned()) {
+                    val childFloat = child.style.floatSide()
+                    if (childFloat != null) {
+                        layoutFloatNode(child, contentLeft, contentWidth)
+                    } else if (child.isOutOfFlowPositioned()) {
                         layoutPositionedNode(child, contentLeft, contentWidth, boxTop)
                     } else {
                         layoutBoxNode(child, contentLeft, contentWidth)
@@ -233,7 +255,41 @@ internal class EpubLayoutEngine(
             flushPageIfNeeded(force = true)
             return
         }
+        activeFloats.removeFinished(cursorY)
         flushPageIfNeeded()
+    }
+
+    private fun layoutFloatNode(node: EpubBoxNode, left: Float, width: Float) {
+        val side = node.style.floatSide() ?: return
+        val requestedWidth = node.style.resolveHorizontalSize(width)
+            ?: if (node is EpubImageNode) {
+                node.attributes["data-legado-width"]?.toCssLengthPx(width)
+                    ?: node.attributes["width"]?.toCssLengthPx(width)
+            } else {
+                null
+            }
+            ?: (width * 0.42f)
+        val floatWidth = requestedWidth.coerceIn(1f, width * 0.8f)
+        val oldCursor = cursorY
+        val oldCommandsSize = currentCommands.size
+        val floatLeft = when (side) {
+            "right" -> left + width - floatWidth
+            else -> left
+        }
+        layoutBoxNode(node.withoutFloat(), floatLeft, floatWidth)
+        val floatBottom = cursorY
+        val floatCommands = currentCommands.subList(oldCommandsSize, currentCommands.size).toList()
+        currentCommands.subList(oldCommandsSize, currentCommands.size).clear()
+        cursorY = oldCursor
+        currentCommands.addAll(floatCommands)
+        activeFloats.add(
+            ActiveFloat(
+                side = side,
+                top = oldCursor,
+                bottom = floatBottom,
+                width = floatWidth
+            )
+        )
     }
 
     private fun layoutPositionedNode(
@@ -759,6 +815,7 @@ internal class EpubLayoutEngine(
         cursorY = 0f
         firstLineIndent = 0f
         pageHasFullBackground = false
+        activeFloats.clear()
         reopenActiveBlocksOnNextPage()
     }
 
@@ -852,6 +909,40 @@ internal class EpubLayoutEngine(
 
     private fun EpubBoxNode.isOutOfFlowPositioned(): Boolean {
         return style["position"]?.trim()?.lowercase(Locale.ROOT) in setOf("absolute", "fixed")
+    }
+
+    private fun EpubComputedStyle.floatSide(): String? {
+        return when (this["float"]?.trim()?.lowercase(Locale.ROOT)) {
+            "left" -> "left"
+            "right" -> "right"
+            else -> null
+        }
+    }
+
+    private fun EpubComputedStyle.clearFloatSide(): String? {
+        return when (this["clear"]?.trim()?.lowercase(Locale.ROOT)) {
+            "left" -> "left"
+            "right" -> "right"
+            "both", "all" -> "both"
+            else -> null
+        }
+    }
+
+    private fun EpubBoxNode.withoutFloat(): EpubBoxNode {
+        val cleanStyle = style.without("float", "clear")
+        return when (this) {
+            is EpubBlockNode -> copy(style = cleanStyle)
+            is EpubInlineNode -> copy(style = cleanStyle)
+            is EpubTextNode -> copy(style = cleanStyle)
+            is EpubImageNode -> copy(style = cleanStyle)
+            is EpubBreakNode -> copy(style = cleanStyle)
+            is EpubRuleNode -> copy(style = cleanStyle)
+            is EpubPageColorNode -> copy(style = cleanStyle)
+        }
+    }
+
+    private fun EpubComputedStyle.without(vararg names: String): EpubComputedStyle {
+        return EpubComputedStyle(declarations - names.toSet())
     }
 
     private fun EpubBoxNode.asBlockNode(): EpubBlockNode {
@@ -1145,7 +1236,7 @@ internal class EpubLayoutEngine(
             "none" -> null
             "circle" -> "○"
             "square" -> "■"
-            "decimal", "decimal-leading-zero" -> "•"
+            "decimal", "decimal-leading-zero", "cjk-ideographic", "simp-chinese-informal" -> "•"
             else -> "•"
         }
     }
@@ -1241,6 +1332,31 @@ internal class EpubLayoutEngine(
                 is EpubPageColor -> command
             }
         }
+    }
+
+    private fun MutableList<ActiveFloat>.insetAt(y: Float): FloatInset {
+        removeFinished(y)
+        var left = 0f
+        var right = 0f
+        forEach { float ->
+            if (y < float.top || y >= float.bottom) return@forEach
+            when (float.side) {
+                "right" -> right += float.width
+                else -> left += float.width
+            }
+        }
+        return FloatInset(left = left, right = right)
+    }
+
+    private fun MutableList<ActiveFloat>.removeFinished(y: Float) {
+        removeAll { it.bottom <= y }
+    }
+
+    private fun List<ActiveFloat>.clearY(currentY: Float, side: String): Float {
+        val blocking = filter { float ->
+            currentY < float.bottom && (side == "both" || float.side == side)
+        }
+        return blocking.maxOfOrNull { it.bottom } ?: currentY
     }
 
     private fun EpubDrawCommand.offsetBy(dy: Float): EpubDrawCommand {
@@ -1778,6 +1894,18 @@ internal class EpubLayoutEngine(
         val style: BlockStyle,
         val sourcePath: String,
         var openCommandIndex: Int? = null
+    )
+
+    private data class ActiveFloat(
+        val side: String,
+        val top: Float,
+        val bottom: Float,
+        val width: Float
+    )
+
+    private data class FloatInset(
+        val left: Float,
+        val right: Float
     )
 
     private data class TableGrid(
