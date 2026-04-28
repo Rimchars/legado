@@ -57,6 +57,7 @@ class PageView(context: Context) : FrameLayout(context) {
     private var tvTimeBattery: BatteryView? = null
     private var tvTimeBatteryP: BatteryView? = null
     private var isMainView = false
+    private var currentTextPage: TextPage? = null
     var isScroll = false
 
     val headerHeight: Int
@@ -166,15 +167,16 @@ class PageView(context: Context) : FrameLayout(context) {
     /**
      * 更新阅读信息
      */
-    private fun upTipStyle() = binding.run {
+    private fun upTipStyle(textPage: TextPage? = currentTextPage) = binding.run {
         val isEpub = ReadBook.book?.isEpub == true
+        val hideTipForEpubBackgroundImage = isEpub && textPage?.epubBackgroundSrc != null
         tvHeaderLeft.tag = null
         tvHeaderMiddle.tag = null
         tvHeaderRight.tag = null
         tvFooterLeft.tag = null
         tvFooterMiddle.tag = null
         tvFooterRight.tag = null
-        llHeader.isGone = if (isEpub) {
+        llHeader.isGone = if (hideTipForEpubBackgroundImage) {
             true
         } else {
             when (ReadTipConfig.headerMode) {
@@ -183,7 +185,7 @@ class PageView(context: Context) : FrameLayout(context) {
                 else -> !ReadBookConfig.hideStatusBar
             }
         }
-        llFooter.isGone = if (isEpub) {
+        llFooter.isGone = if (hideTipForEpubBackgroundImage) {
             true
         } else {
             when (ReadTipConfig.footerMode) {
@@ -355,6 +357,8 @@ class PageView(context: Context) : FrameLayout(context) {
      * 设置内容
      */
     fun setContent(textPage: TextPage, resetPageOffset: Boolean = true) {
+        currentTextPage = textPage
+        upTipStyle(textPage)
         if (isMainView && !isScroll) {
             setProgress(textPage)
         } else {
