@@ -1,5 +1,6 @@
 package io.legado.app.ui.book.read.page.provider
 
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.text.Layout
@@ -172,6 +173,9 @@ class TextChapterLayout(
 
     private fun onPageCompleted() {
         val textPage = pendingTextPage
+        if (textPage.lines.isEmpty() && !textPage.hasEpubBackground() && stringBuilder.isBlank()) {
+            return
+        }
         textPage.index = textPages.size
         textPage.chapterIndex = bookChapter.index
         textPage.chapterSize = chaptersSize
@@ -649,6 +653,17 @@ class TextChapterLayout(
             when (node) {
                 is TextNode -> htmlBuffer.append(node.outerHtml())
                 is Element -> {
+                    if (node.hasAttr("data-epub-page-bg")) {
+                        flushHtmlBuffer()
+                        node.attr("data-epub-page-bg").toEpubTagColor()?.let { color ->
+                            if (pendingTextPage.lines.isNotEmpty() || pendingTextPage.hasEpubBackground()) {
+                                prepareNextPageIfNeed()
+                            }
+                            pendingTextPage.epubBackgroundColor = color
+                            pendingTextPage.height = viewHeight.toFloat()
+                        }
+                        return
+                    }
                     if (node.hasEpubPageBreakBefore()) {
                         flushHtmlBuffer()
                         prepareNextPageIfNeed()
@@ -657,7 +672,10 @@ class TextChapterLayout(
                         flushHtmlBuffer()
                         addEpubBlockSpacingBefore(node)
                     }
-                    if (node.normalName() == "table") {
+                    if (node.isHtmlBlock() && node.hasEpubBlockBoxStyle() && !node.hasHtmlImage()) {
+                        flushHtmlBuffer()
+                        setTypeEpubBlockBox(imageStyle, book, node)
+                    } else if (node.normalName() == "table") {
                         flushHtmlBuffer()
                         setTypeHtmlText(imageStyle, book, node.toReadableTableHtml())
                     } else if (node.normalName() == "img") {
@@ -698,6 +716,51 @@ class TextChapterLayout(
             renderNode(node)
         }
         flushHtmlBuffer()
+    }
+
+    private suspend fun setTypeEpubBlockBox(
+        imageStyle: String?,
+        book: Book,
+        element: Element
+    ) {
+        val style = element.epubBlockDecorationStyle() ?: run {
+            setTypeHtmlText(imageStyle, book, element.outerHtml())
+            return
+        }
+        val startPageIndex = textPages.size
+        val startLineIndex = pendingTextPage.lines.size
+        setTypeHtmlText(imageStyle, book, element.outerHtml())
+        addEpubBlockDecorations(startPageIndex, startLineIndex, style)
+    }
+
+    private fun addEpubBlockDecorations(
+        startPageIndex: Int,
+        startLineIndex: Int,
+        style: EpubBlockDecorationStyle
+    ) {
+        val lastPageIndex = textPages.size
+        for (pageIndex in startPageIndex..lastPageIndex) {
+            val page = if (pageIndex < textPages.size) textPages[pageIndex] else pendingTextPage
+            val fromLine = if (pageIndex == startPageIndex) startLineIndex else 0
+            val targetLines = page.lines.drop(fromLine)
+            if (targetLines.isEmpty()) continue
+            val top = (targetLines.first().lineTop - style.paddingTop).coerceAtLeast(0f)
+            val bottom = (targetLines.last().lineBottom + style.paddingBottom).coerceAtMost(viewHeight.toFloat())
+            if (bottom <= top) continue
+            page.epubDecorations.add(
+                TextPage.EpubDecoration(
+                    left = (paddingLeft + style.marginLeft).coerceAtLeast(0f),
+                    top = top,
+                    right = (paddingLeft + visibleWidth - style.marginRight).coerceAtMost(viewWidth.toFloat()),
+                    bottom = bottom,
+                    backgroundColor = style.backgroundColor,
+                    borderColor = style.borderColor,
+                    borderWidth = style.borderWidth,
+                    radius = style.radius
+                )
+            )
+            page.invalidate()
+        }
     }
 
     private suspend fun addEpubBlockSpacingBefore(element: Element) {
@@ -809,6 +872,210 @@ class TextChapterLayout(
             else -> value.toFloatOrNull()
         }
     }
+
+    private fun String.toEpubHorizontalPx(): Float? {
+        val value = trim().lowercase()
+        if (value.isBlank() || value == "0" || value == "auto") return 0f
+        return when {
+            value.endsWith("%") -> {
+                val percentage = value.dropLast(1).toFloatOrNull() ?: return null
+                visibleWidth * percentage / 100f
+            }
+            value.endsWith("em") -> {
+                val em = value.dropLast(2).toFloatOrNull() ?: return null
+                contentPaintTextHeight * em
+            }
+            value.endsWith("rem") -> {
+                val rem = value.dropLast(3).toFloatOrNull() ?: return null
+                contentPaintTextHeight * rem
+            }
+            value.endsWith("px") -> value.dropLast(2).toFloatOrNull()
+            else -> value.toFloatOrNull()
+        }
+    }
+
+    private fun Element.hasEpubBlockBoxStyle(): Boolean {
+        val declarations = EpubCss.declarations(attr("style"))
+        return declarations.keys.any { key ->
+            key == "background" || key == "background-color" || key == "border" ||
+                key == "border-color" || key == "border-radius"
+        }
+    }
+
+    private fun Element.epubBlockDecorationStyle(): EpubBlockDecorationStyle? {
+        val declarations = EpubCss.declarations(attr("style"))
+        val backgroundColor = declarations["background-color"]?.toEpubCssColor()
+            ?: declarations["background"]?.extractCssColor()?.toEpubCssColor()
+        val borderColor = declarations["border-color"]?.toEpubCssColor()
+            ?: declarations["border"]?.extractCssColor()?.toEpubCssColor()
+        if (backgroundColor == null && borderColor == null) return null
+        val padding = declarations["padding"]?.toEpubBoxLengths().orEmpty()
+        val margin = declarations["margin"]?.toEpubBoxLengths().orEmpty()
+        val paddingTop = declarations["padding-top"]?.toEpubSpacingPx()
+            ?: padding.getOrNull(0)?.toEpubSpacingPx()
+            ?: (contentPaintTextHeight * 0.45f)
+        val paddingRight = declarations["padding-right"]?.toEpubHorizontalPx()
+            ?: padding.getOrNull(1)?.toEpubHorizontalPx()
+            ?: padding.getOrNull(0)?.toEpubHorizontalPx()
+            ?: 0f
+        val paddingBottom = declarations["padding-bottom"]?.toEpubSpacingPx()
+            ?: padding.getOrNull(2)?.toEpubSpacingPx()
+            ?: padding.getOrNull(0)?.toEpubSpacingPx()
+            ?: (contentPaintTextHeight * 0.45f)
+        val paddingLeft = declarations["padding-left"]?.toEpubHorizontalPx()
+            ?: padding.getOrNull(3)?.toEpubHorizontalPx()
+            ?: padding.getOrNull(1)?.toEpubHorizontalPx()
+            ?: padding.getOrNull(0)?.toEpubHorizontalPx()
+            ?: 0f
+        val marginLeft = declarations["margin-left"]?.toEpubHorizontalPx()
+            ?: margin.getOrNull(3)?.toEpubHorizontalPx()
+            ?: margin.getOrNull(1)?.toEpubHorizontalPx()
+            ?: 0f
+        val marginRight = declarations["margin-right"]?.toEpubHorizontalPx()
+            ?: margin.getOrNull(1)?.toEpubHorizontalPx()
+            ?: 0f
+        val radius = declarations["border-radius"]?.toEpubHorizontalPx() ?: 0f
+        val borderWidth = declarations["border-width"]?.toEpubHorizontalPx()
+            ?: declarations["border"]?.extractCssLength()?.toEpubHorizontalPx()
+            ?: 1.dpToPx().toFloat()
+        return EpubBlockDecorationStyle(
+            backgroundColor = backgroundColor,
+            borderColor = borderColor,
+            borderWidth = borderWidth,
+            radius = radius,
+            marginLeft = marginLeft + paddingLeft,
+            marginRight = marginRight + paddingRight,
+            paddingTop = paddingTop,
+            paddingBottom = paddingBottom
+        )
+    }
+
+    private fun String.toEpubBoxLengths(): List<String> {
+        val parts = trim().split(' ', '\t', '\n')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        return when (parts.size) {
+            0 -> emptyList()
+            1 -> listOf(parts[0], parts[0], parts[0], parts[0])
+            2 -> listOf(parts[0], parts[1], parts[0], parts[1])
+            3 -> listOf(parts[0], parts[1], parts[2], parts[1])
+            else -> parts.take(4)
+        }
+    }
+
+    private fun String.extractCssColor(): String? {
+        val clean = trim()
+        if (clean.startsWith("#") || clean.startsWith("rgb", true)) return clean
+        val parts = clean.split(' ', ',', '/')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        return parts.firstOrNull { part ->
+            part.startsWith("#") || part.startsWith("rgb", true) || part.toNamedCssColor() != null
+        }
+    }
+
+    private fun String.extractCssLength(): String? {
+        return trim().split(' ', '\t', '\n')
+            .map { it.trim() }
+            .firstOrNull { value ->
+                value.endsWith("px", true) || value.endsWith("em", true) ||
+                    value.endsWith("rem", true) || value.toFloatOrNull() != null
+            }
+    }
+
+    private fun String.toEpubCssColor(): Int? {
+        val clean = trim().trimMatchingQuote()
+        return when {
+            clean.startsWith("rgba", true) || clean.startsWith("rgb", true) -> clean.parseRgbCssColor()
+            clean.startsWith("#") -> runCatching { Color.parseColor(clean.normalizeHexColor()) }.getOrNull()
+            else -> clean.toNamedCssColor()?.let { runCatching { Color.parseColor(it) }.getOrNull() }
+        }
+    }
+
+    private fun String.toEpubTagColor(): Int? {
+        val clean = trim().takeIf { it.length == 6 || it.length == 8 } ?: return null
+        return runCatching { Color.parseColor("#$clean") }.getOrNull()
+    }
+
+    private fun String.trimMatchingQuote(): String {
+        val clean = trim()
+        if (clean.length >= 2) {
+            val first = clean.first()
+            val last = clean.last()
+            if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
+                return clean.substring(1, clean.lastIndex)
+            }
+        }
+        return clean
+    }
+
+    private fun String.normalizeHexColor(): String {
+        val hex = trim().removePrefix("#")
+        return when (hex.length) {
+            3 -> "#" + hex.map { "$it$it" }.joinToString("")
+            4 -> "#" + hex.map { "$it$it" }.joinToString("")
+            else -> "#$hex"
+        }
+    }
+
+    private fun String.parseRgbCssColor(): Int? {
+        val start = indexOf('(')
+        val end = lastIndexOf(')')
+        if (start < 0 || end <= start) return null
+        val parts = substring(start + 1, end)
+            .split(',', ' ', '/')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (parts.size < 3) return null
+        fun component(value: String): Int {
+            return if (value.endsWith("%")) {
+                ((value.dropLast(1).toFloatOrNull() ?: 0f) * 2.55f).toInt()
+            } else {
+                value.toFloatOrNull()?.toInt() ?: 0
+            }.coerceIn(0, 255)
+        }
+        val alpha = parts.getOrNull(3)?.let { value ->
+            if (value.endsWith("%")) {
+                ((value.dropLast(1).toFloatOrNull() ?: 100f) * 2.55f).toInt()
+            } else {
+                ((value.toFloatOrNull() ?: 1f) * 255f).toInt()
+            }
+        } ?: 255
+        return Color.argb(alpha.coerceIn(0, 255), component(parts[0]), component(parts[1]), component(parts[2]))
+    }
+
+    private fun String.toNamedCssColor(): String? {
+        return when (lowercase()) {
+            "black" -> "#000000"
+            "white" -> "#FFFFFF"
+            "red" -> "#FF0000"
+            "green" -> "#008000"
+            "blue" -> "#0000FF"
+            "cyan", "aqua" -> "#00FFFF"
+            "magenta", "fuchsia" -> "#FF00FF"
+            "yellow" -> "#FFFF00"
+            "gray", "grey" -> "#808080"
+            "silver" -> "#C0C0C0"
+            "maroon" -> "#800000"
+            "purple" -> "#800080"
+            "teal" -> "#008080"
+            "navy" -> "#000080"
+            "orange" -> "#FFA500"
+            "transparent" -> "#00000000"
+            else -> null
+        }
+    }
+
+    private data class EpubBlockDecorationStyle(
+        val backgroundColor: Int?,
+        val borderColor: Int?,
+        val borderWidth: Float,
+        val radius: Float,
+        val marginLeft: Float,
+        val marginRight: Float,
+        val paddingTop: Float,
+        val paddingBottom: Float
+    )
 
     private fun Element.toReadableTableHtml(): String {
         val rows = select("tr").ifEmpty { children() }
