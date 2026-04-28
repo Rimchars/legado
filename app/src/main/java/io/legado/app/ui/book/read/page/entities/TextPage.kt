@@ -343,12 +343,18 @@ data class TextPage(
     private fun drawEpubBackground(view: ContentTextView, canvas: Canvas) {
         val src = epubBackgroundSrc ?: return
         val book = ReadBook.book ?: return
-        val left = ChapterProvider.paddingLeft.toFloat()
-        val top = ChapterProvider.paddingTop.toFloat()
-        val width = ChapterProvider.visibleWidth.toFloat()
-        val height = ChapterProvider.visibleHeight.toFloat()
+        val left = 0f
+        val top = 0f
+        val width = view.width.toFloat()
+        val height = view.height.toFloat()
         if (width <= 0f || height <= 0f) return
-        val bitmap = ImageProvider.getImage(book, src, width.toInt(), height.toInt())
+        val bitmap = ImageProvider.getImage(
+            book = book,
+            src = src,
+            width = width.toInt(),
+            height = height.toInt(),
+            cacheKeySuffix = "epub-bg-${width.toInt()}x${height.toInt()}"
+        )
         val scale = max(width / bitmap.width, height / bitmap.height)
         val drawWidth = bitmap.width * scale
         val drawHeight = bitmap.height * scale
