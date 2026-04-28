@@ -18,6 +18,7 @@ internal class EpubLayoutEngine(
     private var cursorY = 0f
     private var firstLineIndent = 0f
     private var pageHasFullBackground = false
+    private val activeBlockStack = arrayListOf<ActiveBlockDecoration>()
 
     fun layout(document: EpubDomDocument): EpubLayoutDocument {
         pages.clear()
@@ -25,6 +26,7 @@ internal class EpubLayoutEngine(
         cursorY = 0f
         firstLineIndent = 0f
         pageHasFullBackground = false
+        activeBlockStack.clear()
         val boxDocument = EpubBoxBuilder().build(document)
         layoutBlockNode(boxDocument.root, left = 0f, width = viewportWidth.toFloat())
         flushPageIfNeeded(force = true)
@@ -117,6 +119,8 @@ internal class EpubLayoutEngine(
                     y = boxTop,
                     width = outerWidth,
                     height = 0f,
+                    clipTop = false,
+                    clipBottom = false,
                     backgroundColor = blockStyle.backgroundColor,
                     borderColor = blockStyle.borderColor,
                     borderWidth = borderWidth,
@@ -125,6 +129,14 @@ internal class EpubLayoutEngine(
                     shadow = blockStyle.shadow,
                     sourcePath = node.sourcePath
                 )
+            )
+            activeBlockStack.add(
+                ActiveBlockDecoration(
+                    left = left + marginLeft,
+                    width = outerWidth,
+                    style = blockStyle,
+                    sourcePath = node.sourcePath
+                ).also { it.openCommandIndex = blockCommandIndex }
             )
         }
         if (listMarker != null) {
@@ -174,10 +186,13 @@ internal class EpubLayoutEngine(
         firstLineIndent = previousTextIndent
         cursorY += paddingBottom + borderWidth
         if (blockStyle != null) {
-            val old = currentCommands.getOrNull(blockCommandIndex) as? EpubBlockBox
+            val active = activeBlockStack.removeLastOrNull()
+            val index = active?.openCommandIndex ?: blockCommandIndex
+            val old = currentCommands.getOrNull(index) as? EpubBlockBox
             if (old != null) {
                 val boxHeight = requestedHeight ?: (cursorY - boxTop)
-                currentCommands[blockCommandIndex] = old.copy(height = boxHeight.coerceAtLeast(0f))
+                val height = if (old.clipTop) cursorY.coerceAtLeast(0f) else boxHeight.coerceAtLeast(0f)
+                currentCommands[index] = old.copy(height = height)
             }
         }
         requestedHeight?.let { height ->
@@ -221,6 +236,8 @@ internal class EpubLayoutEngine(
                     y = tableTop,
                     width = tableWidth,
                     height = 0f,
+                    clipTop = false,
+                    clipBottom = false,
                     backgroundColor = blockStyle.backgroundColor,
                     borderColor = blockStyle.borderColor,
                     borderWidth = style.borderWidthPx(),
@@ -232,23 +249,34 @@ internal class EpubLayoutEngine(
             )
             currentCommands.lastIndex
         }
-        val columnWidth = tableWidth / maxColumns
+        val columnWidths = node.tableColumnWidths(rows, tableWidth, maxColumns)
         rows.forEach { row ->
             if (cursorY + lineHeight(row.style) > viewportHeight && currentCommands.isNotEmpty()) {
                 flushPageIfNeeded(force = true)
             }
             val rowTop = cursorY
             var rowBottom = rowTop
-            row.tableCells().forEachIndexed { index, cell ->
+            var cellLeft = tableLeft
+            var columnIndex = 0
+            row.tableCells().forEach { cell ->
                 val oldCursor = cursorY
+                val span = cell.attributes["colspan"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                val cellWidth = columnWidths
+                    .drop(columnIndex)
+                    .take(span)
+                    .sum()
+                    .takeIf { it > 0f }
+                    ?: (tableWidth / maxColumns)
                 cursorY = rowTop
                 layoutBlockNode(
                     node = cell,
-                    left = tableLeft + index * columnWidth,
-                    width = columnWidth
+                    left = cellLeft,
+                    width = cellWidth
                 )
                 rowBottom = maxOf(rowBottom, cursorY)
                 cursorY = oldCursor
+                cellLeft += cellWidth
+                columnIndex += span
             }
             cursorY = rowBottom
         }
@@ -566,11 +594,48 @@ internal class EpubLayoutEngine(
             cursorY = 0f
             return
         }
+        closeActiveBlocksAtPageEnd()
         pages.add(currentCommands)
         currentCommands = arrayListOf()
         cursorY = 0f
         firstLineIndent = 0f
         pageHasFullBackground = false
+        reopenActiveBlocksOnNextPage()
+    }
+
+    private fun closeActiveBlocksAtPageEnd() {
+        if (activeBlockStack.isEmpty()) return
+        currentCommands.indices.forEach { index ->
+            val block = currentCommands[index] as? EpubBlockBox ?: return@forEach
+            val active = activeBlockStack.lastOrNull { it.openCommandIndex == index } ?: return@forEach
+            val height = (viewportHeight - block.y).coerceAtLeast(0f)
+            currentCommands[index] = block.copy(height = height, clipBottom = true)
+            active.openCommandIndex = null
+        }
+    }
+
+    private fun reopenActiveBlocksOnNextPage() {
+        if (activeBlockStack.isEmpty()) return
+        activeBlockStack.forEach { active ->
+            currentCommands.add(
+                EpubBlockBox(
+                    x = active.left,
+                    y = 0f,
+                    width = active.width,
+                    height = 0f,
+                    clipTop = true,
+                    clipBottom = false,
+                    backgroundColor = active.style.backgroundColor,
+                    borderColor = active.style.borderColor,
+                    borderWidth = active.style.borderWidth,
+                    borderStyle = active.style.borderStyle,
+                    radius = active.style.radius,
+                    shadow = active.style.shadow,
+                    sourcePath = active.sourcePath
+                )
+            )
+            active.openCommandIndex = currentCommands.lastIndex
+        }
     }
 
     private fun lineHeight(style: EpubComputedStyle): Float {
@@ -583,10 +648,13 @@ internal class EpubLayoutEngine(
         val borderColor = colorInt("border-color") ?: borderColor()
         val borderStyle = borderStyle()
         val shadow = boxShadow()
-        if (backgroundColor == null && borderColor == null && shadow == null) return null
+        val borderWidth = borderWidthPx()
+        val hasVisibleBorder = borderColor != null && borderWidth > 0f
+        if (backgroundColor == null && !hasVisibleBorder && shadow == null) return null
         return BlockStyle(
             backgroundColor = backgroundColor,
             borderColor = borderColor,
+            borderWidth = borderWidth,
             borderStyle = borderStyle,
             radius = lengthPx("border-radius", viewportWidth.toFloat()),
             shadow = shadow
@@ -1161,6 +1229,33 @@ internal class EpubLayoutEngine(
             .filter { it.tagName == "td" || it.tagName == "th" }
     }
 
+    private fun EpubBlockNode.tableColumnWidths(
+        rows: List<EpubBlockNode>,
+        tableWidth: Float,
+        maxColumns: Int
+    ): List<Float> {
+        if (maxColumns <= 0) return emptyList()
+        val widths = MutableList(maxColumns) { 0f }
+        rows.forEach { row ->
+            row.tableCells().forEachIndexed { index, cell ->
+                if (index >= widths.size) return@forEachIndexed
+                val width = cell.style.resolveHorizontalSize(tableWidth)
+                    ?: cell.attributes["width"]?.toCssLengthPx(tableWidth)
+                    ?: 0f
+                if (width > widths[index]) {
+                    widths[index] = width
+                }
+            }
+        }
+        val fixedTotal = widths.sum()
+        if (fixedTotal <= 0f || fixedTotal > tableWidth) {
+            return List(maxColumns) { tableWidth / maxColumns }
+        }
+        val autoColumns = widths.count { it <= 0f }.coerceAtLeast(1)
+        val autoWidth = (tableWidth - fixedTotal).coerceAtLeast(0f) / autoColumns
+        return widths.map { width -> if (width > 0f) width else autoWidth }
+    }
+
     private fun buildLayoutSnapshotId(href: String): Int {
         var result = href.hashCode()
         result = 31 * result + viewportWidth
@@ -1177,9 +1272,18 @@ internal class EpubLayoutEngine(
     private data class BlockStyle(
         val backgroundColor: Int?,
         val borderColor: Int?,
+        val borderWidth: Float,
         val borderStyle: String?,
         val radius: Float,
         val shadow: EpubShadow?
+    )
+
+    private data class ActiveBlockDecoration(
+        val left: Float,
+        val width: Float,
+        val style: BlockStyle,
+        val sourcePath: String,
+        var openCommandIndex: Int? = null
     )
 
     private sealed class InlineItem

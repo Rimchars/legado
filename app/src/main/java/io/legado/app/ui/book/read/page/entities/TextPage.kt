@@ -574,6 +574,10 @@ data class TextPage(
 
     private fun drawEpubNativeBlock(canvas: Canvas, paint: Paint, block: EpubBlockBox) {
         val rect = RectF(block.x, block.y, block.x + block.width, block.y + block.height)
+        val radius = when {
+            block.clipTop || block.clipBottom -> 0f
+            else -> block.radius
+        }
         block.shadow?.let { shadow ->
             paint.style = Paint.Style.FILL
             paint.color = shadow.color
@@ -584,12 +588,12 @@ data class TextPage(
                 rect.right + shadow.dx + inset,
                 rect.bottom + shadow.dy + inset
             )
-            canvas.drawRoundRect(shadowRect, block.radius, block.radius, paint)
+            canvas.drawRoundRect(shadowRect, radius, radius, paint)
         }
         block.backgroundColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
             paint.style = Paint.Style.FILL
             paint.color = color
-            canvas.drawRoundRect(rect, block.radius, block.radius, paint)
+            canvas.drawRoundRect(rect, radius, radius, paint)
         }
         block.borderColor?.takeIf { it != Color.TRANSPARENT && block.borderWidth > 0f }?.let { color ->
             paint.style = Paint.Style.STROKE
@@ -601,7 +605,7 @@ data class TextPage(
                 "none", "hidden" -> return@let
                 else -> null
             }
-            canvas.drawRoundRect(rect, block.radius, block.radius, paint)
+            canvas.drawRoundRect(rect, radius, radius, paint)
             paint.pathEffect = null
         }
     }

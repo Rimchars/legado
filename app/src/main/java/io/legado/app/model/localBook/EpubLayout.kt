@@ -63,6 +63,8 @@ internal data class EpubBlockBox(
     val y: Float,
     val width: Float,
     val height: Float,
+    val clipTop: Boolean,
+    val clipBottom: Boolean,
     val backgroundColor: Int?,
     val borderColor: Int?,
     val borderWidth: Float,
