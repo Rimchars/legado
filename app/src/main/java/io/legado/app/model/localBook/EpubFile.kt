@@ -123,6 +123,17 @@ class EpubFile(var book: Book) {
             }
             return field
         }
+    private var epubSpineContents: List<Resource>? = null
+        get() {
+            if (field == null || fileDescriptor == null) {
+                val spineResources = epubBook?.spine?.spineReferences
+                    ?.mapNotNull { it.resource }
+                    ?.filter { it.href.isNotBlank() }
+                    .orEmpty()
+                field = spineResources.ifEmpty { epubBook?.contents.orEmpty() }
+            }
+            return field
+        }
 
     init {
         upBookCover(true)
@@ -151,7 +162,7 @@ class EpubFile(var book: Book) {
     private fun getContent(chapter: BookChapter): String? {
         if (chapter.isVolume && chapter.url.startsWith("skip:")) return ""
         /*获取当前章节文本*/
-        val contents = epubBookContents ?: return null
+        val contents = epubSpineContents ?: epubBookContents ?: return null
         val nextChapterFirstResourceHref = chapter.getVariable("nextUrl").substringBeforeLast("#")
         val currentChapterFirstResourceHref = chapter.url.substringBeforeLast("#")
         findEpubResource(currentChapterFirstResourceHref)?.takeIf { it.isEpubBookInfoResource() }?.let {
@@ -1345,9 +1356,60 @@ class EpubFile(var book: Book) {
                 parseMenu(chapterList, refs, 0)
             }
         }
+        mergeMissingSpineChapters(chapterList)
         normalizeChapterList(chapterList)
         getWordCount(chapterList, book)
         return chapterList
+    }
+
+    /**
+     * EPUB 的 TOC/NCX 只是导航目录，不等于完整阅读顺序。
+     * 一些书会把卷首页、人物图、插图页放在 spine 中但不写进 TOC，
+     * 如果只按 TOC 生成章节就会出现“缺页”。
+     */
+    private fun mergeMissingSpineChapters(chapterList: ArrayList<BookChapter>) {
+        val spineContents = epubSpineContents
+            ?.filter { it.isReadableEpubResource() }
+            ?.filterNot { it.isEpubBookInfoResource() }
+            .orEmpty()
+        if (spineContents.isEmpty()) return
+
+        val spineOrder = spineContents
+            .mapIndexed { index, resource -> resource.href to index }
+            .toMap()
+        val existingHrefSet = chapterList.asSequence()
+            .filterNot { it.url.startsWith("skip:") }
+            .map { it.url.substringBeforeLast("#") }
+            .toMutableSet()
+        var insertedCount = 0
+
+        spineContents.forEachIndexed { spineIndex, resource ->
+            if (!existingHrefSet.add(resource.href)) return@forEachIndexed
+            val chapter = BookChapter()
+            chapter.bookUrl = book.bookUrl
+            chapter.url = resource.href
+            chapter.title = resource.readableTitle(spineIndex)
+
+            val insertIndex = chapterList.indexOfFirst { exist ->
+                val existOrder = if (exist.url.startsWith("skip:")) {
+                    null
+                } else {
+                    spineOrder[exist.url.substringBeforeLast("#")]
+                }
+                existOrder != null && existOrder > spineIndex
+            }.let { if (it < 0) chapterList.size else it }
+
+            chapterList.add(insertIndex, chapter)
+            insertedCount++
+            AppLog.put("EPUB spine 补页: href=${resource.href}, title=${chapter.title}, index=$spineIndex")
+        }
+
+        if (insertedCount > 0) {
+            AppLog.put(
+                "EPUB spine 补页完成: spine=${spineContents.size}, " +
+                    "inserted=$insertedCount, final=${chapterList.size}"
+            )
+        }
     }
 
     /*获取书籍起始页内容。部分书籍第一章之前存在封面，引言，扉页等内容*/
@@ -1357,14 +1419,14 @@ class EpubFile(var book: Book) {
         chapterList: ArrayList<BookChapter>,
         refs: List<TOCReference>?
     ) {
-        val contents = epubBook?.contents
+        val contents = epubSpineContents
         if (epubBook == null || contents == null || refs == null) return
         val firstRef = refs.firstOrNull { it.resource != null } ?: return
         var i = 0
         durIndex = 0
         while (i < contents.size) {
             val content = contents[i]
-            if (!content.mediaType.toString().contains("htm")) {
+            if (!content.isReadableEpubResource()) {
                 i++
                 continue
             }
@@ -1439,6 +1501,28 @@ class EpubFile(var book: Book) {
                 parseMenu(chapterList, ref.children, level + 1)
             }
         }
+    }
+
+    private fun Resource.isReadableEpubResource(): Boolean {
+        val lowerHref = href.lowercase(Locale.ROOT)
+        if (!mediaType.toString().contains("htm") &&
+            !lowerHref.endsWith(".html") &&
+            !lowerHref.endsWith(".xhtml") &&
+            !lowerHref.endsWith(".htm")
+        ) {
+            return false
+        }
+        return true
+    }
+
+    private fun Resource.readableTitle(spineIndex: Int): String {
+        if (!title.isNullOrBlank()) return title
+        val doc = runCatching { Jsoup.parse(String(data, mCharset)) }.getOrNull()
+        val titleText = doc?.selectFirst("title")?.text()?.trim()
+            ?: doc?.selectFirst("h1,h2,h3,h4,h5,h6")?.text()?.trim()
+        if (!titleText.isNullOrBlank()) return titleText
+        val fileName = href.substringAfterLast('/').substringBeforeLast('.').trim()
+        return fileName.ifBlank { "EPUB 页面 ${spineIndex + 1}" }
     }
 
     private fun findEpubBookInfo(): EpubBookInfo? {
