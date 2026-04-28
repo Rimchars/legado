@@ -135,6 +135,7 @@ internal class EpubLayoutEngine(
                 )
             )
         }
+        val contentCommandStartIndex = currentCommands.size
         val previousTextIndent = firstLineIndent
         firstLineIndent = style.lengthPx("text-indent", contentWidth)
         val inlineItems = arrayListOf<InlineItem>()
@@ -155,6 +156,17 @@ internal class EpubLayoutEngine(
             }
         }
         flushInlineItems()
+        if (blockStyle != null && !currentCommands.hasVisibleContentAfter(contentCommandStartIndex)) {
+            val fallbackText = node.plainText()
+            if (fallbackText.isNotBlank()) {
+                layoutInlineItems(
+                    items = listOf(InlineText(fallbackText, style, node.sourcePath)),
+                    parentStyle = style,
+                    left = contentLeft,
+                    width = contentWidth
+                )
+            }
+        }
         firstLineIndent = previousTextIndent
         cursorY += paddingBottom + borderWidth
         if (blockStyle != null) {
@@ -504,6 +516,25 @@ internal class EpubLayoutEngine(
             textSize = fontSizePx()
             isFakeBoldText = isBold()
             textSkewX = if (isItalic()) -0.25f else 0f
+        }
+    }
+
+    private fun List<EpubDrawCommand>.hasVisibleContentAfter(index: Int): Boolean {
+        if (index >= size) return false
+        return drop(index).any { command ->
+            command is EpubTextRun && command.text.isNotBlank() ||
+                command is EpubImageBox && !command.isBackground ||
+                command is EpubBullet && command.text.isNotBlank()
+        }
+    }
+
+    private fun EpubBoxNode.plainText(): String {
+        return when (this) {
+            is EpubTextNode -> text
+            is EpubBreakNode -> "\n"
+            is EpubInlineNode -> children.joinToString("") { it.plainText() }
+            is EpubBlockNode -> children.joinToString("") { it.plainText() }
+            else -> ""
         }
     }
 

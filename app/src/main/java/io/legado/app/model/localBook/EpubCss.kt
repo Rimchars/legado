@@ -11,6 +11,7 @@ internal object EpubCss {
         "font-style",
         "font-size",
         "font-family",
+        "font",
         "text-indent",
         "text-decoration",
         "text-decoration-line",
@@ -130,7 +131,7 @@ internal object EpubCss {
 
     fun declarations(style: String): LinkedHashMap<String, String> {
         val map = linkedMapOf<String, String>()
-        parseDeclarations(style).forEach { declaration ->
+        parseDeclarations(style).expandFontShorthand().forEach { declaration ->
             map[declaration.name] = declaration.value
         }
         return map
@@ -152,7 +153,7 @@ internal object EpubCss {
                 declarations.add(Declaration(name, value, important, declarations.size))
             }
         }
-        return declarations
+        return declarations.expandFontShorthand()
     }
 
     fun splitDeclarations(style: String): List<String> {
@@ -243,6 +244,73 @@ internal object EpubCss {
             }
         }
         return expanded.values.toList()
+    }
+
+    private fun List<Declaration>.expandFontShorthand(): List<Declaration> {
+        val expanded = arrayListOf<Declaration>()
+        forEach { declaration ->
+            expanded.add(declaration)
+            if (declaration.name != "font") return@forEach
+            val parsed = declaration.value.parseFontShorthand()
+            parsed.forEach { (name, value) ->
+                if (expanded.none { it.name == name }) {
+                    expanded.add(
+                        declaration.copy(
+                            name = name,
+                            value = value,
+                            order = expanded.size
+                        )
+                    )
+                }
+            }
+        }
+        return expanded
+    }
+
+    private fun String.parseFontShorthand(): List<Pair<String, String>> {
+        val tokens = splitValueList(this)
+        if (tokens.isEmpty()) return emptyList()
+        val result = arrayListOf<Pair<String, String>>()
+        var sizeTokenIndex = -1
+        tokens.forEachIndexed { index, token ->
+            val lower = token.lowercase(Locale.ROOT)
+            when {
+                lower == "italic" || lower == "oblique" -> result.add("font-style" to lower)
+                lower == "bold" || lower == "bolder" || lower == "lighter" ||
+                    lower.toIntOrNull()?.let { it in 100..1000 } == true -> {
+                    result.add("font-weight" to lower)
+                }
+                sizeTokenIndex < 0 && lower.containsFontSizeToken() -> {
+                    sizeTokenIndex = index
+                    val parts = lower.split('/', limit = 2)
+                    result.add("font-size" to parts[0])
+                    parts.getOrNull(1)?.takeIf { it.isNotBlank() }?.let { lineHeight ->
+                        result.add("line-height" to lineHeight)
+                    }
+                }
+            }
+        }
+        if (sizeTokenIndex >= 0 && sizeTokenIndex + 1 < tokens.size) {
+            val family = tokens.drop(sizeTokenIndex + 1)
+                .joinToString(" ")
+                .takeIf { it.isNotBlank() }
+            family?.let { result.add("font-family" to it) }
+        }
+        return result
+    }
+
+    private fun String.containsFontSizeToken(): Boolean {
+        val sizePart = substringBefore('/')
+        return sizePart.endsWith("em") ||
+            sizePart.endsWith("rem") ||
+            sizePart.endsWith("px") ||
+            sizePart.endsWith("pt") ||
+            sizePart.endsWith("%") ||
+            sizePart in setOf(
+                "xx-small", "x-small", "small", "medium", "large",
+                "x-large", "xx-large", "smaller", "larger"
+            ) ||
+            sizePart.toFloatOrNull() != null
     }
 
     private fun List<Declaration>.toStyleString(): String {
