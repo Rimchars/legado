@@ -632,8 +632,18 @@ internal object EpubCss {
     private fun String.extractCssColor(): String? {
         val clean = trim()
         if (clean.startsWith("#") || clean.startsWith("rgb", true)) return clean
+        clean.extractGradientColor()?.let { return it }
         val parts = splitValueList(clean)
         return parts.firstOrNull { it.isCssColorToken() }
+    }
+
+    private fun String.extractGradientColor(): String? {
+        if (!contains("gradient(", ignoreCase = true)) return null
+        val colorPattern = Regex(
+            "(#[0-9a-fA-F]{3,8}|rgba?\\([^)]*\\)|hsla?\\([^)]*\\)|\\b(?:black|white|red|green|blue|cyan|aqua|magenta|fuchsia|yellow|gray|grey|silver|maroon|purple|teal|navy|orange|transparent)\\b)",
+            RegexOption.IGNORE_CASE
+        )
+        return colorPattern.find(this)?.value
     }
 
     private fun String.extractBackgroundRepeat(): String? {
