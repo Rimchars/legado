@@ -855,6 +855,7 @@ class TextChapterLayout(
         val src = element.attr("src").trim()
         if (src.isBlank()) return
         if (element.attr("data-epub-background") == "true") {
+            ImageProvider.cacheImage(book, src, ReadBook.bookSource)
             if (pendingTextPage.lines.isNotEmpty() || pendingTextPage.epubBackgroundSrc != null) {
                 prepareNextPageIfNeed()
             }
