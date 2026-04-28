@@ -68,6 +68,8 @@ import kotlinx.coroutines.currentCoroutineContext
  */
 object LocalBook {
 
+    private const val LARGE_EPUB_FAST_IMPORT_BYTES = 100L * 1024L * 1024L
+
     private val nameAuthorPatterns = arrayOf(
         Pattern.compile("(.*?)《([^《》]+)》.*?作者：(.*)"),
         Pattern.compile("(.*?)《([^《》]+)》(.*)"),
@@ -239,13 +241,13 @@ object LocalBook {
      * 导入本地文件
      */
     fun importFile(uri: Uri): Book {
-        val bookUrl: String
         //updateTime变量不要修改,否则会导致读取不到缓存
-        val (fileName, _, _, updateTime, _) = FileDoc.fromUri(uri, false).apply {
-            if (size == 0L) throw EmptyFileException("Unexpected empty File")
-
-            bookUrl = toString()
-        }
+        val fileDoc = FileDoc.fromUri(uri, false)
+        if (fileDoc.size == 0L) throw EmptyFileException("Unexpected empty File")
+        val fileName = fileDoc.name
+        val updateTime = fileDoc.lastModified
+        val bookUrl = fileDoc.toString()
+        val fileSize = fileDoc.size
         var book = appDb.bookDao.getBook(bookUrl)
         if (book == null) {
             val nameAuthor = analyzeNameAuthor(fileName)
@@ -258,11 +260,11 @@ object LocalBook {
                 latestChapterTime = updateTime,
                 order = appDb.bookDao.minOrder - 1
             )
-            upBookInfoSafely(book)
+            upBookInfoSafely(book, fileSize)
             appDb.bookDao.insert(book)
         } else {
             deleteBook(book, false)
-            upBookInfoSafely(book)
+            upBookInfoSafely(book, fileSize)
             // 触发 isLocalModified
             book.latestChapterTime = 0
             //已有书籍说明是更新,删除原有目录
@@ -280,7 +282,16 @@ object LocalBook {
         }
     }
 
-    private fun upBookInfoSafely(book: Book) {
+    private fun upBookInfoSafely(book: Book, fileSize: Long) {
+        if (book.isEpub && shouldDeferEpubBookInfo(fileSize)) {
+            if (book.name.isBlank()) {
+                book.name = book.originName.substringBeforeLast(".")
+            }
+            if (book.intro.isNullOrBlank()) {
+                book.intro = "大体积 EPUB 已快速导入，封面和简介将在阅读时按需加载。"
+            }
+            return
+        }
         if (!book.isEpub) {
             upBookInfo(book)
             return
@@ -296,6 +307,10 @@ object LocalBook {
                 book.intro = "EPUB 已导入，元数据将在阅读时按需加载。"
             }
         }
+    }
+
+    private fun shouldDeferEpubBookInfo(fileSize: Long): Boolean {
+        return fileSize >= LARGE_EPUB_FAST_IMPORT_BYTES
     }
 
     /* 导入压缩包内的书籍 */

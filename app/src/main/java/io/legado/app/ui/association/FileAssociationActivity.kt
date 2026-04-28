@@ -1,5 +1,6 @@
 package io.legado.app.ui.association
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.viewModels
@@ -131,6 +132,10 @@ class FileAssociationActivity :
 
     private fun importBook(uri: Uri) {
         if (uri.isContentScheme()) {
+            if (tryTakePersistableReadPermission(uri)) {
+                importBook(null, uri)
+                return
+            }
             val treeUriStr = AppConfig.defaultBookTreeUri
             if (treeUriStr.isNullOrEmpty()) {
                 localBookTreeSelect.launch {
@@ -143,6 +148,15 @@ class FileAssociationActivity :
         } else {
             importBook(null, uri)
         }
+    }
+
+    private fun tryTakePersistableReadPermission(uri: Uri): Boolean {
+        val readFlag = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        if (intent.flags and readFlag == 0) return false
+        return runCatching {
+            contentResolver.takePersistableUriPermission(uri, readFlag)
+            true
+        }.getOrDefault(false)
     }
 
     private fun importBook(treeUri: Uri?, uri: Uri) {
