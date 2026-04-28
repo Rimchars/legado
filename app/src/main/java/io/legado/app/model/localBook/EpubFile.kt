@@ -246,11 +246,16 @@ class EpubFile(var book: Book) {
         bodyElement.select("[style]").forEach { element ->
             element.applyEpubInlineStyle()
         }
+        bodyElement.materializeBackgroundImages(res)
         bodyElement.markSingleImagePage()
         bodyElement.select("img").forEach {
             val src = it.attr("src").trim().encodeURI()
             val href = res.href.encodeURI()
-            val resolvedHref = URLDecoder.decode(URI(href).resolve(src).toString(), "UTF-8")
+            val resolvedHref = if (epubBook?.resources?.getByHref(src.stripUrlOptions()) != null) {
+                URLDecoder.decode(src, "UTF-8")
+            } else {
+                URLDecoder.decode(URI(href).resolve(src).toString(), "UTF-8")
+            }
             val alt = it.attr("alt")
             val options = it.epubImageOptions()
             it.clearAttributes()
@@ -306,6 +311,9 @@ class EpubFile(var book: Book) {
         if (rules.isEmpty()) return
         rules.sortedWith(compareBy<CssRule> { it.specificity }.thenBy { it.order }).forEach { rule ->
             runCatching {
+                if (this.`is`(rule.selector)) {
+                    mergeInlineStyle(rule.style)
+                }
                 select(rule.selector).forEach { element ->
                     element.mergeInlineStyle(rule.style)
                 }
@@ -320,9 +328,51 @@ class EpubFile(var book: Book) {
                 "UTF-8"
             )
             epubBook?.resources?.getByHref(resolvedHref)?.data?.let {
-                String(it, mCharset)
+                String(it, mCharset).absolutizeCssUrls(resolvedHref)
             }.orEmpty()
         }.getOrDefault("")
+    }
+
+    private fun String.absolutizeCssUrls(cssHref: String): String {
+        val builder = StringBuilder(length)
+        var index = 0
+        while (index < length) {
+            val start = indexOf("url(", index, ignoreCase = true)
+            if (start < 0) {
+                builder.append(substring(index))
+                break
+            }
+            builder.append(substring(index, start))
+            val valueStart = start + 4
+            val end = indexOf(')', valueStart)
+            if (end < 0) {
+                builder.append(substring(start))
+                break
+            }
+            val raw = substring(valueStart, end).trim()
+            val quote = raw.firstOrNull()?.takeIf { it == '\'' || it == '"' }
+            val clean = raw.trimMatchingQuote()
+            val resolved = if (clean.startsWith("data:", true) ||
+                clean.startsWith("http://", true) ||
+                clean.startsWith("https://", true)
+            ) {
+                clean
+            } else {
+                URLDecoder.decode(
+                    URI(cssHref.encodeURI()).resolve(clean.encodeURI()).toString(),
+                    "UTF-8"
+                )
+            }
+            builder.append("url(")
+            if (quote != null) {
+                builder.append(quote).append(resolved).append(quote)
+            } else {
+                builder.append(resolved)
+            }
+            builder.append(")")
+            index = end + 1
+        }
+        return builder.toString()
     }
 
     private fun parseCssRules(css: String): List<CssRule> {
@@ -370,6 +420,10 @@ class EpubFile(var book: Book) {
             "padding-left",
             "padding-right",
             "display",
+            "background",
+            "background-image",
+            "background-size",
+            "background-position",
             "width",
             "height",
             "max-width",
@@ -469,6 +523,82 @@ class EpubFile(var book: Book) {
                 tagName("big", Parser.NamespaceHtml)
             }
         }
+    }
+
+    private fun Element.materializeBackgroundImages(res: Resource) {
+        val elements = linkedSetOf<Element>().apply {
+            if (attr("style").contains("background", ignoreCase = true)) {
+                add(this@materializeBackgroundImages)
+            }
+            addAll(select("[style*=background]"))
+        }
+        elements.forEach { element ->
+            val imageHref = element.backgroundImageHref(res.href) ?: return@forEach
+            if (element.normalName() != "body" && element.selectFirst("img") != null) return@forEach
+            val img = Element("img")
+            img.attr("src", imageHref)
+            img.attr("data-legado-width", "100%")
+            img.attr("data-legado-style", Book.imgStyleSingle)
+            img.attr("data-epub-background", "true")
+            if (element.normalName() == "body") {
+                prependChild(img)
+            } else {
+                element.before(img)
+            }
+        }
+    }
+
+    private fun Element.backgroundImageHref(baseHref: String): String? {
+        val style = attr("style")
+        val declarations = style.split(';')
+            .mapNotNull { item ->
+                val index = item.indexOf(':')
+                if (index <= 0) return@mapNotNull null
+                item.substring(0, index).trim().lowercase(Locale.ROOT) to
+                    item.substring(index + 1).trim()
+            }.toMap()
+        val background = declarations["background-image"]
+            ?: declarations["background"]
+            ?: attr("background").takeIf { it.isNotBlank() }
+            ?: return null
+        val url = background.extractCssUrl() ?: background.takeIf { attr("background").isNotBlank() }
+        val clean = url?.trim()?.trimMatchingQuote()
+            ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+            ?: return null
+        return if (clean.startsWith("data:", true) ||
+            clean.startsWith("http://", true) ||
+            clean.startsWith("https://", true)
+        ) {
+            clean
+        } else if (epubBook?.resources?.getByHref(clean.stripUrlOptions()) != null) {
+            clean
+        } else {
+            URLDecoder.decode(
+                URI(baseHref.encodeURI()).resolve(clean.encodeURI()).toString(),
+                "UTF-8"
+            )
+        }
+    }
+
+    private fun String.extractCssUrl(): String? {
+        val start = indexOf("url(", ignoreCase = true)
+        if (start < 0) return null
+        val valueStart = start + 4
+        val end = indexOf(')', valueStart)
+        if (end < 0) return null
+        return substring(valueStart, end).trim()
+    }
+
+    private fun String.trimMatchingQuote(): String {
+        val clean = trim()
+        if (clean.length >= 2) {
+            val first = clean.first()
+            val last = clean.last()
+            if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
+                return clean.substring(1, clean.lastIndex)
+            }
+        }
+        return clean
     }
 
     private fun Element.markSingleImagePage() {
