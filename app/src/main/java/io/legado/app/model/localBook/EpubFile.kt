@@ -225,15 +225,6 @@ class EpubFile(var book: Book) {
          * ...titlepage.xhtml
          * 大多数epub文件的封面页都会带有cover，可以一定程度上解决封面读取问题
          */
-        if (res.href.contains("titlepage.xhtml") ||
-            res.href.contains("cover")
-        ) {
-            val doc = Jsoup.parseBodyFragment("<img src=\"cover.jpeg\" data-epub-background=\"true\" />")
-            val bodyElement = doc.body()
-            buildNativeDom(doc, bodyElement, res)
-            return bodyElement
-        }
-
         // Jsoup可能会修复不规范的xhtml文件 解析处理后再获取
         var doc = Jsoup.parse(String(res.data, mCharset))
         var bodyElement = doc.body()
@@ -1158,8 +1149,9 @@ class EpubFile(var book: Book) {
     }
 
     private fun getImage(href: String): InputStream? {
-        if (href == "cover.jpeg") return epubBook?.coverImage?.inputStream
-        return findEpubResource(href)?.inputStream
+        val cleanHref = href.stripUrlOptions()
+        if (cleanHref == "cover.jpeg") return epubBook?.coverImage?.inputStream
+        return findEpubResource(cleanHref)?.inputStream
     }
 
     private fun String.stripUrlOptions(): String {
