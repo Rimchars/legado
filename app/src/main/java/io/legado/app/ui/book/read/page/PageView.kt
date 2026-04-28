@@ -132,11 +132,13 @@ class PageView(context: Context) : FrameLayout(context) {
      */
     fun upStatusBar() = with(binding.vwStatusBar) {
 //        setPadding(paddingLeft, context.statusBarHeight, paddingRight, paddingBottom)
-        isGone = ReadBookConfig.hideStatusBar || readBookActivity?.isInMultiWindow == true
+        isGone = ReadBook.book?.isEpub == true ||
+            ReadBookConfig.hideStatusBar ||
+            readBookActivity?.isInMultiWindow == true
     }
 
     fun upNavigationBar() {
-        binding.vwNavigationBar.isGone = ReadBookConfig.hideNavigationBar
+        binding.vwNavigationBar.isGone = ReadBook.book?.isEpub == true || ReadBookConfig.hideNavigationBar
     }
 
     fun upPaddingDisplayCutouts() {

@@ -106,7 +106,9 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             canvas.translate(0f, scrollY.toFloat())
         }
         check(!visibleRect.isEmpty) { "visibleRect 为空" }
-        canvas.clipRect(visibleRect)
+        if (!textPage.hasEpubBackground()) {
+            canvas.clipRect(visibleRect)
+        }
         drawPage(canvas)
     }
 

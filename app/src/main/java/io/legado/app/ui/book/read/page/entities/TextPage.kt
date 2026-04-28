@@ -302,6 +302,10 @@ data class TextPage(
         return chapterPos in startPos..<endPos
     }
 
+    fun hasEpubBackground(): Boolean {
+        return epubBackgroundSrc != null
+    }
+
     fun draw(view: ContentTextView, canvas: Canvas, relativeOffset: Float) {
         if (AppConfig.optimizeRender) {
             render(view)
