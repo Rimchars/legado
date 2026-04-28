@@ -715,10 +715,33 @@ class TextChapterLayout(
         }
 
         val body = Jsoup.parseBodyFragment(htmlContent).body()
+        prepareEpubPageBackground(body, book)
         body.childNodes().forEach { node ->
             renderNode(node)
         }
         flushHtmlBuffer()
+    }
+
+    private suspend fun prepareEpubPageBackground(body: Element, book: Book) {
+        val pageColor = body.selectFirst("[data-epub-page-bg]")
+            ?.attr("data-epub-page-bg")
+            ?.toEpubTagColor()
+        val pageBackground = body.selectFirst("img[data-epub-background=true]")
+        val backgroundSrc = pageBackground?.attr("src")?.trim().orEmpty()
+        if (pageColor == null && backgroundSrc.isBlank()) return
+        if (pendingTextPage.lines.isNotEmpty() || pendingTextPage.hasEpubBackground()) {
+            prepareNextPageIfNeed()
+        }
+        pageColor?.let {
+            pendingTextPage.epubBackgroundColor = it
+        }
+        if (backgroundSrc.isNotBlank()) {
+            ImageProvider.cacheImage(book, backgroundSrc, ReadBook.bookSource)
+            pendingTextPage.epubBackgroundSrc = backgroundSrc
+        }
+        pendingTextPage.height = viewHeight.toFloat()
+        body.select("[data-epub-page-bg]").remove()
+        pageBackground?.remove()
     }
 
     private suspend fun setTypeEpubBlockBox(
@@ -872,7 +895,7 @@ class TextChapterLayout(
         return when {
             value.endsWith("%") -> {
                 val percentage = value.dropLast(1).toFloatOrNull() ?: return null
-                visibleHeight * percentage / 100f
+                visibleWidth * percentage / 100f
             }
             value.endsWith("em") -> {
                 val em = value.dropLast(2).toFloatOrNull() ?: return null
