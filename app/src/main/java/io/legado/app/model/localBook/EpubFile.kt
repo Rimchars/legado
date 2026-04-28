@@ -33,12 +33,14 @@ import java.io.InputStream
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.Charset
+import java.util.IdentityHashMap
 import java.util.Locale
 
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
         const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"6\">"
+        private const val ENABLE_EPUB_DEBUG_DUMP = false
         private var eFile: EpubFile? = null
 
         @Synchronized
@@ -82,6 +84,8 @@ class EpubFile(var book: Book) {
     }
 
     private var mCharset: Charset = Charset.defaultCharset()
+    private val cssTextCache = linkedMapOf<String, String>()
+    private val cssRuleCache = linkedMapOf<String, List<EpubCss.Rule>>()
 
     /**
      *持有引用，避免被回收
@@ -140,6 +144,11 @@ class EpubFile(var book: Book) {
         val endFragmentId = chapter.endFragmentId
         val elements = Elements()
         val rawResources = linkedMapOf<String, String>()
+        fun collectRawResource(res: Resource) {
+            if (ENABLE_EPUB_DEBUG_DUMP) {
+                rawResources[res.href] = String(res.data, mCharset)
+            }
+        }
         var findChapterFirstSource = false
         val includeNextChapterResource = !endFragmentId.isNullOrBlank()
         /*一些书籍依靠href索引的resource会包含多个章节，需要依靠fragmentId来截取到当前章节的内容*/
@@ -149,7 +158,7 @@ class EpubFile(var book: Book) {
                 if (currentChapterFirstResourceHref != res.href) continue
                 findChapterFirstSource = true
                 // 第一个xhtml文件
-                rawResources[res.href] = String(res.data, mCharset)
+                collectRawResource(res)
                 elements.add(
                     getBody(res, startFragmentId, endFragmentId)
                 )
@@ -159,13 +168,13 @@ class EpubFile(var book: Book) {
             }
             if (nextChapterFirstResourceHref != res.href) {
                 // 其余部分
-                rawResources[res.href] = String(res.data, mCharset)
+                collectRawResource(res)
                 elements.add(getBody(res, null, null))
             } else {
                 // 下一章节的第一个xhtml
                 if (includeNextChapterResource) {
                     //有Fragment 则添加到上一章节
-                    rawResources[res.href] = String(res.data, mCharset)
+                    collectRawResource(res)
                     elements.add(getBody(res, null, endFragmentId))
                 }
                 break
@@ -184,7 +193,9 @@ class EpubFile(var book: Book) {
         val html = elements.joinToString("\n") { element ->
             element.html().trim()
         }.trim()
-        dumpEpubChapterDebug(chapter, rawResources, html)
+        if (ENABLE_EPUB_DEBUG_DUMP) {
+            dumpEpubChapterDebug(chapter, rawResources, html)
+        }
         if (html.isBlank()) {
             return HtmlFormatter.formatKeepImg(elements.outerHtml())
         }
@@ -327,22 +338,22 @@ class EpubFile(var book: Book) {
         val rules = runCatching {
             val parsedRules = arrayListOf<EpubCss.Rule>()
             doc.head()?.select("style")?.forEach { styleElement ->
-                parsedRules.addAll(EpubCss.parseRules(styleElement.data().ifBlank { styleElement.html() }))
+                parsedRules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
             }
             doc.head()?.select("link[href][rel~=stylesheet]")?.forEach { link ->
                 val href = link.attr("href").trim()
                 if (href.isNotBlank()) {
-                    parsedRules.addAll(EpubCss.parseRules(loadCss(res.href, href)))
+                    parsedRules.addAll(parseCssRules(loadCss(res.href, href)))
                 }
             }
             select("style").forEach { styleElement ->
-                parsedRules.addAll(EpubCss.parseRules(styleElement.data().ifBlank { styleElement.html() }))
+                parsedRules.addAll(parseCssRules(styleElement.data().ifBlank { styleElement.html() }))
                 styleElement.remove()
             }
             select("link[href][rel~=stylesheet]").forEach { link ->
                 val href = link.attr("href").trim()
                 if (href.isNotBlank()) {
-                    parsedRules.addAll(EpubCss.parseRules(loadCss(res.href, href)))
+                    parsedRules.addAll(parseCssRules(loadCss(res.href, href)))
                 }
                 link.remove()
             }
@@ -351,15 +362,30 @@ class EpubFile(var book: Book) {
             AppLog.put("Epub CSS 解析失败, 已忽略样式\n${it.localizedMessage}", it)
         }.getOrDefault(emptyList())
         if (rules.isEmpty()) return
-        rules.sortedWith(compareBy<EpubCss.Rule> { it.specificity }.thenBy { it.order }).forEach { rule ->
+        val orderedRules = rules.mapIndexed { index, rule ->
+            rule.copy(order = index)
+        }
+        val matchedRules = IdentityHashMap<Element, MutableList<EpubCss.Rule>>()
+        orderedRules.forEach { rule ->
             runCatching {
                 if (this.`is`(rule.selector)) {
-                    mergeInlineStyle(rule.style)
+                    matchedRules.getOrPut(this) { arrayListOf() }.add(rule)
                 }
                 select(rule.selector).forEach { element ->
-                    element.mergeInlineStyle(rule.style)
+                    matchedRules.getOrPut(element) { arrayListOf() }.add(rule)
                 }
             }
+        }
+        matchedRules.forEach { (element, elementRules) ->
+            element.applyCssRules(elementRules)
+        }
+    }
+
+    private fun parseCssRules(css: String): List<EpubCss.Rule> {
+        if (css.isBlank()) return emptyList()
+        val cacheKey = "${css.length}:${css.hashCode()}"
+        return cssRuleCache.getOrPut(cacheKey) {
+            EpubCss.parseRules(css)
         }
     }
 
@@ -369,9 +395,11 @@ class EpubFile(var book: Book) {
                 URI(baseHref.encodeURI()).resolve(href.encodeURI()).toString(),
                 "UTF-8"
             )
-            epubBook?.resources?.getByHref(resolvedHref)?.data?.let {
-                String(it, mCharset).absolutizeCssUrls(resolvedHref)
-            }.orEmpty()
+            cssTextCache.getOrPut(resolvedHref) {
+                epubBook?.resources?.getByHref(resolvedHref)?.data?.let {
+                    String(it, mCharset).absolutizeCssUrls(resolvedHref)
+                }.orEmpty()
+            }
         }.getOrDefault("")
     }
 
@@ -386,7 +414,7 @@ class EpubFile(var book: Book) {
             }
             builder.append(substring(index, start))
             val valueStart = start + 4
-            val end = indexOf(')', valueStart)
+            val end = findCssUrlEnd(valueStart)
             if (end < 0) {
                 builder.append(substring(start))
                 break
@@ -417,12 +445,88 @@ class EpubFile(var book: Book) {
         return builder.toString()
     }
 
-    private fun Element.mergeInlineStyle(style: String) {
-        if (style.isBlank()) return
-        val merged = linkedMapOf<String, String>()
-        merged.putAll(EpubCss.declarations(attr("style")))
-        merged.putAll(EpubCss.declarations(style))
-        attr("style", merged.entries.joinToString(";") { (name, value) -> "$name:$value" })
+    private fun String.findCssUrlEnd(start: Int): Int {
+        var quote: Char? = null
+        var index = start
+        while (index < length) {
+            val char = this[index]
+            if (quote != null) {
+                if (char == quote && getOrNull(index - 1) != '\\') {
+                    quote = null
+                }
+                index++
+                continue
+            }
+            when (char) {
+                '\'', '"' -> quote = char
+                ')' -> return index
+            }
+            index++
+        }
+        return -1
+    }
+
+    private data class CascadedCssValue(
+        val value: String,
+        val important: Boolean,
+        val sourceRank: Int,
+        val specificity: Int,
+        val ruleOrder: Int,
+        val declarationOrder: Int
+    )
+
+    private fun Element.applyCssRules(rules: List<EpubCss.Rule>) {
+        val merged = linkedMapOf<String, CascadedCssValue>()
+        fun putDeclaration(
+            declaration: EpubCss.Declaration,
+            sourceRank: Int,
+            specificity: Int,
+            ruleOrder: Int
+        ) {
+            val value = CascadedCssValue(
+                value = declaration.value,
+                important = declaration.important,
+                sourceRank = sourceRank + if (declaration.important) 2 else 0,
+                specificity = specificity,
+                ruleOrder = ruleOrder,
+                declarationOrder = declaration.order
+            )
+            val current = merged[declaration.name]
+            if (current == null || value.hasHigherCssPriorityThan(current)) {
+                merged[declaration.name] = value
+            }
+        }
+        rules.forEach { rule ->
+            rule.declarations.forEach { declaration ->
+                putDeclaration(declaration, sourceRank = 0, specificity = rule.specificity, ruleOrder = rule.order)
+            }
+        }
+        EpubCss.parseDeclarations(attr("style")).forEach { declaration ->
+            putDeclaration(declaration, sourceRank = 1, specificity = 1000, ruleOrder = Int.MAX_VALUE)
+        }
+        if (merged.isNotEmpty()) {
+            attr("style", merged.entries.joinToString(";") { (name, value) ->
+                buildString {
+                    append(name)
+                    append(':')
+                    append(value.value)
+                    if (value.important) {
+                        append(" !important")
+                    }
+                }
+            })
+        }
+    }
+
+    private fun CascadedCssValue.hasHigherCssPriorityThan(other: CascadedCssValue): Boolean {
+        return compareValuesBy(
+            this,
+            other,
+            CascadedCssValue::sourceRank,
+            CascadedCssValue::specificity,
+            CascadedCssValue::ruleOrder,
+            CascadedCssValue::declarationOrder
+        ) > 0
     }
 
     private fun Element.propagateEpubInheritedStyles() {
