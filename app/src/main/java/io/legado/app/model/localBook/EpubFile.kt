@@ -395,7 +395,13 @@ class EpubFile(var book: Book) {
                 type.contains("endnote") ||
                 role == "doc-footnote" ||
                 role == "doc-endnote" ||
-                clazz.split(' ').any { it == "footnote" || it == "endnote" || it == "note" }
+                clazz.split(' ').any {
+                    it == "footnote" ||
+                        it == "endnote" ||
+                        it == "note" ||
+                        it == "duokan-footnote-content" ||
+                        it == "duokan-footnote-item"
+                }
             if (isNote) {
                 element.attr("style", "${element.attr("style")};display:none")
             }

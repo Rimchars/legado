@@ -344,10 +344,19 @@ data class TextPage(
         val localX = x - epubDrawOffsetX
         val localY = y - epubDrawOffsetY
         return epubNativeCommands.asReversed().firstNotNullOfOrNull { command ->
-            val text = command as? EpubTextRun ?: return@firstNotNullOfOrNull null
-            val href = text.linkHref?.takeIf { it.isNotBlank() } ?: return@firstNotNullOfOrNull null
-            val rect = RectF(text.x, text.y, text.x + text.width, text.y + text.height)
-            if (rect.contains(localX, localY)) href else null
+            when (command) {
+                is EpubTextRun -> {
+                    val href = command.linkHref?.takeIf { it.isNotBlank() } ?: return@firstNotNullOfOrNull null
+                    val rect = RectF(command.x, command.y, command.x + command.width, command.y + command.height)
+                    if (rect.contains(localX, localY)) href else null
+                }
+                is EpubImageBox -> {
+                    val href = command.linkHref?.takeIf { it.isNotBlank() } ?: return@firstNotNullOfOrNull null
+                    val rect = RectF(command.x, command.y, command.x + command.width, command.y + command.height)
+                    if (rect.contains(localX, localY)) href else null
+                }
+                else -> null
+            }
         }
     }
 

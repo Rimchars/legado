@@ -65,7 +65,8 @@ internal data class EpubImageBox(
     val backgroundPosition: String? = null,
     val backgroundRepeat: String? = null,
     val objectFit: String? = null,
-    val objectPosition: String? = null
+    val objectPosition: String? = null,
+    val linkHref: String? = null
 ) : EpubDrawCommand()
 
 internal data class EpubBlockBox(

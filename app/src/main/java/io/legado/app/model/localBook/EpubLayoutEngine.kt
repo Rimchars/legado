@@ -468,7 +468,7 @@ internal class EpubLayoutEngine(
                         ?: linkHref
                     current.children.forEach { child -> collect(child, childLink) }
                 }
-                is EpubImageNode -> items.add(InlineImage(current))
+                is EpubImageNode -> items.add(InlineImage(current, linkHref))
                 else -> Unit
             }
         }
@@ -553,7 +553,7 @@ internal class EpubLayoutEngine(
                                 backgroundPaddingRight = 0f,
                                 backgroundPaddingBottom = 0f,
                                 shadow = null,
-                                linkHref = null,
+                                linkHref = item.linkHref,
                                 sourcePath = item.image.sourcePath
                             )
                         )
@@ -684,7 +684,8 @@ internal class EpubLayoutEngine(
                         width = segment.width,
                         height = segment.height,
                         isBackground = false,
-                        sourcePath = segment.sourcePath
+                        sourcePath = segment.sourcePath,
+                        linkHref = segment.linkHref
                     )
                 )
             } else {
@@ -748,7 +749,8 @@ internal class EpubLayoutEngine(
                     backgroundRepeat = node.style.backgroundRepeatValue(),
                     objectFit = null,
                     objectPosition = null,
-                    sourcePath = node.sourcePath
+                    sourcePath = node.sourcePath,
+                    linkHref = null
                 )
             )
             pageHasFullBackground = true
@@ -781,7 +783,8 @@ internal class EpubLayoutEngine(
                 isBackground = false,
                 objectFit = node.style["object-fit"],
                 objectPosition = node.style["object-position"],
-                sourcePath = node.sourcePath
+                sourcePath = node.sourcePath,
+                linkHref = node.attributes["href"]?.takeIf { it.isNotBlank() }
             )
         )
         cursorY += imageHeight
@@ -1963,7 +1966,8 @@ internal class EpubLayoutEngine(
     }
 
     private data class InlineImage(
-        val image: EpubImageNode
+        val image: EpubImageNode,
+        val linkHref: String?
     ) : InlineItem()
 
     private data class InlineBreak(

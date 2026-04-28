@@ -83,6 +83,8 @@ import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
+private const val EPUB_NATIVE_MAX_HREFS_PER_CHAPTER = 3
+
 class TextChapterLayout(
     scope: CoroutineScope,
     private val textChapter: TextChapter,
@@ -666,8 +668,15 @@ class TextChapterLayout(
             "EPUB Native Layout request: chapter=${bookChapter.index}:${bookChapter.title}, " +
                 "hrefs=${hrefs.joinToString()}, view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
         )
+        val renderHrefs = hrefs.take(EPUB_NATIVE_MAX_HREFS_PER_CHAPTER)
+        if (hrefs.size > renderHrefs.size) {
+            AppLog.put(
+                "EPUB Native Layout limited: chapter=${bookChapter.index}:${bookChapter.title}, " +
+                    "hrefs=${hrefs.size}, render=${renderHrefs.size}"
+            )
+        }
         var rendered = false
-        hrefs.forEach { href ->
+        renderHrefs.forEach { href ->
             val layout = EpubFile.getNativeLayout(book, href) ?: run {
                 AppLog.put(
                     "EPUB Native Layout skip: getNativeLayout 返回 null, " +
@@ -692,7 +701,7 @@ class TextChapterLayout(
         }
         if (!rendered) {
             val reason = "getNativeLayout 全部返回空"
-            setTypeEpubDiagnosticPage(reason, "hrefs=${hrefs.joinToString()}")
+            setTypeEpubDiagnosticPage(reason, "hrefs=${renderHrefs.joinToString()}")
         }
         return true
     }
