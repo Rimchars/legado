@@ -67,15 +67,36 @@ internal class EpubLayoutEngine(
         val paddingBottom = style.verticalLengthPx("padding-bottom", width)
         val paddingLeft = style.lengthPx("padding-left", width)
         val paddingRight = style.lengthPx("padding-right", width)
-        val marginLeft = style.lengthPx("margin-left", width)
-        val marginRight = style.lengthPx("margin-right", width)
+        val requestedWidth = style.lengthPx("width", width).takeIf { it > 0f }
+        val rawMarginLeft = style["margin-left"]
+        val rawMarginRight = style["margin-right"]
+        val marginLeftValue = rawMarginLeft?.toCssLengthPx(width) ?: 0f
+        val marginRightValue = rawMarginRight?.toCssLengthPx(width) ?: 0f
         val borderWidth = style.borderWidthPx()
         cursorY += marginTop
         var boxTop = cursorY
         val listMarkerWidth = if (node.tagName == "li") basePaint.textSize * 1.2f else 0f
+        val availableWidth = (width - listMarkerWidth).coerceAtLeast(1f)
+        val outerWidth = requestedWidth
+            ?.plus(borderWidth * 2)
+            ?.plus(paddingLeft)
+            ?.plus(paddingRight)
+            ?.coerceAtMost(availableWidth)
+            ?: (width - marginLeftValue - marginRightValue - listMarkerWidth)
+        val remainingWidth = (width - outerWidth - listMarkerWidth).coerceAtLeast(0f)
+        val marginLeft = when {
+            rawMarginLeft.isAutoCssValue() && rawMarginRight.isAutoCssValue() -> remainingWidth / 2f
+            rawMarginLeft.isAutoCssValue() -> remainingWidth
+            else -> marginLeftValue
+        }
+        val marginRight = when {
+            rawMarginLeft.isAutoCssValue() && rawMarginRight.isAutoCssValue() -> remainingWidth / 2f
+            rawMarginRight.isAutoCssValue() -> remainingWidth
+            else -> marginRightValue
+        }
         val contentLeft = left + marginLeft + borderWidth + paddingLeft + listMarkerWidth
-        val contentWidth = (width - marginLeft - marginRight - borderWidth * 2 - paddingLeft - paddingRight - listMarkerWidth)
-            .coerceAtLeast(width * 0.35f)
+        val contentWidth = (outerWidth - borderWidth * 2 - paddingLeft - paddingRight)
+            .coerceAtLeast(1f)
         val requestedHeight = style.verticalLengthPx("height", width)
             .takeIf { it > 0f }
             ?: style.verticalLengthPx("min-height", width).takeIf { it > 0f }
@@ -92,7 +113,7 @@ internal class EpubLayoutEngine(
                 EpubBlockBox(
                     x = left + marginLeft,
                     y = boxTop,
-                    width = width - marginLeft - marginRight,
+                    width = outerWidth,
                     height = 0f,
                     backgroundColor = blockStyle.backgroundColor,
                     borderColor = blockStyle.borderColor,
@@ -393,15 +414,22 @@ internal class EpubLayoutEngine(
             pageHasFullBackground = true
             return
         }
-        val imageWidth = node.style.lengthPx("width", width)
+        val rawImageWidth = node.style.lengthPx("width", width)
             .takeIf { it > 0f }
             ?: node.attributes["data-legado-width"]?.toCssLengthPx(width)
             ?: node.attributes["width"]?.toCssLengthPx(width)
             ?: width
-        val imageHeight = node.style.lengthPx("height", width)
+        val rawImageHeight = node.style.lengthPx("height", width)
             .takeIf { it > 0f }
             ?: node.attributes["height"]?.toCssLengthPx(width)
-            ?: imageSizeResolver(node.src).scaledHeight(imageWidth)
+            ?: imageSizeResolver(node.src).scaledHeight(rawImageWidth)
+        val imageScale = if (rawImageWidth > width && rawImageWidth > 0f) {
+            width / rawImageWidth
+        } else {
+            1f
+        }
+        val imageWidth = rawImageWidth * imageScale
+        val imageHeight = rawImageHeight * imageScale
         flushPageIfNeedForHeight(cursorY + imageHeight)
         currentCommands.add(
             EpubImageBox(
@@ -582,6 +610,10 @@ internal class EpubLayoutEngine(
             clean.endsWith("px") -> clean.dropLast(2).toFloatOrNull()
             else -> clean.toFloatOrNull()
         }
+    }
+
+    private fun String?.isAutoCssValue(): Boolean {
+        return this?.trim()?.equals("auto", ignoreCase = true) == true
     }
 
     private fun String.toLineHeightPx(fontSize: Float): Float? {
