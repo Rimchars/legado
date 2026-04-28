@@ -1,6 +1,7 @@
 package io.legado.app.ui.book.read.page.entities.column
 
 import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Build
 import android.text.TextPaint
 import androidx.annotation.Keep
@@ -22,7 +23,12 @@ data class TextHtmlColumn(
     override val charData: String,
     val mTextSize: Float,
     val mTextColor: Int?,
-    val linkUrl: String?
+    val linkUrl: String?,
+    val isBold: Boolean = false,
+    val isItalic: Boolean = false,
+    val isUnderline: Boolean = false,
+    val isStrikethrough: Boolean = false,
+    val backgroundColor: Int? = null
 ) : TextBaseColumn {
 
     override var textLine: TextLine = emptyTextLine
@@ -60,6 +66,9 @@ data class TextHtmlColumn(
             textPaint.run {
                 color = ReadBookConfig.textAccentColor
                 isUnderlineText = true
+                isStrikeThruText = false
+                isFakeBoldText = isBold
+                textSkewX = if (isItalic) -0.25f else 0f
             }
             drawText(view, canvas, y, textPaint)
             return
@@ -70,12 +79,21 @@ data class TextHtmlColumn(
             } else {
                 mTextColor ?: ReadBookConfig.textColor
             }
-            isUnderlineText = false
+            isUnderlineText = isUnderline
+            isStrikeThruText = isStrikethrough
+            isFakeBoldText = isBold
+            textSkewX = if (isItalic) -0.25f else 0f
         }
         drawText(view, canvas, y, textPaint)
     }
 
     private fun drawText(view: ContentTextView, canvas: Canvas, y: Float, textPaint: TextPaint) {
+        backgroundColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
+            val oldColor = textPaint.color
+            textPaint.color = color
+            canvas.drawRect(start, 0f, end, textLine.height, textPaint)
+            textPaint.color = oldColor
+        }
         if (charData == HR_PLACE_STR) {
             canvas.drawRect(start, 0f, end, 3f, textPaint)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {

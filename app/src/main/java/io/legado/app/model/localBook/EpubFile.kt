@@ -37,7 +37,7 @@ import java.util.Locale
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
-        const val HTML_CONTENT_FLAG = "<usehtml>"
+        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"2\">"
         private var eFile: EpubFile? = null
 
         @Synchronized
@@ -230,21 +230,19 @@ class EpubFile(var book: Book) {
             doc = Jsoup.parse(bodyString)
             bodyElement = doc.body()
         }
-        /*选择去除正文中的H标签，部分书籍标题与阅读标题重复待优化*/
-        val tag = Book.hTag
-        if (book.getDelTag(tag)) {
-            bodyElement.run {
-                select("h1, h2, h3, h4, h5, h6").remove()
-                //getElementsMatchingOwnText(chapter.title)?.remove()
-            }
-        }
+        // EPUB 的标题本身通常带有排版样式，原生阅读器不再删除 h1-h6 或插入统一标题。
         bodyElement.select("image").forEach {
             it.tagName("img", Parser.NamespaceHtml)
             it.attr("src", it.attr("xlink:href").ifBlank { it.attr("href") })
         }
         bodyElement.applyEpubCss(doc, res)
-        bodyElement.select("[style]").forEach { element ->
-            element.applyEpubInlineStyle()
+        bodyElement.select("[style]")
+            .sortedByDescending { it.parents().size }
+            .forEach { element ->
+                element.applyEpubInlineStyle()
+            }
+        if (bodyElement.hasAttr("style")) {
+            bodyElement.applyEpubInlineStyle()
         }
         bodyElement.materializeBackgroundImages(res)
         bodyElement.markSingleImagePage()
@@ -409,8 +407,14 @@ class EpubFile(var book: Book) {
             "font-weight",
             "font-style",
             "font-size",
+            "font-family",
             "text-indent",
+            "text-decoration",
             "line-height",
+            "page-break-before",
+            "page-break-after",
+            "break-before",
+            "break-after",
             "margin",
             "margin-left",
             "margin-right",
@@ -422,8 +426,15 @@ class EpubFile(var book: Book) {
             "display",
             "background",
             "background-image",
+            "background-color",
             "background-size",
             "background-position",
+            "border",
+            "border-left",
+            "border-right",
+            "border-top",
+            "border-bottom",
+            "border-radius",
             "width",
             "height",
             "max-width",
@@ -495,22 +506,30 @@ class EpubFile(var book: Book) {
             }
         }
         declarations["color"]?.let { color ->
-            if (normalName() == "span") {
-                tagName("font", Parser.NamespaceHtml)
-            }
             if (normalName() == "font") {
                 attr("color", color)
+            } else {
+                wrapInnerHtml("font", " color=\"$color\"")
             }
         }
         declarations["font-weight"]?.let { weight ->
             val normalized = weight.lowercase(Locale.ROOT)
-            if (normalName() == "span" && (normalized == "bold" || normalized.toIntOrNull()?.let { it >= 600 } == true)) {
-                tagName("b", Parser.NamespaceHtml)
+            if (normalized == "bold" || normalized.toIntOrNull()?.let { it >= 600 } == true) {
+                wrapInnerHtml("b")
             }
         }
         declarations["font-style"]?.let { fontStyle ->
-            if (normalName() == "span" && fontStyle.equals("italic", ignoreCase = true)) {
-                tagName("i", Parser.NamespaceHtml)
+            if (fontStyle.equals("italic", ignoreCase = true) || fontStyle.equals("oblique", ignoreCase = true)) {
+                wrapInnerHtml("i")
+            }
+        }
+        declarations["text-decoration"]?.let { decoration ->
+            val normalized = decoration.lowercase(Locale.ROOT)
+            if (normalized.contains("underline")) {
+                wrapInnerHtml("u")
+            }
+            if (normalized.contains("line-through")) {
+                wrapInnerHtml("strike")
             }
         }
         declarations["display"]?.let { display ->
@@ -519,10 +538,26 @@ class EpubFile(var book: Book) {
             }
         }
         declarations["font-size"]?.let { size ->
-            if (normalName() == "span" && size.contains(Regex("large|[1-9][0-9]{2,}%"))) {
-                tagName("big", Parser.NamespaceHtml)
+            val normalized = size.trim().lowercase(Locale.ROOT)
+            when {
+                normalized.contains("small") || normalized.endsWith("smaller") ||
+                    normalized.removeSuffix("%").toFloatOrNull()?.let { it < 90f } == true ||
+                    normalized.removeSuffix("em").toFloatOrNull()?.let { it < 0.9f } == true -> {
+                    wrapInnerHtml("small")
+                }
+                normalized.contains("large") ||
+                    normalized.removeSuffix("%").toFloatOrNull()?.let { it > 110f } == true ||
+                    normalized.removeSuffix("em").toFloatOrNull()?.let { it > 1.1f } == true -> {
+                    wrapInnerHtml("big")
+                }
             }
         }
+    }
+
+    private fun Element.wrapInnerHtml(tag: String, attributes: String = "") {
+        val name = normalName()
+        if (name == tag || html().isBlank()) return
+        html("<$tag$attributes>${html()}</$tag>")
     }
 
     private fun Element.materializeBackgroundImages(res: Resource) {
