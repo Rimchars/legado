@@ -681,7 +681,7 @@ class TextChapterLayout(
                     } else if (node.normalName() == "img") {
                         flushHtmlBuffer()
                         setTypeHtmlImage(imageStyle, book, node)
-                    } else if (node.hasHtmlImage()) {
+                    } else if (node.hasHtmlImage() || node.hasEpubBlockBoxDescendant()) {
                         if (node.isHtmlBlock()) {
                             flushHtmlBuffer()
                         }
@@ -899,6 +899,12 @@ class TextChapterLayout(
         return declarations.keys.any { key ->
             key == "background" || key == "background-color" || key == "border" ||
                 key == "border-color" || key == "border-radius"
+        }
+    }
+
+    private fun Element.hasEpubBlockBoxDescendant(): Boolean {
+        return children().any { child ->
+            child.isHtmlBlock() && child.hasEpubBlockBoxStyle() || child.hasEpubBlockBoxDescendant()
         }
     }
 
