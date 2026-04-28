@@ -50,7 +50,9 @@ internal data class EpubComputedStyle(
             "line-height",
             "text-align",
             "text-decoration",
+            "text-shadow",
             "text-indent",
+            "text-transform",
             "visibility",
             "white-space",
             "word-spacing"
