@@ -328,8 +328,12 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 }
                 is TextHtmlColumn -> {
                     column.linkUrl?.let {
-                        activity?.startActivity<OpenUrlConfirmActivity> {
-                            putExtra("uri", it)
+                        if (it.startsWith(EPUB_MEDIA_LINK_PREFIX)) {
+                            context.toastOnUi("EPUB内嵌媒体已识别，当前原生阅读页暂不直接播放")
+                        } else {
+                            activity?.startActivity<OpenUrlConfirmActivity> {
+                                putExtra("uri", it)
+                            }
                         }
                         handled = true
                     }
@@ -786,6 +790,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             }
         }
         private val cursorWidth = 24.dpToPx()
+        private const val EPUB_MEDIA_LINK_PREFIX = "legado-epub-media:"
     }
 
     interface CallBack {

@@ -943,10 +943,12 @@ class TextChapterLayout(
             borderColor = borderColor,
             borderWidth = borderWidth,
             radius = radius,
-            marginLeft = marginLeft + paddingLeft,
-            marginRight = marginRight + paddingRight,
+            marginLeft = marginLeft,
+            marginRight = marginRight,
             paddingTop = paddingTop,
-            paddingBottom = paddingBottom
+            paddingBottom = paddingBottom,
+            paddingLeft = paddingLeft,
+            paddingRight = paddingRight
         )
     }
 
@@ -1074,7 +1076,9 @@ class TextChapterLayout(
         val marginLeft: Float,
         val marginRight: Float,
         val paddingTop: Float,
-        val paddingBottom: Float
+        val paddingBottom: Float,
+        val paddingLeft: Float,
+        val paddingRight: Float
     )
 
     private fun Element.toReadableTableHtml(): String {
