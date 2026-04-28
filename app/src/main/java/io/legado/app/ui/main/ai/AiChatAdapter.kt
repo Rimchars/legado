@@ -30,7 +30,6 @@ import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.ui.widget.image.CoverImageView
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
-import io.legado.app.utils.sendToClip
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.ext.tables.TablePlugin
@@ -292,10 +291,8 @@ class AiChatAdapter(
             binding.tvMessage.background = createBubble(bubbleColor, strokeColor, isUser = true)
             binding.tvMessage.setTextColor(context.primaryTextColor)
             binding.tvMessage.alpha = 1f
-            binding.tvMessage.setOnLongClickListener {
-                context.sendToClip(message.content)
-                true
-            }
+            binding.tvMessage.setTextIsSelectable(true)
+            binding.tvMessage.setOnLongClickListener(null)
         }
     }
 
@@ -325,19 +322,18 @@ class AiChatAdapter(
             binding.tvMessage.setTextColor(context.primaryTextColor)
             binding.tvMessage.alpha = if (message.pending) 0.76f else 1f
             binding.tvMessage.isVisible = parsed.content.isNotBlank()
-            binding.tvMessage.setOnLongClickListener {
-                context.sendToClip(parsed.content.ifBlank { message.content })
-                true
-            }
+            binding.tvMessage.setOnLongClickListener(null)
             if (message.pending) {
+                binding.tvMessage.setTextIsSelectable(false)
                 binding.tvMessage.movementMethod = null
                 binding.tvMessage.linksClickable = false
                 binding.tvMessage.text = parsed.content.ifBlank { " " }
             } else {
-                binding.tvMessage.movementMethod = LinkMovementMethod.getInstance()
+                binding.tvMessage.setTextIsSelectable(true)
                 binding.tvMessage.linksClickable = true
                 markwon.setMarkdown(binding.tvMessage, parsed.content.ifBlank { " " })
                 installSearchBookLinks(binding.tvMessage)
+                binding.tvMessage.movementMethod = LinkMovementMethod.getInstance()
             }
             bindSearchCards(binding, parsed.searchCards)
         }
