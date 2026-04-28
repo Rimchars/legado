@@ -46,7 +46,11 @@ class MoreConfigDialog : BasePrefDialogFragment() {
             attr.dimAmount = 0.0f
             attr.gravity = Gravity.BOTTOM
             attributes = attr
-            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, 360.dpToPx())
+            val sheetHeight = minOf(
+                (resources.displayMetrics.heightPixels * 0.68f).toInt(),
+                520.dpToPx()
+            ).coerceAtLeast(360.dpToPx())
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, sheetHeight)
         }
     }
 
@@ -58,6 +62,8 @@ class MoreConfigDialog : BasePrefDialogFragment() {
         (activity as ReadBookActivity).bottomDialog++
         return FrameLayout(requireContext()).apply {
             background = ReaderSheetStyle.topSheetDrawable(ReaderSheetStyle.resolve(requireContext()))
+            clipChildren = true
+            clipToPadding = true
             id = R.id.tag1
         }
     }
@@ -94,8 +100,9 @@ class MoreConfigDialog : BasePrefDialogFragment() {
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
             listView.background = null
-            listView.clipToPadding = false
-            listView.setPadding(0, 8.dpToPx(), 0, 16.dpToPx())
+            listView.clipToPadding = true
+            listView.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            listView.setPadding(0, 12.dpToPx(), 0, 24.dpToPx())
             listView.setEdgeEffectColor(primaryColor)
         }
 
