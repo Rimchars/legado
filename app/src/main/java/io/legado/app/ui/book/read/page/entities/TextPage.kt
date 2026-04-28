@@ -77,6 +77,8 @@ data class TextPage(
     var epubBackgroundPosition: String? = null
     var epubBackgroundRepeat: String? = null
     var epubLayoutSnapshotId: Int = 0
+    var epubDrawOffsetX: Float = ChapterProvider.paddingLeft.toFloat()
+    var epubDrawOffsetY: Float = ChapterProvider.paddingTop.toFloat()
     var fallbackChapterPosition: Int = 0
     val epubDecorations = arrayListOf<EpubDecoration>()
     internal val epubNativeCommands = arrayListOf<EpubDrawCommand>()
@@ -546,7 +548,7 @@ data class TextPage(
         if (epubNativeCommands.isEmpty()) return
         val paint = PaintPool.obtain()
         val textPaint = TextPaint(ChapterProvider.contentPaint)
-        canvas.withTranslation(ChapterProvider.paddingLeft.toFloat(), ChapterProvider.paddingTop.toFloat()) {
+        canvas.withTranslation(epubDrawOffsetX, epubDrawOffsetY) {
             epubNativeCommands.forEach { command ->
                 when (command) {
                     is EpubBlockBox -> drawEpubNativeBlock(this, paint, command)
@@ -625,8 +627,13 @@ data class TextPage(
 
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
+        val pageHeight = if (epubNativeCommands.isNotEmpty() || hasEpubBackground()) {
+            height.toInt().coerceAtLeast(renderHeight).coerceAtLeast(1)
+        } else {
+            ChapterProvider.viewHeight
+        }
         val recorderHeight = if (hasEpubBackground()) {
-            max(renderHeight, ChapterProvider.viewHeight) + 10.dpToPx()
+            max(renderHeight, pageHeight) + 10.dpToPx()
         } else {
             renderHeight + 10.dpToPx()
         }
@@ -665,12 +672,12 @@ data class TextPage(
         }
         epubNativeCommands.maxOfOrNull { command ->
             when (command) {
-                is EpubBlockBox -> ChapterProvider.paddingTop + command.y + command.height
-                is EpubBullet -> ChapterProvider.paddingTop + command.baseline + command.size
-                is EpubImageBox -> ChapterProvider.paddingTop + command.y + command.height
-                is EpubPageColor -> ChapterProvider.viewHeight.toFloat()
-                is EpubRuleLine -> ChapterProvider.paddingTop + command.y + command.strokeWidth
-                is EpubTextRun -> ChapterProvider.paddingTop + command.baseline + command.size
+                is EpubBlockBox -> epubDrawOffsetY + command.y + command.height
+                is EpubBullet -> epubDrawOffsetY + command.baseline + command.size
+                is EpubImageBox -> epubDrawOffsetY + command.y + command.height
+                is EpubPageColor -> height.coerceAtLeast(ChapterProvider.viewHeight.toFloat())
+                is EpubRuleLine -> epubDrawOffsetY + command.y + command.strokeWidth
+                is EpubTextRun -> epubDrawOffsetY + command.baseline + command.size
             }
         }?.let { nativeBottom ->
             renderHeight = max(renderHeight, ceil(nativeBottom).toInt())
