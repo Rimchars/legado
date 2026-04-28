@@ -484,10 +484,7 @@ internal class EpubLayoutEngine(
                     val normalized = item.normalizedText().transformCssText(item.style)
                     if (normalized.isBlank()) return@forEach
                     val paint = item.style.toTextPaint()
-                    val inlinePadding = item.style.inlinePadding(width)
-                    val itemLineHeight = lineHeight(item.style) +
-                        inlinePadding.top +
-                        inlinePadding.bottom
+                    val itemLineHeight = lineHeight(item.style)
                     normalized.forEach { char ->
                         val value = char.toString()
                         val charWidth = paint.measureText(value) + item.style.extraCharacterSpacing(value)
@@ -502,8 +499,7 @@ internal class EpubLayoutEngine(
                                 height = itemLineHeight,
                                 size = paint.textSize,
                                 color = item.style.colorInt(),
-                                backgroundColor = item.style.colorInt("background-color")
-                                    ?: item.style.backgroundColor(),
+                                backgroundColor = null,
                                 bold = item.style.isBold(),
                                 italic = item.style.isItalic(),
                                 typeface = item.style.resolveTypeface(documentFontFaces),
@@ -513,11 +509,11 @@ internal class EpubLayoutEngine(
                                 decorationColor = item.style.colorInt("text-decoration-color"),
                                 decorationStyle = item.style["text-decoration-style"]?.lowercase(Locale.ROOT),
                                 baselineShift = item.style.baselineShiftPx(),
-                                backgroundRadius = item.style.inlineBackgroundRadius(width),
-                                backgroundPaddingLeft = inlinePadding.left,
-                                backgroundPaddingTop = inlinePadding.top,
-                                backgroundPaddingRight = inlinePadding.right,
-                                backgroundPaddingBottom = inlinePadding.bottom,
+                                backgroundRadius = 0f,
+                                backgroundPaddingLeft = 0f,
+                                backgroundPaddingTop = 0f,
+                                backgroundPaddingRight = 0f,
+                                backgroundPaddingBottom = 0f,
                                 shadow = item.style.textShadow(),
                                 sourcePath = item.sourcePath
                             )
