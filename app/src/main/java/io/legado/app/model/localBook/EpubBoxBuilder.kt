@@ -9,7 +9,7 @@ internal class EpubBoxBuilder {
             tagName = document.body.tagName,
             attributes = document.body.attributes,
             style = document.body.style,
-            children = document.body.children.mapNotNull { node -> buildNode(node, document.body.style) },
+            children = document.body.children.mapNotNull { node -> buildNode(node, document.body.style.inheritedOnly()) },
             sourcePath = document.body.sourcePath
         )
         return EpubBoxDocument(
@@ -59,7 +59,7 @@ internal class EpubBoxBuilder {
             else -> {
                 val isBlock = element.isBlock()
                 val childParentStyle = if (isBlock) {
-                    element.style.withoutInheritedTextIndent()
+                    element.style.inheritedOnly()
                 } else {
                     element.style
                 }

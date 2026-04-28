@@ -275,6 +275,9 @@ internal class EpubDomBuilder(
                 merged[declaration.name] = value
             }
         }
+        element.tagDefaultDeclarations().forEach { declaration ->
+            putDeclaration(declaration, sourceRank = -1, specificity = 0, ruleOrder = -1)
+        }
         element.attr("align")
             .trim()
             .lowercase()
@@ -300,7 +303,99 @@ internal class EpubDomBuilder(
         EpubCss.parseDeclarations(element.attr("style")).forEach { declaration ->
             putDeclaration(declaration, sourceRank = 1, specificity = 1000, ruleOrder = Int.MAX_VALUE)
         }
+        merged.normalizeRelativeFontSize(parentStyle)
         return EpubComputedStyle(merged.resolveBackgroundUrls(baseHref))
+    }
+
+    private fun LinkedHashMap<String, EpubStyleValue>.normalizeRelativeFontSize(parentStyle: EpubComputedStyle) {
+        val current = this["font-size"] ?: return
+        if (current.sourceRank < 0 && current.declarationOrder < 0) return
+        val parentMultiplier = parentStyle["font-size"]?.fontSizeMultiplier(1f) ?: 1f
+        val normalized = current.value.fontSizeMultiplier(parentMultiplier) ?: return
+        this["font-size"] = current.copy(value = "${normalized * 100f}%")
+    }
+
+    private fun String.fontSizeMultiplier(parentMultiplier: Float): Float? {
+        val clean = trim().lowercase()
+        return when {
+            clean == "xx-small" -> 0.58f
+            clean == "x-small" -> 0.68f
+            clean == "small" -> 0.82f
+            clean == "medium" -> 1f
+            clean == "large" -> 1.18f
+            clean == "x-large" -> 1.36f
+            clean == "xx-large" -> 1.55f
+            clean == "smaller" -> parentMultiplier * 0.85f
+            clean == "larger" -> parentMultiplier * 1.18f
+            clean.endsWith("%") -> clean.dropLast(1).toFloatOrNull()?.let { parentMultiplier * it / 100f }
+            clean.endsWith("em") -> clean.dropLast(2).toFloatOrNull()?.let { parentMultiplier * it }
+            clean.endsWith("rem") -> clean.dropLast(3).toFloatOrNull()
+            else -> null
+        }
+    }
+
+    private fun Element.tagDefaultDeclarations(): List<EpubCss.Declaration> {
+        val declarations = arrayListOf<EpubCss.Declaration>()
+        fun add(name: String, value: String) {
+            declarations.add(
+                EpubCss.Declaration(
+                    name = name,
+                    value = value,
+                    important = false,
+                    order = declarations.size
+                )
+            )
+        }
+        when (normalName()) {
+            "b", "strong" -> add("font-weight", "bold")
+            "i", "em", "cite" -> add("font-style", "italic")
+            "u" -> add("text-decoration", "underline")
+            "strike", "s", "del" -> add("text-decoration", "line-through")
+            "big" -> add("font-size", "larger")
+            "small" -> add("font-size", "smaller")
+            "center" -> add("text-align", "center")
+            "h1" -> {
+                add("font-size", "2em")
+                add("font-weight", "bold")
+            }
+            "h2" -> {
+                add("font-size", "1.5em")
+                add("font-weight", "bold")
+            }
+            "h3" -> {
+                add("font-size", "1.17em")
+                add("font-weight", "bold")
+            }
+            "h4", "h5", "h6" -> add("font-weight", "bold")
+        }
+        if (normalName() == "font") {
+            attr("color").takeIf { it.isNotBlank() }?.let { add("color", it) }
+            attr("face").takeIf { it.isNotBlank() }?.let { add("font-family", it) }
+            attr("size").toHtmlFontSize()?.let { add("font-size", it) }
+        }
+        normalName().epubBackgroundColorTag()?.let { color ->
+            add("background-color", color)
+        }
+        return declarations
+    }
+
+    private fun String.toHtmlFontSize(): String? {
+        return when (trim().removePrefix("+")) {
+            "1" -> "xx-small"
+            "2" -> "small"
+            "3" -> "medium"
+            "4" -> "large"
+            "5" -> "x-large"
+            "6" -> "xx-large"
+            "7" -> "2em"
+            else -> null
+        }
+    }
+
+    private fun String.epubBackgroundColorTag(): String? {
+        if (!startsWith("epubbg", ignoreCase = true)) return null
+        val hex = substringAfter("epubbg", "").takeIf { it.length == 8 || it.length == 6 } ?: return null
+        return "#$hex"
     }
 
     private fun String.normalizeTextAlign(): String? {
