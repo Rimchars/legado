@@ -734,8 +734,8 @@ class TextChapterLayout(
                 .filterIsInstance<EpubPageColor>()
                 .firstOrNull()
             pendingTextPage.epubLayoutSnapshotId = layoutPage.snapshotId
-            pendingTextPage.epubDrawOffsetX = paddingLeft.toFloat()
-            pendingTextPage.epubDrawOffsetY = paddingTop.toFloat()
+            pendingTextPage.epubDrawOffsetX = if (backgroundImage != null) 0f else paddingLeft.toFloat()
+            pendingTextPage.epubDrawOffsetY = if (backgroundImage != null) 0f else paddingTop.toFloat()
             layoutPage.commands.forEach { command ->
                 if (command is EpubImageBox) {
                     ImageProvider.cacheImage(book, command.src, ReadBook.bookSource)

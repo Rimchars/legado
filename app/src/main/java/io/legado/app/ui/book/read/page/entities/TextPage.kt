@@ -488,25 +488,43 @@ data class TextPage(
             .orEmpty()
         var horizontal: Float? = null
         var vertical: Float? = null
+        var nextLengthIsVertical = false
         tokens.forEach { token ->
             when (token) {
-                "left" -> horizontal = 0f
+                "left" -> {
+                    horizontal = 0f
+                    nextLengthIsVertical = true
+                }
                 "center" -> {
                     if (horizontal == null) {
                         horizontal = (targetWidth - drawWidth) / 2f
+                        nextLengthIsVertical = true
                     } else if (vertical == null) {
                         vertical = (targetHeight - drawHeight) / 2f
                     }
                 }
-                "right" -> horizontal = targetWidth - drawWidth
+                "right" -> {
+                    horizontal = targetWidth - drawWidth
+                    nextLengthIsVertical = true
+                }
                 "top" -> vertical = 0f
                 "bottom" -> vertical = targetHeight - drawHeight
                 else -> {
                     token.cssBackgroundLength(targetWidth)?.let { value ->
-                        horizontal = if (token.endsWith("%")) {
-                            (targetWidth - drawWidth) * value / targetWidth
+                        if (horizontal == null && !nextLengthIsVertical) {
+                            horizontal = if (token.endsWith("%")) {
+                                (targetWidth - drawWidth) * value / targetWidth
+                            } else {
+                                value
+                            }
+                            nextLengthIsVertical = true
                         } else {
-                            value
+                            val verticalValue = token.cssBackgroundLength(targetHeight) ?: value
+                            vertical = if (token.endsWith("%")) {
+                                (targetHeight - drawHeight) * verticalValue / targetHeight
+                            } else {
+                                verticalValue
+                            }
                         }
                     }
                 }
@@ -742,13 +760,17 @@ data class TextPage(
             val bgPaint = PaintPool.obtain()
             bgPaint.style = Paint.Style.FILL
             bgPaint.color = color
-            canvas.drawRect(
-                text.x,
-                text.y,
-                text.x + text.width,
-                text.y + text.height,
-                bgPaint
+            val rect = RectF(
+                text.x - text.backgroundPaddingLeft,
+                text.y - text.backgroundPaddingTop,
+                text.x + text.width + text.backgroundPaddingRight,
+                text.y + text.height + text.backgroundPaddingBottom
             )
+            if (text.backgroundRadius > 0f) {
+                canvas.drawRoundRect(rect, text.backgroundRadius, text.backgroundRadius, bgPaint)
+            } else {
+                canvas.drawRect(rect, bgPaint)
+            }
             PaintPool.recycle(bgPaint)
         }
         text.shadow?.let { shadow ->

@@ -43,6 +43,11 @@ internal data class EpubTextRun(
     val decorationColor: Int?,
     val decorationStyle: String?,
     val baselineShift: Float,
+    val backgroundRadius: Float,
+    val backgroundPaddingLeft: Float,
+    val backgroundPaddingTop: Float,
+    val backgroundPaddingRight: Float,
+    val backgroundPaddingBottom: Float,
     val shadow: EpubShadow?,
     override val sourcePath: String
 ) : EpubDrawCommand()
