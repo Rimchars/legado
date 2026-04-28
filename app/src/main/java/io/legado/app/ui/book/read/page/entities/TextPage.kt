@@ -302,6 +302,7 @@ data class TextPage(
      * @return
      */
     fun containPos(chapterPos: Int): Boolean {
+        if (lines.isEmpty()) return false
         val line = lines.first()
         val startPos = line.chapterPosition
         val endPos = startPos + charSize

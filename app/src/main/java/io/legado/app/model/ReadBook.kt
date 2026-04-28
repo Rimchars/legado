@@ -13,6 +13,7 @@ import io.legado.app.help.AppWebDav
 import io.legado.app.help.ReadRecordDailyHelper
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
+import io.legado.app.help.book.isEpub
 import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isPdf
@@ -732,12 +733,12 @@ object ReadBook : CoroutineScope by MainScope() {
                     for (page in textChapter.layoutChannel) {
                         val index = page.index
                         if (!available && page.containPos(durChapterPos)) {
-                            if (upContent) {
+                            if (upContent && !book.isEpub) {
                                 callBack?.upContent(offset, resetPageOffset)
                             }
                             available = true
                         }
-                        if (upContent && isScroll) {
+                        if (upContent && isScroll && !book.isEpub) {
                             if (max(index - 3, 0) < durPageIndex) {
                                 callBack?.upContent(offset, false)
                             }
@@ -820,12 +821,12 @@ object ReadBook : CoroutineScope by MainScope() {
                     for (page in textChapter.layoutChannel) {
                         val index = page.index
                         if (!available && page.containPos(durChapterPos)) {
-                            if (upContent) {
+                            if (upContent && !book.isEpub) {
                                 callBack?.upContent(offset, resetPageOffset)
                             }
                             available = true
                         }
-                        if (upContent && isScroll) {
+                        if (upContent && isScroll && !book.isEpub) {
                             if (max(index - 3, 0) < durPageIndex) {
                                 callBack?.upContent(offset, false)
                             }
