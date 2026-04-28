@@ -8,6 +8,7 @@ import android.text.Editable
 import android.text.Html
 import android.text.SpannableStringBuilder
 import android.text.TextPaint
+import android.text.style.BackgroundColorSpan
 import android.text.style.ClickableSpan
 import android.text.style.ReplacementSpan
 import android.view.View
@@ -22,6 +23,7 @@ class TextViewTagHandler(private val onButtonClickListener: OnButtonClickListene
         private const val BUTTON_TAG = "button"
         private const val BUTTON_SPLIT = "@onclick:"
         private const val HR_TAG = "hr"
+        private const val EPUB_BG_TAG_PREFIX = "epubbg"
         const val HR_PLACE_CHAR = "—"
         const val HR_PLACE_STR = "———"
     }
@@ -38,6 +40,7 @@ class TextViewTagHandler(private val onButtonClickListener: OnButtonClickListene
         }
     }
     private val buttonTagStack = mutableListOf<Int>()
+    private val epubBgTagStack = mutableMapOf<String, MutableList<Int>>()
 
     override fun handleTag(
         opening: Boolean,
@@ -103,7 +106,33 @@ class TextViewTagHandler(private val onButtonClickListener: OnButtonClickListene
                     SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
             }
+            tag.startsWith(EPUB_BG_TAG_PREFIX, ignoreCase = true) -> {
+                val color = tag.substring(EPUB_BG_TAG_PREFIX.length).toEpubTagColor() ?: return
+                val key = tag.lowercase()
+                if (opening) {
+                    epubBgTagStack.getOrPut(key) { mutableListOf() }.add(output.length)
+                } else {
+                    val starts = epubBgTagStack[key] ?: return
+                    if (starts.isEmpty()) return
+                    val start = starts.removeAt(starts.lastIndex)
+                    if (start < output.length) {
+                        output.setSpan(
+                            BackgroundColorSpan(color),
+                            start,
+                            output.length,
+                            SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    private fun String.toEpubTagColor(): Int? {
+        val clean = trim().takeIf { it.length == 6 || it.length == 8 } ?: return null
+        return runCatching {
+            Color.parseColor("#$clean")
+        }.getOrNull()
     }
 
     private class HorizontalRuleSpan(
