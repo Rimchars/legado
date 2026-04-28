@@ -96,7 +96,9 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         super.onSizeChanged(w, h, oldw, oldh)
         if (!isMainView) return
         ChapterProvider.upViewSize(w, h)
-        textPage.format()
+        if (!textPage.isNativeEpubPage()) {
+            textPage.format()
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
