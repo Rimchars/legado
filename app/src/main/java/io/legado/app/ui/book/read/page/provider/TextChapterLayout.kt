@@ -733,6 +733,7 @@ class TextChapterLayout(
             val backgroundColor = layoutPage.commands
                 .filterIsInstance<EpubPageColor>()
                 .firstOrNull()
+            pendingTextPage.epubLayoutSnapshotId = layoutPage.snapshotId
             layoutPage.commands.forEach { command ->
                 if (command is EpubImageBox) {
                     ImageProvider.cacheImage(book, command.src, ReadBook.bookSource)
@@ -743,6 +744,9 @@ class TextChapterLayout(
             }
             if (backgroundImage != null) {
                 pendingTextPage.epubBackgroundSrc = backgroundImage.src
+                pendingTextPage.epubBackgroundSize = backgroundImage.backgroundSize
+                pendingTextPage.epubBackgroundPosition = backgroundImage.backgroundPosition
+                pendingTextPage.epubBackgroundRepeat = backgroundImage.backgroundRepeat
             }
             pendingTextPage.epubNativeCommands.addAll(
                 layoutPage.commands.filterNot { command ->

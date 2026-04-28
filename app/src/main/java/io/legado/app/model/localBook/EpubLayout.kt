@@ -2,13 +2,15 @@ package io.legado.app.model.localBook
 
 internal data class EpubLayoutDocument(
     val href: String,
-    val pages: List<EpubLayoutPage>
+    val pages: List<EpubLayoutPage>,
+    val snapshotId: Int
 )
 
 internal data class EpubLayoutPage(
     val index: Int,
     val commands: List<EpubDrawCommand>,
-    val height: Float
+    val height: Float,
+    val snapshotId: Int
 )
 
 internal sealed class EpubDrawCommand {
@@ -41,7 +43,10 @@ internal data class EpubImageBox(
     val width: Float,
     val height: Float,
     val isBackground: Boolean,
-    override val sourcePath: String
+    override val sourcePath: String,
+    val backgroundSize: String? = null,
+    val backgroundPosition: String? = null,
+    val backgroundRepeat: String? = null
 ) : EpubDrawCommand()
 
 internal data class EpubBlockBox(

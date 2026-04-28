@@ -73,6 +73,10 @@ data class TextPage(
     var hasReadAloudSpan = false
     var epubBackgroundSrc: String? = null
     var epubBackgroundColor: Int? = null
+    var epubBackgroundSize: String? = null
+    var epubBackgroundPosition: String? = null
+    var epubBackgroundRepeat: String? = null
+    var epubLayoutSnapshotId: Int = 0
     var fallbackChapterPosition: Int = 0
     val epubDecorations = arrayListOf<EpubDecoration>()
     internal val epubNativeCommands = arrayListOf<EpubDrawCommand>()
@@ -385,19 +389,137 @@ data class TextPage(
             height = height.toInt(),
             cacheKeySuffix = "epub-bg-${width.toInt()}x${height.toInt()}"
         )
-        val scale = max(width / bitmap.width, height / bitmap.height)
-        val drawWidth = bitmap.width * scale
-        val drawHeight = bitmap.height * scale
-        val rect = RectF(
-            left + (width - drawWidth) / 2f,
-            top + (height - drawHeight) / 2f,
-            left + (width + drawWidth) / 2f,
-            top + (height + drawHeight) / 2f
+        val (drawWidth, drawHeight) = resolveEpubBackgroundSize(
+            sourceWidth = bitmap.width.toFloat(),
+            sourceHeight = bitmap.height.toFloat(),
+            targetWidth = width,
+            targetHeight = height
+        )
+        val origin = resolveEpubBackgroundOrigin(
+            drawWidth = drawWidth,
+            drawHeight = drawHeight,
+            targetWidth = width,
+            targetHeight = height
         )
         canvas.save()
         canvas.clipRect(left, top, left + width, top + height)
-        canvas.drawBitmap(bitmap, null, rect, view.imagePaint)
+        val repeat = epubBackgroundRepeat?.lowercase().orEmpty()
+        if (repeat == "repeat" || repeat == "repeat-x" || repeat == "repeat-y") {
+            val startX = if (repeat == "repeat-y") origin.first else origin.first.modTile(drawWidth)
+            val startY = if (repeat == "repeat-x") origin.second else origin.second.modTile(drawHeight)
+            var y = startY
+            while (y < height) {
+                var x = startX
+                while (x < width) {
+                    canvas.drawBitmap(bitmap, null, RectF(x, y, x + drawWidth, y + drawHeight), view.imagePaint)
+                    if (repeat == "repeat-y") break
+                    x += drawWidth
+                }
+                if (repeat == "repeat-x") break
+                y += drawHeight
+            }
+        } else {
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                RectF(origin.first, origin.second, origin.first + drawWidth, origin.second + drawHeight),
+                view.imagePaint
+            )
+        }
         canvas.restore()
+    }
+
+    private fun resolveEpubBackgroundSize(
+        sourceWidth: Float,
+        sourceHeight: Float,
+        targetWidth: Float,
+        targetHeight: Float
+    ): Pair<Float, Float> {
+        val size = epubBackgroundSize?.trim()?.lowercase().orEmpty()
+        if (sourceWidth <= 0f || sourceHeight <= 0f) return targetWidth to targetHeight
+        return when (size) {
+            "contain" -> {
+                val scale = min(targetWidth / sourceWidth, targetHeight / sourceHeight)
+                sourceWidth * scale to sourceHeight * scale
+            }
+            "", "cover" -> {
+                val scale = max(targetWidth / sourceWidth, targetHeight / sourceHeight)
+                sourceWidth * scale to sourceHeight * scale
+            }
+            else -> {
+                val parts = size.split(' ', '\t').filter { it.isNotBlank() }
+                val parsedWidth = parts.getOrNull(0)?.cssBackgroundLength(targetWidth)
+                val parsedHeight = parts.getOrNull(1)?.cssBackgroundLength(targetHeight)
+                when {
+                    parsedWidth != null && parsedHeight != null -> parsedWidth to parsedHeight
+                    parsedWidth != null -> parsedWidth to (sourceHeight * parsedWidth / sourceWidth)
+                    parsedHeight != null -> (sourceWidth * parsedHeight / sourceHeight) to parsedHeight
+                    else -> {
+                        val scale = max(targetWidth / sourceWidth, targetHeight / sourceHeight)
+                        sourceWidth * scale to sourceHeight * scale
+                    }
+                }
+            }
+        }
+    }
+
+    private fun resolveEpubBackgroundOrigin(
+        drawWidth: Float,
+        drawHeight: Float,
+        targetWidth: Float,
+        targetHeight: Float
+    ): Pair<Float, Float> {
+        val tokens = epubBackgroundPosition
+            ?.lowercase()
+            ?.split(' ', '\t')
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+        var horizontal = 0f
+        var vertical = 0f
+        tokens.forEach { token ->
+            when (token) {
+                "left" -> horizontal = 0f
+                "center" -> {
+                    horizontal = (targetWidth - drawWidth) / 2f
+                    vertical = (targetHeight - drawHeight) / 2f
+                }
+                "right" -> horizontal = targetWidth - drawWidth
+                "top" -> vertical = 0f
+                "bottom" -> vertical = targetHeight - drawHeight
+                else -> {
+                    token.cssBackgroundLength(targetWidth)?.let { value ->
+                        horizontal = if (token.endsWith("%")) {
+                            (targetWidth - drawWidth) * value / targetWidth
+                        } else {
+                            value
+                        }
+                    }
+                }
+            }
+        }
+        if (tokens.isEmpty()) {
+            horizontal = (targetWidth - drawWidth) / 2f
+            vertical = (targetHeight - drawHeight) / 2f
+        }
+        return horizontal to vertical
+    }
+
+    private fun String.cssBackgroundLength(relativeTo: Float): Float? {
+        val clean = trim().lowercase()
+        if (clean == "auto") return null
+        return when {
+            clean.endsWith("%") -> clean.dropLast(1).toFloatOrNull()?.let { relativeTo * it / 100f }
+            clean.endsWith("px") -> clean.dropLast(2).toFloatOrNull()
+            clean.endsWith("em") -> clean.dropLast(2).toFloatOrNull()
+            else -> clean.toFloatOrNull()
+        }
+    }
+
+    private fun Float.modTile(tile: Float): Float {
+        if (tile <= 0f) return this
+        var value = this
+        while (value > 0f) value -= tile
+        return value
     }
 
     private fun drawEpubDecorations(canvas: Canvas) {
