@@ -169,6 +169,9 @@ data class TextPage(
      */
     @Suppress("DEPRECATION")
     fun format(): TextPage {
+        if (isNativeEpubPage()) {
+            return this
+        }
         if (textLines.isEmpty()) isMsgPage = true
         if (isMsgPage && ChapterProvider.viewWidth > 0) {
             textLines.clear()
@@ -327,6 +330,10 @@ data class TextPage(
 
     fun hasEpubBackground(): Boolean {
         return epubBackgroundSrc != null || epubBackgroundColor != null
+    }
+
+    fun isNativeEpubPage(): Boolean {
+        return hasEpubBackground() || epubNativeCommands.isNotEmpty()
     }
 
     fun draw(view: ContentTextView, canvas: Canvas, relativeOffset: Float) {
