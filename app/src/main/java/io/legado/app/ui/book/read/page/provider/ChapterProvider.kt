@@ -12,6 +12,7 @@ import io.legado.app.constant.EventBus
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookContent
+import io.legado.app.help.book.isEpub
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.model.ReadBook
@@ -286,7 +287,13 @@ object ChapterProvider {
             return
         }
         if (width != viewWidth || height != viewHeight) {
-            if (width == viewWidth) {
+            if (ReadBook.book?.isEpub == true) {
+                upViewSizeRunnable?.let {
+                    handler.removeCallbacks(it)
+                    upViewSizeRunnable = null
+                }
+                notifyViewSizeChange(width, height)
+            } else if (width == viewWidth) {
                 upViewSizeRunnable = handler.postDelayed(300) {
                     upViewSizeRunnable = null
                     notifyViewSizeChange(width, height)
