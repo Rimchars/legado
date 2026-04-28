@@ -588,7 +588,8 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
                     id = id,
                     name = name,
                     baseUrl = provider.baseUrl.trim(),
-                    apiKey = provider.apiKey.trim()
+                    apiKey = provider.apiKey.trim(),
+                    headers = provider.headers?.trim().orEmpty()
                 )
             }
         }.distinctBy { it.id }

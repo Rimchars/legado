@@ -83,6 +83,12 @@
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.Preference
+            android:key="aiFetchModels"
+            android:summary="@string/ai_fetch_models_summary"
+            android:title="@string/ai_fetch_models"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
             android:key="aiManageModels"
             android:summary="@string/ai_no_models"
             android:title="@string/ai_manage_models"
