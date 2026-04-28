@@ -425,8 +425,10 @@ internal class EpubLayoutEngine(
                     lineHeight = currentLineHeight,
                     alignStyle = parentStyle
                 )
+                cursorY += currentLineHeight
+            } else if (force) {
+                cursorY += lineHeight(parentStyle) * 0.45f
             }
-            cursorY += currentLineHeight
             flushPageIfNeedForHeight(cursorY + lineHeight(parentStyle))
             lineSegments.clear()
             lineWidth = 0f
@@ -453,6 +455,8 @@ internal class EpubLayoutEngine(
                                 width = imageWidth,
                                 height = imageHeight,
                                 size = imageHeight,
+                                ascent = imageHeight,
+                                descent = imageHeight * 0.2f,
                                 color = null,
                                 backgroundColor = null,
                                 bold = false,
@@ -485,6 +489,9 @@ internal class EpubLayoutEngine(
                     if (normalized.isBlank()) return@forEach
                     val paint = item.style.toTextPaint()
                     val itemLineHeight = lineHeight(item.style)
+                    val metrics = paint.fontMetrics
+                    val ascent = -metrics.ascent
+                    val descent = metrics.descent
                     normalized.forEach { char ->
                         val value = char.toString()
                         val charWidth = paint.measureText(value) + item.style.extraCharacterSpacing(value)
@@ -498,6 +505,8 @@ internal class EpubLayoutEngine(
                                 width = charWidth,
                                 height = itemLineHeight,
                                 size = paint.textSize,
+                                ascent = ascent,
+                                descent = descent,
                                 color = item.style.colorInt(),
                                 backgroundColor = null,
                                 bold = item.style.isBold(),
@@ -541,7 +550,12 @@ internal class EpubLayoutEngine(
             "right", "end" -> left + (availableWidth - lineWidth).coerceAtLeast(0f)
             else -> left
         }
-        val baseline = top + (lineHeight * 0.82f)
+        val maxAscent = segments.maxOfOrNull { it.ascent.toDouble() }?.toFloat()
+            ?: (lineHeight * 0.82f)
+        val maxDescent = segments.maxOfOrNull { it.descent.toDouble() }?.toFloat()
+            ?: (lineHeight * 0.18f)
+        val contentHeight = maxAscent + maxDescent
+        val lineBaseline = top + ((lineHeight - contentHeight) / 2f).coerceAtLeast(0f) + maxAscent
         val merged = arrayListOf<LineSegment>()
         segments.forEach { segment ->
             val last = merged.lastOrNull()
@@ -578,7 +592,7 @@ internal class EpubLayoutEngine(
                     EpubImageBox(
                         src = segment.imageSrc,
                         x = x,
-                        y = top + ((lineHeight - segment.height) / 2f).coerceAtLeast(0f) + segment.baselineShift,
+                        y = lineBaseline - segment.ascent + segment.baselineShift,
                         width = segment.width,
                         height = segment.height,
                         isBackground = false,
@@ -591,7 +605,7 @@ internal class EpubLayoutEngine(
                         text = segment.text,
                         x = x,
                         y = top,
-                        baseline = baseline,
+                        baseline = lineBaseline - maxAscent + segment.ascent,
                         width = segment.width,
                         height = lineHeight,
                         size = segment.size,
@@ -1622,6 +1636,8 @@ internal class EpubLayoutEngine(
         val width: Float,
         val height: Float,
         val size: Float,
+        val ascent: Float,
+        val descent: Float,
         val color: Int?,
         val backgroundColor: Int?,
         val bold: Boolean,
