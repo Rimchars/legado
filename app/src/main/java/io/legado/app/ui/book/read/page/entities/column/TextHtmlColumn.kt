@@ -91,7 +91,16 @@ data class TextHtmlColumn(
         backgroundColor?.takeIf { it != Color.TRANSPARENT }?.let { color ->
             val oldColor = textPaint.color
             textPaint.color = color
-            canvas.drawRect(start, 0f, end, textLine.height, textPaint)
+            val fontMetrics = textPaint.fontMetrics
+            val verticalPadding = textPaint.textSize * 0.18f
+            val horizontalPadding = if (Color.alpha(color) == 255) {
+                textPaint.textSize * 0.16f
+            } else {
+                0f
+            }
+            val top = (y + fontMetrics.ascent - verticalPadding).coerceAtLeast(0f)
+            val bottom = (y + fontMetrics.descent + verticalPadding).coerceAtMost(textLine.height)
+            canvas.drawRect(start - horizontalPadding, top, end + horizontalPadding, bottom, textPaint)
             textPaint.color = oldColor
         }
         if (charData == HR_PLACE_STR) {

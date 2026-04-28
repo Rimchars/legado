@@ -3,7 +3,6 @@ package io.legado.app.ui.book.import.local
 import android.app.Application
 import io.legado.app.base.BaseViewModel
 import io.legado.app.constant.AppLog
-import io.legado.app.constant.AppPattern.archiveFileRegex
 import io.legado.app.constant.AppPattern.bookFileRegex
 import io.legado.app.constant.PreferKey
 import io.legado.app.model.localBook.LocalBook
@@ -119,11 +118,7 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
     fun loadDoc(fileDoc: FileDoc) {
         execute {
             val docList = fileDoc.list { item ->
-                when {
-                    item.name.startsWith(".") -> false
-                    item.isDir -> true
-                    else -> item.name.matches(bookFileRegex) || item.name.matches(archiveFileRegex)
-                }
+                item.isVisibleImportBookItem()
             }
             dataCallback?.setItems(docList!!)
         }.onError {
@@ -147,9 +142,7 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
                     if (it.isDir) {
                         n++
                         channel.trySend(it)
-                    } else if (it.name.matches(bookFileRegex)
-                        || it.name.matches(archiveFileRegex)
-                    ) {
+                    } else if (it.isVisibleImportBookItem()) {
                         list.add(it)
                     }
                 }
@@ -176,6 +169,14 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
 
         fun upAdapter()
 
+    }
+
+    private fun FileDoc.isVisibleImportBookItem(): Boolean {
+        return when {
+            name.startsWith(".") -> false
+            isDir -> true
+            else -> name.matches(bookFileRegex)
+        }
     }
 
 }
