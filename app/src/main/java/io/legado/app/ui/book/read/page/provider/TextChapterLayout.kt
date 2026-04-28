@@ -1043,8 +1043,10 @@ class TextChapterLayout(
         if (textPaint.color != textColor) {
             textPaint.color = textColor
         }
+        val alignment = htmlContent.htmlLayoutAlignment()
         val staticLayout = if (atLeastApi28) {
             StaticLayout.Builder.obtain(spanned, 0, spanned.length, textPaint, width)
+                .setAlignment(alignment)
                 .setIncludePad(true)
                 .setUseLineSpacingFromFallbacks(true)
                 .build()
@@ -1054,7 +1056,7 @@ class TextChapterLayout(
                 spanned,
                 textPaint,
                 width,
-                Layout.Alignment.ALIGN_NORMAL,
+                alignment,
                 1f,
                 0f,
                 true
@@ -1319,6 +1321,27 @@ class TextChapterLayout(
             return if (span.dip) span.size.toFloat().dpToPx() else span.size.toFloat()
         }
         return defaultSize
+    }
+
+    private fun String.htmlLayoutAlignment(): Layout.Alignment {
+        val body = Jsoup.parseBodyFragment(this).body()
+        val element = body.children().firstOrNull()
+            ?: return Layout.Alignment.ALIGN_NORMAL
+        return when (element.htmlAlignOrNull()) {
+            "center" -> Layout.Alignment.ALIGN_CENTER
+            "right" -> Layout.Alignment.ALIGN_OPPOSITE
+            else -> Layout.Alignment.ALIGN_NORMAL
+        }
+    }
+
+    private fun Element.htmlAlignOrNull(): String? {
+        attr("align").trim().lowercase().takeIf { it in setOf("left", "center", "right") }?.let {
+            return it
+        }
+        epubCssValue("text-align").trim().lowercase().takeIf { it in setOf("left", "center", "right") }?.let {
+            return it
+        }
+        return null
     }
 
     private fun extractTextColor(spanned: Spanned, index: Int): Int? {
