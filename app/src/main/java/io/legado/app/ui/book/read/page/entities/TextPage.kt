@@ -373,7 +373,7 @@ data class TextPage(
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
         val recorderHeight = if (epubBackgroundSrc != null) {
-            max(renderHeight, ChapterProvider.visibleBottom) + 10.dpToPx()
+            max(renderHeight, ChapterProvider.viewHeight) + 10.dpToPx()
         } else {
             renderHeight + 10.dpToPx()
         }
@@ -406,9 +406,12 @@ data class TextPage(
 
     fun upRenderHeight() {
         renderHeight = if (lines.isEmpty()) {
-            if (epubBackgroundSrc != null) ChapterProvider.visibleBottom else 0
+            if (epubBackgroundSrc != null) ChapterProvider.viewHeight else 0
         } else {
             ceil(lines.last().lineBottom).toInt()
+        }
+        if (epubBackgroundSrc != null) {
+            renderHeight = max(renderHeight, ChapterProvider.viewHeight)
         }
         if (leftLineSize > 0 && leftLineSize != lines.size) {
             val leftHeight = ceil(lines[leftLineSize - 1].lineBottom).toInt()
