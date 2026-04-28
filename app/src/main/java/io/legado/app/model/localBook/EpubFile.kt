@@ -77,7 +77,7 @@ class EpubFile(var book: Book) {
         }
 
         @Synchronized
-        internal fun getFootnote(book: Book, href: String): String? {
+        internal fun getFootnote(book: Book, href: String): EpubFootnote? {
             return getEFile(book).getFootnote(href)
         }
 
