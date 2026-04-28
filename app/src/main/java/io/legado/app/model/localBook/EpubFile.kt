@@ -223,7 +223,10 @@ class EpubFile(var book: Book) {
         if (res.href.contains("titlepage.xhtml") ||
             res.href.contains("cover")
         ) {
-            return Jsoup.parseBodyFragment("<img src=\"cover.jpeg\" />")
+            val doc = Jsoup.parseBodyFragment("<img src=\"cover.jpeg\" data-epub-background=\"true\" />")
+            val bodyElement = doc.body()
+            buildNativeDom(doc, bodyElement, res)
+            return bodyElement
         }
 
         // Jsoup可能会修复不规范的xhtml文件 解析处理后再获取
