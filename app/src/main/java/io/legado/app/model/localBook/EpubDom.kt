@@ -3,7 +3,15 @@ package io.legado.app.model.localBook
 internal data class EpubDomDocument(
     val href: String,
     val title: String?,
-    val body: EpubDomElement
+    val body: EpubDomElement,
+    val fontFaces: List<EpubFontFace> = emptyList()
+)
+
+internal data class EpubFontFace(
+    val family: String,
+    val src: String,
+    val weight: String?,
+    val style: String?
 )
 
 internal sealed class EpubDomNode {

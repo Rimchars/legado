@@ -19,6 +19,9 @@ internal class EpubDomBuilder(
         val rules = collectRules(doc, body, baseHref).mapIndexed { index, rule ->
             rule.copy(order = index)
         }
+        val fontFaces = collectFontFaces(doc, body, baseHref)
+        val generatedContentRules = collectGeneratedContentRules(doc, body, baseHref)
+        applyGeneratedContent(body, generatedContentRules)
         val matchedRules = matchRules(body, rules)
         val bodyElement = buildElement(
             element = body,
@@ -30,8 +33,45 @@ internal class EpubDomBuilder(
         return EpubDomDocument(
             href = baseHref,
             title = doc.title().takeIf { it.isNotBlank() },
-            body = bodyElement
+            body = bodyElement,
+            fontFaces = fontFaces
         )
+    }
+
+    private fun collectFontFaces(doc: Document, body: Element, baseHref: String): List<EpubFontFace> {
+        val faces = arrayListOf<EpubFontFace>()
+        fun resolveCssUrl(cssHref: String, href: String): String {
+            return resolveHref(cssHref, href)
+        }
+        doc.head()?.select("style")?.forEach { styleElement ->
+            faces.addAll(
+                EpubCss.parseFontFaces(styleElement.data().ifBlank { styleElement.html() }) { href ->
+                    resolveCssUrl(baseHref, href)
+                }
+            )
+        }
+        doc.head()?.select("link[href][rel~=stylesheet]")?.forEach { link ->
+            val href = link.attr("href").trim()
+            if (href.isNotBlank()) {
+                faces.addAll(EpubCss.parseFontFaces(loadCss(baseHref, href)))
+            }
+        }
+        body.select("style").forEach { styleElement ->
+            faces.addAll(
+                EpubCss.parseFontFaces(styleElement.data().ifBlank { styleElement.html() }) { href ->
+                    resolveCssUrl(baseHref, href)
+                }
+            )
+        }
+        body.select("link[href][rel~=stylesheet]").forEach { link ->
+            val href = link.attr("href").trim()
+            if (href.isNotBlank()) {
+                faces.addAll(EpubCss.parseFontFaces(loadCss(baseHref, href)))
+            }
+        }
+        return faces.distinctBy { face ->
+            "${face.family.lowercase()}|${face.weight.orEmpty()}|${face.style.orEmpty()}|${face.src}"
+        }
     }
 
     private fun collectRules(doc: Document, body: Element, baseHref: String): List<EpubCss.Rule> {
@@ -55,6 +95,85 @@ internal class EpubDomBuilder(
             }
         }
         return rules
+    }
+
+    private fun collectGeneratedContentRules(
+        doc: Document,
+        body: Element,
+        baseHref: String
+    ): List<EpubCss.GeneratedContentRule> {
+        val rules = arrayListOf<EpubCss.GeneratedContentRule>()
+        doc.head()?.select("style")?.forEach { styleElement ->
+            rules.addAll(EpubCss.parseGeneratedContentRules(styleElement.data().ifBlank { styleElement.html() }))
+        }
+        doc.head()?.select("link[href][rel~=stylesheet]")?.forEach { link ->
+            val href = link.attr("href").trim()
+            if (href.isNotBlank()) {
+                rules.addAll(EpubCss.parseGeneratedContentRules(loadCss(baseHref, href)))
+            }
+        }
+        body.select("style").forEach { styleElement ->
+            rules.addAll(EpubCss.parseGeneratedContentRules(styleElement.data().ifBlank { styleElement.html() }))
+        }
+        body.select("link[href][rel~=stylesheet]").forEach { link ->
+            val href = link.attr("href").trim()
+            if (href.isNotBlank()) {
+                rules.addAll(EpubCss.parseGeneratedContentRules(loadCss(baseHref, href)))
+            }
+        }
+        return rules
+    }
+
+    private fun applyGeneratedContent(body: Element, rules: List<EpubCss.GeneratedContentRule>) {
+        if (rules.isEmpty()) return
+        rules.forEach { rule ->
+            val content = rule.declarations.generatedContentText() ?: return@forEach
+            val style = rule.declarations
+                .filterNot { it.name == "content" }
+                .joinToString(";") { declaration -> "${declaration.name}:${declaration.value}" }
+            runCatching {
+                if (body.`is`(rule.selector)) {
+                    body.addGeneratedContent(content, style, rule.before)
+                }
+                body.select(rule.selector).forEach { element ->
+                    element.addGeneratedContent(content, style, rule.before)
+                }
+            }
+        }
+    }
+
+    private fun List<EpubCss.Declaration>.generatedContentText(): String? {
+        val value = lastOrNull { it.name == "content" }?.value?.trim() ?: return null
+        if (value.equals("none", ignoreCase = true) || value.equals("normal", ignoreCase = true)) return null
+        return value
+            .split(Regex("\\s+"))
+            .joinToString("") { token ->
+                when {
+                    token.startsWith("'") && token.endsWith("'") && token.length >= 2 -> token.substring(1, token.lastIndex)
+                    token.startsWith("\"") && token.endsWith("\"") && token.length >= 2 -> token.substring(1, token.lastIndex)
+                    token.startsWith("attr(", ignoreCase = true) -> ""
+                    else -> ""
+                }
+            }
+            .replace("\\A", "\n")
+            .replace("\\a", "\n")
+            .takeIf { it.isNotEmpty() }
+    }
+
+    private fun Element.addGeneratedContent(content: String, style: String, before: Boolean) {
+        val styleAttr = style.takeIf { it.isNotBlank() }?.let { " style=\"$it\"" }.orEmpty()
+        val html = "<span data-epub-generated=\"true\"$styleAttr>${content.escapeHtml()}</span>"
+        if (before) {
+            prepend(html)
+        } else {
+            append(html)
+        }
+    }
+
+    private fun String.escapeHtml(): String {
+        return replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
     }
 
     private fun matchRules(root: Element, rules: List<EpubCss.Rule>): IdentityHashMap<Element, MutableList<EpubCss.Rule>> {

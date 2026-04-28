@@ -1,6 +1,7 @@
 package io.legado.app.model.localBook
 
 import android.graphics.Color
+import android.graphics.Typeface
 import android.text.TextPaint
 import android.util.Size
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
@@ -8,6 +9,7 @@ import java.util.Locale
 
 internal class EpubLayoutEngine(
     private val imageSizeResolver: (String) -> Size? = { null },
+    private val fontResolver: (String, Boolean, Boolean, List<EpubFontFace>) -> Typeface? = { _, _, _, _ -> null },
     private val viewportWidth: Int = ChapterProvider.visibleWidth,
     private val viewportHeight: Int = ChapterProvider.visibleHeight,
     private val basePaint: TextPaint = ChapterProvider.contentPaint
@@ -19,6 +21,7 @@ internal class EpubLayoutEngine(
     private var firstLineIndent = 0f
     private var pageHasFullBackground = false
     private val activeBlockStack = arrayListOf<ActiveBlockDecoration>()
+    private var documentFontFaces: List<EpubFontFace> = emptyList()
 
     fun layout(document: EpubDomDocument): EpubLayoutDocument {
         pages.clear()
@@ -27,6 +30,7 @@ internal class EpubLayoutEngine(
         firstLineIndent = 0f
         pageHasFullBackground = false
         activeBlockStack.clear()
+        documentFontFaces = document.fontFaces
         val boxDocument = EpubBoxBuilder().build(document)
         layoutBlockNode(boxDocument.root, left = 0f, width = viewportWidth.toFloat())
         flushPageIfNeeded(force = true)
@@ -362,6 +366,7 @@ internal class EpubLayoutEngine(
                                 backgroundColor = null,
                                 bold = false,
                                 italic = false,
+                                typeface = null,
                                 underline = false,
                                 overline = false,
                                 strikeThrough = false,
@@ -401,6 +406,7 @@ internal class EpubLayoutEngine(
                                     ?: item.style.backgroundColor(),
                                 bold = item.style.isBold(),
                                 italic = item.style.isItalic(),
+                                typeface = item.style.resolveTypeface(documentFontFaces),
                                 underline = item.style.hasTextDecoration("underline"),
                                 overline = item.style.hasTextDecoration("overline"),
                                 strikeThrough = item.style.hasTextDecoration("line-through"),
@@ -445,6 +451,7 @@ internal class EpubLayoutEngine(
                 last.backgroundColor == segment.backgroundColor &&
                 last.bold == segment.bold &&
                 last.italic == segment.italic &&
+                last.typeface == segment.typeface &&
                 last.underline == segment.underline &&
                 last.overline == segment.overline &&
                 last.strikeThrough == segment.strikeThrough &&
@@ -485,6 +492,7 @@ internal class EpubLayoutEngine(
                         backgroundColor = segment.backgroundColor,
                         bold = segment.bold,
                         italic = segment.italic,
+                        typeface = segment.typeface,
                         underline = segment.underline,
                         overline = segment.overline,
                         strikeThrough = segment.strikeThrough,
@@ -788,6 +796,15 @@ internal class EpubLayoutEngine(
     private fun EpubComputedStyle.isItalic(): Boolean {
         val value = this["font-style"]?.lowercase(Locale.ROOT) ?: return false
         return value == "italic" || value == "oblique"
+    }
+
+    private fun EpubComputedStyle.resolveTypeface(fontFaces: List<EpubFontFace>): Typeface? {
+        val family = this["font-family"]
+            ?.split(',')
+            ?.map { it.trim().trim('\'', '"') }
+            ?.firstOrNull { it.isNotBlank() }
+            ?: return null
+        return fontResolver(family, isBold(), isItalic(), fontFaces)
     }
 
     private fun EpubComputedStyle.hasTextDecoration(name: String): Boolean {
@@ -1320,6 +1337,7 @@ internal class EpubLayoutEngine(
         val backgroundColor: Int?,
         val bold: Boolean,
         val italic: Boolean,
+        val typeface: Typeface?,
         val underline: Boolean,
         val overline: Boolean,
         val strikeThrough: Boolean,
