@@ -16,6 +16,7 @@ import io.legado.app.R
 import io.legado.app.constant.AppConst.timeFormat
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.databinding.ViewBookPageBinding
+import io.legado.app.help.book.isEpub
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
@@ -164,20 +165,29 @@ class PageView(context: Context) : FrameLayout(context) {
      * 更新阅读信息
      */
     private fun upTipStyle() = binding.run {
+        val isEpub = ReadBook.book?.isEpub == true
         tvHeaderLeft.tag = null
         tvHeaderMiddle.tag = null
         tvHeaderRight.tag = null
         tvFooterLeft.tag = null
         tvFooterMiddle.tag = null
         tvFooterRight.tag = null
-        llHeader.isGone = when (ReadTipConfig.headerMode) {
-            1 -> false
-            2 -> true
-            else -> !ReadBookConfig.hideStatusBar
+        llHeader.isGone = if (isEpub) {
+            true
+        } else {
+            when (ReadTipConfig.headerMode) {
+                1 -> false
+                2 -> true
+                else -> !ReadBookConfig.hideStatusBar
+            }
         }
-        llFooter.isGone = when (ReadTipConfig.footerMode) {
-            1 -> true
-            else -> false
+        llFooter.isGone = if (isEpub) {
+            true
+        } else {
+            when (ReadTipConfig.footerMode) {
+                1 -> true
+                else -> false
+            }
         }
         ReadTipConfig.apply {
             tvHeaderLeft.isGone = tipHeaderLeft == none

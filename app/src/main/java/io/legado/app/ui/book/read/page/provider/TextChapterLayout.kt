@@ -648,8 +648,8 @@ class TextChapterLayout(
                         prepareNextPageIfNeed()
                     }
                     if (node.isHtmlBlock() && node.hasEpubBlockSpacingBefore()) {
-                        htmlBuffer.append("<br>")
                         flushHtmlBuffer()
+                        addEpubBlockSpacingBefore(node)
                     }
                     if (node.normalName() == "table") {
                         flushHtmlBuffer()
@@ -692,6 +692,18 @@ class TextChapterLayout(
             renderNode(node)
         }
         flushHtmlBuffer()
+    }
+
+    private suspend fun addEpubBlockSpacingBefore(element: Element) {
+        val spacing = element.epubCssValue("margin-top").toEpubSpacingPx()
+            ?: element.epubCssValue("padding-top").toEpubSpacingPx()
+            ?: contentPaintTextHeight
+        if (spacing <= 0f) return
+        prepareNextPageIfNeed(durY + spacing)
+        durY += spacing
+        if (pendingTextPage.height < durY) {
+            pendingTextPage.height = durY
+        }
     }
 
     private fun Element.hasEpubPageBreakBefore(): Boolean {
@@ -741,6 +753,27 @@ class TextChapterLayout(
             value.endsWith("%") -> (value.dropLast(1).toFloatOrNull() ?: 0f) >= 8f
             value.endsWith("px") -> (value.dropLast(2).toFloatOrNull() ?: 0f) >= 16f
             else -> (value.toFloatOrNull() ?: 0f) >= 16f
+        }
+    }
+
+    private fun String.toEpubSpacingPx(): Float? {
+        val value = trim().lowercase()
+        if (value.isBlank() || value == "0") return 0f
+        return when {
+            value.endsWith("%") -> {
+                val percentage = value.dropLast(1).toFloatOrNull() ?: return null
+                visibleHeight * percentage / 100f
+            }
+            value.endsWith("em") -> {
+                val em = value.dropLast(2).toFloatOrNull() ?: return null
+                contentPaintTextHeight * em
+            }
+            value.endsWith("rem") -> {
+                val rem = value.dropLast(3).toFloatOrNull() ?: return null
+                contentPaintTextHeight * rem
+            }
+            value.endsWith("px") -> value.dropLast(2).toFloatOrNull()
+            else -> value.toFloatOrNull()
         }
     }
 
@@ -821,6 +854,16 @@ class TextChapterLayout(
     ) {
         val src = element.attr("src").trim()
         if (src.isBlank()) return
+        if (element.attr("data-epub-background") == "true") {
+            if (pendingTextPage.lines.isNotEmpty() || pendingTextPage.epubBackgroundSrc != null) {
+                prepareNextPageIfNeed()
+            }
+            pendingTextPage.epubBackgroundSrc = src
+            if (pendingTextPage.height < visibleHeight) {
+                pendingTextPage.height = visibleHeight.toFloat()
+            }
+            return
+        }
         var style = element.attr("data-legado-style").ifBlank { null }
         val width = element.attr("data-legado-width")
             .ifBlank { element.attr("width") }

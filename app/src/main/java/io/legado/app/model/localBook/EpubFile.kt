@@ -38,7 +38,7 @@ import java.util.Locale
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
-        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"3\">"
+        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"4\">"
         private var eFile: EpubFile? = null
 
         @Synchronized
@@ -253,8 +253,12 @@ class EpubFile(var book: Book) {
             val resolvedHref = resolveEpubResourceHref(res.href, src)
             val alt = it.attr("alt")
             val options = it.epubImageOptions()
+            val isBackground = it.attr("data-epub-background") == "true"
             it.clearAttributes()
             it.attr("src", resolvedHref)
+            if (isBackground) {
+                it.attr("data-epub-background", "true")
+            }
             if (alt.isNotBlank()) {
                 it.attr("alt", alt)
             }
