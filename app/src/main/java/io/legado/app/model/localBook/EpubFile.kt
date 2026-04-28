@@ -100,6 +100,7 @@ class EpubFile(var book: Book) {
     private val imageSizeCache = linkedMapOf<String, Size>()
     private var nativeLayoutWidth = 0
     private var nativeLayoutHeight = 0
+    private var nativeLayoutStyleKey = ""
 
     /**
      *持有引用，避免被回收
@@ -356,14 +357,16 @@ class EpubFile(var book: Book) {
             AppLog.put("EPUB Native Layout abort: 阅读区尺寸无效, href=$href, view=${width}x$height")
             return null
         }
-        if (nativeLayoutWidth != width || nativeLayoutHeight != height) {
+        val styleKey = currentNativeLayoutStyleKey()
+        if (nativeLayoutWidth != width || nativeLayoutHeight != height || nativeLayoutStyleKey != styleKey) {
             AppLog.put(
                 "EPUB Native Layout cache clear: old=${nativeLayoutWidth}x$nativeLayoutHeight, " +
-                    "new=${width}x$height"
+                    "new=${width}x$height, styleChanged=${nativeLayoutStyleKey != styleKey}"
             )
             nativeLayoutCache.clear()
             nativeLayoutWidth = width
             nativeLayoutHeight = height
+            nativeLayoutStyleKey = styleKey
         }
         nativeLayoutCache[href]?.let {
             AppLog.put("EPUB Native Layout cache hit: href=$href, pages=${it.pages.size}")
@@ -385,6 +388,19 @@ class EpubFile(var book: Book) {
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生布局失败: $href\n${it.localizedMessage}", it)
         }.getOrNull()
+    }
+
+    private fun currentNativeLayoutStyleKey(): String {
+        val paint = ChapterProvider.contentPaint
+        return buildString {
+            append(paint.textSize)
+            append('|').append(paint.color)
+            append('|').append(paint.letterSpacing)
+            append('|').append(paint.typeface?.hashCode() ?: 0)
+            append('|').append(ChapterProvider.contentPaintTextHeight)
+            append('|').append(ChapterProvider.lineSpacingExtra)
+            append('|').append(ChapterProvider.paragraphSpacing)
+        }
     }
 
     private fun rebuildNativeDom(href: String): EpubDomDocument? {

@@ -489,12 +489,16 @@ data class TextPage(
         paint.color = text.color ?: ChapterProvider.contentPaint.color
         paint.isFakeBoldText = text.bold
         paint.textSkewX = if (text.italic) -0.25f else 0f
+        paint.isUnderlineText = text.underline
+        paint.isStrikeThruText = text.strikeThrough
         paint.typeface = if (text.bold) {
             Typeface.create(ChapterProvider.contentPaint.typeface, Typeface.BOLD)
         } else {
             ChapterProvider.contentPaint.typeface
         }
-        canvas.drawText(text.text, text.x, text.baseline, paint)
+        canvas.drawText(text.text, text.x, text.baseline + text.baselineShift, paint)
+        paint.isUnderlineText = false
+        paint.isStrikeThruText = false
     }
 
     fun render(view: ContentTextView): Boolean {

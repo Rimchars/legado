@@ -28,6 +28,9 @@ internal data class EpubTextRun(
     val color: Int?,
     val bold: Boolean,
     val italic: Boolean,
+    val underline: Boolean,
+    val strikeThrough: Boolean,
+    val baselineShift: Float,
     override val sourcePath: String
 ) : EpubDrawCommand()
 

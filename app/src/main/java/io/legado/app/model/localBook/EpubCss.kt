@@ -13,6 +13,7 @@ internal object EpubCss {
         "font-family",
         "text-indent",
         "text-decoration",
+        "text-decoration-line",
         "line-height",
         "letter-spacing",
         "word-spacing",
