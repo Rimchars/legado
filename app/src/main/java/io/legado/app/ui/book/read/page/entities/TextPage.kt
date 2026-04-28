@@ -2,7 +2,9 @@ package io.legado.app.ui.book.read.page.entities
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Build
@@ -593,7 +595,14 @@ data class TextPage(
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = block.borderWidth
             paint.color = color
+            paint.pathEffect = when (block.borderStyle) {
+                "dashed" -> DashPathEffect(floatArrayOf(block.borderWidth * 4f, block.borderWidth * 3f), 0f)
+                "dotted" -> DashPathEffect(floatArrayOf(block.borderWidth, block.borderWidth * 2f), 0f)
+                "none", "hidden" -> return@let
+                else -> null
+            }
             canvas.drawRoundRect(rect, block.radius, block.radius, paint)
+            paint.pathEffect = null
         }
     }
 
@@ -608,7 +617,33 @@ data class TextPage(
             cacheKeySuffix = "epub-native-${image.width.toInt()}x${image.height.toInt()}"
         )
         val rect = RectF(image.x, image.y, image.x + image.width, image.y + image.height)
-        canvas.drawBitmap(bitmap, null, rect, view.imagePaint)
+        val sourceRect = resolveEpubImageSourceRect(bitmap.width, bitmap.height, image)
+        canvas.drawBitmap(bitmap, sourceRect, rect, view.imagePaint)
+    }
+
+    private fun resolveEpubImageSourceRect(bitmapWidth: Int, bitmapHeight: Int, image: EpubImageBox): Rect? {
+        val fit = image.objectFit?.trim()?.lowercase().orEmpty()
+        if (fit != "cover") return null
+        if (bitmapWidth <= 0 || bitmapHeight <= 0 || image.width <= 0f || image.height <= 0f) return null
+        val sourceRatio = bitmapWidth.toFloat() / bitmapHeight.toFloat()
+        val targetRatio = image.width / image.height
+        val (cropWidth, cropHeight) = if (sourceRatio > targetRatio) {
+            (bitmapHeight * targetRatio).toInt().coerceAtLeast(1) to bitmapHeight
+        } else {
+            bitmapWidth to (bitmapWidth / targetRatio).toInt().coerceAtLeast(1)
+        }
+        val position = image.objectPosition?.lowercase().orEmpty()
+        val left = when {
+            position.contains("left") -> 0
+            position.contains("right") -> bitmapWidth - cropWidth
+            else -> (bitmapWidth - cropWidth) / 2
+        }.coerceIn(0, (bitmapWidth - cropWidth).coerceAtLeast(0))
+        val top = when {
+            position.contains("top") -> 0
+            position.contains("bottom") -> bitmapHeight - cropHeight
+            else -> (bitmapHeight - cropHeight) / 2
+        }.coerceIn(0, (bitmapHeight - cropHeight).coerceAtLeast(0))
+        return Rect(left, top, left + cropWidth, top + cropHeight)
     }
 
     private fun drawEpubNativeRuleLine(canvas: Canvas, paint: Paint, line: EpubRuleLine) {
@@ -632,8 +667,8 @@ data class TextPage(
         paint.color = text.color ?: ChapterProvider.contentPaint.color
         paint.isFakeBoldText = text.bold
         paint.textSkewX = if (text.italic) -0.25f else 0f
-        paint.isUnderlineText = text.underline
-        paint.isStrikeThruText = text.strikeThrough
+        paint.isUnderlineText = false
+        paint.isStrikeThruText = false
         paint.typeface = if (text.bold) {
             Typeface.create(ChapterProvider.contentPaint.typeface, Typeface.BOLD)
         } else {
@@ -656,6 +691,26 @@ data class TextPage(
             paint.setShadowLayer(shadow.blur, shadow.dx, shadow.dy, shadow.color)
         }
         canvas.drawText(text.text, text.x, text.baseline + text.baselineShift, paint)
+        if (text.underline || text.overline || text.strikeThrough) {
+            val oldColor = paint.color
+            val oldStrokeWidth = paint.strokeWidth
+            text.decorationColor?.let { paint.color = it }
+            paint.strokeWidth = (text.size / 18f).coerceAtLeast(1f)
+            if (text.overline) {
+                val y = text.y + text.height * 0.18f
+                canvas.drawLine(text.x, y, text.x + text.width, y, paint)
+            }
+            if (text.strikeThrough) {
+                val y = text.baseline + text.baselineShift - text.size * 0.32f
+                canvas.drawLine(text.x, y, text.x + text.width, y, paint)
+            }
+            if (text.underline) {
+                val y = text.baseline + text.baselineShift + text.size * 0.12f
+                canvas.drawLine(text.x, y, text.x + text.width, y, paint)
+            }
+            paint.strokeWidth = oldStrokeWidth
+            paint.color = oldColor
+        }
         paint.clearShadowLayer()
         paint.isUnderlineText = false
         paint.isStrikeThruText = false
