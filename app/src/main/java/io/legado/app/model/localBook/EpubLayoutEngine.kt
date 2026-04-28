@@ -218,6 +218,9 @@ internal class EpubLayoutEngine(
                                 color = item.style.colorInt(),
                                 bold = item.style.isBold(),
                                 italic = item.style.isItalic(),
+                                underline = item.style.hasTextDecoration("underline"),
+                                strikeThrough = item.style.hasTextDecoration("line-through"),
+                                baselineShift = item.style.baselineShiftPx(),
                                 sourcePath = item.sourcePath
                             )
                         )
@@ -253,6 +256,9 @@ internal class EpubLayoutEngine(
                 last.color == segment.color &&
                 last.bold == segment.bold &&
                 last.italic == segment.italic &&
+                last.underline == segment.underline &&
+                last.strikeThrough == segment.strikeThrough &&
+                last.baselineShift == segment.baselineShift &&
                 last.sourcePath == segment.sourcePath
             ) {
                 merged[merged.lastIndex] = last.copy(text = last.text + segment.text, width = last.width + segment.width)
@@ -270,6 +276,9 @@ internal class EpubLayoutEngine(
                     color = segment.color,
                     bold = segment.bold,
                     italic = segment.italic,
+                    underline = segment.underline,
+                    strikeThrough = segment.strikeThrough,
+                    baselineShift = segment.baselineShift,
                     sourcePath = segment.sourcePath
                 )
             )
@@ -461,6 +470,20 @@ internal class EpubLayoutEngine(
         return value == "italic" || value == "oblique"
     }
 
+    private fun EpubComputedStyle.hasTextDecoration(name: String): Boolean {
+        return this["text-decoration"]?.lowercase(Locale.ROOT)?.contains(name) == true ||
+            this["text-decoration-line"]?.lowercase(Locale.ROOT)?.contains(name) == true
+    }
+
+    private fun EpubComputedStyle.baselineShiftPx(): Float {
+        return when (this["vertical-align"]?.trim()?.lowercase(Locale.ROOT)) {
+            "super", "top", "text-top" -> -fontSizePx() * 0.35f
+            "sub", "bottom", "text-bottom" -> fontSizePx() * 0.25f
+            "middle" -> -fontSizePx() * 0.12f
+            else -> 0f
+        }
+    }
+
     private fun Size?.scaledHeight(width: Float): Float {
         if (this == null || this.width <= 0 || this.height <= 0 || width <= 0f) {
             return ChapterProvider.contentPaintTextHeight
@@ -625,6 +648,9 @@ internal class EpubLayoutEngine(
         val color: Int?,
         val bold: Boolean,
         val italic: Boolean,
+        val underline: Boolean,
+        val strikeThrough: Boolean,
+        val baselineShift: Float,
         val sourcePath: String
     )
 
