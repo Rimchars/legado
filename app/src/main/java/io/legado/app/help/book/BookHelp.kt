@@ -411,7 +411,7 @@ object BookHelp {
             }
             val needRefreshEpubContent = book.isEpub &&
                 AppConfig.adaptSpecialStyle &&
-                (!string.contains(EpubFile.HTML_CONTENT_FLAG) ||
+                (!string.contains(EpubFile.NATIVE_CONTENT_FLAG) ||
                     !string.contains(EpubFile.NATIVE_LAYOUT_FLAG))
             if (needRefreshEpubContent) {
                 val epubContent = LocalBook.getContent(book, bookChapter)

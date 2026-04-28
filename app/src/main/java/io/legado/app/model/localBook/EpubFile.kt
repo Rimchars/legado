@@ -12,7 +12,6 @@ import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.FileUtils
-import io.legado.app.utils.HtmlFormatter
 import io.legado.app.utils.encodeURI
 import io.legado.app.utils.isXml
 import io.legado.app.utils.printOnDebug
@@ -40,8 +39,8 @@ import java.util.Locale
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
-        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"6\""
-        const val NATIVE_LAYOUT_FLAG = "data-epub-native-href="
+        const val NATIVE_CONTENT_FLAG = "<epub-native"
+        const val NATIVE_LAYOUT_FLAG = "data-href="
         private const val ENABLE_EPUB_DEBUG_DUMP = false
         private var eFile: EpubFile? = null
 
@@ -208,10 +207,11 @@ class EpubFile(var book: Book) {
             dumpEpubChapterDebug(chapter, rawResources, html)
         }
         if (html.isBlank()) {
-            return HtmlFormatter.formatKeepImg(elements.outerHtml())
+            AppLog.put("EPUB Native Content empty: chapter=${chapter.index}:${chapter.title}, href=$currentChapterFirstResourceHref")
         }
-        val nativeHref = TextUtils.htmlEncode(currentChapterFirstResourceHref)
-        return """<usehtml data-epub-render="6" data-epub-native-href="$nativeHref">${html.compactForUseHtml()}</usehtml>"""
+        val nativeHref = currentChapterFirstResourceHref.escapeXmlAttr()
+        val title = chapter.title.escapeXmlAttr()
+        return """<epub-native data-href="$nativeHref" data-title="$title" />"""
     }
 
     private fun getBody(res: Resource, startFragmentId: String?, endFragmentId: String?): Element {
@@ -674,11 +674,12 @@ class EpubFile(var book: Book) {
         }
     }
 
-    private fun String.compactForUseHtml(): String {
-        return replace("\r", "")
-            .replace("\n", " ")
-            .replace(Regex(">\\s+<"), "><")
-            .trim()
+
+    private fun String.escapeXmlAttr(): String {
+        return replace("&", "&amp;")
+            .replace("\"", "&quot;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
     }
 
     private fun Element.applyEpubInlineStyle() {
