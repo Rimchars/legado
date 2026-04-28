@@ -178,7 +178,9 @@ class EpubFile(var book: Book) {
         val endFragmentId = chapter.endFragmentId
         val elements = Elements()
         val rawResources = linkedMapOf<String, String>()
+        val nativeHrefs = arrayListOf<String>()
         fun collectRawResource(res: Resource) {
+            nativeHrefs.add(res.href)
             if (ENABLE_EPUB_DEBUG_DUMP) {
                 rawResources[res.href] = String(res.data, mCharset)
             }
@@ -234,8 +236,9 @@ class EpubFile(var book: Book) {
             AppLog.put("EPUB Native Content empty: chapter=${chapter.index}:${chapter.title}, href=$currentChapterFirstResourceHref")
         }
         val nativeHref = currentChapterFirstResourceHref.escapeXmlAttr()
+        val nativeHrefList = nativeHrefs.distinct().joinToString("|") { it.escapeXmlAttr() }
         val title = chapter.title.escapeXmlAttr()
-        return """<epub-native data-href="$nativeHref" data-title="$title" />"""
+        return """<epub-native data-href="$nativeHref" data-hrefs="$nativeHrefList" data-title="$title" />"""
     }
 
     private fun getBody(res: Resource, startFragmentId: String?, endFragmentId: String?): Element {
@@ -357,20 +360,30 @@ class EpubFile(var book: Book) {
         }
     }
 
-    private fun getFootnote(href: String): String? {
+    private fun getFootnote(href: String): EpubFootnote? {
         val cleanHref = href.substringBeforeLast("#")
         val targetId = href.substringAfterLast("#", "").takeIf { it.isNotBlank() } ?: return null
         val resource = findEpubResource(cleanHref) ?: return null
         val doc = runCatching { Jsoup.parse(String(resource.data, mCharset)) }.getOrNull() ?: return null
-        val target = doc.getElementById(targetId) ?: return null
+        val target = doc.getElementById(targetId)?.clone() ?: return null
         target.select("a[href]").forEach { link ->
             val linkHref = link.attr("href")
             if (linkHref.startsWith("#") || linkHref.substringAfterLast("#", "") == targetId) {
                 link.remove()
             }
         }
+        target.select("img[src]").forEach { image ->
+            val src = image.attr("src").trim()
+            if (src.isNotBlank()) {
+                image.attr("src", resolveEpubResourceHref(cleanHref, src))
+            }
+        }
+        val html = target.html().ifBlank { target.text() }.trim()
         val text = target.text().cleanEpubInfoText()
-        return text.takeIf { it.isNotBlank() }
+        return EpubFootnote(
+            title = target.attr("title").ifBlank { "注解" },
+            html = html.takeIf { it.isNotBlank() } ?: text
+        ).takeIf { text.isNotBlank() || it.html.isNotBlank() }
     }
 
     private fun Document.hideEpubFootnotes() {
@@ -1394,7 +1407,6 @@ class EpubFile(var book: Book) {
                 parseMenu(chapterList, refs, 0)
             }
         }
-        mergeMissingSpineChapters(chapterList)
         normalizeChapterList(chapterList)
         getWordCount(chapterList, book)
         return chapterList
@@ -1633,6 +1645,11 @@ class EpubFile(var book: Book) {
     private data class EpubBookInfo(
         val author: String,
         val intro: String
+    )
+
+    internal data class EpubFootnote(
+        val title: String,
+        val html: String
     )
 
     private fun normalizeChapterList(chapterList: ArrayList<BookChapter>) {

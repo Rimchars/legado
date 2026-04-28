@@ -6,6 +6,8 @@ import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import io.legado.app.R
 import io.legado.app.data.entities.Bookmark
@@ -31,6 +33,7 @@ import io.legado.app.ui.widget.dialog.PhotoDialog
 import io.legado.app.utils.activity
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.getCompatColor
+import io.legado.app.utils.setHtml
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
@@ -358,8 +361,18 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             val href = page.findEpubLinkAt(x, y - offset) ?: continue
             if (!href.contains("#")) return null
             val note = EpubFile.getFootnote(book, href) ?: return null
+            val textView = TextView(context).apply {
+                textSize = 16f
+                setTextColor(context.getCompatColor(R.color.primaryText))
+                setPadding(20.dpToPx(), 14.dpToPx(), 20.dpToPx(), 14.dpToPx())
+                setHtml(note.html)
+            }
+            val scrollView = ScrollView(context).apply {
+                addView(textView)
+            }
             AlertDialog.Builder(context)
-                .setMessage(note)
+                .setTitle(note.title)
+                .setView(scrollView)
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
             return true
