@@ -20,6 +20,7 @@ import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.model.ImageProvider
 import io.legado.app.model.ReadBook
 import io.legado.app.model.localBook.EpubBlockBox
+import io.legado.app.model.localBook.EpubBorderSide
 import io.legado.app.model.localBook.EpubBullet
 import io.legado.app.model.localBook.EpubDrawCommand
 import io.legado.app.model.localBook.EpubImageBox
@@ -595,19 +596,46 @@ data class TextPage(
             paint.color = color
             canvas.drawRoundRect(rect, radius, radius, paint)
         }
-        block.borderColor?.takeIf { it != Color.TRANSPARENT && block.borderWidth > 0f }?.let { color ->
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = block.borderWidth
-            paint.color = color
-            paint.pathEffect = when (block.borderStyle) {
-                "dashed" -> DashPathEffect(floatArrayOf(block.borderWidth * 4f, block.borderWidth * 3f), 0f)
-                "dotted" -> DashPathEffect(floatArrayOf(block.borderWidth, block.borderWidth * 2f), 0f)
-                "none", "hidden" -> return@let
-                else -> null
-            }
-            canvas.drawRoundRect(rect, radius, radius, paint)
-            paint.pathEffect = null
+        block.border?.let { border ->
+            drawEpubBorderSide(canvas, paint, border.top, rect.left, rect.top, rect.right, rect.top)
+            drawEpubBorderSide(canvas, paint, border.right, rect.right, rect.top, rect.right, rect.bottom)
+            drawEpubBorderSide(canvas, paint, border.bottom, rect.left, rect.bottom, rect.right, rect.bottom)
+            drawEpubBorderSide(canvas, paint, border.left, rect.left, rect.top, rect.left, rect.bottom)
+        } ?: block.borderColor?.takeIf { it != Color.TRANSPARENT && block.borderWidth > 0f }?.let { color ->
+            drawEpubBorderSide(
+                canvas = canvas,
+                paint = paint,
+                side = EpubBorderSide(block.borderWidth, color, block.borderStyle),
+                startX = rect.left,
+                startY = rect.top,
+                endX = rect.right,
+                endY = rect.top
+            )
         }
+    }
+
+    private fun drawEpubBorderSide(
+        canvas: Canvas,
+        paint: Paint,
+        side: EpubBorderSide,
+        startX: Float,
+        startY: Float,
+        endX: Float,
+        endY: Float
+    ) {
+        val color = side.color ?: return
+        if (color == Color.TRANSPARENT || side.width <= 0f) return
+        if (side.style == "none" || side.style == "hidden") return
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = side.width
+        paint.color = color
+        paint.pathEffect = when (side.style) {
+            "dashed" -> DashPathEffect(floatArrayOf(side.width * 4f, side.width * 3f), 0f)
+            "dotted" -> DashPathEffect(floatArrayOf(side.width, side.width * 2f), 0f)
+            else -> null
+        }
+        canvas.drawLine(startX, startY, endX, endY, paint)
+        paint.pathEffect = null
     }
 
     private fun drawEpubNativeImage(view: ContentTextView, canvas: Canvas, image: EpubImageBox) {
@@ -621,33 +649,64 @@ data class TextPage(
             cacheKeySuffix = "epub-native-${image.width.toInt()}x${image.height.toInt()}"
         )
         val rect = RectF(image.x, image.y, image.x + image.width, image.y + image.height)
-        val sourceRect = resolveEpubImageSourceRect(bitmap.width, bitmap.height, image)
-        canvas.drawBitmap(bitmap, sourceRect, rect, view.imagePaint)
+        val (sourceRect, destRect) = resolveEpubImageDrawRects(bitmap.width, bitmap.height, image, rect)
+        canvas.save()
+        canvas.clipRect(rect)
+        canvas.drawBitmap(bitmap, sourceRect, destRect, view.imagePaint)
+        canvas.restore()
     }
 
-    private fun resolveEpubImageSourceRect(bitmapWidth: Int, bitmapHeight: Int, image: EpubImageBox): Rect? {
-        val fit = image.objectFit?.trim()?.lowercase().orEmpty()
-        if (fit != "cover") return null
-        if (bitmapWidth <= 0 || bitmapHeight <= 0 || image.width <= 0f || image.height <= 0f) return null
+    private fun resolveEpubImageDrawRects(
+        bitmapWidth: Int,
+        bitmapHeight: Int,
+        image: EpubImageBox,
+        target: RectF
+    ): Pair<Rect?, RectF> {
+        val fit = image.objectFit?.trim()?.lowercase().orEmpty().ifBlank { "fill" }
+        if (bitmapWidth <= 0 || bitmapHeight <= 0 || image.width <= 0f || image.height <= 0f) {
+            return null to target
+        }
+        if (fit == "fill") return null to target
         val sourceRatio = bitmapWidth.toFloat() / bitmapHeight.toFloat()
         val targetRatio = image.width / image.height
-        val (cropWidth, cropHeight) = if (sourceRatio > targetRatio) {
-            (bitmapHeight * targetRatio).toInt().coerceAtLeast(1) to bitmapHeight
-        } else {
-            bitmapWidth to (bitmapWidth / targetRatio).toInt().coerceAtLeast(1)
+        val position = image.objectPosition?.lowercase().orEmpty().ifBlank { "center" }
+        if (fit == "cover") {
+            val (cropWidth, cropHeight) = if (sourceRatio > targetRatio) {
+                (bitmapHeight * targetRatio).toInt().coerceAtLeast(1) to bitmapHeight
+            } else {
+                bitmapWidth to (bitmapWidth / targetRatio).toInt().coerceAtLeast(1)
+            }
+            val left = when {
+                position.contains("left") -> 0
+                position.contains("right") -> bitmapWidth - cropWidth
+                else -> (bitmapWidth - cropWidth) / 2
+            }.coerceIn(0, (bitmapWidth - cropWidth).coerceAtLeast(0))
+            val top = when {
+                position.contains("top") -> 0
+                position.contains("bottom") -> bitmapHeight - cropHeight
+                else -> (bitmapHeight - cropHeight) / 2
+            }.coerceIn(0, (bitmapHeight - cropHeight).coerceAtLeast(0))
+            return Rect(left, top, left + cropWidth, top + cropHeight) to target
         }
-        val position = image.objectPosition?.lowercase().orEmpty()
+        val scale = when (fit) {
+            "contain" -> min(image.width / bitmapWidth, image.height / bitmapHeight)
+            "scale-down" -> min(1f, min(image.width / bitmapWidth, image.height / bitmapHeight))
+            "none" -> 1f
+            else -> return null to target
+        }
+        val drawWidth = bitmapWidth * scale
+        val drawHeight = bitmapHeight * scale
         val left = when {
-            position.contains("left") -> 0
-            position.contains("right") -> bitmapWidth - cropWidth
-            else -> (bitmapWidth - cropWidth) / 2
-        }.coerceIn(0, (bitmapWidth - cropWidth).coerceAtLeast(0))
+            position.contains("left") -> target.left
+            position.contains("right") -> target.right - drawWidth
+            else -> target.left + (target.width() - drawWidth) / 2f
+        }
         val top = when {
-            position.contains("top") -> 0
-            position.contains("bottom") -> bitmapHeight - cropHeight
-            else -> (bitmapHeight - cropHeight) / 2
-        }.coerceIn(0, (bitmapHeight - cropHeight).coerceAtLeast(0))
-        return Rect(left, top, left + cropWidth, top + cropHeight)
+            position.contains("top") -> target.top
+            position.contains("bottom") -> target.bottom - drawHeight
+            else -> target.top + (target.height() - drawHeight) / 2f
+        }
+        return null to RectF(left, top, left + drawWidth, top + drawHeight)
     }
 
     private fun drawEpubNativeRuleLine(canvas: Canvas, paint: Paint, line: EpubRuleLine) {
@@ -699,26 +758,56 @@ data class TextPage(
         if (text.underline || text.overline || text.strikeThrough) {
             val oldColor = paint.color
             val oldStrokeWidth = paint.strokeWidth
+            val oldPathEffect = paint.pathEffect
             text.decorationColor?.let { paint.color = it }
             paint.strokeWidth = (text.size / 18f).coerceAtLeast(1f)
+            paint.pathEffect = when (text.decorationStyle) {
+                "dashed" -> DashPathEffect(floatArrayOf(paint.strokeWidth * 4f, paint.strokeWidth * 3f), 0f)
+                "dotted" -> DashPathEffect(floatArrayOf(paint.strokeWidth, paint.strokeWidth * 2f), 0f)
+                else -> null
+            }
             if (text.overline) {
                 val y = text.y + text.height * 0.18f
-                canvas.drawLine(text.x, y, text.x + text.width, y, paint)
+                drawEpubTextDecoration(canvas, paint, text, y)
             }
             if (text.strikeThrough) {
                 val y = text.baseline + text.baselineShift - text.size * 0.32f
-                canvas.drawLine(text.x, y, text.x + text.width, y, paint)
+                drawEpubTextDecoration(canvas, paint, text, y)
             }
             if (text.underline) {
                 val y = text.baseline + text.baselineShift + text.size * 0.12f
-                canvas.drawLine(text.x, y, text.x + text.width, y, paint)
+                drawEpubTextDecoration(canvas, paint, text, y)
             }
+            paint.pathEffect = oldPathEffect
             paint.strokeWidth = oldStrokeWidth
             paint.color = oldColor
         }
         paint.clearShadowLayer()
         paint.isUnderlineText = false
         paint.isStrikeThruText = false
+    }
+
+    private fun drawEpubTextDecoration(canvas: Canvas, paint: TextPaint, text: EpubTextRun, y: Float) {
+        when (text.decorationStyle) {
+            "double" -> {
+                val offset = paint.strokeWidth * 1.5f
+                canvas.drawLine(text.x, y - offset, text.x + text.width, y - offset, paint)
+                canvas.drawLine(text.x, y + offset, text.x + text.width, y + offset, paint)
+            }
+            "wavy" -> {
+                val step = (paint.strokeWidth * 4f).coerceAtLeast(4f)
+                var x = text.x
+                var up = true
+                while (x < text.x + text.width) {
+                    val nextX = (x + step).coerceAtMost(text.x + text.width)
+                    val nextY = y + if (up) -paint.strokeWidth * 1.5f else paint.strokeWidth * 1.5f
+                    canvas.drawLine(x, y, nextX, nextY, paint)
+                    x = nextX
+                    up = !up
+                }
+            }
+            else -> canvas.drawLine(text.x, y, text.x + text.width, y, paint)
+        }
     }
 
     fun render(view: ContentTextView): Boolean {
