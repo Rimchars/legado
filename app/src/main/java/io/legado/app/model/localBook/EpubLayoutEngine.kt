@@ -458,16 +458,21 @@ internal class EpubLayoutEngine(
 
     private fun collectInlineItems(node: EpubBoxNode): List<InlineItem> {
         val items = arrayListOf<InlineItem>()
-        fun collect(current: EpubBoxNode) {
+        fun collect(current: EpubBoxNode, linkHref: String?) {
             when (current) {
-                is EpubTextNode -> items.add(InlineText(current.text, current.style, current.sourcePath))
+                is EpubTextNode -> items.add(InlineText(current.text, current.style, current.sourcePath, linkHref))
                 is EpubBreakNode -> items.add(InlineBreak(current.style))
-                is EpubInlineNode -> current.children.forEach(::collect)
+                is EpubInlineNode -> {
+                    val childLink = current.attributes["href"]
+                        ?.takeIf { current.tagName == "a" && it.isNotBlank() }
+                        ?: linkHref
+                    current.children.forEach { child -> collect(child, childLink) }
+                }
                 is EpubImageNode -> items.add(InlineImage(current))
                 else -> Unit
             }
         }
-        collect(node)
+        collect(node, null)
         return items
     }
 
@@ -548,6 +553,7 @@ internal class EpubLayoutEngine(
                                 backgroundPaddingRight = 0f,
                                 backgroundPaddingBottom = 0f,
                                 shadow = null,
+                                linkHref = null,
                                 sourcePath = item.image.sourcePath
                             )
                         )
@@ -604,6 +610,7 @@ internal class EpubLayoutEngine(
                                 backgroundPaddingRight = 0f,
                                 backgroundPaddingBottom = 0f,
                                 shadow = item.style.textShadow(),
+                                linkHref = item.linkHref,
                                 sourcePath = item.sourcePath
                             )
                         )
@@ -659,7 +666,8 @@ internal class EpubLayoutEngine(
                 last.backgroundPaddingTop == segment.backgroundPaddingTop &&
                 last.backgroundPaddingRight == segment.backgroundPaddingRight &&
                 last.backgroundPaddingBottom == segment.backgroundPaddingBottom &&
-                last.shadow == segment.shadow
+                last.shadow == segment.shadow &&
+                last.linkHref == segment.linkHref
             ) {
                 merged[merged.lastIndex] = last.copy(text = last.text + segment.text, width = last.width + segment.width)
             } else {
@@ -706,6 +714,7 @@ internal class EpubLayoutEngine(
                         backgroundPaddingRight = segment.backgroundPaddingRight,
                         backgroundPaddingBottom = segment.backgroundPaddingBottom,
                         shadow = segment.shadow,
+                        linkHref = segment.linkHref,
                         sourcePath = segment.sourcePath
                     )
                 )
@@ -1941,7 +1950,8 @@ internal class EpubLayoutEngine(
     private data class InlineText(
         val rawText: String,
         val style: EpubComputedStyle,
-        val sourcePath: String
+        val sourcePath: String,
+        val linkHref: String?
     ) : InlineItem() {
         fun normalizedText(): String {
             return if (style["white-space"]?.contains("pre") == true) {
@@ -1985,6 +1995,7 @@ internal class EpubLayoutEngine(
         val backgroundPaddingRight: Float,
         val backgroundPaddingBottom: Float,
         val shadow: EpubShadow?,
+        val linkHref: String?,
         val sourcePath: String
     ) {
         fun isBlankText(): Boolean {

@@ -77,6 +77,11 @@ class EpubFile(var book: Book) {
         }
 
         @Synchronized
+        internal fun getFootnote(book: Book, href: String): String? {
+            return getEFile(book).getFootnote(href)
+        }
+
+        @Synchronized
         override fun getImage(
             book: Book,
             href: String
@@ -243,6 +248,7 @@ class EpubFile(var book: Book) {
         var doc = Jsoup.parse(String(res.data, mCharset))
         var bodyElement = doc.body()
         doc.select("script").remove()
+        doc.hideEpubFootnotes()
         // 获取body对应的文本
         var bodyString = bodyElement.outerHtml()
         val originBodyString = bodyString
@@ -348,6 +354,38 @@ class EpubFile(var book: Book) {
             )
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生 DOM 失败: ${res.href}\n${it.localizedMessage}", it)
+        }
+    }
+
+    private fun getFootnote(href: String): String? {
+        val cleanHref = href.substringBeforeLast("#")
+        val targetId = href.substringAfterLast("#", "").takeIf { it.isNotBlank() } ?: return null
+        val resource = findEpubResource(cleanHref) ?: return null
+        val doc = runCatching { Jsoup.parse(String(resource.data, mCharset)) }.getOrNull() ?: return null
+        val target = doc.getElementById(targetId) ?: return null
+        target.select("a[href]").forEach { link ->
+            val linkHref = link.attr("href")
+            if (linkHref.startsWith("#") || linkHref.substringAfterLast("#", "") == targetId) {
+                link.remove()
+            }
+        }
+        val text = target.text().cleanEpubInfoText()
+        return text.takeIf { it.isNotBlank() }
+    }
+
+    private fun Document.hideEpubFootnotes() {
+        select("aside[id], section[id], div[id], li[id]").forEach { element ->
+            val type = element.attr("epub:type").ifBlank { element.attr("type") }.lowercase(Locale.ROOT)
+            val role = element.attr("role").lowercase(Locale.ROOT)
+            val clazz = element.className().lowercase(Locale.ROOT)
+            val isNote = type.contains("footnote") ||
+                type.contains("endnote") ||
+                role == "doc-footnote" ||
+                role == "doc-endnote" ||
+                clazz.split(' ').any { it == "footnote" || it == "endnote" || it == "note" }
+            if (isNote) {
+                element.attr("style", "${element.attr("style")};display:none")
+            }
         }
     }
 

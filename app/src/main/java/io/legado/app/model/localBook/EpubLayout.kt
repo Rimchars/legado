@@ -49,6 +49,7 @@ internal data class EpubTextRun(
     val backgroundPaddingRight: Float,
     val backgroundPaddingBottom: Float,
     val shadow: EpubShadow?,
+    val linkHref: String?,
     override val sourcePath: String
 ) : EpubDrawCommand()
 
