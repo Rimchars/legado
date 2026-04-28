@@ -59,7 +59,7 @@ internal class EpubLayoutEngine(
             is EpubRuleNode -> layoutRuleNode(node, left, width)
             is EpubBreakNode -> cursorY += lineHeight(node.style)
             is EpubInlineNode -> layoutInlineItems(collectInlineItems(node), node.style, left, width)
-            is EpubTextNode -> layoutInlineItems(listOf(InlineText(node.text, node.style, node.sourcePath)), node.style, left, width)
+            is EpubTextNode -> layoutInlineItems(listOf(InlineText(node.text, node.style, node.sourcePath, null)), node.style, left, width)
         }
     }
 
@@ -223,7 +223,7 @@ internal class EpubLayoutEngine(
             val fallbackText = node.plainText()
             if (fallbackText.isNotBlank()) {
                 layoutInlineItems(
-                    items = listOf(InlineText(fallbackText, style, node.sourcePath)),
+                    items = listOf(InlineText(fallbackText, style, node.sourcePath, null)),
                     parentStyle = style,
                     left = contentLeft,
                     width = contentWidth
