@@ -25,7 +25,8 @@ internal class EpubLayoutEngine(
         cursorY = 0f
         firstLineIndent = 0f
         pageHasFullBackground = false
-        layoutChildren(document.body.children, document.body.style, left = 0f, width = viewportWidth.toFloat())
+        val boxDocument = EpubBoxBuilder().build(document)
+        layoutBlockNode(boxDocument.root, left = 0f, width = viewportWidth.toFloat())
         flushPageIfNeeded(force = true)
         return EpubLayoutDocument(
             href = document.href,
@@ -33,6 +34,314 @@ internal class EpubLayoutEngine(
                 EpubLayoutPage(index = index, commands = commands, height = viewportHeight.toFloat())
             }
         )
+    }
+
+    private fun layoutBoxNode(node: EpubBoxNode, left: Float, width: Float) {
+        when (node) {
+            is EpubBlockNode -> layoutBlockNode(node, left, width)
+            is EpubImageNode -> layoutImageNode(node, left, width)
+            is EpubPageColorNode -> layoutPageColorNode(node)
+            is EpubRuleNode -> layoutRuleNode(node, left, width)
+            is EpubBreakNode -> cursorY += lineHeight(node.style)
+            is EpubInlineNode -> layoutInlineItems(collectInlineItems(node), node.style, left, width)
+            is EpubTextNode -> layoutInlineItems(listOf(InlineText(node.text, node.style, node.sourcePath)), node.style, left, width)
+        }
+    }
+
+    private fun layoutBlockNode(node: EpubBlockNode, left: Float, width: Float) {
+        val style = node.style
+        val marginTop = style.verticalLengthPx("margin-top", width)
+        val marginBottom = style.verticalLengthPx("margin-bottom", width)
+        val paddingTop = style.verticalLengthPx("padding-top", width)
+        val paddingBottom = style.verticalLengthPx("padding-bottom", width)
+        val paddingLeft = style.lengthPx("padding-left", width)
+        val paddingRight = style.lengthPx("padding-right", width)
+        val marginLeft = style.lengthPx("margin-left", width)
+        val marginRight = style.lengthPx("margin-right", width)
+        val borderWidth = style.borderWidthPx()
+        cursorY += marginTop
+        var boxTop = cursorY
+        val listMarkerWidth = if (node.tagName == "li") basePaint.textSize * 1.2f else 0f
+        val contentLeft = left + marginLeft + borderWidth + paddingLeft + listMarkerWidth
+        val contentWidth = (width - marginLeft - marginRight - borderWidth * 2 - paddingLeft - paddingRight - listMarkerWidth)
+            .coerceAtLeast(width * 0.35f)
+        val requestedHeight = style.verticalLengthPx("height", width)
+            .takeIf { it > 0f }
+            ?: style.verticalLengthPx("min-height", width).takeIf { it > 0f }
+        if (requestedHeight != null && boxTop + requestedHeight > viewportHeight && currentCommands.isNotEmpty()) {
+            flushPageIfNeeded(force = true)
+            cursorY += marginTop
+            boxTop = cursorY
+        }
+        cursorY += borderWidth + paddingTop
+        val blockCommandIndex = currentCommands.size
+        val blockStyle = style.blockStyle()
+        if (blockStyle != null) {
+            currentCommands.add(
+                EpubBlockBox(
+                    x = left + marginLeft,
+                    y = boxTop,
+                    width = width - marginLeft - marginRight,
+                    height = 0f,
+                    backgroundColor = blockStyle.backgroundColor,
+                    borderColor = blockStyle.borderColor,
+                    borderWidth = borderWidth,
+                    radius = blockStyle.radius,
+                    sourcePath = node.sourcePath
+                )
+            )
+        }
+        if (node.tagName == "li") {
+            currentCommands.add(
+                EpubBullet(
+                    text = "•",
+                    x = left + marginLeft + borderWidth + paddingLeft,
+                    baseline = cursorY + style.fontSizePx(),
+                    size = style.fontSizePx(),
+                    color = style.colorInt(),
+                    sourcePath = node.sourcePath
+                )
+            )
+        }
+        val previousTextIndent = firstLineIndent
+        firstLineIndent = style.lengthPx("text-indent", contentWidth)
+        val inlineItems = arrayListOf<InlineItem>()
+        fun flushInlineItems() {
+            if (inlineItems.isEmpty()) return
+            layoutInlineItems(inlineItems.toList(), style, contentLeft, contentWidth)
+            inlineItems.clear()
+        }
+        node.children.forEach { child ->
+            when (child) {
+                is EpubTextNode,
+                is EpubInlineNode,
+                is EpubBreakNode -> inlineItems.addAll(collectInlineItems(child))
+                else -> {
+                    flushInlineItems()
+                    layoutBoxNode(child, contentLeft, contentWidth)
+                }
+            }
+        }
+        flushInlineItems()
+        firstLineIndent = previousTextIndent
+        cursorY += paddingBottom + borderWidth
+        if (blockStyle != null) {
+            val old = currentCommands.getOrNull(blockCommandIndex) as? EpubBlockBox
+            if (old != null) {
+                val boxHeight = requestedHeight ?: (cursorY - boxTop)
+                currentCommands[blockCommandIndex] = old.copy(height = boxHeight.coerceAtLeast(0f))
+            }
+        }
+        requestedHeight?.let { height ->
+            if (cursorY < boxTop + height) {
+                cursorY = boxTop + height
+            }
+        }
+        cursorY += marginBottom
+        flushPageIfNeeded()
+    }
+
+    private fun collectInlineItems(node: EpubBoxNode): List<InlineItem> {
+        val items = arrayListOf<InlineItem>()
+        fun collect(current: EpubBoxNode) {
+            when (current) {
+                is EpubTextNode -> items.add(InlineText(current.text, current.style, current.sourcePath))
+                is EpubBreakNode -> items.add(InlineBreak(current.style))
+                is EpubInlineNode -> current.children.forEach(::collect)
+                is EpubImageNode -> items.add(InlineImage(current))
+                else -> Unit
+            }
+        }
+        collect(node)
+        return items
+    }
+
+    private fun layoutInlineItems(
+        items: List<InlineItem>,
+        parentStyle: EpubComputedStyle,
+        left: Float,
+        width: Float
+    ) {
+        if (items.isEmpty()) return
+        val lineSegments = arrayListOf<LineSegment>()
+        var lineWidth = 0f
+        var currentLineHeight = lineHeight(parentStyle)
+        var lineLeft = left + firstLineIndent
+        var lineWidthLimit = (width - firstLineIndent).coerceAtLeast(width * 0.35f)
+
+        fun flushLine(force: Boolean = false) {
+            if (lineSegments.isEmpty() && !force) return
+            if (lineSegments.isNotEmpty()) {
+                addInlineLine(
+                    segments = lineSegments.toList(),
+                    left = lineLeft,
+                    top = cursorY,
+                    lineWidth = lineWidth,
+                    availableWidth = lineWidthLimit,
+                    lineHeight = currentLineHeight,
+                    alignStyle = parentStyle
+                )
+            }
+            cursorY += currentLineHeight
+            flushPageIfNeedForHeight(cursorY + lineHeight(parentStyle))
+            lineSegments.clear()
+            lineWidth = 0f
+            currentLineHeight = lineHeight(parentStyle)
+            lineLeft = left
+            lineWidthLimit = width
+            firstLineIndent = 0f
+        }
+
+        items.forEach { item ->
+            when (item) {
+                is InlineBreak -> flushLine(force = true)
+                is InlineImage -> {
+                    flushLine()
+                    layoutImageNode(item.image, left, width)
+                }
+                is InlineText -> {
+                    val normalized = item.normalizedText()
+                    if (normalized.isBlank()) return@forEach
+                    val paint = item.style.toTextPaint()
+                    val itemLineHeight = lineHeight(item.style)
+                    normalized.forEach { char ->
+                        val value = char.toString()
+                        val charWidth = paint.measureText(value)
+                        if (lineSegments.isNotEmpty() && lineWidth + charWidth > lineWidthLimit) {
+                            flushLine()
+                        }
+                        lineSegments.add(
+                            LineSegment(
+                                text = value,
+                                width = charWidth,
+                                size = paint.textSize,
+                                color = item.style.colorInt(),
+                                bold = item.style.isBold(),
+                                italic = item.style.isItalic(),
+                                sourcePath = item.sourcePath
+                            )
+                        )
+                        lineWidth += charWidth
+                        currentLineHeight = maxOf(currentLineHeight, itemLineHeight)
+                    }
+                }
+            }
+        }
+        flushLine()
+    }
+
+    private fun addInlineLine(
+        segments: List<LineSegment>,
+        left: Float,
+        top: Float,
+        lineWidth: Float,
+        availableWidth: Float,
+        lineHeight: Float,
+        alignStyle: EpubComputedStyle
+    ) {
+        var x = when (alignStyle["text-align"]?.lowercase(Locale.ROOT)) {
+            "center" -> left + ((availableWidth - lineWidth) / 2f).coerceAtLeast(0f)
+            "right", "end" -> left + (availableWidth - lineWidth).coerceAtLeast(0f)
+            else -> left
+        }
+        val baseline = top + (lineHeight * 0.82f)
+        val merged = arrayListOf<LineSegment>()
+        segments.forEach { segment ->
+            val last = merged.lastOrNull()
+            if (last != null &&
+                last.size == segment.size &&
+                last.color == segment.color &&
+                last.bold == segment.bold &&
+                last.italic == segment.italic &&
+                last.sourcePath == segment.sourcePath
+            ) {
+                merged[merged.lastIndex] = last.copy(text = last.text + segment.text, width = last.width + segment.width)
+            } else {
+                merged.add(segment)
+            }
+        }
+        merged.forEach { segment ->
+            currentCommands.add(
+                EpubTextRun(
+                    text = segment.text,
+                    x = x,
+                    baseline = baseline,
+                    size = segment.size,
+                    color = segment.color,
+                    bold = segment.bold,
+                    italic = segment.italic,
+                    sourcePath = segment.sourcePath
+                )
+            )
+            x += segment.width
+        }
+    }
+
+    private fun layoutPageColorNode(node: EpubPageColorNode) {
+        node.colorValue.toEpubPageColor()?.let { color ->
+            if (currentCommands.isNotEmpty()) flushPageIfNeeded(force = true)
+            currentCommands.add(EpubPageColor(color = color, sourcePath = node.sourcePath))
+        }
+    }
+
+    private fun layoutImageNode(node: EpubImageNode, left: Float, width: Float) {
+        if (node.isBackground) {
+            if (currentCommands.isNotEmpty()) flushPageIfNeeded(force = true)
+            currentCommands.add(
+                EpubImageBox(
+                    src = node.src,
+                    x = 0f,
+                    y = 0f,
+                    width = viewportWidth.toFloat(),
+                    height = viewportHeight.toFloat(),
+                    isBackground = true,
+                    sourcePath = node.sourcePath
+                )
+            )
+            pageHasFullBackground = true
+            return
+        }
+        val imageWidth = node.style.lengthPx("width", width)
+            .takeIf { it > 0f }
+            ?: node.attributes["data-legado-width"]?.toCssLengthPx(width)
+            ?: node.attributes["width"]?.toCssLengthPx(width)
+            ?: width
+        val imageHeight = node.style.lengthPx("height", width)
+            .takeIf { it > 0f }
+            ?: node.attributes["height"]?.toCssLengthPx(width)
+            ?: imageSizeResolver(node.src).scaledHeight(imageWidth)
+        flushPageIfNeedForHeight(cursorY + imageHeight)
+        currentCommands.add(
+            EpubImageBox(
+                src = node.src,
+                x = left + ((width - imageWidth) / 2f).coerceAtLeast(0f),
+                y = cursorY,
+                width = imageWidth.coerceAtLeast(1f),
+                height = imageHeight.coerceAtLeast(1f),
+                isBackground = false,
+                sourcePath = node.sourcePath
+            )
+        )
+        cursorY += imageHeight
+    }
+
+    private fun layoutRuleNode(node: EpubRuleNode, left: Float, width: Float) {
+        val marginTop = node.style.lengthPx("margin-top", width).takeIf { it > 0f } ?: lineHeight(node.style) * 0.5f
+        val marginBottom = node.style.lengthPx("margin-bottom", width).takeIf { it > 0f } ?: lineHeight(node.style) * 0.5f
+        val strokeWidth = node.style.borderWidthPx().takeIf { it > 0f } ?: 1f
+        flushPageIfNeedForHeight(cursorY + marginTop + strokeWidth + marginBottom)
+        cursorY += marginTop
+        currentCommands.add(
+            EpubRuleLine(
+                x = left,
+                y = cursorY,
+                width = width,
+                strokeWidth = strokeWidth,
+                color = node.style.borderColor() ?: node.style.colorInt(),
+                sourcePath = node.sourcePath
+            )
+        )
+        cursorY += strokeWidth + marginBottom
     }
 
     private fun layoutChildren(
@@ -310,6 +619,25 @@ internal class EpubLayoutEngine(
         )
     }
 
+    private fun EpubComputedStyle.blockStyle(): BlockStyle? {
+        val backgroundColor = colorInt("background-color") ?: backgroundColor()
+        val borderColor = colorInt("border-color") ?: borderColor()
+        if (backgroundColor == null && borderColor == null) return null
+        return BlockStyle(
+            backgroundColor = backgroundColor,
+            borderColor = borderColor,
+            radius = lengthPx("border-radius", viewportWidth.toFloat())
+        )
+    }
+
+    private fun EpubComputedStyle.toTextPaint(): TextPaint {
+        return TextPaint(basePaint).apply {
+            textSize = fontSizePx()
+            isFakeBoldText = isBold()
+            textSkewX = if (isItalic()) -0.25f else 0f
+        }
+    }
+
     private fun EpubComputedStyle.fontSizePx(): Float {
         return this["font-size"]?.toCssLengthPx(basePaint.textSize) ?: basePaint.textSize
     }
@@ -489,6 +817,40 @@ internal class EpubLayoutEngine(
         val backgroundColor: Int?,
         val borderColor: Int?,
         val radius: Float
+    )
+
+    private sealed class InlineItem
+
+    private data class InlineText(
+        val rawText: String,
+        val style: EpubComputedStyle,
+        val sourcePath: String
+    ) : InlineItem() {
+        fun normalizedText(): String {
+            return if (style["white-space"]?.contains("pre") == true) {
+                rawText.replace("\r", "")
+            } else {
+                rawText.replace(Regex("\\s+"), " ")
+            }
+        }
+    }
+
+    private data class InlineImage(
+        val image: EpubImageNode
+    ) : InlineItem()
+
+    private data class InlineBreak(
+        val style: EpubComputedStyle
+    ) : InlineItem()
+
+    private data class LineSegment(
+        val text: String,
+        val width: Float,
+        val size: Float,
+        val color: Int?,
+        val bold: Boolean,
+        val italic: Boolean,
+        val sourcePath: String
     )
 
 }
