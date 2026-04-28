@@ -2,6 +2,7 @@ package io.legado.app.ui.book.read.page.entities
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
@@ -11,6 +12,8 @@ import io.legado.app.R
 import io.legado.app.help.PaintPool
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
+import io.legado.app.model.ImageProvider
+import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.page.ContentTextView
 import io.legado.app.ui.book.read.page.entities.TextChapter.Companion.emptyTextChapter
 import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
@@ -58,6 +61,7 @@ data class TextPage(
     var paddingTop = ChapterProvider.paddingTop
     var isCompleted = false
     var hasReadAloudSpan = false
+    var epubBackgroundSrc: String? = null
 
     @JvmField
     var textChapter = emptyTextChapter
@@ -327,6 +331,7 @@ data class TextPage(
     }
 
     private fun drawPage(view: ContentTextView, canvas: Canvas) {
+        drawEpubBackground(view, canvas)
         for (i in lines.indices) {
             val line = lines[i]
             canvas.withTranslation(0f, line.lineTop) {
@@ -335,9 +340,38 @@ data class TextPage(
         }
     }
 
+    private fun drawEpubBackground(view: ContentTextView, canvas: Canvas) {
+        val src = epubBackgroundSrc ?: return
+        val book = ReadBook.book ?: return
+        val left = ChapterProvider.paddingLeft.toFloat()
+        val top = ChapterProvider.paddingTop.toFloat()
+        val width = ChapterProvider.visibleWidth.toFloat()
+        val height = ChapterProvider.visibleHeight.toFloat()
+        if (width <= 0f || height <= 0f) return
+        val bitmap = ImageProvider.getImage(book, src, width.toInt(), height.toInt())
+        val scale = max(width / bitmap.width, height / bitmap.height)
+        val drawWidth = bitmap.width * scale
+        val drawHeight = bitmap.height * scale
+        val rect = RectF(
+            left + (width - drawWidth) / 2f,
+            top + (height - drawHeight) / 2f,
+            left + (width + drawWidth) / 2f,
+            top + (height + drawHeight) / 2f
+        )
+        canvas.save()
+        canvas.clipRect(left, top, left + width, top + height)
+        canvas.drawBitmap(bitmap, null, rect, view.imagePaint)
+        canvas.restore()
+    }
+
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
-        return canvasRecorder.recordIfNeeded(view.width, renderHeight + 10.dpToPx()) { //高度留余，避免图片过高时被截断 下划线最远10dp
+        val recorderHeight = if (epubBackgroundSrc != null) {
+            max(renderHeight, ChapterProvider.visibleBottom) + 10.dpToPx()
+        } else {
+            renderHeight + 10.dpToPx()
+        }
+        return canvasRecorder.recordIfNeeded(view.width, recorderHeight) { //高度留余，避免图片过高时被截断 下划线最远10dp
             drawPage(view, this)
         }
     }
@@ -365,7 +399,11 @@ data class TextPage(
     }
 
     fun upRenderHeight() {
-        renderHeight = ceil(lines.last().lineBottom).toInt()
+        renderHeight = if (lines.isEmpty()) {
+            if (epubBackgroundSrc != null) ChapterProvider.visibleBottom else 0
+        } else {
+            ceil(lines.last().lineBottom).toInt()
+        }
         if (leftLineSize > 0 && leftLineSize != lines.size) {
             val leftHeight = ceil(lines[leftLineSize - 1].lineBottom).toInt()
             renderHeight = max(renderHeight, leftHeight)
