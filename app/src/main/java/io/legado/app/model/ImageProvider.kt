@@ -182,6 +182,16 @@ object ImageProvider {
         width: Int,
         height: Int? = null
     ): Bitmap {
+        return getImage(book, src, width, height, null)
+    }
+
+    fun getImage(
+        book: Book,
+        src: String,
+        width: Int,
+        height: Int? = null,
+        cacheKeySuffix: String? = null
+    ): Bitmap {
         //src为空白时 可能被净化替换掉了 或者规则失效
         if (book.getUseReplaceRule() && src.isBlank()) {
             book.setUseReplaceRule(false)
@@ -191,17 +201,22 @@ object ImageProvider {
         if (!vFile.exists()) return errorBitmap
         //epub文件提供图片链接是相对链接，同时阅读多个epub文件，缓存命中错误
         //bitmapLruCache的key同一改成缓存文件的路径
-        val cacheBitmap = getNotRecycled(vFile.absolutePath)
+        val cacheKey = if (cacheKeySuffix.isNullOrBlank()) {
+            vFile.absolutePath
+        } else {
+            "${vFile.absolutePath}#$cacheKeySuffix"
+        }
+        val cacheBitmap = getNotRecycled(cacheKey)
         if (cacheBitmap != null) return cacheBitmap
         return kotlin.runCatching {
             val bitmap = BitmapUtils.decodeBitmap(vFile.absolutePath, width, height)
                 ?: SvgUtils.createBitmap(vFile.absolutePath, width, height)
                 ?: throw NoStackTraceException(appCtx.getString(R.string.error_decode_bitmap))
-            put(vFile.absolutePath, bitmap)
+            put(cacheKey, bitmap)
             bitmap
         }.onFailure {
             //错误图片占位,防止重复获取
-            put(vFile.absolutePath, errorBitmap)
+            put(cacheKey, errorBitmap)
         }.getOrDefault(errorBitmap)
     }
 
