@@ -38,7 +38,7 @@ import java.util.Locale
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
-        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"5\">"
+        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"6\">"
         private var eFile: EpubFile? = null
 
         @Synchronized
