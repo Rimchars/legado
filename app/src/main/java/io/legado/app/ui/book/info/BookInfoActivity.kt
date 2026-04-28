@@ -52,6 +52,7 @@ import io.legado.app.help.WebCacheManager
 import io.legado.app.help.book.addType
 import io.legado.app.help.book.getRemoteUrl
 import io.legado.app.help.book.isAudio
+import io.legado.app.help.book.isEpub
 import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isLocalTxt
@@ -77,6 +78,7 @@ import io.legado.app.model.BookCover
 import io.legado.app.model.remote.RemoteBookWebDav
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.book.audio.AudioPlayActivity
+import io.legado.app.ui.book.epub.EpubWebViewActivity
 import io.legado.app.ui.book.changecover.ChangeCoverDialog
 import io.legado.app.ui.book.changesource.ChangeBookSourceDialog
 import io.legado.app.ui.book.group.GroupSelectDialog
@@ -1393,6 +1395,7 @@ class BookInfoActivity :
                     this,
                     when {
                         !book.isLocal && book.isImage && AppConfig.showMangaUi -> ReadMangaActivity::class.java
+                        book.isEpub -> EpubWebViewActivity::class.java
                         else -> ReadBookActivity::class.java
                     }
                 )

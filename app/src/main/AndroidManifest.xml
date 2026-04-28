@@ -158,6 +158,13 @@
                 android:resource="@xml/spen_remote_actions" />
         </activity>
 
+        <!-- EPUB WebView 阅读界面 -->
+        <activity
+            android:name=".ui.book.epub.EpubWebViewActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="false"
+            android:launchMode="singleTask" />
+
         <!-- 阅读漫画界面 -->
         <activity
             android:name=".ui.book.manga.ReadMangaActivity"
