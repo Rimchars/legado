@@ -610,7 +610,7 @@ internal object EpubCss {
             lower in namedColorTokens
     }
 
-    fun extractCssUrl(): String? {
+    fun String.extractCssUrl(): String? {
         val start = indexOf("url(", ignoreCase = true)
         if (start < 0) return null
         val end = indexOf(')', start + 4)
