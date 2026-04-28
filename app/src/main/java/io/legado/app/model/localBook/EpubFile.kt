@@ -2,6 +2,7 @@ package io.legado.app.model.localBook
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.os.ParcelFileDescriptor
 import android.text.TextUtils
 import io.legado.app.constant.AppLog
@@ -37,7 +38,7 @@ import java.util.Locale
 class EpubFile(var book: Book) {
 
     companion object : BaseLocalBookParse {
-        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"2\">"
+        const val HTML_CONTENT_FLAG = "<usehtml data-epub-render=\"3\">"
         private var eFile: EpubFile? = null
 
         @Synchronized
@@ -247,13 +248,8 @@ class EpubFile(var book: Book) {
         bodyElement.materializeBackgroundImages(res)
         bodyElement.markSingleImagePage()
         bodyElement.select("img").forEach {
-            val src = it.attr("src").trim().encodeURI()
-            val href = res.href.encodeURI()
-            val resolvedHref = if (epubBook?.resources?.getByHref(src.stripUrlOptions()) != null) {
-                URLDecoder.decode(src, "UTF-8")
-            } else {
-                URLDecoder.decode(URI(href).resolve(src).toString(), "UTF-8")
-            }
+            val src = it.attr("src").trim()
+            val resolvedHref = resolveEpubResourceHref(res.href, src)
             val alt = it.attr("alt")
             val options = it.epubImageOptions()
             it.clearAttributes()
@@ -506,10 +502,11 @@ class EpubFile(var book: Book) {
             }
         }
         declarations["color"]?.let { color ->
+            val normalizedColor = color.toHtmlColorAttr()
             if (normalName() == "font") {
-                attr("color", color)
-            } else {
-                wrapInnerHtml("font", " color=\"$color\"")
+                normalizedColor?.let { attr("color", it) }
+            } else if (normalizedColor != null) {
+                wrapInnerHtml("font", " color=\"$normalizedColor\"")
             }
         }
         declarations["font-weight"]?.let { weight ->
@@ -536,6 +533,14 @@ class EpubFile(var book: Book) {
             if (display.equals("none", ignoreCase = true)) {
                 remove()
             }
+        }
+        val backgroundColor = declarations["background-color"]?.toEpubColorTag()
+            ?: declarations["background"]?.extractCssColor()?.toEpubColorTag()
+        backgroundColor?.let { colorTag ->
+            wrapInnerHtml("epubbg$colorTag")
+        }
+        declarations["border"]?.extractCssColor()?.toEpubColorTag()?.let { colorTag ->
+            wrapInnerHtml("epubbg$colorTag")
         }
         declarations["font-size"]?.let { size ->
             val normalized = size.trim().lowercase(Locale.ROOT)
@@ -600,19 +605,7 @@ class EpubFile(var book: Book) {
         val clean = url?.trim()?.trimMatchingQuote()
             ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
             ?: return null
-        return if (clean.startsWith("data:", true) ||
-            clean.startsWith("http://", true) ||
-            clean.startsWith("https://", true)
-        ) {
-            clean
-        } else if (epubBook?.resources?.getByHref(clean.stripUrlOptions()) != null) {
-            clean
-        } else {
-            URLDecoder.decode(
-                URI(baseHref.encodeURI()).resolve(clean.encodeURI()).toString(),
-                "UTF-8"
-            )
-        }
+        return resolveEpubResourceHref(baseHref, clean)
     }
 
     private fun String.extractCssUrl(): String? {
@@ -634,6 +627,147 @@ class EpubFile(var book: Book) {
             }
         }
         return clean
+    }
+
+    private fun resolveEpubResourceHref(baseHref: String, href: String): String {
+        val cleanHref = href.stripUrlOptions()
+            .substringBefore("?")
+            .trim()
+            .trimMatchingQuote()
+        if (cleanHref.startsWith("data:", true) ||
+            cleanHref.startsWith("http://", true) ||
+            cleanHref.startsWith("https://", true)
+        ) {
+            return cleanHref
+        }
+        findEpubResource(cleanHref)?.let { return it.href }
+        val resolved = runCatching {
+            URLDecoder.decode(
+                URI(baseHref.encodeURI()).resolve(cleanHref.encodeURI()).toString(),
+                "UTF-8"
+            )
+        }.getOrDefault(cleanHref)
+        findEpubResource(resolved)?.let { return it.href }
+        return resolved
+    }
+
+    private fun findEpubResource(href: String): Resource? {
+        val clean = href.stripUrlOptions()
+            .substringBefore("?")
+            .trim()
+            .trimMatchingQuote()
+        if (clean.isBlank()) return null
+        val candidates = linkedSetOf(clean)
+        runCatching { URLDecoder.decode(clean, "UTF-8") }.getOrNull()?.let { candidates.add(it) }
+        candidates.toList().forEach { candidate ->
+            candidates.add(candidate.trimStart('/'))
+            candidates.add(candidate.encodeURI())
+            runCatching { URLDecoder.decode(candidate.encodeURI(), "UTF-8") }.getOrNull()?.let {
+                candidates.add(it)
+            }
+        }
+        candidates.forEach { candidate ->
+            epubBook?.resources?.getByHref(candidate)?.let { return it }
+        }
+        val normalized = candidates.map { it.trimStart('/').lowercase(Locale.ROOT) }.toSet()
+        val fileName = clean.substringAfterLast('/').lowercase(Locale.ROOT)
+        return epubBook?.resources?.all?.firstOrNull { resource ->
+            val resourceHref = resource.href?.trimStart('/').orEmpty()
+            val lower = resourceHref.lowercase(Locale.ROOT)
+            lower in normalized || lower.endsWith("/$fileName") || lower == fileName
+        }
+    }
+
+    private fun String.extractCssColor(): String? {
+        val clean = trim()
+        if (clean.startsWith("#") || clean.startsWith("rgb", true)) return clean
+        val parts = clean.split(' ', ',', '/')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        return parts.firstOrNull { part ->
+            part.startsWith("#") || part.startsWith("rgb", true) || part.toNamedCssColor() != null
+        }
+    }
+
+    private fun String.toEpubColorTag(): String? {
+        val color = toAndroidColor() ?: return null
+        return "%08X".format(color)
+    }
+
+    private fun String.toHtmlColorAttr(): String? {
+        val color = toAndroidColor() ?: return null
+        val alpha = Color.alpha(color)
+        return if (alpha == 255) {
+            "#%06X".format(color and 0x00FFFFFF)
+        } else {
+            "#%08X".format(color)
+        }
+    }
+
+    private fun String.toAndroidColor(): Int? {
+        val clean = trim().trimMatchingQuote()
+        return when {
+            clean.startsWith("rgba", true) || clean.startsWith("rgb", true) -> clean.parseRgbCssColor()
+            clean.startsWith("#") -> runCatching { Color.parseColor(clean.normalizeHexColor()) }.getOrNull()
+            else -> clean.toNamedCssColor()?.let { runCatching { Color.parseColor(it) }.getOrNull() }
+        }
+    }
+
+    private fun String.normalizeHexColor(): String {
+        val hex = trim().removePrefix("#")
+        return when (hex.length) {
+            3 -> "#" + hex.map { "$it$it" }.joinToString("")
+            4 -> "#" + hex.map { "$it$it" }.joinToString("")
+            else -> "#$hex"
+        }
+    }
+
+    private fun String.parseRgbCssColor(): Int? {
+        val start = indexOf('(')
+        val end = lastIndexOf(')')
+        if (start < 0 || end <= start) return null
+        val parts = substring(start + 1, end)
+            .split(',', ' ', '/')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (parts.size < 3) return null
+        fun component(value: String): Int {
+            return if (value.endsWith("%")) {
+                ((value.dropLast(1).toFloatOrNull() ?: 0f) * 2.55f).toInt()
+            } else {
+                value.toFloatOrNull()?.toInt() ?: 0
+            }.coerceIn(0, 255)
+        }
+        val alpha = parts.getOrNull(3)?.let { value ->
+            if (value.endsWith("%")) {
+                ((value.dropLast(1).toFloatOrNull() ?: 100f) * 2.55f).toInt()
+            } else {
+                ((value.toFloatOrNull() ?: 1f) * 255f).toInt()
+            }
+        } ?: 255
+        return Color.argb(alpha.coerceIn(0, 255), component(parts[0]), component(parts[1]), component(parts[2]))
+    }
+
+    private fun String.toNamedCssColor(): String? {
+        return when (lowercase(Locale.ROOT)) {
+            "black" -> "#000000"
+            "white" -> "#FFFFFF"
+            "red" -> "#FF0000"
+            "green" -> "#008000"
+            "blue" -> "#0000FF"
+            "cyan", "aqua" -> "#00FFFF"
+            "magenta", "fuchsia" -> "#FF00FF"
+            "yellow" -> "#FFFF00"
+            "gray", "grey" -> "#808080"
+            "silver" -> "#C0C0C0"
+            "maroon" -> "#800000"
+            "purple" -> "#800080"
+            "teal" -> "#008080"
+            "navy" -> "#000080"
+            "orange" -> "#FFA500"
+            "transparent" -> "#00000000"
+            else -> null
+        }
     }
 
     private fun Element.markSingleImagePage() {
@@ -684,18 +818,7 @@ class EpubFile(var book: Book) {
 
     private fun getImage(href: String): InputStream? {
         if (href == "cover.jpeg") return epubBook?.coverImage?.inputStream
-        val resourceHref = href.stripUrlOptions()
-        val candidates = linkedSetOf(resourceHref)
-        runCatching {
-            URLDecoder.decode(resourceHref, "UTF-8")
-        }.getOrNull()?.let { decoded ->
-            candidates.add(decoded)
-            candidates.add(decoded.trimStart('/'))
-        }
-        candidates.add(resourceHref.trimStart('/'))
-        return candidates.firstNotNullOfOrNull { candidate ->
-            epubBook?.resources?.getByHref(candidate)?.inputStream
-        }
+        return findEpubResource(href)?.inputStream
     }
 
     private fun String.stripUrlOptions(): String {

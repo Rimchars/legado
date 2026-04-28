@@ -647,6 +647,10 @@ class TextChapterLayout(
                         flushHtmlBuffer()
                         prepareNextPageIfNeed()
                     }
+                    if (node.isHtmlBlock() && node.hasEpubBlockSpacingBefore()) {
+                        htmlBuffer.append("<br>")
+                        flushHtmlBuffer()
+                    }
                     if (node.normalName() == "table") {
                         flushHtmlBuffer()
                         setTypeHtmlText(imageStyle, book, node.toReadableTableHtml())
@@ -669,6 +673,10 @@ class TextChapterLayout(
                         if (node.isHtmlBlock()) {
                             flushHtmlBuffer()
                         }
+                    }
+                    if (node.isHtmlBlock() && node.hasEpubBlockSpacingAfter()) {
+                        htmlBuffer.append("<br>")
+                        flushHtmlBuffer()
                     }
                     if (node.hasEpubPageBreakAfter()) {
                         flushHtmlBuffer()
@@ -696,6 +704,16 @@ class TextChapterLayout(
             epubCssValue("break-after").isEpubAlwaysBreak()
     }
 
+    private fun Element.hasEpubBlockSpacingBefore(): Boolean {
+        return epubCssValue("margin-top").isLargeEpubSpacing() ||
+            epubCssValue("padding-top").isLargeEpubSpacing()
+    }
+
+    private fun Element.hasEpubBlockSpacingAfter(): Boolean {
+        return epubCssValue("margin-bottom").isLargeEpubSpacing() ||
+            epubCssValue("padding-bottom").isLargeEpubSpacing()
+    }
+
     private fun Element.epubCssValue(name: String): String {
         val style = attr("style")
         if (style.isBlank()) return ""
@@ -712,6 +730,18 @@ class TextChapterLayout(
     private fun String.isEpubAlwaysBreak(): Boolean {
         val value = trim().lowercase()
         return value == "always" || value == "page" || value == "left" || value == "right"
+    }
+
+    private fun String.isLargeEpubSpacing(): Boolean {
+        val value = trim().lowercase()
+        if (value.isBlank() || value == "0") return false
+        return when {
+            value.endsWith("em") -> (value.dropLast(2).toFloatOrNull() ?: 0f) >= 1f
+            value.endsWith("rem") -> (value.dropLast(3).toFloatOrNull() ?: 0f) >= 1f
+            value.endsWith("%") -> (value.dropLast(1).toFloatOrNull() ?: 0f) >= 8f
+            value.endsWith("px") -> (value.dropLast(2).toFloatOrNull() ?: 0f) >= 16f
+            else -> (value.toFloatOrNull() ?: 0f) >= 16f
+        }
     }
 
     private fun Element.toReadableTableHtml(): String {
