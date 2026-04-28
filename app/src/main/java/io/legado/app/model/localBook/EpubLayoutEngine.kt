@@ -486,8 +486,8 @@ internal class EpubLayoutEngine(
         lineHeight: Float,
         alignStyle: EpubComputedStyle
     ) {
-        var x = when (alignStyle["text-align"]?.lowercase(Locale.ROOT)) {
-            "center" -> left + ((availableWidth - lineWidth) / 2f).coerceAtLeast(0f)
+        var x = when (alignStyle["text-align"]?.trim()?.lowercase(Locale.ROOT)) {
+            "center", "-webkit-center", "-moz-center" -> left + ((availableWidth - lineWidth) / 2f).coerceAtLeast(0f)
             "right", "end" -> left + (availableWidth - lineWidth).coerceAtLeast(0f)
             else -> left
         }
@@ -515,8 +515,7 @@ internal class EpubLayoutEngine(
                 last.backgroundPaddingTop == segment.backgroundPaddingTop &&
                 last.backgroundPaddingRight == segment.backgroundPaddingRight &&
                 last.backgroundPaddingBottom == segment.backgroundPaddingBottom &&
-                last.shadow == segment.shadow &&
-                last.sourcePath == segment.sourcePath
+                last.shadow == segment.shadow
             ) {
                 merged[merged.lastIndex] = last.copy(text = last.text + segment.text, width = last.width + segment.width)
             } else {
