@@ -28,7 +28,7 @@ jobs:
 
       - name: Build full release APK
         run: |
-          VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))
+          VERSION_CODE=$(($(date -u +%s) / 60))
           ./gradlew :app:assembleAppRelease \
             -PVERSION_CODE="$VERSION_CODE" \
             -PRELEASE_STORE_FILE=ci-debug.keystore \

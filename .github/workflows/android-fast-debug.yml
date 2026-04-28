@@ -28,7 +28,7 @@ jobs:
 
       - name: Build arm64 debug APK
         run: |
-          VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))
+          VERSION_CODE=$(($(date -u +%s) / 60))
           ./gradlew :app:assembleAppDebug \
             -Pabi=arm64-v8a \
             -PVERSION_CODE="$VERSION_CODE" \
