@@ -200,6 +200,7 @@ internal class EpubLayoutEngine(
             layoutInlineItems(inlineItems.toList(), style, contentLeft, contentWidth)
             inlineItems.clear()
         }
+        val positionedChildren = arrayListOf<EpubBoxNode>()
         node.children.forEach { child ->
             when (child) {
                 is EpubTextNode,
@@ -211,7 +212,7 @@ internal class EpubLayoutEngine(
                     if (childFloat != null) {
                         layoutFloatNode(child, contentLeft, contentWidth)
                     } else if (child.isOutOfFlowPositioned()) {
-                        layoutPositionedNode(child, contentLeft, contentWidth, boxTop)
+                        positionedChildren.add(child)
                     } else {
                         layoutBoxNode(child, contentLeft, contentWidth)
                     }
@@ -219,6 +220,11 @@ internal class EpubLayoutEngine(
             }
         }
         flushInlineItems()
+        positionedChildren
+            .sortedBy { it.style.zIndexValue() }
+            .forEach { child ->
+                layoutPositionedNode(child, contentLeft, contentWidth, boxTop)
+            }
         if (blockStyle != null && !currentCommands.hasVisibleContentAfter(contentCommandStartIndex)) {
             val fallbackText = node.plainText()
             if (fallbackText.isNotBlank()) {
@@ -800,13 +806,26 @@ internal class EpubLayoutEngine(
             .takeIf { it > 0f }
             ?: node.attributes["height"]?.toCssLengthPx(width)
             ?: imageSizeResolver(node.src).scaledHeight(rawImageWidth)
-        val imageScale = if (rawImageWidth > width && rawImageWidth > 0f) {
-            width / rawImageWidth
+        val constrainedWidth = rawImageWidth.applyMinMax(
+            minValue = node.style["min-width"]?.toCssLengthPx(width),
+            maxValue = null
+        )
+        val constrainedHeight = rawImageHeight.applyMinMax(
+            minValue = node.style["min-height"]?.toCssLengthPx(viewportHeight.toFloat()),
+            maxValue = null
+        )
+        val maxWidth = node.style["max-width"]?.toCssLengthPx(width) ?: width
+        val maxHeight = node.style["max-height"]?.toCssLengthPx(viewportHeight.toFloat())
+            ?: viewportHeight.toFloat()
+        val (boundedImageWidth, boundedImageHeight) = (constrainedWidth to constrainedHeight)
+            .fitInside(maxWidth, maxHeight)
+        val imageScale = if (boundedImageWidth > width && boundedImageWidth > 0f) {
+            width / boundedImageWidth
         } else {
             1f
         }
-        val imageWidth = rawImageWidth * imageScale
-        val imageHeight = rawImageHeight * imageScale
+        val imageWidth = boundedImageWidth * imageScale
+        val imageHeight = boundedImageHeight * imageScale
         flushPageIfNeedForHeight(cursorY + imageHeight)
         currentCommands.add(
             EpubImageBox(
@@ -956,6 +975,10 @@ internal class EpubLayoutEngine(
 
     private fun EpubBoxNode.isOutOfFlowPositioned(): Boolean {
         return style["position"]?.trim()?.lowercase(Locale.ROOT) in setOf("absolute", "fixed")
+    }
+
+    private fun EpubComputedStyle.zIndexValue(): Int {
+        return this["z-index"]?.trim()?.takeUnless { it.equals("auto", ignoreCase = true) }?.toIntOrNull() ?: 0
     }
 
     private fun EpubComputedStyle.floatSide(): String? {
@@ -1498,6 +1521,18 @@ internal class EpubLayoutEngine(
         if (currentMax <= 0f || currentMax <= maxSize) return this
         val scale = maxSize / currentMax
         return (first * scale).coerceAtLeast(1f) to (second * scale).coerceAtLeast(1f)
+    }
+
+    private fun Pair<Float, Float>.fitInside(maxWidth: Float, maxHeight: Float): Pair<Float, Float> {
+        val width = first
+        val height = second
+        if (width <= 0f || height <= 0f) return this
+        val scale = minOf(
+            if (maxWidth > 0f) maxWidth / width else 1f,
+            if (maxHeight > 0f) maxHeight / height else 1f,
+            1f
+        )
+        return (width * scale).coerceAtLeast(1f) to (height * scale).coerceAtLeast(1f)
     }
 
     private fun String.toCssLengthPx(relativeTo: Float): Float? {
