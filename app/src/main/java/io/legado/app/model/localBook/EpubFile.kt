@@ -14,6 +14,7 @@ import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.FileUtils
+import io.legado.app.utils.MD5Utils
 import io.legado.app.utils.SvgUtils
 import io.legado.app.utils.encodeURI
 import io.legado.app.utils.isXml
@@ -34,6 +35,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.ObjectInputStream
+import java.io.ObjectOutputStream
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.Charset
@@ -47,6 +50,7 @@ class EpubFile(var book: Book) {
     companion object : BaseLocalBookParse {
         const val NATIVE_CONTENT_FLAG = "<epub-native"
         const val NATIVE_LAYOUT_FLAG = "data-href="
+        private const val NATIVE_LAYOUT_DISK_CACHE_VERSION = 1
         private const val ENABLE_EPUB_DEBUG_DUMP = false
         private const val SMALL_EPUB_TEXT_PRELOAD_LIMIT = 12L * 1024L * 1024L
         private const val MAX_NATIVE_DOM_CACHE = 600
@@ -656,8 +660,7 @@ class EpubFile(var book: Book) {
     }
 
     private fun getNativeLayout(href: String): EpubLayoutDocument? {
-        val width = ChapterProvider.visibleWidth
-        val height = ChapterProvider.visibleHeight
+        val (width, height) = resolveNativeViewport()
         AppLog.putDebug(
             "EPUB Native Layout enter: href=$href, view=${width}x$height, " +
                 "domCache=${nativeDomCache.containsKey(href)}, layoutCache=${nativeLayoutCache.containsKey(href)}"
@@ -690,6 +693,14 @@ class EpubFile(var book: Book) {
             AppLog.putDebug("EPUB Native Layout global cache hit: href=$href, pages=${it.pages.size}")
             return it
         }
+        readNativeLayoutFromDisk(layoutCacheKey)?.let {
+            nativeLayoutCache[href] = it
+            synchronized(globalNativeLayoutCache) {
+                globalNativeLayoutCache[layoutCacheKey] = it
+            }
+            AppLog.putDebug("EPUB Native Layout disk cache hit: href=$href, pages=${it.pages.size}")
+            return it
+        }
         val document = nativeDomCache[href] ?: rebuildNativeDom(href) ?: return null
         return runCatching {
             EpubLayoutEngine(
@@ -703,6 +714,7 @@ class EpubFile(var book: Book) {
             synchronized(globalNativeLayoutCache) {
                 globalNativeLayoutCache[layoutCacheKey] = it
             }
+            writeNativeLayoutToDisk(layoutCacheKey, it)
             val linkAreas = it.pages.sumOf { page ->
                 page.commands.count { command -> command is EpubLinkArea }
             }
@@ -821,7 +833,7 @@ class EpubFile(var book: Book) {
     }
 
     private fun nativeLayoutCacheKey(href: String, width: Int, height: Int, styleKey: String): String {
-        return "${book.bookUrl}|$href|${width}x$height|$styleKey"
+        return "${book.bookUrl}|$href|${width}x$height|$styleKey|v$NATIVE_LAYOUT_DISK_CACHE_VERSION"
     }
 
     private fun currentNativeLayoutStyleKey(): String {
@@ -861,6 +873,45 @@ class EpubFile(var book: Book) {
         }.onFailure {
             AppLog.putDebug("重建 EPUB 原生 DOM 失败: $href\n${it.localizedMessage}", it)
         }.getOrNull()
+    }
+
+    private fun resolveNativeViewport(): Pair<Int, Int> {
+        val width = ChapterProvider.visibleWidth.takeIf { it > 0 } ?: appCtx.resources.displayMetrics.widthPixels
+        val height = ChapterProvider.visibleHeight.takeIf { it > 0 } ?: appCtx.resources.displayMetrics.heightPixels
+        return width to height
+    }
+
+    private fun nativeLayoutDiskFile(layoutCacheKey: String): File {
+        val dir = File(BookHelp.cachePath, "${book.getFolderName()}/epub_layout")
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        val fileName = "${MD5Utils.md5Encode16(layoutCacheKey)}.bin"
+        return File(dir, fileName)
+    }
+
+    private fun readNativeLayoutFromDisk(layoutCacheKey: String): EpubLayoutDocument? {
+        val file = nativeLayoutDiskFile(layoutCacheKey)
+        if (!file.exists()) return null
+        return runCatching {
+            ObjectInputStream(file.inputStream().buffered()).use { stream ->
+                stream.readObject() as? EpubLayoutDocument
+            }
+        }.onFailure {
+            file.delete()
+            AppLog.putDebug("EPUB Native Layout disk cache read failed: ${it.localizedMessage}", it)
+        }.getOrNull()
+    }
+
+    private fun writeNativeLayoutToDisk(layoutCacheKey: String, layout: EpubLayoutDocument) {
+        val file = nativeLayoutDiskFile(layoutCacheKey)
+        runCatching {
+            ObjectOutputStream(file.outputStream().buffered()).use { stream ->
+                stream.writeObject(layout)
+            }
+        }.onFailure {
+            AppLog.putDebug("EPUB Native Layout disk cache write failed: ${it.localizedMessage}", it)
+        }
     }
 
     private fun getEpubImageSize(href: String): Size? {
