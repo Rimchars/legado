@@ -658,7 +658,7 @@ class EpubFile(var book: Book) {
     private fun getNativeLayout(href: String): EpubLayoutDocument? {
         val width = ChapterProvider.visibleWidth
         val height = ChapterProvider.visibleHeight
-        AppLog.put(
+        AppLog.putDebug(
             "EPUB Native Layout enter: href=$href, view=${width}x$height, " +
                 "domCache=${nativeDomCache.containsKey(href)}, layoutCache=${nativeLayoutCache.containsKey(href)}"
         )
@@ -669,7 +669,7 @@ class EpubFile(var book: Book) {
         val styleKey = currentNativeLayoutStyleKey()
         scheduleNearbyNativeLayoutPreload(width, height, styleKey, href)
         if (nativeLayoutWidth != width || nativeLayoutHeight != height || nativeLayoutStyleKey != styleKey) {
-            AppLog.put(
+            AppLog.putDebug(
                 "EPUB Native Layout cache clear: old=${nativeLayoutWidth}x$nativeLayoutHeight, " +
                     "new=${width}x$height, styleChanged=${nativeLayoutStyleKey != styleKey}"
             )
@@ -679,7 +679,7 @@ class EpubFile(var book: Book) {
             nativeLayoutStyleKey = styleKey
         }
         nativeLayoutCache[href]?.let {
-            AppLog.put("EPUB Native Layout cache hit: href=$href, pages=${it.pages.size}")
+            AppLog.putDebug("EPUB Native Layout cache hit: href=$href, pages=${it.pages.size}")
             return it
         }
         val layoutCacheKey = nativeLayoutCacheKey(href, width, height, styleKey)
@@ -687,7 +687,7 @@ class EpubFile(var book: Book) {
             globalNativeLayoutCache[layoutCacheKey]
         }?.let {
             nativeLayoutCache[href] = it
-            AppLog.put("EPUB Native Layout global cache hit: href=$href, pages=${it.pages.size}")
+            AppLog.putDebug("EPUB Native Layout global cache hit: href=$href, pages=${it.pages.size}")
             return it
         }
         val document = nativeDomCache[href] ?: rebuildNativeDom(href) ?: return null
@@ -712,7 +712,7 @@ class EpubFile(var book: Book) {
             val linkedText = it.pages.sumOf { page ->
                 page.commands.count { command -> command is EpubTextRun && !command.linkHref.isNullOrBlank() }
             }
-            AppLog.put(
+            AppLog.putDebug(
                 "EPUB Native Layout built: href=$href, pages=${it.pages.size}, " +
                     "commands=${it.pages.sumOf { page -> page.commands.size }}, " +
                     "linkAreas=$linkAreas, linkedImages=$linkedImages, linkedText=$linkedText"
@@ -752,7 +752,7 @@ class EpubFile(var book: Book) {
                 .toList()
         }.distinct()
         if (hrefs.isEmpty()) return
-        AppLog.put("EPUB Native Layout preload nearby: count=${hrefs.size}, current=$currentHref, view=${width}x$height")
+        AppLog.putDebug("EPUB Native Layout preload nearby: count=${hrefs.size}, current=$currentHref, view=${width}x$height")
         preloadNativeLayouts(book, hrefs)
     }
 
@@ -775,7 +775,7 @@ class EpubFile(var book: Book) {
             }
             .distinct()
         if (hrefs.isEmpty()) return
-        AppLog.put(
+        AppLog.putDebug(
             "EPUB Native Layout preload small book: count=${hrefs.size}, " +
                 "textBytes=${cachedReadableTextBytes ?: -1}, view=${width}x$height"
         )

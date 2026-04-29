@@ -1,6 +1,7 @@
 package io.legado.app.ui.book.import.local
 
 import android.annotation.SuppressLint
+import android.app.ProgressDialog
 import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
@@ -17,6 +18,7 @@ import io.legado.app.data.appDb
 import io.legado.app.databinding.DialogEditTextBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.dialogs.progressDialog
 import io.legado.app.lib.permission.Permissions
 import io.legado.app.lib.permission.PermissionsCompat
 import io.legado.app.lib.theme.backgroundColor
@@ -51,6 +53,7 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
     private val adapter by lazy { ImportBookAdapter(this, this) }
     private var scanDocJob: Job? = null
     private var currentPathText: CharSequence = ""
+    private var importProgressDialog: ProgressDialog? = null
 
     private val selectFolder = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
@@ -120,7 +123,18 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
     @SuppressLint("NotifyDataSetChanged")
     override fun onClickSelectBarMainAction() {
         val selected = HashSet(adapter.selected)
+        importProgressDialog?.dismiss()
+        importProgressDialog = progressDialog(
+            title = "导入书籍",
+            message = "准备导入...",
+        ) {
+            max = selected.size.coerceAtLeast(1)
+            progress = 0
+            setCancelable(false)
+        }
         viewModel.addToBookshelfWithProgress(selected, onProgress = {}) {
+            importProgressDialog?.dismiss()
+            importProgressDialog = null
             selected.forEach {
                 it.isOnBookShelf = true
             }
@@ -175,6 +189,11 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
                 } else {
                     binding.refreshProgressBar.isAutoLoading = true
                     binding.tvPath.text = "导入中：${progress.processed}/${progress.total}，成功${progress.imported}，失败${progress.failed}"
+                    importProgressDialog?.run {
+                        max = progress.total
+                        this.progress = progress.processed
+                        setMessage("成功${progress.imported}本，失败${progress.failed}本")
+                    }
                 }
             }
         }
