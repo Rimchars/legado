@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.withContext
 import java.util.Collections
+import kotlin.math.max
 
 class ImportBookViewModel(application: Application) : BaseViewModel(application) {
     var rootDoc: FileDoc? = null
@@ -142,16 +143,23 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
                 kotlin.runCatching {
                     val books = LocalBook.importFiles(item.file.uri)
                     books.forEach { book ->
-                        LocalBook.prepareImportedBookCache(book) { chapterIndex, chapterCount, chapterTitle ->
-                            val decodeProgress = ImportProgress(
-                                total = chapterCount.coerceAtLeast(1),
-                                processed = chapterIndex.coerceIn(0, chapterCount.coerceAtLeast(1)),
-                                imported = imported,
-                                failed = failed,
-                                message = "解码 ${book.name}: $chapterTitle"
-                            )
-                            importProgressFlow.value = decodeProgress
-                            onProgress(decodeProgress)
+                        var lastEmitTime = 0L
+                        LocalBook.prepareImportedBookCache(book) { stage, stageProcessed, stageTotal, title ->
+                            val now = System.currentTimeMillis()
+                            val shouldEmit = stageProcessed >= stageTotal || now - lastEmitTime >= 120L
+                            if (shouldEmit) {
+                                lastEmitTime = now
+                                val stageName = if (stage == "layout") "排版缓存" else "正文解码"
+                                val decodeProgress = ImportProgress(
+                                    total = max(stageTotal, 1),
+                                    processed = stageProcessed.coerceIn(0, max(stageTotal, 1)),
+                                    imported = imported,
+                                    failed = failed,
+                                    message = "$stageName ${book.name}: $title"
+                                )
+                                importProgressFlow.value = decodeProgress
+                                onProgress(decodeProgress)
+                            }
                         }
                     }
                 }.onSuccess {
