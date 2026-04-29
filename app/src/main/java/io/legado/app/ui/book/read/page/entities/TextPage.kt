@@ -365,6 +365,18 @@ data class TextPage(
         }
     }
 
+    fun epubFootnoteLinks(): List<String> {
+        if (epubNativeCommands.isEmpty()) return emptyList()
+        return epubNativeCommands.mapNotNull { command ->
+            when (command) {
+                is EpubTextRun -> command.linkHref
+                is EpubImageBox -> command.linkHref
+                is EpubLinkArea -> command.href
+                else -> null
+            }?.takeIf { it.contains("#") }
+        }.distinct()
+    }
+
     fun epubLinkDiagnostics(): String {
         if (epubNativeCommands.isEmpty()) return "commands=0"
         var textLinks = 0

@@ -50,6 +50,7 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
     override val viewModel by viewModels<ImportBookViewModel>()
     private val adapter by lazy { ImportBookAdapter(this, this) }
     private var scanDocJob: Job? = null
+    private var currentPathText: CharSequence = ""
 
     private val selectFolder = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
@@ -118,8 +119,9 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
 
     @SuppressLint("NotifyDataSetChanged")
     override fun onClickSelectBarMainAction() {
-        viewModel.addToBookshelf(adapter.selected) {
-            adapter.selected.forEach {
+        val selected = HashSet(adapter.selected)
+        viewModel.addToBookshelfWithProgress(selected, onProgress = {}) {
+            selected.forEach {
                 it.isOnBookShelf = true
             }
             adapter.selected.clear()
@@ -152,6 +154,28 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
         lifecycleScope.launch {
             viewModel.dataFlow.conflate().collect { docs ->
                 adapter.setItems(docs)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.scanProgressFlow.collect { progress ->
+                if (progress == null) {
+                    binding.refreshProgressBar.isAutoLoading = false
+                    binding.tvPath.text = currentPathText
+                } else {
+                    binding.refreshProgressBar.isAutoLoading = true
+                    binding.tvPath.text = "扫描中：已扫${progress.scannedDirs}个文件夹，发现${progress.foundBooks}本，待扫${progress.pendingDirs}个"
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.importProgressFlow.collect { progress ->
+                if (progress == null) {
+                    binding.refreshProgressBar.isAutoLoading = false
+                    binding.tvPath.text = currentPathText
+                } else {
+                    binding.refreshProgressBar.isAutoLoading = true
+                    binding.tvPath.text = "导入中：${progress.processed}/${progress.total}，成功${progress.imported}，失败${progress.failed}"
+                }
             }
         }
     }
@@ -244,7 +268,8 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
             lastDoc = doc
             path = path + doc.name + File.separator
         }
-        binding.tvPath.text = path
+        currentPathText = path
+        binding.tvPath.text = currentPathText
         adapter.selected.clear()
         adapter.clearItems()
         viewModel.loadDoc(lastDoc)

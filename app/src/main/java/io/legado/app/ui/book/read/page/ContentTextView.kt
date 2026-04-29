@@ -8,12 +8,13 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import io.legado.app.R
 import io.legado.app.constant.AppLog
+import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.help.book.isOnLineTxt
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.dialogs.alert
 import io.legado.app.model.ReadBook
 import io.legado.app.model.localBook.EpubFile
 import io.legado.app.ui.association.OpenUrlConfirmActivity
@@ -90,6 +91,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
      */
     fun setContent(textPage: TextPage) {
         this.textPage = textPage
+        preloadEpubFootnotes(textPage)
         // 非滑动翻页动画需要同步重绘，不然翻页可能会出现闪烁
         if (isScroll) {
             postInvalidate()
@@ -362,24 +364,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             val href = page.findEpubLinkAt(x, y - offset) ?: continue
             AppLog.put("EPUB Footnote click hit: href=$href, x=$x, y=${y - offset}, pageLinks=${page.epubLinkDiagnostics()}")
             if (!href.contains("#")) return null
-            val note = EpubFile.getFootnote(book, href) ?: run {
-                AppLog.put("EPUB Footnote resolve failed: href=$href")
-                return null
-            }
-            val textView = TextView(context).apply {
-                textSize = 16f
-                setTextColor(context.getCompatColor(R.color.primaryText))
-                setPadding(20.dpToPx(), 14.dpToPx(), 20.dpToPx(), 14.dpToPx())
-                setHtml(note.html)
-            }
-            val scrollView = ScrollView(context).apply {
-                addView(textView)
-            }
-            AlertDialog.Builder(context)
-                .setTitle(note.title)
-                .setView(scrollView)
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
+            showEpubFootnote(book, href)
             return true
         }
         val page = relativePage(0)
@@ -387,6 +372,47 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             AppLog.put("EPUB Footnote click miss: x=$x, y=$y, pageLinks=${page.epubLinkDiagnostics()}")
         }
         return null
+    }
+
+    private fun preloadEpubFootnotes(page: TextPage) {
+        val book = ReadBook.book ?: return
+        val links = page.epubFootnoteLinks()
+        if (links.isNotEmpty()) {
+            EpubFile.preloadFootnotes(book, links)
+        }
+    }
+
+    private fun showEpubFootnote(book: Book, href: String) {
+        val textView = TextView(context).apply {
+            textSize = 15f
+            setTextColor(context.getCompatColor(R.color.primaryText))
+            setPadding(20.dpToPx(), 14.dpToPx(), 20.dpToPx(), 14.dpToPx())
+            text = "正在加载注解..."
+        }
+        val scrollView = ScrollView(context).apply {
+            addView(textView)
+            minimumHeight = 96.dpToPx()
+        }
+        val dialog = context.alert {
+            setTitle("注解")
+            customView { scrollView }
+            okButton()
+        }
+        footnoteThread.execute {
+            val note = runCatching {
+                EpubFile.getFootnote(book, href)
+            }.getOrNull()
+            post {
+                if (!dialog.isShowing) return@post
+                if (note == null) {
+                    AppLog.put("EPUB Footnote resolve failed: href=$href")
+                    textView.text = "注解加载失败"
+                } else {
+                    dialog.setTitle(note.title)
+                    textView.setHtml(note.html)
+                }
+            }
+        }
     }
 
     /**
@@ -833,6 +859,11 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         private val renderThread by lazy {
             Executors.newSingleThreadExecutor {
                 Thread(it, "TextPageRender")
+            }
+        }
+        private val footnoteThread by lazy {
+            Executors.newSingleThreadExecutor {
+                Thread(it, "EpubFootnote")
             }
         }
         private val cursorWidth = 24.dpToPx()

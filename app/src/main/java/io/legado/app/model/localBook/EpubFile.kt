@@ -121,6 +121,25 @@ class EpubFile(var book: Book) {
         }
 
         @Synchronized
+        internal fun preloadFootnotes(book: Book, hrefs: Collection<String>) {
+            val noteHrefs = hrefs.asSequence()
+                .filter { it.contains("#") }
+                .distinct()
+                .toList()
+            if (noteHrefs.isEmpty()) return
+            val file = getEFile(book)
+            preloadExecutor.execute {
+                noteHrefs.forEach { href ->
+                    runCatching {
+                        synchronized(file) {
+                            file.getFootnote(href)
+                        }
+                    }
+                }
+            }
+        }
+
+        @Synchronized
         override fun getImage(
             book: Book,
             href: String
