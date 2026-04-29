@@ -123,9 +123,12 @@
         android:id="@+id/composer_container"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="12dp"
-        android:layout_marginBottom="0dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="14dp"
         android:background="@drawable/bg_ai_composer"
+        android:elevation="8dp"
         android:gravity="center_vertical"
         android:minHeight="56dp"
         android:orientation="horizontal"
@@ -164,6 +167,40 @@
             android:scaleType="centerInside"
             android:src="@drawable/ic_arrow_right"
             android:tint="@color/white" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/nav_jump_container"
+        android:layout_width="40dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="92dp"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btn_scroll_prev"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_ai_composer"
+            android:elevation="6dp"
+            android:padding="10dp"
+            android:rotation="180"
+            android:src="@drawable/ic_arrow_drop_down"
+            android:tint="@color/primaryText" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btn_scroll_next"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_ai_composer"
+            android:elevation="6dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_arrow_drop_down"
+            android:tint="@color/primaryText" />
 
     </LinearLayout>
 
