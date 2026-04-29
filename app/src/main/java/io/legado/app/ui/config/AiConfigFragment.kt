@@ -64,8 +64,8 @@ class AiConfigFragment : PreferenceFragment(),
             "aiAddProvider" -> showEditProviderDialog()
             "aiManageProviders" -> showManageProvidersDialog()
             PreferKey.aiCurrentModelId -> showCurrentModelSelector()
-            "aiAddModel" -> showEditModelDialog()
-            "aiFetchModels" -> fetchModelsFromCurrentProvider()
+            "aiAddModel" -> showAddModelOptionsDialog()
+            "aiFetchModels" -> fetchModelsFromCurrentProvider(showSelector = true)
             "aiManageModels" -> showManageModelsDialog()
             "aiAddMcpServer" -> showEditMcpServerDialog()
             "aiManageMcpServers" -> showManageMcpServersDialog()
@@ -281,6 +281,25 @@ class AiConfigFragment : PreferenceFragment(),
         }
     }
 
+    private fun showAddModelOptionsDialog() {
+        if (AppConfig.aiCurrentProvider == null) {
+            toastOnUi(R.string.ai_no_providers)
+            return
+        }
+        context?.selector(
+            getString(R.string.ai_add_model),
+            listOf(
+                getString(R.string.ai_add_model_from_list),
+                getString(R.string.ai_add_model_manual)
+            )
+        ) { _, _, index ->
+            when (index) {
+                0 -> fetchModelsFromCurrentProvider(showSelector = true)
+                1 -> showEditModelDialog()
+            }
+        }
+    }
+
     private fun showManageModelsDialog() {
         if (AppConfig.aiCurrentProvider == null) {
             toastOnUi(R.string.ai_no_providers)
@@ -317,7 +336,7 @@ class AiConfigFragment : PreferenceFragment(),
         }
     }
 
-    private fun fetchModelsFromCurrentProvider() {
+    private fun fetchModelsFromCurrentProvider(showSelector: Boolean = false) {
         val provider = AppConfig.aiCurrentProvider
         if (provider == null) {
             toastOnUi(R.string.ai_no_providers)
@@ -333,28 +352,64 @@ class AiConfigFragment : PreferenceFragment(),
                     toastOnUi(R.string.ai_fetch_models_empty)
                     return@onSuccess
                 }
-                val oldModels = AppConfig.aiModelConfigList
-                val existingIds = oldModels
-                    .filter { it.providerId == provider.id }
-                    .map { it.modelId }
-                    .toSet()
-                val newModels = modelIds
-                    .filterNot { it in existingIds }
-                    .map { AiModelConfig(providerId = provider.id, modelId = it) }
-                if (newModels.isEmpty()) {
-                    toastOnUi(R.string.ai_fetch_models_no_new)
-                    return@onSuccess
+                if (showSelector) {
+                    showFetchedModelSelector(provider.id, modelIds)
+                } else {
+                    appendFetchedModels(provider.id, modelIds)
                 }
-                AppConfig.aiModelConfigList = oldModels + newModels
-                if (AppConfig.aiCurrentProviderId == provider.id && AppConfig.aiCurrentModelId.isNullOrBlank()) {
-                    AppConfig.aiCurrentModelId = newModels.first().id
-                }
-                refreshUi()
-                toastOnUi(getString(R.string.ai_fetch_models_success, newModels.size))
             }.onFailure {
                 toastOnUi(getString(R.string.ai_fetch_models_failed, it.localizedMessage ?: "Error"))
             }
         }
+    }
+
+    private fun showFetchedModelSelector(providerId: String, modelIds: List<String>) {
+        val items = buildList {
+            add(getString(R.string.ai_add_all_models))
+            addAll(modelIds)
+        }
+        context?.selector(
+            getString(R.string.ai_add_model_from_list),
+            items
+        ) { _, _, index ->
+            if (index == 0) {
+                appendFetchedModels(providerId, modelIds)
+            } else {
+                val selectedModelId = items[index]
+                val existing = AppConfig.aiModelConfigList.firstOrNull {
+                    it.providerId == providerId && it.modelId == selectedModelId
+                }
+                if (existing != null) {
+                    AppConfig.aiCurrentModelId = existing.id
+                    refreshUi()
+                    toastOnUi(R.string.ai_model_saved)
+                } else {
+                    appendFetchedModels(providerId, listOf(selectedModelId))
+                }
+            }
+        }
+    }
+
+    private fun appendFetchedModels(providerId: String, modelIds: List<String>) {
+        val oldModels = AppConfig.aiModelConfigList
+        val existingIds = oldModels
+            .filter { it.providerId == providerId }
+            .map { it.modelId }
+            .toSet()
+        val newModels = modelIds
+            .distinct()
+            .filterNot { it in existingIds }
+            .map { AiModelConfig(providerId = providerId, modelId = it) }
+        if (newModels.isEmpty()) {
+            toastOnUi(R.string.ai_fetch_models_no_new)
+            return
+        }
+        AppConfig.aiModelConfigList = oldModels + newModels
+        if (AppConfig.aiCurrentProviderId == providerId && AppConfig.aiCurrentModelId.isNullOrBlank()) {
+            AppConfig.aiCurrentModelId = newModels.first().id
+        }
+        refreshUi()
+        toastOnUi(getString(R.string.ai_fetch_models_success, newModels.size))
     }
 
     private fun confirmRemoveModel(model: AiModelConfig) {
@@ -711,6 +766,10 @@ class AiConfigFragment : PreferenceFragment(),
             } else {
                 getString(R.string.ai_manage_models_summary, providerModels.size)
             }
+        findPreference<Preference>("aiAddModel")?.summary =
+            getString(R.string.ai_add_model_summary_modern)
+        findPreference<Preference>("aiFetchModels")?.summary =
+            getString(R.string.ai_fetch_models_summary_modern)
         findPreference<Preference>("aiManageMcpServers")?.summary =
             if (mcpServers.isEmpty()) {
                 getString(R.string.ai_no_mcp_servers)

@@ -62,7 +62,8 @@ data class TextPage(
 
     data class NativeTextSelection(
         val text: String,
-        val rect: RectF
+        val rect: RectF,
+        val expandedText: String? = null
     )
 
     companion object {
@@ -469,41 +470,7 @@ data class TextPage(
         val targetRun = runs.firstOrNull { run ->
             RectF(run.x, run.y, run.x + run.width, run.y + run.height).contains(localX, localY)
         } ?: return null
-        val baselineThreshold = max(targetRun.size, 1f) * 0.55f
-        val lineRuns = runs.filter { run ->
-            abs(run.baseline - targetRun.baseline) <= baselineThreshold &&
-                abs(run.y - targetRun.y) <= max(targetRun.height, run.height) * 0.35f
-        }.sortedBy { it.x }
-        if (lineRuns.isEmpty()) return null
-        val text = buildString {
-            var previous: EpubTextRun? = null
-            lineRuns.forEach { run ->
-                val prev = previous
-                if (prev != null && shouldInsertSpace(prev, run)) {
-                    append(' ')
-                }
-                append(run.text)
-                previous = run
-            }
-        }.trim()
-        if (text.isBlank()) return null
-        var left = Float.MAX_VALUE
-        var top = Float.MAX_VALUE
-        var right = Float.MIN_VALUE
-        var bottom = Float.MIN_VALUE
-        lineRuns.forEach { run ->
-            left = min(left, run.x - run.backgroundPaddingLeft)
-            top = min(top, run.y - run.backgroundPaddingTop)
-            right = max(right, run.x + run.width + run.backgroundPaddingRight)
-            bottom = max(bottom, run.y + run.height + run.backgroundPaddingBottom)
-        }
-        if (!left.isFinite() || !top.isFinite() || !right.isFinite() || !bottom.isFinite()) {
-            return null
-        }
-        return NativeTextSelection(
-            text = text,
-            rect = RectF(left, top, right, bottom)
-        )
+        return resolveCharSelection(targetRun, localX)
     }
 
     private fun shouldInsertSpace(previous: EpubTextRun, current: EpubTextRun): Boolean {
@@ -513,6 +480,36 @@ data class TextPage(
         if (!prevLast.isLetterOrDigit() || !currFirst.isLetterOrDigit()) return false
         val gap = current.x - (previous.x + previous.width)
         return gap > max(previous.size, current.size) * 0.18f
+    }
+
+    private fun resolveCharSelection(targetRun: EpubTextRun, localX: Float): NativeTextSelection? {
+        val rawText = targetRun.text
+        if (rawText.isBlank()) return null
+        val startOffset = rawText.indexOfFirst { !it.isWhitespace() }.takeIf { it >= 0 } ?: return null
+        val endOffset = rawText.indexOfLast { !it.isWhitespace() }.takeIf { it >= startOffset } ?: return null
+        val cleanText = rawText.substring(startOffset, endOffset + 1)
+        if (cleanText.isEmpty()) return null
+        val targetX = (localX - targetRun.x).coerceIn(0f, targetRun.width)
+        val charWidth = targetRun.width / cleanText.length.coerceAtLeast(1)
+        val relativeIndex = if (charWidth > 0f) {
+            (targetX / charWidth).toInt().coerceIn(0, cleanText.lastIndex)
+        } else {
+            0
+        }
+        val tappedChar = cleanText.getOrNull(relativeIndex)?.toString()?.takeIf { it.isNotBlank() }
+            ?: cleanText
+        val left = targetRun.x + relativeIndex * charWidth - targetRun.backgroundPaddingLeft
+        val right = targetRun.x + (relativeIndex + 1) * charWidth + targetRun.backgroundPaddingRight
+        val top = targetRun.y - targetRun.backgroundPaddingTop
+        val bottom = targetRun.y + targetRun.height + targetRun.backgroundPaddingBottom
+        if (!left.isFinite() || !top.isFinite() || !right.isFinite() || !bottom.isFinite()) {
+            return null
+        }
+        return NativeTextSelection(
+            text = tappedChar,
+            rect = RectF(left, top, right, bottom),
+            expandedText = cleanText
+        )
     }
 
     fun draw(view: ContentTextView, canvas: Canvas, relativeOffset: Float) {

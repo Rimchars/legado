@@ -37,7 +37,7 @@
             android:id="@+id/detail_tabs"
             android:layout_width="match_parent"
             android:layout_height="38dp"
-            android:background="@drawable/bg_bookshelf_tag_track"
+            android:background="@android:color/transparent"
             android:gravity="center"
             android:orientation="horizontal"
             android:padding="3dp">

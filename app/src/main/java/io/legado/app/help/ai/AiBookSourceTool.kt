@@ -98,7 +98,17 @@ object AiBookSourceTool {
                     put("type", "object")
                     put("properties", JSONObject().apply {
                         put("bookSourceUrl", stringProp("本地已保存书源的唯一 URL。"))
+                        put("bookSourceUrls", JSONObject().apply {
+                            put("type", "array")
+                            put("description", "批量读取时传多个书源 URL。")
+                            put("items", JSONObject().apply { put("type", "string") })
+                        })
                         put("searchKey", stringProp("搜索关键词，可匹配书源名、分组、URL、注释。"))
+                        put("searchKeys", JSONObject().apply {
+                            put("type", "array")
+                            put("description", "批量搜索时传多个关键词。")
+                            put("items", JSONObject().apply { put("type", "string") })
+                        })
                         put("limit", JSONObject().apply {
                             put("type", "integer")
                             put("description", "搜索返回数量，默认 10，最大 30。")
@@ -230,20 +240,46 @@ object AiBookSourceTool {
     }
 
     private fun getBookSource(args: JSONObject?): String {
-        val sourceUrl = args?.optString("bookSourceUrl").orEmpty().trim()
-        if (sourceUrl.isNotBlank()) {
-            val source = appDb.bookSourceDao.getBookSource(sourceUrl)
-                ?: return error("未找到书源: $sourceUrl")
+        val sourceUrls = linkedSetOf<String>().apply {
+            args?.optString("bookSourceUrl").orEmpty().trim().takeIf { it.isNotBlank() }?.let(::add)
+            args?.optJSONArray("bookSourceUrls")?.let { array ->
+                for (index in 0 until array.length()) {
+                    array.optString(index)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }
+        if (sourceUrls.isNotEmpty()) {
+            val sources = sourceUrls.mapNotNull { appDb.bookSourceDao.getBookSource(it) }
+            if (sources.isEmpty()) return error("未找到指定书源")
             return ok().apply {
-                put("source", JSONObject(GSON.toJson(source)))
+                if (sources.size == 1) {
+                    put("source", JSONObject(GSON.toJson(sources.first())))
+                }
+                put("sources", JSONArray().apply {
+                    sources.forEach { put(JSONObject(GSON.toJson(it))) }
+                })
             }.toString()
         }
-        val searchKey = args?.optString("searchKey").orEmpty().trim()
-        if (searchKey.isBlank()) {
+        val searchKeys = linkedSetOf<String>().apply {
+            args?.optString("searchKey").orEmpty().trim().takeIf { it.isNotBlank() }?.let(::add)
+            args?.optJSONArray("searchKeys")?.let { array ->
+                for (index in 0 until array.length()) {
+                    array.optString(index)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }
+        if (searchKeys.isEmpty()) {
             return error("缺少 bookSourceUrl 或 searchKey")
         }
         val limit = (args?.optInt("limit", 10) ?: 10).coerceIn(1, 30)
-        val sources = appDb.bookSourceDao.search(searchKey).take(limit)
+        val sources = appDb.bookSourceDao.all.filter { source ->
+            searchKeys.any { key ->
+                source.bookSourceName.contains(key, ignoreCase = true) ||
+                    source.bookSourceUrl.contains(key, ignoreCase = true) ||
+                    source.bookSourceGroup.orEmpty().contains(key, ignoreCase = true) ||
+                    source.bookSourceComment.orEmpty().contains(key, ignoreCase = true)
+            }
+        }.take(limit)
         return ok().apply {
             put("count", sources.size)
             put("sources", JSONArray().apply {

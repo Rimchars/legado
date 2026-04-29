@@ -126,9 +126,19 @@ object AiBookshelfTool {
                                         put("type", "string")
                                         put("description", "书籍详情页 URL，本地书则是本地路径。优先使用这个字段精确匹配。")
                                     })
+                                    put("bookUrls", JSONObject().apply {
+                                        put("type", "array")
+                                        put("description", "批量查询时传多个书籍 URL。")
+                                        put("items", JSONObject().apply { put("type", "string") })
+                                    })
                                     put("name", JSONObject().apply {
                                         put("type", "string")
                                         put("description", "书名。没有 URL 时使用。")
+                                    })
+                                    put("names", JSONObject().apply {
+                                        put("type", "array")
+                                        put("description", "批量查询时传多个书名。")
+                                        put("items", JSONObject().apply { put("type", "string") })
                                     })
                                     put("author", JSONObject().apply {
                                         put("type", "string")
@@ -263,6 +273,11 @@ object AiBookshelfTool {
                                         put("type", "string")
                                         put("description", "书籍 URL，优先用于精确定位。")
                                     })
+                                    put("bookUrls", JSONObject().apply {
+                                        put("type", "array")
+                                        put("description", "批量操作时指定多个书籍 URL。")
+                                        put("items", JSONObject().apply { put("type", "string") })
+                                    })
                                     put("name", JSONObject().apply {
                                         put("type", "string")
                                         put("description", "书名。没有 URL 时使用。")
@@ -309,6 +324,11 @@ object AiBookshelfTool {
                                     put("bookUrl", JSONObject().apply {
                                         put("type", "string")
                                         put("description", "书籍 URL，优先用于精确定位。")
+                                    })
+                                    put("bookUrls", JSONObject().apply {
+                                        put("type", "array")
+                                        put("description", "批量操作时指定多个书籍 URL。")
+                                        put("items", JSONObject().apply { put("type", "string") })
                                     })
                                     put("name", JSONObject().apply {
                                         put("type", "string")
@@ -387,20 +407,26 @@ object AiBookshelfTool {
     }
 
     private fun getBookInfo(arguments: JSONObject?): String {
-        val book = resolveBook(arguments)
+        val books = resolveBooks(arguments, appDb.bookDao.all)
+        val book = books.singleOrNull() ?: resolveBook(arguments)
         return JSONObject().apply {
-            put("ok", book != null)
-            if (book == null) {
+            put("ok", book != null || books.isNotEmpty())
+            if (book == null && books.isEmpty()) {
                 put("error", "未找到书籍")
             } else {
-                put("book", detailedBookToJson(book))
+                book?.let { put("book", detailedBookToJson(it)) }
+                put("books", JSONArray().apply {
+                    (if (books.isNotEmpty()) books else listOfNotNull(book)).forEach {
+                        put(detailedBookToJson(it))
+                    }
+                })
             }
         }.toString()
     }
 
     private fun setBookGroup(arguments: JSONObject?): String {
-        val book = resolveBook(arguments)
-        if (book == null) {
+        val targets = resolveBooks(arguments, appDb.bookDao.all)
+        if (targets.isEmpty()) {
             return JSONObject().apply {
                 put("ok", false)
                 put("error", "未找到书籍")
@@ -419,22 +445,28 @@ object AiBookshelfTool {
                 put("error", "分组数量已达上限，无法创建新分组")
             }.toString()
         val mode = arguments?.optString("mode")?.trim().orEmpty().ifBlank { "add" }
-        val oldGroup = book.group
-        book.group = when (mode) {
-            "replace" -> group.groupId
-            "remove" -> book.group and group.groupId.inv()
-            else -> book.group or group.groupId
+        val updatedBooks = JSONArray()
+        targets.forEach { book ->
+            val oldGroup = book.group
+            book.group = when (mode) {
+                "replace" -> group.groupId
+                "remove" -> book.group and group.groupId.inv()
+                else -> book.group or group.groupId
+            }
+            appDb.bookDao.update(book)
+            updatedBooks.put(JSONObject().apply {
+                put("bookUrl", book.bookUrl)
+                put("bookName", book.name)
+                put("oldGroup", oldGroup)
+                put("newGroup", book.group)
+            })
         }
-        appDb.bookDao.update(book)
         postEvent(EventBus.BOOKSHELF_REFRESH, "")
         return JSONObject().apply {
             put("ok", true)
             put("mode", mode)
-            put("bookUrl", book.bookUrl)
-            put("bookName", book.name)
             put("groupName", group.groupName)
-            put("oldGroup", oldGroup)
-            put("newGroup", book.group)
+            put("updatedBooks", updatedBooks)
         }.toString()
     }
 
@@ -565,8 +597,8 @@ object AiBookshelfTool {
     }
 
     private fun setBookTags(arguments: JSONObject?): String {
-        val book = resolveBook(arguments)
-        if (book == null) {
+        val targets = resolveBooks(arguments, appDb.bookDao.all)
+        if (targets.isEmpty()) {
             return JSONObject().apply {
                 put("ok", false)
                 put("error", "未找到书籍")
@@ -585,23 +617,29 @@ object AiBookshelfTool {
                 put("error", "tags 不能为空")
             }.toString()
         }
-        val oldTags = BookTagHelper.parse(book.customTag)
         val mode = arguments?.optString("mode")?.trim().orEmpty().ifBlank { "add" }
-        val newTags = when (mode) {
-            "replace" -> tags
-            "remove" -> oldTags.filterNot { old -> tags.any { it.equals(old, ignoreCase = true) } }
-            else -> (oldTags + tags).distinctBy { it.lowercase(Locale.getDefault()) }
+        val updatedBooks = JSONArray()
+        targets.forEach { book ->
+            val oldTags = BookTagHelper.parse(book.customTag)
+            val newTags = when (mode) {
+                "replace" -> tags
+                "remove" -> oldTags.filterNot { old -> tags.any { it.equals(old, ignoreCase = true) } }
+                else -> (oldTags + tags).distinctBy { it.lowercase(Locale.getDefault()) }
+            }
+            book.customTag = BookTagHelper.join(newTags)
+            appDb.bookDao.update(book)
+            updatedBooks.put(JSONObject().apply {
+                put("bookUrl", book.bookUrl)
+                put("bookName", book.name)
+                put("oldTags", JSONArray(oldTags))
+                put("newTags", JSONArray(newTags))
+            })
         }
-        book.customTag = BookTagHelper.join(newTags)
-        appDb.bookDao.update(book)
         postEvent(EventBus.BOOKSHELF_REFRESH, "")
         return JSONObject().apply {
             put("ok", true)
             put("mode", mode)
-            put("bookUrl", book.bookUrl)
-            put("bookName", book.name)
-            put("oldTags", JSONArray(oldTags))
-            put("newTags", JSONArray(newTags))
+            put("updatedBooks", updatedBooks)
         }.toString()
     }
 
@@ -633,6 +671,17 @@ object AiBookshelfTool {
         if (urls.isNotEmpty()) {
             val urlSet = urls.toSet()
             return scopedBooks.filter { it.bookUrl in urlSet }
+        }
+        val names = mutableListOf<String>()
+        arguments?.optJSONArray("names")?.let { array ->
+            for (index in 0 until array.length()) {
+                array.optString(index).trim().takeIf { it.isNotBlank() }?.let(names::add)
+            }
+        }
+        if (names.isNotEmpty()) {
+            return names.flatMap { name ->
+                findMatchedBooks(name, scopedBooks)
+            }.distinctBy { it.bookUrl }
         }
         return resolveBook(arguments)?.takeIf { book -> scopedBooks.any { it.bookUrl == book.bookUrl } }
             ?.let(::listOf)

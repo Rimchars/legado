@@ -347,14 +347,22 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 bottomNavigationGlassView.visibility = android.view.View.GONE
                 bottomNavigationIndicatorGlassView.visibility = android.view.View.GONE
                 searchButtonGlassView.visibility = android.view.View.GONE
-                bottomNavigationShellOverlay.isVisible = false
-                searchButtonShellOverlay.isVisible = false
+                bottomNavigationShellOverlay.isVisible = true
+                searchButtonShellOverlay.isVisible = true
                 bottomNavigationIndicatorContainer.isVisible = true
                 bottomNavigationIndicatorContainer.alpha = 1f
                 bottomNavigationIndicatorContainer.scaleX = 1f
                 bottomNavigationIndicatorContainer.scaleY = 1f
-                bottomNavigationView.setBackgroundColor(bottomBackground)
-                searchButton.background = createSolidBottomControlDrawable(searchButtonCornerRadius)
+                bottomNavigationShellOverlay.background = createSolidBottomShellDrawable(
+                    cornerRadius = bottomBarCornerRadius,
+                    oval = false
+                )
+                searchButtonShellOverlay.background = createSolidBottomShellDrawable(
+                    cornerRadius = searchButtonCornerRadius,
+                    oval = true
+                )
+                bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
+                searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
                 bottomNavigationIndicatorOverlay.background = createSolidBottomIndicatorDrawable()
                 updateBottomNavigationIndicator(animate = false)
                 return
@@ -461,15 +469,17 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
     }
 
-    private fun createSolidBottomControlDrawable(cornerRadius: Float): GradientDrawable {
+    private fun createSolidBottomShellDrawable(cornerRadius: Float, oval: Boolean): GradientDrawable {
         val baseColor = bottomBackground
         val strokeColor = AppColorUtils.withAlpha(
             if (AppColorUtils.isColorLight(baseColor)) Color.BLACK else Color.WHITE,
             0.10f
         )
         return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            this.cornerRadius = cornerRadius
+            shape = if (oval) GradientDrawable.OVAL else GradientDrawable.RECTANGLE
+            if (!oval) {
+                this.cornerRadius = cornerRadius
+            }
             setColor(baseColor)
             setStroke(1.dpToPx(), strokeColor)
         }
