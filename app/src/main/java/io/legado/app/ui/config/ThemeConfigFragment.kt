@@ -99,8 +99,11 @@ class ThemeConfigFragment : PreferenceFragment(),
         upPreferenceSummary(PreferKey.bookInfoBgImage, getPrefString(PreferKey.bookInfoBgImage))
         upPreferenceSummary(PreferKey.bookInfoBgImageN, getPrefString(PreferKey.bookInfoBgImageN))
         upPreferenceSummary(PreferKey.barElevation, AppConfig.elevation.toString())
+        upPreferenceSummary(PreferKey.bottomBarEffectMode, AppConfig.bottomBarEffectMode)
+        upPreferenceSummary(PreferKey.liquidGlassLevel, AppConfig.liquidGlassLevel.toString())
         upPreferenceSummary(PreferKey.frostedGlassLevel, AppConfig.frostedGlassLevel.toString())
         upPreferenceSummary(PreferKey.fontScale)
+        updateBottomBarEffectPreferences()
         findPreference<ColorPreference>(PreferKey.cBackground)?.let {
             it.onSaveColor = { color ->
                 if (!ColorUtils.isColorLight(color)) {
@@ -186,6 +189,12 @@ class ThemeConfigFragment : PreferenceFragment(),
             PreferKey.bookInfoBgImageN -> {
                 upPreferenceSummary(key, getPrefString(key))
             }
+
+            PreferKey.bottomBarEffectMode -> {
+                upPreferenceSummary(key, getPrefString(key))
+                updateBottomBarEffectPreferences()
+                recreateActivities()
+            }
         }
 
     }
@@ -204,6 +213,22 @@ class ThemeConfigFragment : PreferenceFragment(),
                 }
                 .show {
                     AppConfig.elevation = it
+                    recreateActivities()
+                }
+
+            PreferKey.liquidGlassLevel -> NumberPickerDialog(requireContext())
+                .setTitle(getString(R.string.liquid_glass_level))
+                .setMaxValue(100)
+                .setMinValue(0)
+                .setValue(AppConfig.liquidGlassLevel)
+                .setCustomButton(R.string.btn_default_s) {
+                    AppConfig.liquidGlassLevel = 68
+                    upPreferenceSummary(PreferKey.liquidGlassLevel, AppConfig.liquidGlassLevel.toString())
+                    recreateActivities()
+                }
+                .show {
+                    AppConfig.liquidGlassLevel = it
+                    upPreferenceSummary(PreferKey.liquidGlassLevel, it.toString())
                     recreateActivities()
                 }
 
@@ -384,6 +409,23 @@ class ThemeConfigFragment : PreferenceFragment(),
             PreferKey.barElevation -> preference.summary =
                 getString(R.string.bar_elevation_s, value)
 
+            PreferKey.bottomBarEffectMode -> {
+                val modeValue = value ?: AppConfig.bottomBarEffectMode
+                val labels = resources.getStringArray(R.array.bottom_bar_effect_mode_entries)
+                val values = resources.getStringArray(R.array.bottom_bar_effect_mode_values)
+                val selectedLabel = values.indexOf(modeValue)
+                    .takeIf { it >= 0 }
+                    ?.let { labels.getOrNull(it) }
+                    ?: modeValue
+                preference.summary = getString(R.string.bottom_bar_effect_mode_summary, selectedLabel)
+            }
+
+            PreferKey.liquidGlassLevel -> preference.summary =
+                getString(
+                    R.string.liquid_glass_level_summary,
+                    value ?: AppConfig.liquidGlassLevel.toString()
+                )
+
             PreferKey.frostedGlassLevel -> preference.summary =
                 getString(R.string.frosted_glass_level_summary, value ?: AppConfig.frostedGlassLevel.toString())
 
@@ -403,6 +445,12 @@ class ThemeConfigFragment : PreferenceFragment(),
 
             else -> preference.summary = value
         }
+    }
+
+    private fun updateBottomBarEffectPreferences() {
+        val mode = AppConfig.bottomBarEffectMode
+        findPreference<Preference>(PreferKey.liquidGlassLevel)?.isVisible = mode == "glass"
+        findPreference<Preference>(PreferKey.frostedGlassLevel)?.isVisible = mode == "frosted"
     }
 
     private fun setBgFromUri(uri: Uri, preferenceKey: String, success: () -> Unit) {

@@ -808,6 +808,10 @@
     <string name="view_toc">View Chapters</string>
     <string name="bar_elevation">Navigation bar shadow</string>
     <string name="bar_elevation_s">Current shadow size(elevation): %s</string>
+    <string name="bottom_bar_effect_mode">Bottom bar style</string>
+    <string name="bottom_bar_effect_mode_summary">Current style: %s</string>
+    <string name="liquid_glass_level">Liquid glass level</string>
+    <string name="liquid_glass_level_summary">Current level: %s. Higher means stronger refraction and liquid distortion.</string>
     <string name="frosted_glass_level">Frosted glass level</string>
     <string name="frosted_glass_level_summary">Current level: %s. Higher means stronger blur and frost on glass bars.</string>
     <string name="btn_default_s">Default</string>

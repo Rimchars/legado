@@ -693,6 +693,10 @@
     <string name="view_toc">查看目录</string>
     <string name="bar_elevation">导航栏阴影</string>
     <string name="bar_elevation_s">当前阴影大小（elevation）：%s</string>
+    <string name="bottom_bar_effect_mode">底栏样式</string>
+    <string name="bottom_bar_effect_mode_summary">当前样式：%s</string>
+    <string name="liquid_glass_level">毛玻璃程度</string>
+    <string name="liquid_glass_level_summary">当前程度：%s。数值越高，折射和流体质感越强。</string>
     <string name="frosted_glass_level">毛玻璃程度</string>
     <string name="frosted_glass_level_summary">当前强度：%s。数值越高，底部玻璃栏的磨砂和模糊质感越强。</string>
     <string name="btn_default_s">默认</string>

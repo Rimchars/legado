@@ -106,6 +106,8 @@ object PreferKey {
     const val adaptSpecialStyle = "adaptSpecialStyle"
     const val autoReadSpeed = "autoReadSpeed"
     const val barElevation = "barElevation"
+    const val bottomBarEffectMode = "bottomBarEffectMode"
+    const val liquidGlassLevel = "liquidGlassLevel"
     const val frostedGlassLevel = "frostedGlassLevel"
     const val transparentStatusBar = "transparentStatusBar"
     const val mainTransparentStatusBar = "mainTransparentStatusBar"
