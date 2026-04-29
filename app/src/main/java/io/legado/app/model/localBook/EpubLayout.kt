@@ -16,9 +16,9 @@ internal data class EpubLayoutPage(
     val snapshotId: Int
 ) : Serializable
 
-internal sealed class EpubDrawCommand {
+internal sealed class EpubDrawCommand : Serializable {
     abstract val sourcePath: String
-} : Serializable
+}
 
 internal data class EpubPageColor(
     val color: Int,
