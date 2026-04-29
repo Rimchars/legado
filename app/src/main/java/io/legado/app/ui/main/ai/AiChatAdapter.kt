@@ -448,14 +448,15 @@ class AiChatAdapter(
             binding.tvMessage.background = createBubble(bubbleColor, strokeColor, isUser = false)
             binding.tvMessage.setTextColor(context.primaryTextColor)
             binding.tvMessage.alpha = if (message.pending) 0.76f else 1f
-            binding.tvMessage.isVisible = parsed.content.isNotBlank()
             binding.tvMessage.setOnLongClickListener(null)
             if (message.pending) {
+                binding.tvMessage.isVisible = true
                 binding.tvMessage.setTextIsSelectable(false)
                 binding.tvMessage.movementMethod = null
                 binding.tvMessage.linksClickable = false
-                binding.tvMessage.text = parsed.content.ifBlank { " " }
+                binding.tvMessage.text = parsed.content.ifBlank { "..." }
             } else {
+                binding.tvMessage.isVisible = parsed.content.isNotBlank()
                 binding.tvMessage.setTextIsSelectable(true)
                 binding.tvMessage.linksClickable = true
                 markwon.setMarkdown(binding.tvMessage, parsed.content.ifBlank { " " })

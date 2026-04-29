@@ -1,11 +1,20 @@
 package io.legado.app.ui.main.rss
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.SubMenu
 import android.view.View
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SearchView
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
+import androidx.fragment.app.commit
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -16,28 +25,28 @@ import io.legado.app.data.AppDatabase
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.RssSource
 import io.legado.app.databinding.FragmentRssBinding
-import io.legado.app.databinding.ItemRssBinding
+import io.legado.app.help.source.sortUrls
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
-import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
+import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.main.MainFragmentInterface
 import io.legado.app.ui.rss.article.ReadRecordDialog
-import io.legado.app.ui.rss.article.RssSortActivity
+import io.legado.app.ui.rss.article.RssArticlesFragment
+import io.legado.app.ui.rss.article.RssSortViewModel
 import io.legado.app.ui.rss.favorites.RssFavoritesActivity
-import io.legado.app.ui.rss.read.ReadRssActivity
-import io.legado.app.ui.rss.source.edit.RssSourceEditActivity
 import io.legado.app.ui.rss.source.manage.RssSourceActivity
-import io.legado.app.ui.rss.subscription.RuleSubActivity
-import io.legado.app.utils.applyTint
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.applyStatusBarPadding
+import io.legado.app.utils.applyTint
+import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
+import io.legado.app.utils.gone
 import io.legado.app.utils.openUrl
-import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.transaction
+import io.legado.app.utils.visible
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
@@ -45,13 +54,11 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
-import io.legado.app.ui.login.SourceLoginActivity
 
 /**
  * 订阅界面
  */
-class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainFragmentInterface,
-    RssAdapter.CallBack {
+class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainFragmentInterface {
 
     constructor(position: Int) : this() {
         val bundle = Bundle()
@@ -63,28 +70,29 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     private val binding by viewBinding(FragmentRssBinding::bind)
     override val viewModel by viewModels<RssViewModel>()
-    private val adapter by lazy {
-        RssAdapter(requireContext(), this, this, viewLifecycleOwner.lifecycle)
-    }
+    private val sortHostViewModel by viewModels<RssSortViewModel>()
     private val searchView: SearchView by lazy {
         binding.titleBar.findViewById(R.id.search_view)
     }
+
     private var groupsFlowJob: Job? = null
     private var rssFlowJob: Job? = null
     private val groups = linkedSetOf<String>()
     private var groupsMenu: SubMenu? = null
+    private var rssWebView: WebView? = null
+    private var selectedRssSource: RssSource? = null
+    private val rssSources = mutableListOf<RssSource>()
+    private val currentSorts = mutableListOf<Pair<String, String>>()
+    private var selectedTagIndex = 0
+    private var currentSearchKey: String? = null
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
         binding.titleBar.applyStatusBarPadding(withInitialPadding = true)
         initSearchView()
-        initRecyclerView()
         initGroupData()
-        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
-        binding.swipeRefreshLayout.setOnRefreshListener {
-            upRssFlowJob(searchView.query?.toString())
-        }
-        upRssFlowJob()
+        initModernRssView()
+        observeRssSources()
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu) {
@@ -110,6 +118,17 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         searchView.clearFocus()
     }
 
+    override fun onDestroyView() {
+        rssWebView?.let { webView ->
+            binding.rssWebContainer.removeView(webView)
+            webView.stopLoading()
+            webView.loadUrl("about:blank")
+            webView.destroy()
+        }
+        rssWebView = null
+        super.onDestroyView()
+    }
+
     private fun upGroupsMenu() = groupsMenu?.transaction { subMenu ->
         subMenu.removeGroup(R.id.menu_group_text)
         groups.forEach {
@@ -122,31 +141,52 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         searchView.isSubmitButtonEnabled = true
         searchView.queryHint = getString(R.string.rss)
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                return false
-            }
+            override fun onQueryTextSubmit(query: String?): Boolean = false
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                upRssFlowJob(newText)
+                observeRssSources(newText)
                 return false
             }
         })
     }
 
-    private fun initRecyclerView() {
-        binding.recyclerView.setEdgeEffectColor(primaryColor)
-        binding.recyclerView.clipToPadding = false
-        binding.recyclerView.applyMainBottomBarPadding()
-        binding.recyclerView.adapter = adapter
-        adapter.addHeaderView {
-            ItemRssBinding.inflate(layoutInflater, it, false).apply {
-                tvName.setText(R.string.rule_subscription)
-                ivIcon.setImageResource(R.drawable.image_legado)
-                root.setOnClickListener {
-                    startActivity<RuleSubActivity>()
-                }
-            }
+    private fun initModernRssView() {
+        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            refreshCurrentRssContent()
         }
+        val refreshAnchorListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateRefreshIndicatorOffset()
+        }
+        binding.llRssSourceRow.addOnLayoutChangeListener(refreshAnchorListener)
+        binding.rvRssTags.addOnLayoutChangeListener(refreshAnchorListener)
+        binding.titleBar.addOnLayoutChangeListener(refreshAnchorListener)
+        binding.flRssContent.applyMainBottomBarPadding(withInitialPadding = true)
+        binding.llRssSourceSelect.setOnClickListener {
+            showSourceSelector()
+        }
+        binding.btnRssSourceLogin.setOnClickListener {
+            selectedRssSource?.let(::login)
+        }
+        binding.rvRssTags.setOnTagClickListener { index ->
+            if (index == selectedTagIndex) return@setOnTagClickListener
+            selectedTagIndex = index
+            binding.rvRssTags.setSelectedIndex(index)
+            renderCurrentSort()
+        }
+    }
+
+    private fun updateRefreshIndicatorOffset() {
+        val swipePos = IntArray(2)
+        binding.swipeRefreshLayout.getLocationInWindow(swipePos)
+        val anchorView = if (binding.rvRssTags.isVisible) binding.rvRssTags else binding.llRssSourceRow
+        val anchorPos = IntArray(2)
+        anchorView.getLocationInWindow(anchorPos)
+        val start = (anchorPos[1] - swipePos[1]).coerceAtLeast(0)
+        val end = (anchorPos[1] - swipePos[1] + anchorView.height + 8.dpToPx())
+            .coerceAtLeast(56.dpToPx())
+        binding.swipeRefreshLayout.setProgressViewOffset(false, start, end)
     }
 
     private fun initGroupData() {
@@ -166,7 +206,8 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         }
     }
 
-    private fun upRssFlowJob(searchKey: String? = null) {
+    private fun observeRssSources(searchKey: String? = currentSearchKey) {
+        currentSearchKey = searchKey
         rssFlowJob?.cancel()
         rssFlowJob = viewLifecycleOwner.lifecycleScope.launch {
             when {
@@ -183,74 +224,194 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 AppDatabase.RSS_SOURCE_TABLE_NAME
             ).catch {
                 AppLog.put("订阅界面更新数据出错", it)
-            }.flowOn(IO).collect {
+            }.flowOn(IO).collect { sources ->
                 binding.swipeRefreshLayout.isRefreshing = false
-                adapter.setItems(it)
-                binding.tvEmptyMsg.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE
+                rssSources.clear()
+                rssSources.addAll(sources)
+                val keep = selectedRssSource?.sourceUrl?.let { key ->
+                    sources.firstOrNull { it.sourceUrl == key }
+                }
+                when {
+                    keep != null -> selectSource(keep, reload = false)
+                    sources.isNotEmpty() -> selectSource(sources.first(), reload = true)
+                    else -> renderEmptyState()
+                }
             }
         }
     }
 
-    override fun openRss(rssSource: RssSource) {
-        if (rssSource.singleUrl) {
-            viewModel.getSingleUrl(rssSource) { url ->
-                if (url.startsWith("http", true)) {
-                    ReadRssActivity.start(
-                        requireContext(),
-                        true,
-                        rssSource.sourceUrl,
-                        rssSource.sourceName,
-                        url
-                    )
-                } else {
-                    context?.openUrl(url)
-                }
+    private fun selectSource(source: RssSource, reload: Boolean) {
+        val changed = selectedRssSource?.sourceUrl != source.sourceUrl
+        selectedRssSource = source
+        binding.tvRssSourceSelect.text = source.sourceName
+        binding.btnRssSourceLogin.isVisible = !source.loginUrl.isNullOrBlank()
+        if (changed) {
+            selectedTagIndex = 0
+        }
+        if (changed || reload) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                presentSource(source)
             }
+        }
+    }
+
+    private suspend fun presentSource(source: RssSource) {
+        binding.pbRssLoading.visible()
+        binding.tvEmptyMsg.gone()
+        sortHostViewModel.url = source.sourceUrl
+        sortHostViewModel.rssSource = source
+        sortHostViewModel.sourceName = source.sourceName
+        sortHostViewModel.searchKey = null
+
+        if (source.ruleArticles.isNullOrBlank()) {
+            currentSorts.clear()
+            binding.rvRssTags.gone()
+            renderWebSource(source)
+            return
+        }
+
+        val sorts = kotlin.runCatching { source.sortUrls() }
+            .getOrElse {
+                AppLog.put("订阅界面加载分类失败\n${it.localizedMessage}", it)
+                listOf(Pair("", source.sourceUrl))
+            }.ifEmpty {
+                listOf(Pair("", source.sourceUrl))
+            }
+        currentSorts.clear()
+        currentSorts.addAll(sorts)
+        val visibleTags = currentSorts.filter { it.first.isNotBlank() }
+        if (visibleTags.size > 1 || (currentSorts.size == 1 && currentSorts.first().first.isNotBlank())) {
+            binding.rvRssTags.visible()
+            binding.rvRssTags.submitItems(
+                currentSorts.map { io.legado.app.ui.widget.RoundedTagBarView.Item(it.first.ifBlank { source.sourceName }) },
+                selectedTagIndex.coerceIn(0, currentSorts.lastIndex)
+            )
         } else {
-            viewModel.launchRssWithHtml(rssSource, {
-                startActivity<RssSortActivity> {
-                    putExtra("sourceUrl", rssSource.sourceUrl)
-                }
-            }) { html ->
-                ReadRssActivity.start(
-                    requireContext(),
-                    true,
-                    rssSource.sourceUrl,
-                    rssSource.sourceName,
-                    startHtml = html
-                )
-            }
+            binding.rvRssTags.gone()
+        }
+        renderCurrentSort()
+    }
+
+    private fun renderCurrentSort() {
+        val source = selectedRssSource ?: return
+        if (currentSorts.isEmpty()) {
+            binding.pbRssLoading.gone()
+            renderEmptyState()
+            return
+        }
+        selectedTagIndex = selectedTagIndex.coerceIn(0, currentSorts.lastIndex)
+        binding.rvRssTags.setSelectedIndex(selectedTagIndex, smooth = false)
+        val sort = currentSorts[selectedTagIndex]
+        binding.rssWebContainer.gone()
+        binding.rssFragmentContainer.visible()
+        binding.pbRssLoading.gone()
+        childFragmentManager.commit {
+            replace(
+                R.id.rss_fragment_container,
+                RssArticlesFragment(sort.first, sort.second, null),
+                "rss_articles_${source.sourceUrl}_${selectedTagIndex}"
+            )
         }
     }
 
-    override fun toTop(rssSource: RssSource) {
-        viewModel.topSource(rssSource)
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun renderWebSource(source: RssSource) {
+        binding.rssFragmentContainer.gone()
+        binding.rssWebContainer.visible()
+        val webView = rssWebView ?: WebView(requireContext()).also { created ->
+            created.layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            created.overScrollMode = View.OVER_SCROLL_NEVER
+            created.settings.javaScriptEnabled = true
+            created.settings.domStorageEnabled = true
+            created.settings.cacheMode = WebSettings.LOAD_DEFAULT
+            created.settings.loadsImagesAutomatically = true
+            created.settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            created.webViewClient = WebViewClient()
+            created.webChromeClient = WebChromeClient()
+            binding.rssWebContainer.addView(created)
+            rssWebView = created
+        }
+        webView.settings.javaScriptEnabled = source.enableJs
+        webView.settings.loadWithOverviewMode = true
+        webView.settings.useWideViewPort = true
+        viewModel.launchRssWithHtml(source, {
+            if (source.singleUrl) {
+                viewModel.getSingleUrl(source) { url ->
+                    binding.pbRssLoading.gone()
+                    binding.swipeRefreshLayout.isRefreshing = false
+                    if (url.startsWith("http", true)) {
+                        webView.loadUrl(url)
+                    } else {
+                        context?.openUrl(url)
+                    }
+                }
+            } else {
+                binding.pbRssLoading.gone()
+                binding.swipeRefreshLayout.isRefreshing = false
+                webView.loadUrl(source.sourceUrl)
+            }
+        }) { html ->
+            binding.pbRssLoading.gone()
+            binding.swipeRefreshLayout.isRefreshing = false
+            webView.loadDataWithBaseURL(
+                source.sourceUrl,
+                html,
+                "text/html",
+                "utf-8",
+                source.sourceUrl
+            )
+        }
     }
 
-    override fun login(rssSource: RssSource) {
+    private fun refreshCurrentRssContent() {
+        selectedRssSource?.let { source ->
+            if (source.ruleArticles.isNullOrBlank()) {
+                renderWebSource(source)
+            } else {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    presentSource(source)
+                    binding.swipeRefreshLayout.isRefreshing = false
+                }
+            }
+        } ?: run {
+            binding.swipeRefreshLayout.isRefreshing = false
+        }
+    }
+
+    private fun renderEmptyState() {
+        selectedRssSource = null
+        currentSorts.clear()
+        binding.tvRssSourceSelect.text = getString(R.string.rss)
+        binding.btnRssSourceLogin.gone()
+        binding.rvRssTags.gone()
+        binding.rssFragmentContainer.gone()
+        binding.rssWebContainer.gone()
+        binding.pbRssLoading.gone()
+        binding.tvEmptyMsg.visible()
+    }
+
+    private fun showSourceSelector() {
+        if (rssSources.isEmpty()) return
+        val titles = rssSources.map { it.getDisplayNameGroup() }.toTypedArray()
+        val checkedIndex = rssSources.indexOfFirst { it.sourceUrl == selectedRssSource?.sourceUrl }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.rss)
+            .setSingleChoiceItems(titles, checkedIndex) { dialog, which ->
+                rssSources.getOrNull(which)?.let {
+                    selectSource(it, reload = true)
+                }
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun login(rssSource: RssSource) {
         startActivity<SourceLoginActivity> {
             putExtra("type", "rssSource")
             putExtra("key", rssSource.sourceUrl)
         }
-    }
-
-    override fun edit(rssSource: RssSource) {
-        startActivity<RssSourceEditActivity> {
-            putExtra("sourceUrl", rssSource.sourceUrl)
-        }
-    }
-
-    override fun del(rssSource: RssSource) {
-        alert(R.string.draw) {
-            setMessage(getString(R.string.sure_del) + "\n" + rssSource.sourceName)
-            noButton()
-            yesButton {
-                viewModel.del(rssSource)
-            }
-        }
-    }
-
-    override fun disable(rssSource: RssSource) {
-        viewModel.disable(rssSource)
     }
 }

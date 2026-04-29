@@ -63,7 +63,7 @@ class AiChatViewModel : ViewModel() {
         append(AiChatMessage(role = AiChatMessage.Role.USER, content = userContent))
         val pendingMessage = AiChatMessage(
             role = AiChatMessage.Role.ASSISTANT,
-            content = thinkingText,
+            content = "",
             pending = true
         )
         activePendingAssistantMessageId = pendingMessage.id
@@ -92,7 +92,7 @@ class AiChatViewModel : ViewModel() {
             result.onSuccess { content ->
                 activePendingContent = ""
                 activeToolMessageIds.clear()
-                targetFor(requestSessionId).replacePendingAssistant(content.ifBlank { thinkingText })
+                targetFor(requestSessionId).replacePendingAssistant(content.ifBlank { "" })
             }.onFailure { throwable ->
                 activePendingContent = ""
                 activeToolMessageIds.clear()
@@ -155,7 +155,7 @@ class AiChatViewModel : ViewModel() {
         val index = messages.indexOfFirst { it.id == messageId }
         if (index >= 0) {
             messages[index] = messages[index].copy(
-                content = normalized.ifBlank { thinkingTitle },
+                content = normalized.ifBlank { "" },
                 pending = true
             )
             publish()
@@ -257,9 +257,7 @@ class AiChatViewModel : ViewModel() {
         if (requesting && messages.none { it.role == AiChatMessage.Role.ASSISTANT && it.pending }) {
             val restored = AiChatMessage(
                 role = AiChatMessage.Role.ASSISTANT,
-                content = activePendingContent.ifBlank {
-                    appCtx.getString(R.string.ai_restore_thinking)
-                },
+                content = activePendingContent.ifBlank { "" },
                 pending = true
             )
             activePendingAssistantMessageId = restored.id
