@@ -47,6 +47,13 @@ import splitties.init.appCtx
 
 class EpubFile(var book: Book) {
 
+    private enum class NativeLayoutRequestSource {
+        FOREGROUND,
+        BACKGROUND_PRELOAD
+    }
+
+    private data class NativeViewport(val width: Int, val height: Int, val exact: Boolean)
+
     companion object : BaseLocalBookParse {
         const val NATIVE_CONTENT_FLAG = "<epub-native"
         const val NATIVE_LAYOUT_FLAG = "data-href="
@@ -93,16 +100,17 @@ class EpubFile(var book: Book) {
 
         @Synchronized
         internal fun getNativeLayout(book: Book, href: String): EpubLayoutDocument? {
-            return getEFile(book).getNativeLayout(href)
+            return getEFile(book).getNativeLayout(href, NativeLayoutRequestSource.FOREGROUND)
         }
 
         @Synchronized
         internal fun preloadNativeLayouts(book: Book, hrefs: List<String>) {
             if (hrefs.isEmpty()) return
             val file = getEFile(book)
+            val viewport = file.resolveNativeViewport()
             val styleKey = file.currentNativeLayoutStyleKey()
             val pendingHrefs = hrefs.distinct().filter { href ->
-                val key = file.nativeLayoutCacheKey(href, ChapterProvider.visibleWidth, ChapterProvider.visibleHeight, styleKey)
+                val key = file.nativeLayoutCacheKey(href, viewport.width, viewport.height, styleKey)
                 synchronized(preloadedNativeLayoutKeys) {
                     preloadedNativeLayoutKeys.add(key)
                 }
@@ -112,11 +120,16 @@ class EpubFile(var book: Book) {
                 pendingHrefs.forEach { href ->
                     runCatching {
                         synchronized(file) {
-                            file.getNativeLayout(href)
+                            file.getNativeLayout(href, NativeLayoutRequestSource.BACKGROUND_PRELOAD)
                         }
                     }
                 }
             }
+        }
+
+        @Synchronized
+        internal fun warmImportIndex(book: Book) {
+            getEFile(book).warmChapterSpanIndex()
         }
 
         @Synchronized
@@ -198,6 +211,7 @@ class EpubFile(var book: Book) {
     private var nativeLayoutWidth = 0
     private var nativeLayoutHeight = 0
     private var nativeLayoutStyleKey = ""
+    private var chapterResourceIndexByHref: Map<String, Int>? = null
 
     /**
      *持有引用，避免被回收
@@ -274,40 +288,24 @@ class EpubFile(var book: Book) {
                 rawResources[res.href] = String(res.data, mCharset)
             }
         }
-        var findChapterFirstSource = false
         val includeNextChapterResource = !endFragmentId.isNullOrBlank()
-        /*一些书籍依靠href索引的resource会包含多个章节，需要依靠fragmentId来截取到当前章节的内容*/
-        /*注:这里较大增加了内容加载的时间，所以首次获取内容后可存储到本地cache，减少重复加载*/
-        for (res in contents) {
-            if (!findChapterFirstSource) {
-                if (currentChapterFirstResourceHref != res.href) continue
-                findChapterFirstSource = true
-                // 第一个xhtml文件
-                collectRawResource(res)
-                if (ENABLE_EPUB_DEBUG_DUMP) {
-                    elements.add(getBody(res, startFragmentId, endFragmentId))
-                }
-                // 不是最后章节 且 已经遍历到下一章节的内容时停止
-                if (!isLastChapter && res.href == nextChapterFirstResourceHref) break
-                continue
+        val chapterResources = collectChapterResources(
+            contents = contents,
+            currentHref = currentChapterFirstResourceHref,
+            nextHref = nextChapterFirstResourceHref,
+            includeNextResource = includeNextChapterResource,
+            isLastChapter = isLastChapter
+        )
+        chapterResources.forEachIndexed { index, res ->
+            collectRawResource(res)
+            if (!ENABLE_EPUB_DEBUG_DUMP) return@forEachIndexed
+            val body = when {
+                index == 0 -> getBody(res, startFragmentId, endFragmentId)
+                index == chapterResources.lastIndex && includeNextChapterResource && !isLastChapter &&
+                    res.href == nextChapterFirstResourceHref -> getBody(res, null, endFragmentId)
+                else -> getBody(res, null, null)
             }
-            if (nextChapterFirstResourceHref != res.href) {
-                // 其余部分
-                collectRawResource(res)
-                if (ENABLE_EPUB_DEBUG_DUMP) {
-                    elements.add(getBody(res, null, null))
-                }
-            } else {
-                // 下一章节的第一个xhtml
-                if (includeNextChapterResource) {
-                    //有Fragment 则添加到上一章节
-                    collectRawResource(res)
-                    if (ENABLE_EPUB_DEBUG_DUMP) {
-                        elements.add(getBody(res, null, endFragmentId))
-                    }
-                }
-                break
-            }
+            elements.add(body)
         }
         //title标签中的内容不需要显示在正文中，去除
         elements.select("title").remove()
@@ -335,8 +333,43 @@ class EpubFile(var book: Book) {
         val nativeHref = currentChapterFirstResourceHref.escapeXmlAttr()
         val nativeHrefList = nativeHrefs.distinct().joinToString("|") { it.escapeXmlAttr() }
         val title = chapter.title.escapeXmlAttr()
-        preloadNativeLayouts(book, nativeHrefs)
         return """<epub-native data-href="$nativeHref" data-hrefs="$nativeHrefList" data-title="$title" />"""
+    }
+
+    private fun collectChapterResources(
+        contents: List<Resource>,
+        currentHref: String,
+        nextHref: String,
+        includeNextResource: Boolean,
+        isLastChapter: Boolean
+    ): List<Resource> {
+        val indexMap = chapterResourceIndexByHref ?: buildChapterResourceIndex(contents).also {
+            chapterResourceIndexByHref = it
+        }
+        val startIndex = indexMap[currentHref] ?: contents.indexOfFirst { it.href == currentHref }
+        if (startIndex < 0) return emptyList()
+        if (isLastChapter || nextHref.isBlank()) {
+            return contents.subList(startIndex, contents.size)
+        }
+        val nextIndex = indexMap[nextHref] ?: contents.indexOfFirst { it.href == nextHref }
+        if (nextIndex < 0 || nextIndex < startIndex) {
+            return contents.subList(startIndex, contents.size)
+        }
+        val endExclusive = if (includeNextResource) (nextIndex + 1).coerceAtMost(contents.size) else nextIndex
+        if (endExclusive <= startIndex) {
+            return listOf(contents[startIndex])
+        }
+        return contents.subList(startIndex, endExclusive)
+    }
+
+    private fun buildChapterResourceIndex(contents: List<Resource>): Map<String, Int> {
+        val map = linkedMapOf<String, Int>()
+        contents.forEachIndexed { index, resource ->
+            if (resource.href.isNotBlank() && !map.containsKey(resource.href)) {
+                map[resource.href] = index
+            }
+        }
+        return map
     }
 
     private fun getBody(res: Resource, startFragmentId: String?, endFragmentId: String?): Element {
@@ -659,18 +692,23 @@ class EpubFile(var book: Book) {
         }
     }
 
-    private fun getNativeLayout(href: String): EpubLayoutDocument? {
-        val (width, height) = resolveNativeViewport()
+    private fun getNativeLayout(
+        href: String,
+        source: NativeLayoutRequestSource
+    ): EpubLayoutDocument? {
+        val viewport = resolveNativeViewport()
+        val width = viewport.width
+        val height = viewport.height
         AppLog.putDebug(
             "EPUB Native Layout enter: href=$href, view=${width}x$height, " +
-                "domCache=${nativeDomCache.containsKey(href)}, layoutCache=${nativeLayoutCache.containsKey(href)}"
+                "domCache=${nativeDomCache.containsKey(href)}, layoutCache=${nativeLayoutCache.containsKey(href)}, " +
+                "source=$source, exactViewport=${viewport.exact}"
         )
         if (width <= 0 || height <= 0) {
             AppLog.put("EPUB Native Layout abort: 阅读区尺寸无效, href=$href, view=${width}x$height")
             return null
         }
         val styleKey = currentNativeLayoutStyleKey()
-        scheduleNearbyNativeLayoutPreload(width, height, styleKey, href)
         if (nativeLayoutWidth != width || nativeLayoutHeight != height || nativeLayoutStyleKey != styleKey) {
             AppLog.putDebug(
                 "EPUB Native Layout cache clear: old=${nativeLayoutWidth}x$nativeLayoutHeight, " +
@@ -701,6 +739,10 @@ class EpubFile(var book: Book) {
             AppLog.putDebug("EPUB Native Layout disk cache hit: href=$href, pages=${it.pages.size}")
             return it
         }
+        AppLog.putDebug(
+            "EPUB Native Layout cache miss: href=$href, reason=not_in_memory_or_disk, " +
+                "view=${width}x$height, styleKey=$styleKey"
+        )
         val document = nativeDomCache[href] ?: rebuildNativeDom(href) ?: return null
         return runCatching {
             EpubLayoutEngine(
@@ -714,7 +756,11 @@ class EpubFile(var book: Book) {
             synchronized(globalNativeLayoutCache) {
                 globalNativeLayoutCache[layoutCacheKey] = it
             }
-            writeNativeLayoutToDisk(layoutCacheKey, it)
+            if (viewport.exact) {
+                writeNativeLayoutToDisk(layoutCacheKey, it)
+            } else {
+                AppLog.putDebug("EPUB Native Layout skip disk cache write: href=$href, reason=fallback_viewport")
+            }
             val linkAreas = it.pages.sumOf { page ->
                 page.commands.count { command -> command is EpubLinkArea }
             }
@@ -729,6 +775,9 @@ class EpubFile(var book: Book) {
                     "commands=${it.pages.sumOf { page -> page.commands.size }}, " +
                     "linkAreas=$linkAreas, linkedImages=$linkedImages, linkedText=$linkedText"
             )
+            if (source == NativeLayoutRequestSource.FOREGROUND && viewport.exact) {
+                scheduleNearbyNativeLayoutPreload(width, height, styleKey, href)
+            }
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生布局失败: $href\n${it.localizedMessage}", it)
         }.getOrNull()
@@ -828,6 +877,13 @@ class EpubFile(var book: Book) {
         return total in 1..SMALL_EPUB_TEXT_PRELOAD_LIMIT
     }
 
+    private fun warmChapterSpanIndex() {
+        val contents = epubSpineContents ?: epubBookContents ?: return
+        if (chapterResourceIndexByHref == null) {
+            chapterResourceIndexByHref = buildChapterResourceIndex(contents)
+        }
+    }
+
     private fun nativeDomCacheKey(href: String): String {
         return "${book.bookUrl}|$href"
     }
@@ -842,7 +898,7 @@ class EpubFile(var book: Book) {
             append(paint.textSize)
             append('|').append(paint.color)
             append('|').append(paint.letterSpacing)
-            append('|').append(paint.typeface?.hashCode() ?: 0)
+            append('|').append(paint.typeface?.style ?: 0)
             append('|').append(ChapterProvider.contentPaintTextHeight)
             append('|').append(ChapterProvider.lineSpacingExtra)
             append('|').append(ChapterProvider.paragraphSpacing)
@@ -850,22 +906,22 @@ class EpubFile(var book: Book) {
     }
 
     private fun rebuildNativeDom(href: String): EpubDomDocument? {
-        AppLog.put("EPUB Native DOM rebuild start: href=$href")
+        AppLog.putDebug("EPUB Native DOM rebuild start: href=$href")
         synchronized(globalNativeDomCache) {
             globalNativeDomCache[nativeDomCacheKey(href)]
         }?.let {
             nativeDomCache[href] = it
-            AppLog.put("EPUB Native DOM global cache hit: href=$href, children=${it.body.children.size}")
+            AppLog.putDebug("EPUB Native DOM global cache hit: href=$href, children=${it.body.children.size}")
             return it
         }
         val resource = findEpubResource(href) ?: run {
-            AppLog.put("EPUB Native DOM rebuild failed: 找不到资源 href=$href")
+            AppLog.putDebug("EPUB Native DOM rebuild failed: 找不到资源 href=$href")
             return null
         }
         return runCatching {
             getBody(resource, null, null)
             nativeDomCache[href].also { document ->
-                AppLog.put(
+                AppLog.putDebug(
                     "EPUB Native DOM rebuild result: href=$href, " +
                         "success=${document != null}, children=${document?.body?.children?.size ?: 0}"
                 )
@@ -875,10 +931,13 @@ class EpubFile(var book: Book) {
         }.getOrNull()
     }
 
-    private fun resolveNativeViewport(): Pair<Int, Int> {
-        val width = ChapterProvider.visibleWidth.takeIf { it > 0 } ?: appCtx.resources.displayMetrics.widthPixels
-        val height = ChapterProvider.visibleHeight.takeIf { it > 0 } ?: appCtx.resources.displayMetrics.heightPixels
-        return width to height
+    private fun resolveNativeViewport(): NativeViewport {
+        val visibleWidth = ChapterProvider.visibleWidth
+        val visibleHeight = ChapterProvider.visibleHeight
+        val exact = visibleWidth > 0 && visibleHeight > 0
+        val width = if (exact) visibleWidth else appCtx.resources.displayMetrics.widthPixels
+        val height = if (exact) visibleHeight else appCtx.resources.displayMetrics.heightPixels
+        return NativeViewport(width, height, exact)
     }
 
     private fun nativeLayoutDiskFile(layoutCacheKey: String): File {
