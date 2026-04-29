@@ -651,6 +651,8 @@
     <string name="modern_rss_page_summary">使用新的订阅首页布局，支持切换源、分类标签和内嵌内容。</string>
     <string name="rss_source_manage">订阅源管理</string>
     <string name="rss_source_manage_summary">管理订阅源和源仓库。</string>
+    <string name="merge_discovery_rss">合并发现和订阅</string>
+    <string name="merge_discovery_rss_summary">底部栏只保留一个入口，长按可在发现页和订阅页之间切换。</string>
     <string name="service_stop">服务已停止</string>
     <string name="service_start">正在启动服务\n具体信息请查看通知栏</string>
     <string name="default_path">默认路径</string>

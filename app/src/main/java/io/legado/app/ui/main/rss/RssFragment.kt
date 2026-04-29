@@ -99,6 +99,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private var selectedTagIndex = 0
     private var currentSearchKey: String? = null
     private var usingModernRss = false
+    private var webSourceVersion = 0L
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
@@ -321,8 +322,16 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 val keep = selectedRssSource?.sourceUrl?.let { key ->
                     sources.firstOrNull { it.sourceUrl == key }
                 }
+                val remembered = if (keep == null && searchKey.isNullOrEmpty()) {
+                    AppConfig.modernRssSourceUrl?.let { key ->
+                        sources.firstOrNull { it.sourceUrl == key }
+                    }
+                } else {
+                    null
+                }
                 when {
                     keep != null -> selectSource(keep, reload = false)
+                    remembered != null -> selectSource(remembered, reload = true)
                     sources.isNotEmpty() -> selectSource(sources.first(), reload = true)
                     else -> renderEmptyState()
                 }
@@ -333,6 +342,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private fun selectSource(source: RssSource, reload: Boolean) {
         val changed = selectedRssSource?.sourceUrl != source.sourceUrl
         selectedRssSource = source
+        AppConfig.modernRssSourceUrl = source.sourceUrl
         binding.tvRssSourceSelect.text = source.sourceName
         binding.btnRssSourceLogin.isVisible = !source.loginUrl.isNullOrBlank()
         binding.btnRssSourceSearch.isVisible = !source.searchUrl.isNullOrBlank()
@@ -408,6 +418,8 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun renderWebSource(source: RssSource) {
+        webSourceVersion += 1
+        val currentVersion = webSourceVersion
         binding.recyclerView.gone()
         binding.rssFragmentContainer.gone()
         binding.rssWebContainer.visible()
@@ -430,9 +442,18 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         webView.settings.javaScriptEnabled = source.enableJs
         webView.settings.loadWithOverviewMode = true
         webView.settings.useWideViewPort = true
+        webView.stopLoading()
+        webView.clearHistory()
+        webView.loadUrl("about:blank")
         viewModel.launchRssWithHtml(source, {
+            if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
+                return@launchRssWithHtml
+            }
             if (source.singleUrl) {
                 viewModel.getSingleUrl(source) { url ->
+                    if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
+                        return@getSingleUrl
+                    }
                     binding.pbRssLoading.gone()
                     binding.swipeRefreshLayout.isRefreshing = false
                     if (url.startsWith("http", true)) {
@@ -442,11 +463,17 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                     }
                 }
             } else {
+                if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
+                    return@launchRssWithHtml
+                }
                 binding.pbRssLoading.gone()
                 binding.swipeRefreshLayout.isRefreshing = false
                 webView.loadUrl(source.sourceUrl)
             }
         }) { html ->
+            if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
+                return@launchRssWithHtml
+            }
             binding.pbRssLoading.gone()
             binding.swipeRefreshLayout.isRefreshing = false
             webView.loadDataWithBaseURL(
@@ -595,5 +622,16 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     override fun disable(rssSource: RssSource) {
         viewModel.disable(rssSource)
+    }
+
+    fun gotoTop() {
+        val target = when {
+            binding.rssWebContainer.isVisible -> rssWebView
+            else -> childFragmentManager.findFragmentById(R.id.rss_fragment_container)?.view?.findViewById<View>(R.id.recycler_view)
+        }
+        when (target) {
+            is WebView -> target.scrollTo(0, 0)
+            is androidx.recyclerview.widget.RecyclerView -> target.scrollToPosition(0)
+        }
     }
 }

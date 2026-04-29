@@ -791,6 +791,8 @@
     <string name="modern_rss_page_summary">Use the new RSS home layout with source switch, categories, and embedded content.</string>
     <string name="rss_source_manage">RSS source management</string>
     <string name="rss_source_manage_summary">Manage RSS sources and source repository.</string>
+    <string name="merge_discovery_rss">Merge discovery and RSS tab</string>
+    <string name="merge_discovery_rss_summary">Use one bottom tab for discovery and RSS. Long press the tab to switch between them.</string>
     <string name="service_stop">Service stopped</string>
     <string name="service_start">Starting service\nChecking notification bar for details</string>
     <string name="default_path">Default path</string>
