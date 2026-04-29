@@ -128,10 +128,10 @@ object ThemePackageManager {
         AppWebDav.deleteThemePackage(entry.packageInfo.isNightTheme, entry.dirName)
     }
 
-    fun apply(context: Context, entry: Entry) {
+    fun apply(context: Context, entry: Entry, switchNightMode: Boolean = true) {
         val dir = entry.localDir ?: localDir(entry.packageInfo.isNightTheme, entry.dirName)
         val config = resolveConfigPaths(entry.packageInfo, dir)
-        ThemeConfig.applyConfig(context, config)
+        ThemeConfig.applyConfig(context, config, switchNightMode)
     }
 
     fun getConfig(entry: Entry): ThemeConfig.Config {

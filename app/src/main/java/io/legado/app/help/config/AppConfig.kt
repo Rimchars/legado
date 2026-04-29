@@ -480,6 +480,18 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
                             session.title.isNotBlank() &&
                             session.messages.all { it.content.isNotBlank() }
                 }
+                .map { session ->
+                    session.copy(
+                        messages = session.messages.map { message ->
+                            message.copy(
+                                kind = message.kind ?: io.legado.app.ui.main.ai.AiChatMessage.Kind.TEXT,
+                                statusName = message.statusName,
+                                statusStage = message.statusStage,
+                                statusSuccess = message.statusSuccess
+                            )
+                        }
+                    )
+                }
                 .sortedByDescending { it.updatedAt }
         }.getOrElse {
             AppLog.put("读取 AI 聊天历史失败, 已清理历史\n${it.localizedMessage}", it)

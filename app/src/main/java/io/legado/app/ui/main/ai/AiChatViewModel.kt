@@ -147,7 +147,9 @@ class AiChatViewModel : ViewModel() {
 
     fun upsertPendingAssistant(content: String) {
         val index = messages.indexOfLast {
-            it.role == AiChatMessage.Role.ASSISTANT && it.pending
+            it.role == AiChatMessage.Role.ASSISTANT &&
+                it.pending &&
+                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
         }
         if (index >= 0) {
             messages[index] = messages[index].copy(content = content, pending = true)
@@ -170,7 +172,9 @@ class AiChatViewModel : ViewModel() {
             activeThinkingMessageId = it
             messages.add(
                 messages.indexOfLast { message ->
-                    message.role == AiChatMessage.Role.ASSISTANT && message.pending && message.kind == AiChatMessage.Kind.TEXT
+                    message.role == AiChatMessage.Role.ASSISTANT &&
+                        message.pending &&
+                        (message.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
                 }.coerceAtLeast(0),
                 AiChatMessage(
                     id = it,
@@ -231,7 +235,9 @@ class AiChatViewModel : ViewModel() {
         val newId = UUID.randomUUID().toString()
         activeToolMessageIds[key] = newId
         val pendingTextIndex = messages.indexOfLast {
-            it.role == AiChatMessage.Role.ASSISTANT && it.pending && it.kind == AiChatMessage.Kind.TEXT
+            it.role == AiChatMessage.Role.ASSISTANT &&
+                it.pending &&
+                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
         }
         val insertIndex = when {
             pendingTextIndex < 0 -> messages.size
@@ -256,7 +262,9 @@ class AiChatViewModel : ViewModel() {
 
     fun finishPendingAssistant() {
         val index = messages.indexOfLast {
-            it.role == AiChatMessage.Role.ASSISTANT && it.pending
+            it.role == AiChatMessage.Role.ASSISTANT &&
+                it.pending &&
+                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
         }
         if (index >= 0) {
             messages[index] = messages[index].copy(pending = false)
@@ -266,7 +274,9 @@ class AiChatViewModel : ViewModel() {
 
     fun failPendingAssistant(content: String) {
         val index = messages.indexOfLast {
-            it.role == AiChatMessage.Role.ASSISTANT && it.pending
+            it.role == AiChatMessage.Role.ASSISTANT &&
+                it.pending &&
+                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
         }
         if (index >= 0) {
             messages[index] = messages[index].copy(content = content, pending = false)
@@ -328,7 +338,7 @@ class AiChatViewModel : ViewModel() {
     }
 
     fun snapshotForRequest(): List<AiChatMessage> {
-        return messages.filterNot { it.pending || it.kind == AiChatMessage.Kind.STATUS }
+        return messages.filterNot { it.pending || (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.STATUS }
     }
 
     fun restoreCurrentSession() {

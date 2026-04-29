@@ -10,7 +10,7 @@ data class AiChatMessage(
     val content: String,
     val pending: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val kind: Kind = Kind.TEXT,
+    val kind: Kind? = Kind.TEXT,
     val statusName: String? = null,
     val statusStage: String? = null,
     val statusSuccess: Boolean = true

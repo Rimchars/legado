@@ -144,7 +144,10 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         usingModernDiscovery = AppConfig.modernDiscoveryPage
         discoveryModeLoaded = false
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
-        binding.swipeRefreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
+        binding.swipeRefreshLayout.post {
+            val end = (binding.llDiscoverSourceRow.height + 28.dpToPx()).coerceAtLeast(56.dpToPx())
+            binding.swipeRefreshLayout.setProgressViewOffset(false, 12.dpToPx(), end)
+        }
         binding.swipeRefreshLayout.setOnRefreshListener {
             if (usingModernDiscovery) {
                 loadDiscoverBooks(reset = true)

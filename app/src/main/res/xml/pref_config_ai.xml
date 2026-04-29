@@ -44,12 +44,6 @@
         app:layout="@layout/view_preference_category">
 
         <io.legado.app.lib.prefs.Preference
-            android:key="aiCurrentProviderId"
-            android:summary="@string/ai_current_provider_summary_empty"
-            android:title="@string/ai_current_provider"
-            app:iconSpaceReserved="false" />
-
-        <io.legado.app.lib.prefs.Preference
             android:key="aiAddProvider"
             android:summary="@string/ai_add_provider_summary"
             android:title="@string/ai_add_provider"
@@ -69,12 +63,6 @@
         app:allowDividerBelow="false"
         app:iconSpaceReserved="false"
         app:layout="@layout/view_preference_category">
-
-        <io.legado.app.lib.prefs.Preference
-            android:key="aiCurrentModelId"
-            android:summary="@string/ai_current_model_summary_empty"
-            android:title="@string/ai_current_model"
-            app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.Preference
             android:key="aiAddModel"

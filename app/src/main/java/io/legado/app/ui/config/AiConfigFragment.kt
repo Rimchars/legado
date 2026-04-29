@@ -60,10 +60,8 @@ class AiConfigFragment : PreferenceFragment(),
 
     override fun onPreferenceTreeClick(preference: Preference): Boolean {
         when (preference.key) {
-            PreferKey.aiCurrentProviderId -> showCurrentProviderSelector()
             "aiAddProvider" -> showEditProviderDialog()
             "aiManageProviders" -> showManageProvidersDialog()
-            PreferKey.aiCurrentModelId -> showCurrentModelSelector()
             "aiAddModel" -> showAddModelOptionsDialog()
             "aiFetchModels" -> fetchModelsFromCurrentProvider(showSelector = true)
             "aiManageModels" -> showManageModelsDialog()
@@ -84,21 +82,6 @@ class AiConfigFragment : PreferenceFragment(),
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         if (key == PreferKey.aiAssistantEnabled) {
             refreshUi(notifyMain = true)
-        }
-    }
-
-    private fun showCurrentProviderSelector() {
-        val providers = AppConfig.aiProviderList
-        if (providers.isEmpty()) {
-            toastOnUi(R.string.ai_no_providers)
-            return
-        }
-        context?.selector(
-            getString(R.string.ai_current_provider),
-            providers.map { it.name }
-        ) { _, _, index ->
-            AppConfig.aiCurrentProviderId = providers[index].id
-            refreshUi()
         }
     }
 
@@ -209,25 +192,6 @@ class AiConfigFragment : PreferenceFragment(),
                 toastOnUi(R.string.ai_provider_removed)
             }
             cancelButton()
-        }
-    }
-
-    private fun showCurrentModelSelector() {
-        if (AppConfig.aiCurrentProvider == null) {
-            toastOnUi(R.string.ai_no_providers)
-            return
-        }
-        val models = currentProviderModels()
-        if (models.isEmpty()) {
-            toastOnUi(R.string.ai_no_models)
-            return
-        }
-        context?.selector(
-            getString(R.string.ai_current_model),
-            models.map { it.modelId }
-        ) { _, _, index ->
-            AppConfig.aiCurrentModelId = models[index].id
-            refreshUi()
         }
     }
 
@@ -835,27 +799,31 @@ class AiConfigFragment : PreferenceFragment(),
                 if (canEnable) R.string.ai_enable_summary else R.string.ai_enable_summary_disabled
             )
         }
-        findPreference<Preference>(PreferKey.aiCurrentProviderId)?.summary =
-            currentProvider?.name ?: getString(R.string.ai_current_provider_summary_empty)
         findPreference<Preference>("aiManageProviders")?.summary =
             if (AppConfig.aiProviderList.isEmpty()) {
                 getString(R.string.ai_no_providers)
             } else {
-                getString(R.string.ai_manage_providers_summary, AppConfig.aiProviderList.size)
-            }
-        findPreference<Preference>(PreferKey.aiCurrentModelId)?.summary =
-            AppConfig.aiCurrentModelConfig?.modelId ?: getString(
-                if (currentProvider == null) {
-                    R.string.ai_current_model_summary_empty
-                } else {
-                    R.string.ai_current_model_summary_no_provider_models
+                buildString {
+                    append(currentProvider?.name ?: getString(R.string.ai_current_provider_summary_empty))
+                    append(" · ")
+                    append(getString(R.string.ai_manage_providers_summary, AppConfig.aiProviderList.size))
                 }
-            )
+            }
         findPreference<Preference>("aiManageModels")?.summary =
             if (providerModels.isEmpty()) {
-                getString(R.string.ai_no_models)
+                getString(
+                    if (currentProvider == null) {
+                        R.string.ai_current_model_summary_empty
+                    } else {
+                        R.string.ai_current_model_summary_no_provider_models
+                    }
+                )
             } else {
-                getString(R.string.ai_manage_models_summary, providerModels.size)
+                buildString {
+                    append(AppConfig.aiCurrentModelConfig?.modelId ?: providerModels.first().modelId)
+                    append(" · ")
+                    append(getString(R.string.ai_manage_models_summary, providerModels.size))
+                }
             }
         findPreference<Preference>("aiAddModel")?.summary =
             getString(R.string.ai_add_model_summary_modern)
