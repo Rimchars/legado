@@ -149,7 +149,7 @@ class EpubFile(var book: Book) {
     private val fontTypefaceCache = linkedMapOf<String, Typeface?>()
     private val footnoteCache = linkedMapOf<String, EpubFootnote?>()
     private val footnoteSourceCache = linkedMapOf<String, FootnoteSource?>()
-    private val scheduledFullPreloadKeys = linkedSetOf<String>()
+    private val scheduledNearbyPreloadKeys = linkedSetOf<String>()
     private var nativeLayoutWidth = 0
     private var nativeLayoutHeight = 0
     private var nativeLayoutStyleKey = ""
@@ -355,11 +355,12 @@ class EpubFile(var book: Book) {
         }
         bodyElement.materializePageBackgroundColor()
         bodyElement.materializeBackgroundImages(res)
+        bodyElement.materializeDuokanImageGallery()
         bodyElement.markEpubOverlayImagePage()
         bodyElement.markEpubGalleryPage()
         bodyElement.markSingleImagePage()
         bodyElement.select("img").forEach {
-            val src = it.attr("src").trim()
+            val src = it.epubImageSrc().trim()
             val resolvedHref = resolveEpubResourceHref(res.href, src)
             val alt = it.attr("alt")
             val options = it.epubImageOptions()
@@ -538,7 +539,7 @@ class EpubFile(var book: Book) {
             return null
         }
         val styleKey = currentNativeLayoutStyleKey()
-        scheduleFullNativeLayoutPreload(width, height, styleKey, href)
+        scheduleNearbyNativeLayoutPreload(width, height, styleKey, href)
         if (nativeLayoutWidth != width || nativeLayoutHeight != height || nativeLayoutStyleKey != styleKey) {
             AppLog.put(
                 "EPUB Native Layout cache clear: old=${nativeLayoutWidth}x$nativeLayoutHeight, " +
@@ -593,22 +594,31 @@ class EpubFile(var book: Book) {
         }.getOrNull()
     }
 
-    private fun scheduleFullNativeLayoutPreload(width: Int, height: Int, styleKey: String, currentHref: String) {
-        val preloadKey = "${book.bookUrl}|${width}x$height|$styleKey"
-        synchronized(scheduledFullPreloadKeys) {
-            if (!scheduledFullPreloadKeys.add(preloadKey)) return
+    private fun scheduleNearbyNativeLayoutPreload(width: Int, height: Int, styleKey: String, currentHref: String) {
+        val preloadKey = "${book.bookUrl}|$currentHref|${width}x$height|$styleKey"
+        synchronized(scheduledNearbyPreloadKeys) {
+            if (!scheduledNearbyPreloadKeys.add(preloadKey)) return
         }
-        val hrefs = epubSpineContents
+        val readableHrefs = epubSpineContents
             ?.asSequence()
             ?.filter { it.isReadableEpubResource() }
             ?.filterNot { it.isEpubBookInfoResource() }
             ?.map { it.href }
-            ?.filter { it.isNotBlank() && it != currentHref }
+            ?.filter { it.isNotBlank() }
             ?.distinct()
             ?.toList()
             .orEmpty()
+        val currentIndex = readableHrefs.indexOf(currentHref).takeIf { it >= 0 } ?: return
+        val hrefs = readableHrefs
+            .asSequence()
+            .withIndex()
+            .filter { (index, href) ->
+                href != currentHref && index in (currentIndex - 2)..(currentIndex + 8)
+            }
+            .map { it.value }
+            .toList()
         if (hrefs.isEmpty()) return
-        AppLog.put("EPUB Native Layout preload all: count=${hrefs.size}, view=${width}x$height")
+        AppLog.put("EPUB Native Layout preload nearby: count=${hrefs.size}, current=$currentHref, view=${width}x$height")
         preloadNativeLayouts(book, hrefs)
     }
 
@@ -1394,6 +1404,7 @@ class EpubFile(var book: Book) {
     private fun Element.markEpubGalleryPage() {
         val images = select("img").filterNot { it.attr("data-epub-background") == "true" }
         if (images.size < 2) return
+        if (select(".duokan-image-gallery-cell").isNotEmpty()) return
         val text = text().cleanEpubInfoText()
         if (text.length > 120) return
         attr(
@@ -1414,15 +1425,98 @@ class EpubFile(var book: Book) {
         }
     }
 
+    private fun Element.materializeDuokanImageGallery() {
+        val galleries = select(".duokan-image-gallery")
+        if (galleries.isEmpty()) return
+        galleries.forEach { gallery ->
+            val cells = gallery.select(".duokan-image-gallery-cell")
+                .filter { it.selectFirst("img") != null }
+            if (cells.isEmpty()) return@forEach
+            val replacement = Element("div")
+            replacement.attr("class", "epub-native-gallery")
+            replacement.attr(
+                "style",
+                "margin:0;padding:0;text-indent:0;text-align:center;line-height:1.25"
+            )
+            cells.forEachIndexed { index, cell ->
+                val image = cell.selectFirst("img")?.clone() ?: return@forEachIndexed
+                val mainTitle = cell.selectFirst(".duokan-image-maintitle")?.text().orEmpty()
+                val subTitle = cell.selectFirst(".duokan-image-subtitle")?.text().orEmpty()
+                val page = Element("section")
+                page.attr("class", "epub-native-gallery-page")
+                page.attr(
+                    "style",
+                    buildString {
+                        append("height:100vh;min-height:100vh;")
+                        if (index < cells.lastIndex) {
+                            append("page-break-after:always;break-after:page;")
+                        }
+                        append("margin:0;padding:6vh 5vw 4vh 5vw;")
+                        append("text-indent:0;text-align:center;line-height:1.25;")
+                        append("box-sizing:border-box;")
+                        if (index == 0) {
+                            append("page-break-before:always;break-before:page;")
+                        }
+                    }
+                )
+                image.attr("data-legado-width", "82%")
+                image.attr("data-legado-style", Book.imgStyleText)
+                image.attr(
+                    "style",
+                    "${image.attr("style")};display:block;margin:0 auto 1em auto;max-width:82%;max-height:68vh;object-fit:contain"
+                )
+                page.appendChild(image)
+                if (mainTitle.isNotBlank()) {
+                    val title = Element("p")
+                    title.attr("class", "duokan-image-maintitle")
+                    title.attr(
+                        "style",
+                        "margin:0.8em auto 0.35em auto;text-indent:0;text-align:center;font-weight:bold;font-size:0.95em;line-height:1.3"
+                    )
+                    title.text(mainTitle)
+                    page.appendChild(title)
+                }
+                if (subTitle.isNotBlank()) {
+                    val subtitle = Element("p")
+                    subtitle.attr("class", "duokan-image-subtitle")
+                    subtitle.attr(
+                        "style",
+                        "margin:0 auto;text-indent:0;text-align:center;font-size:0.82em;line-height:1.35"
+                    )
+                    subtitle.text(subTitle)
+                    page.appendChild(subtitle)
+                }
+                replacement.appendChild(page)
+            }
+            gallery.replaceWith(replacement)
+            AppLog.put("EPUB Native Gallery materialized: cells=${cells.size}")
+        }
+        select(".gallery-txt").remove()
+    }
+
+    private fun Element.epubImageSrc(): String {
+        return attr("src")
+            .ifBlank { attr("data-src") }
+            .ifBlank { attr("data-original") }
+            .ifBlank { attr("data-lazy-src") }
+            .ifBlank { attr("data-url") }
+            .ifBlank { attr("xlink:href") }
+            .ifBlank { attr("href") }
+    }
+
     private fun Element.epubImageOptions(): Map<String, String> {
         val options = linkedMapOf<String, String>()
         val style = attr("style")
         val declarations = EpubCss.declarations(style)
-        val width = attr("width").ifBlank { declarations["width"].orEmpty() }
+        val width = attr("data-legado-width")
+            .ifBlank { attr("width") }
+            .ifBlank { declarations["width"].orEmpty() }
         if (width.isNotBlank()) {
             options["width"] = normalizeImageWidth(width)
         }
-        val height = attr("height").ifBlank { declarations["height"].orEmpty() }
+        val height = attr("data-legado-height")
+            .ifBlank { attr("height") }
+            .ifBlank { declarations["height"].orEmpty() }
         if (height.isNotBlank()) {
             normalizeImageLength(height)?.let {
                 options["height"] = it
