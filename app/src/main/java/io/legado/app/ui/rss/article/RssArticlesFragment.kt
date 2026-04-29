@@ -90,7 +90,7 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
         }
         val layoutManager = when (activityViewModel.articleStyle) {
             3 -> {
-                recyclerView.setPadding(20, 0, 20, 0)
+                recyclerView.setPadding(0, 0, 0, 0)
                 recyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
                     override fun getItemOffsets(
                         outRect: Rect,
@@ -98,7 +98,7 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                         parent: RecyclerView,
                         state: RecyclerView.State
                     ) {
-                        outRect.set(20,30,20,30)
+                        outRect.set(12, 30, 12, 30)
                     }
                 })
                 recyclerView.itemAnimator = null
@@ -109,11 +109,11 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                 }
             }
             2 -> {
-                recyclerView.setPadding(8, 0, 8, 0)
+                recyclerView.setPadding(0, 0, 0, 0)
                 GridLayoutManager(requireContext(), 2)
             }
             4 -> {
-                recyclerView.setPadding(4, 0, 4, 0)
+                recyclerView.setPadding(0, 0, 0, 0)
                 GridLayoutManager(requireContext(), 3)
             }
             else -> {

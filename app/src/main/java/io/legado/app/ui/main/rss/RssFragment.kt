@@ -2,6 +2,7 @@ package io.legado.app.ui.main.rss
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.widget.EditText
 import android.view.Menu
 import android.view.MenuItem
 import android.view.SubMenu
@@ -31,11 +32,11 @@ import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
-import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.main.MainFragmentInterface
 import io.legado.app.ui.rss.article.ReadRecordDialog
 import io.legado.app.ui.rss.article.RssArticlesFragment
+import io.legado.app.ui.rss.article.RssSortActivity
 import io.legado.app.ui.rss.article.RssSortViewModel
 import io.legado.app.ui.rss.favorites.RssFavoritesActivity
 import io.legado.app.ui.rss.read.ReadRssActivity
@@ -55,6 +56,7 @@ import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.transaction
 import io.legado.app.utils.visible
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import io.legado.app.ui.widget.SourceSelectDialog
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
@@ -492,25 +494,40 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     private fun showSourceSelector() {
         if (rssSources.isEmpty()) return
-        val titles = rssSources.map { it.getDisplayNameGroup() }.toTypedArray()
-        val checkedIndex = rssSources.indexOfFirst { it.sourceUrl == selectedRssSource?.sourceUrl }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.rss)
-            .setSingleChoiceItems(titles, checkedIndex) { dialog, which ->
-                rssSources.getOrNull(which)?.let {
-                    selectSource(it, reload = true)
-                }
-                dialog.dismiss()
-            }
-            .show()
+        SourceSelectDialog.show(
+            context = requireContext(),
+            title = getString(R.string.rss),
+            items = rssSources,
+            selectedKey = selectedRssSource?.sourceUrl,
+            displayName = { it.getDisplayNameGroup() },
+            searchTexts = {
+                listOfNotNull(it.sourceName, it.sourceUrl, it.sourceGroup)
+            },
+            itemKey = { it.sourceUrl }
+        ) {
+            selectSource(it, reload = true)
+        }
     }
 
     private fun openRssSearch() {
         val source = selectedRssSource ?: return
         if (source.searchUrl.isNullOrBlank()) return
-        startActivity<SearchActivity> {
-            putExtra("searchScope", "${source.sourceName}::${source.sourceUrl}")
+        val editText = EditText(requireContext()).apply {
+            hint = getString(R.string.search_book_key)
+            setSingleLine()
+            setTextColor(primaryTextColor)
         }
+        AlertDialog.Builder(requireContext())
+            .setTitle(source.sourceName)
+            .setView(editText)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val key = editText.text?.toString()?.trim().orEmpty()
+                if (key.isNotEmpty()) {
+                    RssSortActivity.start(requireContext(), null, source.sourceUrl, key)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun openRssLogin(rssSource: RssSource) {

@@ -55,6 +55,7 @@ import io.legado.app.ui.login.SourceLoginJsExtensions
 import io.legado.app.ui.main.MainFragmentInterface
 import io.legado.app.ui.widget.ModernActionPopup
 import io.legado.app.ui.widget.RoundedTagBarView
+import io.legado.app.ui.widget.SourceSelectDialog
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.applyTint
@@ -451,108 +452,19 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
     private fun showDiscoverSourceMenu() {
         if (discoverSources.isEmpty()) return
-        sourceMenuPopup?.dismiss()
-        sourceMenuPopup = null
-        val context = requireContext()
-        val selectedUrl = selectedDiscoverSourcePart?.bookSourceUrl.orEmpty()
-        var dialog: AlertDialog? = null
-        var filteredSources = discoverSources.toList()
-        val sourceAdapter = object : RecyclerView.Adapter<SourceSelectViewHolder>() {
-            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SourceSelectViewHolder {
-                val textView = TextView(parent.context).apply {
-                    gravity = Gravity.CENTER_VERTICAL
-                    includeFontPadding = false
-                    minHeight = 48.dpToPx()
-                    maxLines = 2
-                    ellipsize = TextUtils.TruncateAt.END
-                    setTextColor(primaryTextColor)
-                    textSize = 15f
-                    setPadding(18.dpToPx(), 0, 18.dpToPx(), 0)
-                    setBackgroundResource(R.drawable.bg_popup_action_item)
-                }
-                return SourceSelectViewHolder(textView)
-            }
-
-            override fun getItemCount(): Int = filteredSources.size
-
-            override fun onBindViewHolder(holder: SourceSelectViewHolder, position: Int) {
-                val source = filteredSources[position]
-                val selectedPrefix = if (source.bookSourceUrl == selectedUrl) "✓ " else ""
-                holder.textView.text = selectedPrefix + source.getDisPlayNameGroup()
-                holder.textView.setOnClickListener {
-                    dialog?.dismiss()
-                    selectDiscoverSource(source)
-                }
-            }
+        SourceSelectDialog.show(
+            context = requireContext(),
+            title = getString(R.string.book_source),
+            items = discoverSources,
+            selectedKey = selectedDiscoverSourcePart?.bookSourceUrl,
+            displayName = { it.getDisPlayNameGroup() },
+            searchTexts = {
+                listOfNotNull(it.bookSourceName, it.bookSourceUrl, it.bookSourceGroup)
+            },
+            itemKey = { it.bookSourceUrl }
+        ) {
+            selectDiscoverSource(it)
         }
-        val searchView = SearchView(context).apply {
-            queryHint = getString(R.string.screen_find)
-            isIconified = false
-            isSubmitButtonEnabled = false
-            setBackgroundResource(R.drawable.bg_source_picker_search)
-            setPadding(4.dpToPx(), 0, 4.dpToPx(), 0)
-            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean = true
-
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    val key = newText.orEmpty().trim()
-                    filteredSources = if (key.isBlank()) {
-                        discoverSources.toList()
-                    } else {
-                        discoverSources.filter { source ->
-                            source.bookSourceName.contains(key, true)
-                                    || source.bookSourceUrl.contains(key, true)
-                                    || source.bookSourceGroup?.contains(key, true) == true
-                        }
-                    }
-                    sourceAdapter.notifyDataSetChanged()
-                    return true
-                }
-            })
-        }
-        val recyclerView = RecyclerView(context).apply {
-            layoutManager = LinearLayoutManager(context)
-            adapter = sourceAdapter
-            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                360.dpToPx()
-            ).apply {
-                topMargin = 10.dpToPx()
-            }
-        }
-        val container = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundResource(R.drawable.bg_source_picker_panel)
-            setPadding(14.dpToPx(), 14.dpToPx(), 14.dpToPx(), 12.dpToPx())
-            addView(
-                TextView(context).apply {
-                    text = getString(R.string.book_source)
-                    setTextColor(primaryTextColor)
-                    textSize = 18f
-                    includeFontPadding = false
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(2.dpToPx(), 0, 2.dpToPx(), 12.dpToPx())
-                },
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    32.dpToPx()
-                )
-            )
-            addView(
-                searchView,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    42.dpToPx()
-                )
-            )
-            addView(recyclerView)
-        }
-        dialog = AlertDialog.Builder(context)
-            .setView(container)
-            .create()
-        dialog.show()
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
     }
 
     private fun selectDiscoverSource(source: BookSourcePart) {
@@ -1141,8 +1053,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
 }
-
-private class SourceSelectViewHolder(val textView: TextView) : RecyclerView.ViewHolder(textView)
 
 private fun String.limitDiscoverText(max: Int): String {
     return if (length <= max) this else "${take(max.coerceAtLeast(2) - 1)}…"

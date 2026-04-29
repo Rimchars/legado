@@ -88,8 +88,8 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         binding.btnMoreGlassView.visibility = View.GONE
         binding.btnMoreShellOverlay.visibility = View.GONE
         binding.btnMore.setBackgroundResource(R.drawable.bg_more_icon_button_clear)
-        binding.btnMore.setColorFilter(ThemeStore.textColorSecondary(requireContext()))
-        binding.ivBookshelfTitleArrow.setColorFilter(ThemeStore.textColorSecondary(requireContext()))
+        binding.btnMore.setColorFilter(ThemeStore.textColorPrimary(requireContext()))
+        binding.ivBookshelfTitleArrow.setColorFilter(ThemeStore.textColorPrimary(requireContext()))
         binding.tabLayout.setOnTagClickListener { index ->
             val tag = bookTags.getOrNull(index).orEmpty()
             if (tag == selectedBookTag) {

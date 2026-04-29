@@ -64,7 +64,7 @@
     <dimen name="bookshelf_title_row_margin_end">10dp</dimen>
     <dimen name="bookshelf_title_select_height">42dp</dimen>
     <dimen name="bookshelf_title_arrow_size">18dp</dimen>
-    <dimen name="bookshelf_title_arrow_margin_start">2dp</dimen>
+    <dimen name="bookshelf_title_arrow_margin_start">0dp</dimen>
     <dimen name="bookshelf_tag_bar_height">38dp</dimen>
     <dimen name="bookshelf_tag_bar_margin_horizontal">16dp</dimen>
     <dimen name="bookshelf_tag_bar_margin_top">8dp</dimen>
