@@ -393,8 +393,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             addView(textView)
             minimumHeight = 96.dpToPx()
         }
-        val dialog = context.alert {
-            setTitle("注解")
+        val dialog = context.alert(title = "注解") {
             customView { scrollView }
             okButton()
         }
