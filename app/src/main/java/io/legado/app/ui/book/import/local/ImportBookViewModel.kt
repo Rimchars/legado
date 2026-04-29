@@ -140,7 +140,20 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
             onProgress(initialProgress)
             bookList.forEach { item ->
                 kotlin.runCatching {
-                    LocalBook.importFiles(item.file.uri)
+                    val books = LocalBook.importFiles(item.file.uri)
+                    books.forEach { book ->
+                        LocalBook.prepareImportedBookCache(book) { chapterIndex, chapterCount, chapterTitle ->
+                            val decodeProgress = ImportProgress(
+                                total = chapterCount.coerceAtLeast(1),
+                                processed = chapterIndex.coerceIn(0, chapterCount.coerceAtLeast(1)),
+                                imported = imported,
+                                failed = failed,
+                                message = "解码 ${book.name}: $chapterTitle"
+                            )
+                            importProgressFlow.value = decodeProgress
+                            onProgress(decodeProgress)
+                        }
+                    }
                 }.onSuccess {
                     imported += 1
                 }.onFailure {
@@ -152,7 +165,8 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
                     total = total,
                     processed = processed,
                     imported = imported,
-                    failed = failed
+                    failed = failed,
+                    message = "导入 ${item.name}"
                 )
                 importProgressFlow.value = progress
                 onProgress(progress)
@@ -269,7 +283,8 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
         val total: Int,
         val processed: Int,
         val imported: Int,
-        val failed: Int
+        val failed: Int,
+        val message: String = ""
     )
 
     private fun FileDoc.isVisibleImportBookItem(): Boolean {
