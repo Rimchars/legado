@@ -458,9 +458,8 @@ class PageView(context: Context) : FrameLayout(context) {
     fun longPress(
         x: Float, y: Float,
         select: (textPos: TextPos) -> Unit,
-    ) {
-        return binding.contentTextView.longPress(x - imgBgPaddingStart, y - headerHeight, select)
-    }
+    ): Boolean =
+        binding.contentTextView.longPress(x - imgBgPaddingStart, y - headerHeight, select)
 
     /**
      * 选择文本
@@ -548,6 +547,10 @@ class PageView(context: Context) : FrameLayout(context) {
     val textPage get() = binding.contentTextView.textPage
 
     val selectedText: String get() = binding.contentTextView.getSelectedText()
+
+    fun hasSelection(): Boolean = binding.contentTextView.hasSelection()
+
+    fun hasNativeSelection(): Boolean = binding.contentTextView.hasNativeSelection()
 
     val selectStartPos get() = binding.contentTextView.selectStart
 }

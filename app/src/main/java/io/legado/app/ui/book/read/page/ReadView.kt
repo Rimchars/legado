@@ -324,7 +324,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
      */
     private fun onLongPress() {
         kotlin.runCatching {
-            curPage.longPress(startX, startY) { textPos: TextPos ->
+            val handled = curPage.longPress(startX, startY) { textPos: TextPos ->
                 isTextSelected = true
                 pressOnTextSelected = true
                 initialTextPos.upData(textPos)
@@ -390,6 +390,11 @@ class ReadView(context: Context, attrs: AttributeSet) :
                 curPage.selectStartMoveIndex(startPos)
                 curPage.selectEndMoveIndex(endPos)
                 showSelectionMagnifier(startX, startY)
+            }
+            if (handled && curPage.hasNativeSelection()) {
+                isTextSelected = true
+                pressOnTextSelected = true
+                post { callBack.showTextActionMenu() }
             }
         }
     }

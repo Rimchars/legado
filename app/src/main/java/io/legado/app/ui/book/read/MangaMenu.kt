@@ -158,28 +158,26 @@ class MangaMenu @JvmOverloads constructor(
             callBack.openBookInfoActivity()
         }
         val chapterViewClickListener = OnClickListener {
-            if (AppConfig.readUrlInBrowser) {
-                context.openUrl(tvChapterUrl.text.toString().substringBefore(",{"))
-            } else {
-                context.startActivity<WebViewActivity> {
-                    val url = tvChapterUrl.text.toString()
-                    val bookSource = ReadBook.bookSource
-                    putExtra("title", tvChapterName.text)
-                    putExtra("url", url)
-                    putExtra("sourceOrigin", bookSource?.bookSourceUrl)
-                    putExtra("sourceName", bookSource?.bookSourceName)
-                    putExtra("sourceType", bookSource?.getSourceType())
-                }
+            val url = tvChapterUrl.text.toString().substringBefore(",{").trim()
+            if (url.isBlank()) return@OnClickListener
+            context.startActivity<WebViewActivity> {
+                val bookSource = ReadBook.bookSource
+                putExtra("title", tvChapterName.text)
+                putExtra("url", url)
+                putExtra("sourceOrigin", bookSource?.bookSourceUrl)
+                putExtra("sourceName", bookSource?.bookSourceName)
+                putExtra("sourceType", bookSource?.getSourceType())
             }
         }
         val chapterViewLongClickListener = OnLongClickListener {
-            context.alert(R.string.open_fun) {
-                setMessage(R.string.use_browser_open)
-                okButton {
-                    AppConfig.readUrlInBrowser = true
-                }
-                noButton {
-                    AppConfig.readUrlInBrowser = false
+            val url = tvChapterUrl.text.toString().substringBefore(",{").trim()
+            if (url.isNotBlank()) {
+                context.alert(R.string.open_fun) {
+                    setMessage(R.string.use_browser_open)
+                    okButton {
+                        context.openUrl(url)
+                    }
+                    noButton()
                 }
             }
             true
