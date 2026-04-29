@@ -129,6 +129,9 @@ class EpubFile(var book: Book) {
             if (noteHrefs.isEmpty()) return
             val file = getEFile(book)
             preloadExecutor.execute {
+                synchronized(file) {
+                    file.buildFootnoteIndex()
+                }
                 noteHrefs.forEach { href ->
                     runCatching {
                         synchronized(file) {
@@ -169,6 +172,22 @@ class EpubFile(var book: Book) {
     private val fontTypefaceCache = linkedMapOf<String, Typeface?>()
     private val footnoteCache = linkedMapOf<String, EpubFootnote?>()
     private val footnoteSourceCache = linkedMapOf<String, FootnoteSource?>()
+    private val footnoteDocumentCache = object : LinkedHashMap<String, Document>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Document>?): Boolean {
+            return size > 80
+        }
+    }
+    private val footnoteIdHrefIndex = linkedMapOf<String, String>()
+    private val footnoteClassNames = setOf(
+        "footnote",
+        "endnote",
+        "note",
+        "noteref",
+        "duokan-footnote",
+        "duokan-footnote-content",
+        "duokan-footnote-item"
+    )
+    private var footnoteIndexBuilt = false
     private val scheduledNearbyPreloadKeys = linkedSetOf<String>()
     private val scheduledSmallBookPreloadKeys = linkedSetOf<String>()
     private var cachedReadableTextBytes: Long? = null
@@ -460,9 +479,21 @@ class EpubFile(var book: Book) {
         target.select("a[href]").forEach { link ->
             val linkHref = link.attr("href")
             val linkTarget = linkHref.substringAfterLast("#", "").decodeEpubFragment()
+            val rel = link.attr("rel").lowercase(Locale.ROOT)
+            val type = link.attr("epub:type").ifBlank { link.attr("type") }.lowercase(Locale.ROOT)
+            val clazz = link.className().lowercase(Locale.ROOT)
             if (linkTarget == targetId) {
                 link.remove()
-            } else if (linkHref.startsWith("#") || linkTarget.endsWith("-back")) {
+            } else if (
+                linkHref.startsWith("#") ||
+                linkTarget.endsWith("-back") ||
+                linkTarget.endsWith("_back") ||
+                linkTarget.contains("back") ||
+                rel.contains("backlink") ||
+                type.contains("backlink") ||
+                clazz.contains("backlink") ||
+                clazz.contains("noteref")
+            ) {
                 if (link.text().isBlank() && link.children().isEmpty()) {
                     link.remove()
                 } else {
@@ -483,7 +514,11 @@ class EpubFile(var book: Book) {
         val html = target.html().ifBlank { target.text() }.trim()
         val text = target.text().cleanEpubInfoText()
         val footnote = EpubFootnote(
-            title = target.attr("title").ifBlank { "注解" },
+            title = target.attr("title")
+                .ifBlank { target.attr("aria-label") }
+                .ifBlank { target.attr("epub:type") }
+                .ifBlank { target.attr("role") }
+                .ifBlank { "注解" },
             html = html.takeIf { it.isNotBlank() } ?: text
         ).takeIf { text.isNotBlank() || it.html.isNotBlank() }
         footnoteCache[cacheKey] = footnote
@@ -496,7 +531,7 @@ class EpubFile(var book: Book) {
             return footnoteSourceCache[cacheKey]
         }
         val primary = findEpubResource(cleanHref)?.let { resource ->
-            val doc = runCatching { Jsoup.parse(String(resource.data, mCharset)) }.getOrNull()
+            val doc = parseFootnoteDocument(resource.href ?: cleanHref, resource)
             if (doc?.getElementById(targetId) != null) {
                 FootnoteSource(resource.href, doc)
             } else {
@@ -507,11 +542,22 @@ class EpubFile(var book: Book) {
             footnoteSourceCache[cacheKey] = primary
             return primary
         }
+        buildFootnoteIndex()
+        footnoteIdHrefIndex[targetId]?.let { indexedHref ->
+            findEpubResource(indexedHref)?.let { resource ->
+                val doc = parseFootnoteDocument(indexedHref, resource)
+                if (doc?.getElementById(targetId) != null) {
+                    return FootnoteSource(indexedHref, doc).also {
+                        footnoteSourceCache[cacheKey] = it
+                    }
+                }
+            }
+        }
         epubBook?.resources?.all.orEmpty().forEach { resource ->
             val href = resource.href ?: return@forEach
             val source = runCatching { String(resource.data, mCharset) }.getOrNull() ?: return@forEach
             if (!source.contains(targetId)) return@forEach
-            val doc = runCatching { Jsoup.parse(source) }.getOrNull() ?: return@forEach
+            val doc = parseFootnoteDocument(href, resource, source) ?: return@forEach
             if (doc.getElementById(targetId) != null) {
                 return FootnoteSource(href, doc).also {
                     footnoteSourceCache[cacheKey] = it
@@ -520,6 +566,67 @@ class EpubFile(var book: Book) {
         }
         footnoteSourceCache[cacheKey] = null
         return null
+    }
+
+    private fun parseFootnoteDocument(href: String, resource: Resource, source: String? = null): Document? {
+        footnoteDocumentCache[href]?.let { return it }
+        val html = source ?: runCatching { String(resource.data, mCharset) }.getOrNull() ?: return null
+        return runCatching { Jsoup.parse(html) }.getOrNull()?.also { doc ->
+            footnoteDocumentCache[href] = doc
+        }
+    }
+
+    private fun buildFootnoteIndex() {
+        if (footnoteIndexBuilt) return
+        footnoteIndexBuilt = true
+        epubBook?.resources?.all.orEmpty().forEach { resource ->
+            val href = resource.href ?: return@forEach
+            if (!href.isReadableEpubHtml()) return@forEach
+            val source = runCatching { String(resource.data, mCharset) }.getOrNull() ?: return@forEach
+            if (!source.mayContainFootnote()) return@forEach
+            val doc = parseFootnoteDocument(href, resource, source) ?: return@forEach
+            doc.select("aside[id], section[id], div[id], li[id], p[id], span[id], a[id]").forEach { element ->
+                if (element.isLikelyFootnoteTarget()) {
+                    footnoteIdHrefIndex.putIfAbsent(element.id(), href)
+                }
+            }
+        }
+        AppLog.put("EPUB Footnote index built: count=${footnoteIdHrefIndex.size}")
+    }
+
+    private fun String.isReadableEpubHtml(): Boolean {
+        val clean = lowercase(Locale.ROOT)
+        return clean.endsWith(".xhtml") || clean.endsWith(".html") || clean.endsWith(".htm")
+    }
+
+    private fun String.mayContainFootnote(): Boolean {
+        return contains("footnote", ignoreCase = true) ||
+            contains("endnote", ignoreCase = true) ||
+            contains("noteref", ignoreCase = true) ||
+            contains("duokan-footnote", ignoreCase = true) ||
+            contains("doc-footnote", ignoreCase = true) ||
+            contains("doc-endnote", ignoreCase = true) ||
+            contains("epub:type", ignoreCase = true) ||
+            contains("role=", ignoreCase = true) ||
+            contains("id=", ignoreCase = true)
+    }
+
+    private fun Element.isLikelyFootnoteTarget(): Boolean {
+        val id = id().lowercase(Locale.ROOT)
+        val type = attr("epub:type").ifBlank { attr("type") }.lowercase(Locale.ROOT)
+        val role = attr("role").lowercase(Locale.ROOT)
+        val clazz = className().lowercase(Locale.ROOT)
+        return type.contains("footnote") ||
+            type.contains("endnote") ||
+            role == "doc-footnote" ||
+            role == "doc-endnote" ||
+            clazz.split(' ').any { it in footnoteClassNames } ||
+            id.startsWith("fn") ||
+            id.startsWith("note") ||
+            id.startsWith("n_") ||
+            id.endsWith("-note") ||
+            id.contains("footnote") ||
+            id.contains("endnote")
     }
 
     private fun String.decodeEpubFragment(): String {
@@ -1491,7 +1598,28 @@ class EpubFile(var book: Book) {
     private fun Element.markEpubGalleryPage() {
         val images = select("img").filterNot { it.attr("data-epub-background") == "true" }
         if (images.size < 2) return
-        if (select(".duokan-image-gallery-cell").isNotEmpty()) return
+        if (select(".duokan-image-gallery-cell").isNotEmpty()) {
+            attr(
+                "style",
+                "${attr("style")};margin:0;padding:0;text-indent:0;text-align:center"
+            )
+            select(".duokan-image-gallery,.duokan-image-gallery-cell,.duokan-gallery,.gallery").forEach { gallery ->
+                gallery.attr(
+                    "style",
+                    "${gallery.attr("style")};display:block;margin:0 auto;text-align:center;max-width:100%"
+                )
+            }
+            images.forEach { image ->
+                if (image.attr("data-legado-width").isBlank()) {
+                    image.attr("data-legado-width", "100%")
+                }
+                image.attr(
+                    "style",
+                    "${image.attr("style")};display:block;margin:0 auto;max-width:100%;height:auto"
+                )
+            }
+            return
+        }
         val text = text().cleanEpubInfoText()
         if (text.length > 120) return
         attr(
