@@ -12,6 +12,8 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import splitties.init.appCtx
 import java.util.UUID
 
@@ -31,6 +33,7 @@ class AiChatViewModel : ViewModel() {
         private var activeSessionId: String? = null
         private var activeViewModel: AiChatViewModel? = null
         private var activePendingContent: String = ""
+        private val activeStatusEvents = linkedMapOf<String, JSONObject>()
     }
 
     init {
@@ -54,11 +57,12 @@ class AiChatViewModel : ViewModel() {
         activeSessionId = currentSessionId
         val requestSessionId = currentSessionId
         activeViewModel = this
+        activeStatusEvents.clear()
         append(AiChatMessage(role = AiChatMessage.Role.USER, content = userContent))
         append(
             AiChatMessage(
                 role = AiChatMessage.Role.ASSISTANT,
-                content = thinkingText,
+                content = buildPendingAssistantContent(thinkingText),
                 pending = true
             )
         )
@@ -71,10 +75,15 @@ class AiChatViewModel : ViewModel() {
                     onPartial = { partial ->
                         activePendingContent = partial.ifBlank { thinkingText }
                         targetFor(requestSessionId).upsertPendingAssistant(
-                            activePendingContent
+                            buildPendingAssistantContent(activePendingContent)
                         )
                     },
-                    onThinking = {}
+                    onThinking = { thinking ->
+                        targetFor(requestSessionId).upsertThinkingStatus(thinking)
+                    },
+                    onStatus = { status ->
+                        targetFor(requestSessionId).upsertStatus(status)
+                    }
                 )
             }
             targetFor(requestSessionId).setRequesting(false)
@@ -82,9 +91,11 @@ class AiChatViewModel : ViewModel() {
             activeSessionId = null
             result.onSuccess { content ->
                 activePendingContent = ""
+                activeStatusEvents.clear()
                 targetFor(requestSessionId).replacePendingAssistant(content.ifBlank { thinkingText })
             }.onFailure { throwable ->
                 activePendingContent = ""
+                activeStatusEvents.clear()
                 if (throwable is CancellationException) {
                     targetFor(requestSessionId).replacePendingAssistant(cancelledText)
                     return@onFailure
@@ -106,6 +117,7 @@ class AiChatViewModel : ViewModel() {
         activeJob = null
         activeSessionId = null
         activePendingContent = ""
+        activeStatusEvents.clear()
         setRequesting(false)
         if (cancelledText.isNotBlank()) {
             replacePendingAssistant(cancelledText)
@@ -133,6 +145,27 @@ class AiChatViewModel : ViewModel() {
             )
         }
         publish()
+    }
+
+    fun upsertThinkingStatus(thinking: String) {
+        val normalized = thinking.replace(Regex("\\s+"), " ").trim()
+        if (normalized.isBlank()) return
+        activeStatusEvents["thinking"] = JSONObject().apply {
+            put("key", "thinking")
+            put("kind", "thinking")
+            put("name", "思考中")
+            put("stage", "thinking")
+            put("label", "思考中")
+            put("content", normalized.takeLast(280))
+            put("success", true)
+        }
+        upsertPendingAssistant(buildPendingAssistantContent(activePendingContent))
+    }
+
+    fun upsertStatus(status: JSONObject) {
+        val key = status.optString("key").ifBlank { UUID.randomUUID().toString() }
+        activeStatusEvents[key] = JSONObject(status.toString())
+        upsertPendingAssistant(buildPendingAssistantContent(activePendingContent))
     }
 
     fun finishPendingAssistant() {
@@ -259,6 +292,25 @@ class AiChatViewModel : ViewModel() {
             saveCurrentSession()
         }
         messagesLiveData.postValue(messages.toList())
+    }
+
+    private fun buildPendingAssistantContent(visibleContent: String): String {
+        if (activeStatusEvents.isEmpty()) return visibleContent
+        return buildString {
+            append("```legado-status-events\n")
+            append(
+                JSONObject().apply {
+                    put(
+                        "events",
+                        JSONArray().apply {
+                            activeStatusEvents.values.forEach { put(it) }
+                        }
+                    )
+                }
+            )
+            append("\n```\n")
+            append(visibleContent)
+        }
     }
 
     private fun saveCurrentSession() {

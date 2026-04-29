@@ -425,7 +425,7 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
                 0.16f
             ),
             ColorUtils.adjustAlpha(primaryTextColor, 0.08f),
-            14f
+            28f
         )
         binding.composerContainer.elevation = 8f.dpToPx()
         modelActionText?.setTextColor(primaryTextColor)

@@ -31,6 +31,7 @@ import io.legado.app.ui.book.info.BookInfoActivity
 import io.legado.app.ui.main.MainViewModel
 import io.legado.app.utils.cnCompare
 import io.legado.app.utils.applyMainBottomBarPadding
+import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChangeFirst
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.setEdgeEffectColor
@@ -114,6 +115,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.rvBookshelf.applyMainBottomBarPadding()
         upFastScrollerBar()
         binding.refreshLayout.setColorSchemeColors(accentColor)
+        binding.refreshLayout.setProgressViewOffset(false, 16.dpToPx(), 72.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
             activityViewModel.upToc(booksAdapter.getItems(), onlyUpdateRead)

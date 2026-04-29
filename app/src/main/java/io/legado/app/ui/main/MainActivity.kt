@@ -291,6 +291,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         bottomNavigationView.setOnNavigationItemSelectedListener(this@MainActivity)
         bottomNavigationView.setOnNavigationItemReselectedListener(this@MainActivity)
         bottomNavigationView.menu.findItem(getBottomNavigationItemId(initialPage))?.isChecked = true
+        searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
         searchButton.setOnClickListener {
             startActivity(Intent(this@MainActivity, SearchActivity::class.java))
         }
@@ -363,6 +364,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 )
                 bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
                 searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
+                searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
                 bottomNavigationIndicatorOverlay.background = createSolidBottomIndicatorDrawable()
                 updateBottomNavigationIndicator(animate = false)
                 return
@@ -375,6 +377,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             searchButtonShellOverlay.isVisible = true
             bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
             searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
+            searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
             bottomNavigationGlassView.visibility = android.view.View.VISIBLE
             bottomNavigationIndicatorGlassView.visibility = android.view.View.VISIBLE
             searchButtonGlassView.visibility = android.view.View.VISIBLE
