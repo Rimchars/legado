@@ -57,6 +57,7 @@ object PreferKey {
     const val aiSystemPrompt = "aiSystemPrompt"
     const val aiSkillPrompt = "aiSkillPrompt"
     const val aiSkillList = "aiSkillList"
+    const val aiShowToolSummary = "aiShowToolSummary"
     const val aiTavilyEnabled = "aiTavilyEnabled"
     const val aiTavilyApiKey = "aiTavilyApiKey"
     const val aiTavilyBaseUrl = "aiTavilyBaseUrl"
