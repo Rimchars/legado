@@ -66,9 +66,6 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
         initView()
         observeMessages()
         updateHeader()
-        if (viewModel.isRequesting) {
-            showThinkingPanel()
-        }
         updateComposerState()
     }
 
@@ -151,6 +148,8 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
         }
         binding.rvAiMessages.adapter = adapter
         binding.rvAiMessages.setEdgeEffectColor(primaryColor)
+        binding.btnScrollPrev.setOnClickListener { scrollToPreviousAssistantStart() }
+        binding.btnScrollNext.setOnClickListener { scrollToNextMessageBottom() }
         binding.root.setOnApplyWindowInsetsListenerCompat { _, windowInsets ->
             val imeInset = windowInsets.imeHeight
             val bottomInset = if (imeInset > 0) imeInset else windowInsets.navigationBarHeight
@@ -202,7 +201,9 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
     }
 
     private fun updateMessagesBottomPadding() {
-        val extraBottom = 18.dpToPx()
+        val composerBottom = (binding.composerContainer.layoutParams as? ViewGroup.MarginLayoutParams)
+            ?.bottomMargin ?: 0
+        val extraBottom = binding.composerContainer.height + composerBottom + 18.dpToPx()
         binding.rvAiMessages.setPadding(
             binding.rvAiMessages.paddingLeft,
             binding.rvAiMessages.paddingTop,
@@ -224,21 +225,8 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
             }
         }
         viewModel.requestingLiveData.observe(this) { requesting ->
-            if (requesting) {
-                showThinkingPanel()
-            } else {
-                hideThinkingPanel()
-            }
+            hideThinkingPanel()
             updateComposerState()
-        }
-        viewModel.thinkingLiveData.observe(this) { thinking ->
-            val detail = thinking.trim()
-            binding.tvThinkingDetail.text = detail
-            binding.thinkingScroll.isVisible = detail.isNotBlank() &&
-                detail != getString(R.string.ai_chat_thinking)
-            if (viewModel.isRequesting) {
-                binding.thinkingPanel.isVisible = true
-            }
         }
     }
 
@@ -389,18 +377,35 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
         )
     }
 
-    private fun showThinkingPanel() {
-        binding.tvThinkingTitle.text = getString(R.string.ai_chat_thinking)
-        val detail = viewModel.thinkingLiveData.value.orEmpty().trim()
-        binding.tvThinkingDetail.text = detail
-        binding.thinkingScroll.isVisible = detail.isNotBlank() &&
-            detail != getString(R.string.ai_chat_thinking)
-        binding.thinkingPanel.isVisible = true
-    }
-
     private fun hideThinkingPanel() {
         binding.thinkingPanel.isVisible = false
         binding.thinkingScroll.isVisible = false
+    }
+
+    private fun scrollToPreviousAssistantStart() {
+        val items = viewModel.messagesLiveData.value.orEmpty()
+        val layoutManager = binding.rvAiMessages.layoutManager as? LinearLayoutManager ?: return
+        val anchor = layoutManager.findFirstVisibleItemPosition().coerceAtLeast(0)
+        val target = (anchor - 1 downTo 0).firstOrNull {
+            items.getOrNull(it)?.role == AiChatMessage.Role.ASSISTANT
+        } ?: return
+        layoutManager.scrollToPositionWithOffset(target, 0)
+    }
+
+    private fun scrollToNextMessageBottom() {
+        val items = viewModel.messagesLiveData.value.orEmpty()
+        val layoutManager = binding.rvAiMessages.layoutManager as? LinearLayoutManager ?: return
+        val anchor = layoutManager.findLastVisibleItemPosition().coerceAtLeast(0)
+        val target = (anchor + 1 until items.size).firstOrNull() ?: return
+        binding.rvAiMessages.scrollToPosition(target)
+        binding.rvAiMessages.post {
+            val holder = binding.rvAiMessages.findViewHolderForAdapterPosition(target)
+            val bottom = holder?.itemView?.bottom ?: return@post
+            val delta = bottom - binding.rvAiMessages.height
+            if (delta > 0) {
+                binding.rvAiMessages.scrollBy(0, delta)
+            }
+        }
     }
 
     private fun tintSendButton() {
@@ -440,9 +445,9 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
                 if (baseIsLight) 0.96f else 0.88f
             ),
             ColorUtils.adjustAlpha(accentColor, if (baseIsLight) 0.18f else 0.24f),
-            22f
+            28f
         )
-        binding.composerContainer.elevation = 0f
+        binding.composerContainer.elevation = 8f.dpToPx()
         binding.titleBar.setTextColor(primaryTextColor)
         binding.titleBar.setSubTitleTextColor(secondaryTextColor)
         binding.titleBar.setColorFilter(primaryTextColor)

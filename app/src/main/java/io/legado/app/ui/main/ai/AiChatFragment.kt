@@ -7,6 +7,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.core.content.res.use
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.viewModels
@@ -58,6 +59,11 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
         binding.rvAiMessages.layoutManager = LinearLayoutManager(requireContext())
         binding.rvAiMessages.adapter = adapter
         binding.rvAiMessages.setEdgeEffectColor(primaryColor)
+        binding.composerContainer.doOnLayout {
+            updateMessagesBottomPadding()
+        }
+        binding.btnScrollPrev.setOnClickListener { scrollToPreviousAssistantStart() }
+        binding.btnScrollNext.setOnClickListener { scrollToNextMessageBottom() }
         binding.btnAiSettings.setOnClickListener {
             startActivity<ConfigActivity> {
                 putExtra("configTag", ConfigTag.AI_CONFIG)
@@ -72,6 +78,7 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
         }
         binding.etAiInput.doAfterTextChanged {
             updateComposerState()
+            updateMessagesBottomPadding()
         }
         binding.etAiInput.setOnEditorActionListener { _, actionId, event ->
             val isSendAction = actionId == EditorInfo.IME_ACTION_SEND
@@ -85,7 +92,7 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
         }
         tintSendButton()
         binding.composerContainer.background = GradientDrawable().apply {
-            cornerRadius = 18.dpToPx().toFloat()
+            cornerRadius = 24.dpToPx().toFloat()
             setColor(
                 ColorUtils.adjustAlpha(
                     ColorUtils.blendColors(primaryTextColor, Color.GRAY, 0.72f),
@@ -94,7 +101,7 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
             )
             setStroke(1.dpToPx(), ColorUtils.adjustAlpha(primaryTextColor, 0.08f))
         }
-        binding.composerContainer.elevation = 0f
+        binding.composerContainer.elevation = 8.dpToPx().toFloat()
         binding.etAiInput.setTextColor(primaryTextColor)
         binding.etAiInput.setHintTextColor(secondaryTextColor)
     }
@@ -113,20 +120,11 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
         }
         viewModel.requestingLiveData.observe(viewLifecycleOwner) { requesting ->
             if (requesting) {
-                showThinkingPanel()
+                hideThinkingPanel()
             } else {
                 hideThinkingPanel()
             }
             updateComposerState()
-        }
-        viewModel.thinkingLiveData.observe(viewLifecycleOwner) { thinking ->
-            val detail = thinking.trim()
-            binding.tvThinkingDetail.text = detail
-            binding.thinkingScroll.isVisible = detail.isNotBlank() &&
-                detail != getString(R.string.ai_chat_thinking)
-            if (viewModel.isRequesting) {
-                binding.thinkingPanel.isVisible = true
-            }
         }
     }
 
@@ -165,18 +163,47 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
         )
     }
 
-    private fun showThinkingPanel() {
-        binding.tvThinkingTitle.text = getString(R.string.ai_chat_thinking)
-        val detail = viewModel.thinkingLiveData.value.orEmpty().trim()
-        binding.tvThinkingDetail.text = detail
-        binding.thinkingScroll.isVisible = detail.isNotBlank() &&
-            detail != getString(R.string.ai_chat_thinking)
-        binding.thinkingPanel.isVisible = true
+    private fun updateMessagesBottomPadding() {
+        val composerBottom = (binding.composerContainer.layoutParams as? android.view.ViewGroup.MarginLayoutParams)
+            ?.bottomMargin ?: 0
+        val extraBottom = binding.composerContainer.height + composerBottom + 18.dpToPx()
+        binding.rvAiMessages.setPadding(
+            binding.rvAiMessages.paddingLeft,
+            binding.rvAiMessages.paddingTop,
+            binding.rvAiMessages.paddingRight,
+            extraBottom
+        )
     }
 
     private fun hideThinkingPanel() {
         binding.thinkingPanel.isVisible = false
         binding.thinkingScroll.isVisible = false
+    }
+
+    private fun scrollToPreviousAssistantStart() {
+        val items = viewModel.messagesLiveData.value.orEmpty()
+        val layoutManager = binding.rvAiMessages.layoutManager as? LinearLayoutManager ?: return
+        val anchor = layoutManager.findFirstVisibleItemPosition().coerceAtLeast(0)
+        val target = (anchor - 1 downTo 0).firstOrNull {
+            items.getOrNull(it)?.role == AiChatMessage.Role.ASSISTANT
+        } ?: return
+        layoutManager.scrollToPositionWithOffset(target, 0)
+    }
+
+    private fun scrollToNextMessageBottom() {
+        val items = viewModel.messagesLiveData.value.orEmpty()
+        val layoutManager = binding.rvAiMessages.layoutManager as? LinearLayoutManager ?: return
+        val anchor = layoutManager.findLastVisibleItemPosition().coerceAtLeast(0)
+        val target = (anchor + 1 until items.size).firstOrNull() ?: return
+        binding.rvAiMessages.scrollToPosition(target)
+        binding.rvAiMessages.post {
+            val holder = binding.rvAiMessages.findViewHolderForAdapterPosition(target)
+            val bottom = holder?.itemView?.bottom ?: return@post
+            val delta = bottom - binding.rvAiMessages.height
+            if (delta > 0) {
+                binding.rvAiMessages.scrollBy(0, delta)
+            }
+        }
     }
 
     private fun tintSendButton() {

@@ -19,7 +19,6 @@ class AiChatViewModel : ViewModel() {
 
     val messagesLiveData = MutableLiveData<List<AiChatMessage>>(emptyList())
     val requestingLiveData = MutableLiveData(false)
-    val thinkingLiveData = MutableLiveData("")
     var isRequesting = false
         private set
 
@@ -62,7 +61,13 @@ class AiChatViewModel : ViewModel() {
         activePendingAssistantMessageId = null
         activeToolMessageIds.clear()
         append(AiChatMessage(role = AiChatMessage.Role.USER, content = userContent))
-        thinkingLiveData.postValue(thinkingText)
+        val pendingMessage = AiChatMessage(
+            role = AiChatMessage.Role.ASSISTANT,
+            content = thinkingText,
+            pending = true
+        )
+        activePendingAssistantMessageId = pendingMessage.id
+        append(pendingMessage)
         activePendingContent = ""
         val requestMessages = snapshotForRequest()
         activeJob = requestScope.launch {
@@ -70,7 +75,6 @@ class AiChatViewModel : ViewModel() {
                 AiChatService.chatStream(
                     messages = requestMessages,
                     onPartial = { partial ->
-                        targetFor(requestSessionId).clearThinkingState()
                         activePendingContent = partial
                         targetFor(requestSessionId).upsertPendingAssistant(partial.ifBlank { "" })
                     },
@@ -88,12 +92,10 @@ class AiChatViewModel : ViewModel() {
             result.onSuccess { content ->
                 activePendingContent = ""
                 activeToolMessageIds.clear()
-                targetFor(requestSessionId).clearThinkingState()
                 targetFor(requestSessionId).replacePendingAssistant(content.ifBlank { thinkingText })
             }.onFailure { throwable ->
                 activePendingContent = ""
                 activeToolMessageIds.clear()
-                targetFor(requestSessionId).clearThinkingState()
                 if (throwable is CancellationException) {
                     targetFor(requestSessionId).replacePendingAssistant(cancelledText)
                     return@onFailure
@@ -118,7 +120,6 @@ class AiChatViewModel : ViewModel() {
         activeThinkingMessageId = null
         activePendingAssistantMessageId = null
         activeToolMessageIds.clear()
-        clearThinkingState()
         setRequesting(false)
         if (cancelledText.isNotBlank()) {
             replacePendingAssistant(cancelledText)
@@ -150,7 +151,15 @@ class AiChatViewModel : ViewModel() {
     fun upsertThinkingStatus(thinkingTitle: String, thinking: String) {
         if (activePendingContent.isNotBlank()) return
         val normalized = thinking.replace(Regex("\\s+"), " ").trim()
-        thinkingLiveData.postValue(normalized.ifBlank { thinkingTitle })
+        val messageId = activePendingAssistantMessageId ?: return
+        val index = messages.indexOfFirst { it.id == messageId }
+        if (index >= 0) {
+            messages[index] = messages[index].copy(
+                content = normalized.ifBlank { thinkingTitle },
+                pending = true
+            )
+            publish()
+        }
     }
 
     fun upsertStatus(status: org.json.JSONObject) {
@@ -281,11 +290,6 @@ class AiChatViewModel : ViewModel() {
             saveCurrentSession()
         }
         messagesLiveData.postValue(messages.toList())
-    }
-
-    private fun clearThinkingState() {
-        activeThinkingMessageId = null
-        thinkingLiveData.postValue("")
     }
 
     private fun saveCurrentSession() {
