@@ -26,11 +26,32 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
+      - name: Prepare release version
+        id: version
+        run: |
+          VERSION_NAME="3.$(TZ=Asia/Shanghai date +%y.%m%d%H)"
+          VERSION_CODE=$(($(date -u +%s) / 60))
+          TAG_NAME="archive-v2-${VERSION_NAME}"
+          {
+            echo "name=${VERSION_NAME}"
+            echo "code=${VERSION_CODE}"
+            echo "tag=${TAG_NAME}"
+          } >> "$GITHUB_OUTPUT"
+
+          cat > release-notes.md <<EOF
+          阅读Archive 第二版
+
+          - 优化订阅源搜索框样式，源名称居中，搜索提示改为订阅内容。
+          - 修复订阅源双排瀑布流图片轻微超出卡片边框的问题。
+          - 去掉搜索页灰色遮罩，恢复更干净的透明背景。
+          - 保留近期 EPUB、AI、主题和导航栏相关体验优化。
+          EOF
+
       - name: Build full release APK
         run: |
-          VERSION_CODE=$(($(date -u +%s) / 60))
           ./gradlew :app:assembleAppRelease \
-            -PVERSION_CODE="$VERSION_CODE" \
+            -PVERSION_NAME="${{ steps.version.outputs.name }}" \
+            -PVERSION_CODE="${{ steps.version.outputs.code }}" \
             -PRELEASE_STORE_FILE=ci-debug.keystore \
             -PRELEASE_STORE_PASSWORD=legado-ci-debug \
             -PRELEASE_KEY_ALIAS=legado-ci-debug \
@@ -51,29 +72,35 @@ jobs:
           name: legado-release-full
           path: ${{ steps.apk.outputs.path }}
 
-      - name: Remove previous release APK assets
+      - name: Publish versioned release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: 阅读Archive 第二版 ${{ steps.version.outputs.name }}
+          prerelease: false
+          make_latest: true
+          generate_release_notes: false
+          files: ${{ steps.apk.outputs.path }}
+          body_path: release-notes.md
+
+      - name: Refresh app update channel
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/latest-arm64-release --jq '.id' 2>/dev/null || true)
+          CHANNEL_TAG="latest-arm64-release"
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/$CHANNEL_TAG --jq '.id' 2>/dev/null || true)
           if [ -n "$RELEASE_ID" ]; then
             gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate \
               --jq '.[] | select(.name | endswith(".apk")) | .id' \
               | while read -r ASSET_ID; do
                   gh api -X DELETE repos/${{ github.repository }}/releases/assets/$ASSET_ID
                 done
+            gh release upload "$CHANNEL_TAG" "${{ steps.apk.outputs.path }}" --clobber
+            gh release edit "$CHANNEL_TAG" \
+              --title "阅读Archive 更新通道" \
+              --notes-file release-notes.md
+          else
+            gh release create "$CHANNEL_TAG" "${{ steps.apk.outputs.path }}" \
+              --title "阅读Archive 更新通道" \
+              --notes-file release-notes.md
           fi
-
-      - name: Publish release asset
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest-arm64-release
-          name: 阅读Archive full release
-          prerelease: false
-          generate_release_notes: false
-          overwrite_files: true
-          files: ${{ steps.apk.outputs.path }}
-          append_body: true
-          body: |
-            Latest full release build from GitHub Actions.
-            Commit: ${{ github.sha }}

@@ -1,26 +1,15 @@
 package io.legado.app.ui.main.rss
 
 import android.annotation.SuppressLint
-import android.content.Context
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.view.Menu
 import android.view.MenuItem
 import android.view.SubMenu
 import android.view.View
-import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SearchView
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
@@ -55,10 +44,8 @@ import io.legado.app.ui.rss.source.manage.RssSourceActivity
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.applyTint
-import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
-import io.legado.app.utils.getCompatColor
 import io.legado.app.utils.gone
 import io.legado.app.utils.openUrl
 import io.legado.app.utils.setEdgeEffectColor
@@ -574,68 +561,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private fun openRssSearch() {
         val source = selectedRssSource ?: return
         if (source.searchUrl.isNullOrBlank()) return
-        val context = requireContext()
-        val editText = EditText(requireContext()).apply {
-            hint = getString(R.string.rss_search_hint)
-            setSingleLine()
-            setTextColor(primaryTextColor)
-            setHintTextColor(secondaryTextColor)
-            background = GradientDrawable().apply {
-                cornerRadius = 22.dpToPx().toFloat()
-                setColor(ColorUtils.adjustAlpha(primaryTextColor, 0.04f))
-                setStroke(1.dpToPx(), ColorUtils.adjustAlpha(accentColor, 0.42f))
-            }
-            setPadding(14.dpToPx(), 0, 14.dpToPx(), 0)
-            minHeight = 46.dpToPx()
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = 16.dpToPx()
-            }
-        }
-        val container = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(20.dpToPx(), 18.dpToPx(), 20.dpToPx(), 6.dpToPx())
-            background = GradientDrawable().apply {
-                cornerRadius = 18.dpToPx().toFloat()
-                setColor(context.getCompatColor(R.color.background_card))
-                setStroke(1.dpToPx(), ColorUtils.adjustAlpha(primaryTextColor, 0.08f))
-            }
-            addView(TextView(context).apply {
-                text = source.sourceName
-                setTextColor(primaryTextColor)
-                textSize = 18f
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                gravity = Gravity.CENTER
-                textAlignment = View.TEXT_ALIGNMENT_CENTER
-                typeface = Typeface.DEFAULT_BOLD
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            })
-            addView(editText)
-        }
-        val dialog = AlertDialog.Builder(context)
-            .setView(container)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                val key = editText.text?.toString()?.trim().orEmpty()
-                if (key.isNotEmpty()) {
-                    RssSortActivity.start(requireContext(), null, source.sourceUrl, key)
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        editText.requestFocus()
-        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-        editText.post {
-            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
-                ?.showSoftInput(editText, 0)
-        }
+        RssSortActivity.start(requireContext(), null, source.sourceUrl, focusSearch = true)
     }
 
     private fun openRssLogin(rssSource: RssSource) {
