@@ -5,15 +5,13 @@
 </a>
 
 <div align="center">
-<img width="125" height="125" src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="阅读Archive"/>
+<img width="125" height="125" src="docs/archive_icon.svg" alt="阅读Archive"/>
 <br>
 阅读Archive
 <br>
 <a href="https://loyc.xyz/c/legado.html" target="_blank">软件介绍页</a>
 <br>
 阅读Archive继承自 Lyc 维护的 Legado 分支，并延续 <a href="https://github.com/gedoor/legado" target="_blank">Legado</a> 的开源阅读体验，在其基础上继续增强界面、AI、EPUB、漫画、视频和主题能力。
-<br>
-本分支使用当前应用默认图标作为主视觉。
 </div>
 
 ## 阅读Archive特色
