@@ -320,6 +320,11 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun bindDiscoverSourceSelector() {
+        val updateSourceNameWidth = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateDiscoverSourceNameWidth()
+        }
+        binding.llDiscoverSourceRow.addOnLayoutChangeListener(updateSourceNameWidth)
+        binding.llDiscoverSourceRow.post(::updateDiscoverSourceNameWidth)
         binding.llDiscoverSourceSelect.setOnClickListener {
             showDiscoverSourceMenu()
         }
@@ -334,6 +339,19 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         }
         updateDiscoverTagFilterButtonState()
         updateDiscoverSearchButtonState()
+    }
+
+    private fun updateDiscoverSourceNameWidth() {
+        val rowWidth = binding.llDiscoverSourceRow.width
+        if (rowWidth <= 0) return
+        val actionsWidth = listOf(
+            binding.btnDiscoverSourceSearch,
+            binding.btnDiscoverTagFilter,
+            binding.btnDiscoverSourceLogin
+        ).filter { it.isVisible }.sumOf { it.measuredWidth.takeIf { width -> width > 0 } ?: it.layoutParams.width }
+        val spacing = 36.dpToPx()
+        val maxWidth = (rowWidth - actionsWidth - spacing).coerceIn(96.dpToPx(), 190.dpToPx())
+        binding.tvDiscoverSourceSelect.maxWidth = maxWidth
     }
 
     private fun openSelectedSourceLogin() {
@@ -359,6 +377,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.btnDiscoverSourceSearch.isVisible = canSearch
         binding.btnDiscoverSourceSearch.isEnabled = canSearch
         binding.btnDiscoverSourceSearch.alpha = if (canSearch) 1f else 0.45f
+        binding.llDiscoverSourceRow.post(::updateDiscoverSourceNameWidth)
     }
 
     private fun openDiscoverSearch() {
@@ -504,9 +523,10 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun updateDiscoverSourceTitle() {
-        val name = selectedDiscoverSourcePart?.bookSourceName?.limitDiscoverText(10)
+        val name = selectedDiscoverSourcePart?.bookSourceName
             ?: getString(R.string.discovery)
         binding.tvDiscoverSourceSelect.text = name
+        binding.llDiscoverSourceRow.post(::updateDiscoverSourceNameWidth)
     }
 
     private suspend fun loadDiscoverKindsAndDefault() {

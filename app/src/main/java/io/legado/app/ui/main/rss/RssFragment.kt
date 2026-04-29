@@ -1,12 +1,17 @@
 package io.legado.app.ui.main.rss
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.view.Menu
 import android.view.MenuItem
 import android.view.SubMenu
 import android.view.View
+import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -32,6 +37,7 @@ import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
+import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.main.MainFragmentInterface
 import io.legado.app.ui.rss.article.ReadRecordDialog
@@ -45,6 +51,7 @@ import io.legado.app.ui.rss.source.manage.RssSourceActivity
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.applyTint
+import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
@@ -218,6 +225,11 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.llRssSourceRow.applyStatusBarPadding(withInitialPadding = true)
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
         binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
+        val updateSourceNameWidth = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateRssSourceNameWidth()
+        }
+        binding.llRssSourceRow.addOnLayoutChangeListener(updateSourceNameWidth)
+        binding.llRssSourceRow.post(::updateRssSourceNameWidth)
         binding.swipeRefreshLayout.setOnRefreshListener {
             refreshCurrentRssContent()
         }
@@ -244,6 +256,19 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             binding.rvRssTags.setSelectedIndex(index)
             renderCurrentSort()
         }
+    }
+
+    private fun updateRssSourceNameWidth() {
+        val rowWidth = binding.llRssSourceRow.width
+        if (rowWidth <= 0) return
+        val actionsWidth = listOf(
+            binding.btnRssSourceSearch,
+            binding.btnRssSourceStar,
+            binding.btnRssSourceLogin
+        ).filter { it.isVisible }.sumOf { it.measuredWidth.takeIf { width -> width > 0 } ?: it.layoutParams.width }
+        val spacing = 36.dpToPx()
+        val maxWidth = (rowWidth - actionsWidth - spacing).coerceIn(96.dpToPx(), 190.dpToPx())
+        binding.tvRssSourceSelect.maxWidth = maxWidth
     }
 
     private fun updateRefreshIndicatorOffset() {
@@ -346,6 +371,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.tvRssSourceSelect.text = source.sourceName
         binding.btnRssSourceLogin.isVisible = !source.loginUrl.isNullOrBlank()
         binding.btnRssSourceSearch.isVisible = !source.searchUrl.isNullOrBlank()
+        binding.llRssSourceRow.post(::updateRssSourceNameWidth)
         if (changed) {
             selectedTagIndex = 0
         }
@@ -357,7 +383,11 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     }
 
     private suspend fun presentSource(source: RssSource) {
-        binding.pbRssLoading.visible()
+        if (binding.swipeRefreshLayout.isRefreshing) {
+            binding.pbRssLoading.gone()
+        } else {
+            binding.pbRssLoading.visible()
+        }
         binding.tvEmptyMsg.gone()
         sortHostViewModel.url = source.sourceUrl
         sortHostViewModel.rssSource = source
@@ -539,14 +569,41 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private fun openRssSearch() {
         val source = selectedRssSource ?: return
         if (source.searchUrl.isNullOrBlank()) return
+        val context = requireContext()
         val editText = EditText(requireContext()).apply {
             hint = getString(R.string.search_book_key)
             setSingleLine()
             setTextColor(primaryTextColor)
+            setHintTextColor(secondaryTextColor)
+            background = GradientDrawable().apply {
+                cornerRadius = 18.dpToPx().toFloat()
+                setColor(ColorUtils.adjustAlpha(primaryTextColor, 0.04f))
+                setStroke(1.dpToPx(), ColorUtils.adjustAlpha(accentColor, 0.42f))
+            }
+            setPadding(14.dpToPx(), 0, 14.dpToPx(), 0)
+            minHeight = 46.dpToPx()
         }
-        AlertDialog.Builder(requireContext())
-            .setTitle(source.sourceName)
-            .setView(editText)
+        val container = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(20.dpToPx(), 8.dpToPx(), 20.dpToPx(), 0)
+            addView(TextView(context).apply {
+                text = source.sourceName
+                setTextColor(primaryTextColor)
+                textSize = 18f
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            })
+            addView(TextView(context).apply {
+                text = getString(R.string.search_book_key)
+                setTextColor(secondaryTextColor)
+                textSize = 13f
+                setPadding(0, 6.dpToPx(), 0, 12.dpToPx())
+            })
+            addView(editText)
+        }
+        val dialog = AlertDialog.Builder(context)
+            .setView(container)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val key = editText.text?.toString()?.trim().orEmpty()
                 if (key.isNotEmpty()) {
@@ -555,6 +612,12 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+        editText.requestFocus()
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        editText.post {
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.showSoftInput(editText, 0)
+        }
     }
 
     private fun openRssLogin(rssSource: RssSource) {

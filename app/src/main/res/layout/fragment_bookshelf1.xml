@@ -68,7 +68,7 @@
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="0dp"
-            android:paddingEnd="2dp">
+            android:paddingEnd="0dp">
 
             <TextView
                 android:id="@+id/tv_bookshelf_title"
@@ -84,7 +84,6 @@
                 android:id="@+id/iv_bookshelf_title_arrow"
                 android:layout_width="@dimen/bookshelf_title_arrow_size"
                 android:layout_height="@dimen/bookshelf_title_arrow_size"
-                android:layout_marginStart="@dimen/bookshelf_title_arrow_margin_start"
                 android:contentDescription="@string/bookshelf"
                 android:src="@drawable/ic_arrow_drop_down"
                 app:tint="@color/primaryText" />
