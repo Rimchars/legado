@@ -7,6 +7,7 @@ import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.EventBus
 import io.legado.app.databinding.ActivityConfigBinding
+import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 
@@ -16,6 +17,7 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
     override val viewModel by viewModels<ConfigViewModel>()
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
+        applyHeaderColors()
         when (val configTag = intent.getStringExtra("configTag")) {
             ConfigTag.OTHER_CONFIG -> replaceFragment<OtherConfigFragment>(configTag)
             ConfigTag.THEME_CONFIG -> replaceFragment<ThemeConfigFragment>(configTag)
@@ -30,6 +32,12 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
     override fun setTitle(resId: Int) {
         super.setTitle(resId)
         binding.titleBar.setTitle(resId)
+        applyHeaderColors()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyHeaderColors()
     }
 
     inline fun <reified T : Fragment> replaceFragment(configTag: String) {
@@ -47,6 +55,11 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
         observeEvent<String>(EventBus.RECREATE) {
             recreate()
         }
+    }
+
+    private fun applyHeaderColors() {
+        binding.titleBar.setTextColor(primaryTextColor)
+        binding.titleBar.setColorFilter(primaryTextColor)
     }
 
 }
