@@ -48,10 +48,11 @@ class EpubFile(var book: Book) {
         const val NATIVE_CONTENT_FLAG = "<epub-native"
         const val NATIVE_LAYOUT_FLAG = "data-href="
         private const val ENABLE_EPUB_DEBUG_DUMP = false
-        private const val MAX_NATIVE_DOM_CACHE = 160
-        private const val MAX_NATIVE_LAYOUT_CACHE = 220
+        private const val MAX_NATIVE_DOM_CACHE = 600
+        private const val MAX_NATIVE_LAYOUT_CACHE = 1200
         private var eFile: EpubFile? = null
         private val preloadExecutor = Executors.newSingleThreadExecutor()
+        private val preloadedNativeLayoutKeys = linkedSetOf<String>()
         private val globalNativeDomCache = object : LinkedHashMap<String, EpubDomDocument>(32, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, EpubDomDocument>?): Boolean {
                 return size > MAX_NATIVE_DOM_CACHE
@@ -94,8 +95,16 @@ class EpubFile(var book: Book) {
         internal fun preloadNativeLayouts(book: Book, hrefs: List<String>) {
             if (hrefs.isEmpty()) return
             val file = getEFile(book)
+            val styleKey = file.currentNativeLayoutStyleKey()
+            val pendingHrefs = hrefs.distinct().filter { href ->
+                val key = file.nativeLayoutCacheKey(href, ChapterProvider.visibleWidth, ChapterProvider.visibleHeight, styleKey)
+                synchronized(preloadedNativeLayoutKeys) {
+                    preloadedNativeLayoutKeys.add(key)
+                }
+            }
+            if (pendingHrefs.isEmpty()) return
             preloadExecutor.execute {
-                hrefs.distinct().forEach { href ->
+                pendingHrefs.forEach { href ->
                     runCatching {
                         synchronized(file) {
                             file.getNativeLayout(href)
@@ -125,6 +134,9 @@ class EpubFile(var book: Book) {
 
         fun clear() {
             eFile = null
+            synchronized(preloadedNativeLayoutKeys) {
+                preloadedNativeLayoutKeys.clear()
+            }
         }
     }
 
@@ -275,6 +287,7 @@ class EpubFile(var book: Book) {
         val nativeHref = currentChapterFirstResourceHref.escapeXmlAttr()
         val nativeHrefList = nativeHrefs.distinct().joinToString("|") { it.escapeXmlAttr() }
         val title = chapter.title.escapeXmlAttr()
+        preloadNativeLayouts(book, nativeHrefs)
         return """<epub-native data-href="$nativeHref" data-hrefs="$nativeHrefList" data-title="$title" />"""
     }
 
@@ -411,8 +424,14 @@ class EpubFile(var book: Book) {
         target.select("a[href]").forEach { link ->
             val linkHref = link.attr("href")
             val linkTarget = linkHref.substringAfterLast("#", "").decodeEpubFragment()
-            if (linkHref.startsWith("#") || linkTarget == targetId || linkTarget.endsWith("-back")) {
+            if (linkTarget == targetId) {
                 link.remove()
+            } else if (linkHref.startsWith("#") || linkTarget.endsWith("-back")) {
+                if (link.text().isBlank() && link.children().isEmpty()) {
+                    link.remove()
+                } else {
+                    link.unwrap()
+                }
             }
         }
         target.select("img").forEach { image ->
@@ -528,9 +547,19 @@ class EpubFile(var book: Book) {
             synchronized(globalNativeLayoutCache) {
                 globalNativeLayoutCache[layoutCacheKey] = it
             }
+            val linkAreas = it.pages.sumOf { page ->
+                page.commands.count { command -> command is EpubLinkArea }
+            }
+            val linkedImages = it.pages.sumOf { page ->
+                page.commands.count { command -> command is EpubImageBox && !command.linkHref.isNullOrBlank() }
+            }
+            val linkedText = it.pages.sumOf { page ->
+                page.commands.count { command -> command is EpubTextRun && !command.linkHref.isNullOrBlank() }
+            }
             AppLog.put(
                 "EPUB Native Layout built: href=$href, pages=${it.pages.size}, " +
-                    "commands=${it.pages.sumOf { page -> page.commands.size }}"
+                    "commands=${it.pages.sumOf { page -> page.commands.size }}, " +
+                    "linkAreas=$linkAreas, linkedImages=$linkedImages, linkedText=$linkedText"
             )
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生布局失败: $href\n${it.localizedMessage}", it)

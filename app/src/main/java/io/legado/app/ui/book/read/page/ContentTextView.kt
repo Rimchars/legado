@@ -10,6 +10,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import io.legado.app.R
+import io.legado.app.constant.AppLog
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.help.book.isOnLineTxt
 import io.legado.app.help.config.AppConfig
@@ -359,8 +360,12 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             if (relativePos > 0 && offset >= ChapterProvider.visibleHeight) break
             val page = relativePage(relativePos)
             val href = page.findEpubLinkAt(x, y - offset) ?: continue
+            AppLog.put("EPUB Footnote click hit: href=$href, x=$x, y=${y - offset}, pageLinks=${page.epubLinkDiagnostics()}")
             if (!href.contains("#")) return null
-            val note = EpubFile.getFootnote(book, href) ?: return null
+            val note = EpubFile.getFootnote(book, href) ?: run {
+                AppLog.put("EPUB Footnote resolve failed: href=$href")
+                return null
+            }
             val textView = TextView(context).apply {
                 textSize = 16f
                 setTextColor(context.getCompatColor(R.color.primaryText))
@@ -376,6 +381,10 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
             return true
+        }
+        val page = relativePage(0)
+        if (page.isNativeEpubPage()) {
+            AppLog.put("EPUB Footnote click miss: x=$x, y=$y, pageLinks=${page.epubLinkDiagnostics()}")
         }
         return null
     }

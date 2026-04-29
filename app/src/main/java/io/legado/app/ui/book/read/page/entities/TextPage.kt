@@ -365,6 +365,32 @@ data class TextPage(
         }
     }
 
+    fun epubLinkDiagnostics(): String {
+        if (epubNativeCommands.isEmpty()) return "commands=0"
+        var textLinks = 0
+        var imageLinks = 0
+        var areas = 0
+        val samples = arrayListOf<String>()
+        epubNativeCommands.forEach { command ->
+            when (command) {
+                is EpubTextRun -> command.linkHref?.takeIf { it.isNotBlank() }?.let {
+                    textLinks++
+                    if (samples.size < 3) samples.add("text:$it@${command.x},${command.y},${command.width},${command.height}")
+                }
+                is EpubImageBox -> command.linkHref?.takeIf { it.isNotBlank() }?.let {
+                    imageLinks++
+                    if (samples.size < 3) samples.add("image:$it@${command.x},${command.y},${command.width},${command.height}")
+                }
+                is EpubLinkArea -> {
+                    areas++
+                    if (samples.size < 3) samples.add("area:${command.href}@${command.x},${command.y},${command.width},${command.height}")
+                }
+                else -> Unit
+            }
+        }
+        return "commands=${epubNativeCommands.size}, textLinks=$textLinks, imageLinks=$imageLinks, areas=$areas, samples=${samples.joinToString(";")}"
+    }
+
     fun draw(view: ContentTextView, canvas: Canvas, relativeOffset: Float) {
         if (AppConfig.optimizeRender) {
             render(view)
