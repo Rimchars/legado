@@ -247,7 +247,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 viewPagerMain.setCurrentItem(0, false)
 
             R.id.menu_discovery ->
-                viewPagerMain.setCurrentItem(realPositions.indexOf(resolveDiscoveryNavTarget()), false)
+                viewPagerMain.setCurrentItem(realPositions.indexOf(resolveDiscoveryNavTarget()), true)
 
             R.id.menu_rss ->
                 viewPagerMain.setCurrentItem(realPositions.indexOf(idRss), false)
@@ -687,7 +687,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         upBottomMenu()
         val targetPosition = realPositions.indexOf(resolveDiscoveryNavTarget())
         if (targetPosition >= 0) {
-            binding.viewPagerMain.setCurrentItem(targetPosition, false)
+            binding.viewPagerMain.setCurrentItem(targetPosition, true)
         }
     }
 
@@ -906,11 +906,11 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
         var index = 0
         realPositions[index] = idBookshelf
-        if (showDiscovery || (mergedDiscovery && showRss)) {
+        if (showDiscovery) {
             index++
-            realPositions[index] = if (mergedDiscovery) resolveDiscoveryNavTarget() else idExplore
+            realPositions[index] = idExplore
         }
-        if (showRss && !mergedDiscovery) {
+        if (showRss) {
             index++
             realPositions[index] = idRss
         }

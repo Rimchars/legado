@@ -43,21 +43,19 @@
 
                 <LinearLayout
                     android:id="@+id/ll_rss_source_select"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="42dp"
-                    android:layout_weight="1"
                     android:background="@drawable/bg_discover_embedded_action"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingEnd="2dp">
+                    android:paddingEnd="0dp">
 
                     <TextView
                         android:id="@+id/tv_rss_source_select"
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:ellipsize="end"
                         android:includeFontPadding="false"
                         android:maxLines="1"
