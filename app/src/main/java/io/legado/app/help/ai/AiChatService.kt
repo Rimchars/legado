@@ -30,6 +30,13 @@ object AiChatService {
         val arguments: StringBuilder = StringBuilder()
     )
 
+    private data class ToolEvent(
+        val name: String,
+        val stage: String,
+        val content: String,
+        val success: Boolean = true
+    )
+
     private data class AssistantTurn(
         val content: String,
         val toolCalls: List<ToolCall>,
@@ -131,6 +138,7 @@ object AiChatService {
     ): String {
         val toolMap = tools.associateBy { it.name }
         val searchResultCards = JSONArray()
+        val toolEvents = JSONArray()
         repeat(MAX_TOOL_ROUNDS) { round ->
             val assistantTurn = requestCompletionStream(
                 baseUrl = baseUrl,
@@ -153,12 +161,28 @@ object AiChatService {
                         debugLog = requestLog.toString()
                     )
                 }
-                return appendSearchResultCards(content, searchResultCards)
+                return appendStructuredBlocks(content, searchResultCards, toolEvents)
             }
             assistantTurn.toolCalls.forEach { toolCall ->
                 onThinking(appCtx.getString(R.string.ai_tool_call, toolCall.name, toolCall.arguments))
+                toolEvents.put(
+                    JSONObject().apply {
+                        put("name", toolCall.name)
+                        put("stage", "call")
+                        put("content", toolCall.arguments)
+                        put("success", true)
+                    }
+                )
                 val result = executeToolCall(toolCall, toolMap)
                 collectSearchResultCards(toolCall, result, searchResultCards)
+                toolEvents.put(
+                    JSONObject().apply {
+                        put("name", toolCall.name)
+                        put("stage", "result")
+                        put("content", result)
+                        put("success", parseToolResultSuccess(result))
+                    }
+                )
                 onThinking(appCtx.getString(R.string.ai_tool_result, toolCall.name, result))
                 conversation += JSONObject().apply {
                     put("role", "tool")
@@ -192,7 +216,7 @@ object AiChatService {
                 debugLog = requestLog.toString()
             )
         }
-        return appendSearchResultCards(finalTurn.content, searchResultCards)
+        return appendStructuredBlocks(finalTurn.content, searchResultCards, toolEvents)
     }
 
     private fun collectSearchResultCards(
@@ -223,18 +247,33 @@ object AiChatService {
         }
     }
 
-    private fun appendSearchResultCards(content: String, cards: JSONArray): String {
-        if (cards.length() == 0) return content
+    private fun appendStructuredBlocks(content: String, cards: JSONArray, toolEvents: JSONArray): String {
+        if (cards.length() == 0 && toolEvents.length() == 0) return content
         val payload = JSONObject().apply {
             put("type", "search_book_results")
             put("results", cards)
         }
         return buildString {
             append(content.trimEnd())
-            append("\n\n```legado-search-results\n")
-            append(payload)
-            append("\n```")
+            if (toolEvents.length() > 0) {
+                append("\n\n```legado-tool-events\n")
+                append(JSONObject().apply {
+                    put("events", toolEvents)
+                })
+                append("\n```")
+            }
+            if (cards.length() > 0) {
+                append("\n\n```legado-search-results\n")
+                append(payload)
+                append("\n```")
+            }
         }
+    }
+
+    private fun parseToolResultSuccess(result: String): Boolean {
+        return runCatching {
+            JSONObject(result).optBoolean("ok", true)
+        }.getOrDefault(true)
     }
 
     private suspend fun executeToolCall(

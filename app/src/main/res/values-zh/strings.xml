@@ -1318,8 +1318,13 @@
     <string name="ai_current_model_summary_no_provider_models">当前提供商下暂无模型</string>
     <string name="ai_add_model">添加模型</string>
     <string name="ai_add_model_summary">新增一个模型 ID</string>
+    <string name="ai_add_model_summary_modern">可先拉取模型列表选择，也可手动填写模型 ID</string>
+    <string name="ai_add_model_from_list">从接口列表选择</string>
+    <string name="ai_add_model_manual">手动填写模型 ID</string>
+    <string name="ai_add_all_models">添加全部新模型</string>
     <string name="ai_fetch_models">获取模型列表</string>
     <string name="ai_fetch_models_summary">通过标准 OpenAI /v1/models 接口读取模型</string>
+    <string name="ai_fetch_models_summary_modern">读取 /v1/models 后选择要保存的模型</string>
     <string name="ai_fetch_models_loading">正在获取模型列表...</string>
     <string name="ai_fetch_models_empty">接口没有返回模型</string>
     <string name="ai_fetch_models_no_new">没有新的模型</string>

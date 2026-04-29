@@ -55,6 +55,11 @@ object AiLibraryTool {
                             put("type", "string")
                             put("description", "可选，按书名模糊筛选阅读时长排行。")
                         })
+                        put("bookNames", JSONObject().apply {
+                            put("type", "array")
+                            put("description", "可选，批量按多个书名筛选阅读记录。")
+                            put("items", JSONObject().apply { put("type", "string") })
+                        })
                         put("startDate", JSONObject().apply {
                             put("type", "string")
                             put("description", "可选，开始日期，格式 yyyy-MM-dd，用于每日阅读记录。")
@@ -92,13 +97,33 @@ object AiLibraryTool {
                             put("type", "string")
                             put("description", "可选，指定单个书源 URL。")
                         })
+                        put("sourceUrls", JSONObject().apply {
+                            put("type", "array")
+                            put("description", "可选，批量指定多个书源 URL。")
+                            put("items", JSONObject().apply { put("type", "string") })
+                        })
                         put("sourceName", JSONObject().apply {
                             put("type", "string")
                             put("description", "可选，指定书源名称。sourceUrl 优先。")
                         })
+                        put("sourceNames", JSONObject().apply {
+                            put("type", "array")
+                            put("description", "可选，批量指定多个书源名称。")
+                            put("items", JSONObject().apply { put("type", "string") })
+                        })
                         put("sourceGroup", JSONObject().apply {
                             put("type", "string")
                             put("description", "可选，指定书源分组。sourceUrl 优先。")
+                        })
+                        put("sourceGroups", JSONObject().apply {
+                            put("type", "array")
+                            put("description", "可选，批量指定多个书源分组。")
+                            put("items", JSONObject().apply { put("type", "string") })
+                        })
+                        put("mode", JSONObject().apply {
+                            put("type", "string")
+                            put("enum", JSONArray(listOf("single", "batch")))
+                            put("description", "single 返回聚合结果；batch 额外返回按书源拆分的结果。默认 single。")
                         })
                         put("limit", JSONObject().apply {
                             put("type", "integer")
@@ -130,6 +155,11 @@ object AiLibraryTool {
                             put("type", "string")
                             put("description", "可选，按书源分组筛选。")
                         })
+                        put("sourceGroups", JSONObject().apply {
+                            put("type", "array")
+                            put("description", "可选，按多个书源分组筛选。")
+                            put("items", JSONObject().apply { put("type", "string") })
+                        })
                         put("sourceType", JSONObject().apply {
                             put("type", "integer")
                             put("description", "可选，书源类型：0文本，1音频，2图片/漫画，3文件，4视频。")
@@ -151,15 +181,24 @@ object AiLibraryTool {
     }
 
     private suspend fun queryReadRecords(arguments: JSONObject?): String = withContext(IO) {
-        val bookName = arguments?.optString("bookName")?.trim().orEmpty()
+        val bookNames = linkedSetOf<String>().apply {
+            arguments?.optString("bookName")?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+            arguments?.optJSONArray("bookNames")?.let { array ->
+                for (index in 0 until array.length()) {
+                    array.optString(index)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }
         val startDate = arguments?.optString("startDate")?.trim().orEmpty()
         val endDate = arguments?.optString("endDate")?.trim().orEmpty()
         val limit = (arguments?.optInt("limit", DEFAULT_LIMIT) ?: DEFAULT_LIMIT)
             .coerceIn(1, MAX_LIMIT)
-        val bookRecords = if (bookName.isBlank()) {
+        val bookRecords = if (bookNames.isEmpty()) {
             appDb.readRecordDao.allShow
         } else {
-            appDb.readRecordDao.search(bookName)
+            appDb.readRecordDao.allShow.filter { record ->
+                bookNames.any { name -> record.bookName.contains(name, ignoreCase = true) }
+            }
         }.sortedByDescending { it.readTime }.take(limit)
         val dailyRecords = appDb.readRecordDailyDao.allDesc.filter { record ->
             (startDate.isBlank() || record.date >= startDate) &&
@@ -167,6 +206,7 @@ object AiLibraryTool {
         }.take(limit)
         JSONObject().apply {
             put("ok", true)
+            put("queryBookNames", JSONArray(bookNames.toList()))
             put("totalReadTimeMillis", appDb.readRecordDao.allTime)
             put("totalReadTimeText", formatDuration(appDb.readRecordDao.allTime))
             put("bookRecords", JSONArray().apply {
@@ -203,7 +243,9 @@ object AiLibraryTool {
         if (sources.isEmpty()) {
             return@withContext errorJson("未找到可搜索书源")
         }
+        val batchMode = arguments?.optString("mode")?.trim().orEmpty() == "batch"
         val results = arrayListOf<SearchBook>()
+        val groupedResults = JSONArray()
         val errors = JSONArray()
         for (source in sources) {
             if (results.size >= limit) break
@@ -216,7 +258,17 @@ object AiLibraryTool {
                 )
             }.onSuccess { books ->
                 appDb.searchBookDao.insert(*books.toTypedArray())
-                results += books.take(limit - results.size)
+                val limitedBooks = books.take(limit - results.size)
+                results += limitedBooks
+                if (batchMode) {
+                    groupedResults.put(JSONObject().apply {
+                        put("sourceUrl", source.bookSourceUrl)
+                        put("sourceName", source.bookSourceName)
+                        put("results", JSONArray().apply {
+                            limitedBooks.distinctBy { it.bookUrl }.forEach { put(searchBookToJson(it)) }
+                        })
+                    })
+                }
             }.onFailure { throwable ->
                 errors.put(JSONObject().apply {
                     put("source", source.bookSourceName)
@@ -228,16 +280,27 @@ object AiLibraryTool {
             put("ok", true)
             put("keyword", keyword)
             put("searchedSourceCount", sources.size)
+            put("mode", if (batchMode) "batch" else "single")
             put("results", JSONArray().apply {
                 results.distinctBy { it.bookUrl }.take(limit).forEach { put(searchBookToJson(it)) }
             })
+            if (batchMode) {
+                put("groupedResults", groupedResults)
+            }
             put("errors", errors)
         }.toString()
     }
 
     private suspend fun listBookSources(arguments: JSONObject?): String = withContext(IO) {
         val keyword = arguments?.optString("keyword")?.trim().orEmpty()
-        val sourceGroup = arguments?.optString("sourceGroup")?.trim().orEmpty()
+        val sourceGroups = linkedSetOf<String>().apply {
+            arguments?.optString("sourceGroup")?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+            arguments?.optJSONArray("sourceGroups")?.let { array ->
+                for (index in 0 until array.length()) {
+                    array.optString(index)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }
         val enabledOnly = arguments?.optBoolean("enabledOnly", true) ?: true
         val sourceType = arguments?.takeIf { it.has("sourceType") }?.optInt("sourceType")
         val limit = (arguments?.optInt("limit", 50) ?: 50).coerceIn(1, 100)
@@ -245,8 +308,8 @@ object AiLibraryTool {
             .asSequence()
             .filter { sourceType == null || it.bookSourceType == sourceType }
             .filter {
-                sourceGroup.isBlank() ||
-                        it.bookSourceGroup.orEmpty().split(',').any { group -> group.trim() == sourceGroup }
+                sourceGroups.isEmpty() ||
+                    it.bookSourceGroup.orEmpty().split(',').any { group -> sourceGroups.contains(group.trim()) }
             }
             .filter {
                 keyword.isBlank() ||
@@ -258,6 +321,7 @@ object AiLibraryTool {
             .toList()
         JSONObject().apply {
             put("ok", true)
+            put("querySourceGroups", JSONArray(sourceGroups.toList()))
             put("count", sources.size)
             put("sources", JSONArray().apply {
                 sources.forEach { source ->
@@ -277,19 +341,44 @@ object AiLibraryTool {
     }
 
     private fun resolveSources(arguments: JSONObject?): List<BookSource> {
-        val sourceUrl = arguments?.optString("sourceUrl")?.trim().orEmpty()
-        if (sourceUrl.isNotBlank()) {
-            return appDb.bookSourceDao.getBookSource(sourceUrl)?.let(::listOf).orEmpty()
-        }
-        val sourceName = arguments?.optString("sourceName")?.trim().orEmpty()
-        if (sourceName.isNotBlank()) {
-            return appDb.bookSourceDao.allEnabled.filter {
-                it.bookSourceName == sourceName || it.bookSourceName.contains(sourceName, ignoreCase = true)
+        val sourceUrls = linkedSetOf<String>().apply {
+            arguments?.optString("sourceUrl")?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+            arguments?.optJSONArray("sourceUrls")?.let { array ->
+                for (index in 0 until array.length()) {
+                    array.optString(index)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+                }
             }
         }
-        val sourceGroup = arguments?.optString("sourceGroup")?.trim().orEmpty()
-        if (sourceGroup.isNotBlank()) {
-            return appDb.bookSourceDao.getEnabledByGroup(sourceGroup)
+        if (sourceUrls.isNotEmpty()) {
+            return sourceUrls.mapNotNull { appDb.bookSourceDao.getBookSource(it) }
+        }
+        val sourceNames = linkedSetOf<String>().apply {
+            arguments?.optString("sourceName")?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+            arguments?.optJSONArray("sourceNames")?.let { array ->
+                for (index in 0 until array.length()) {
+                    array.optString(index)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }
+        if (sourceNames.isNotEmpty()) {
+            return appDb.bookSourceDao.allEnabled.filter { source ->
+                sourceNames.any { name ->
+                    source.bookSourceName == name || source.bookSourceName.contains(name, ignoreCase = true)
+                }
+            }
+        }
+        val sourceGroups = linkedSetOf<String>().apply {
+            arguments?.optString("sourceGroup")?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+            arguments?.optJSONArray("sourceGroups")?.let { array ->
+                for (index in 0 until array.length()) {
+                    array.optString(index)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }
+        if (sourceGroups.isNotEmpty()) {
+            return appDb.bookSourceDao.allEnabled.filter { source ->
+                source.bookSourceGroup.orEmpty().split(',').any { group -> sourceGroups.contains(group.trim()) }
+            }
         }
         return appDb.bookSourceDao.allEnabled
     }

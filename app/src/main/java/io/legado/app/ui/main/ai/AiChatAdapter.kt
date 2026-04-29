@@ -13,6 +13,7 @@ import android.text.style.URLSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -133,7 +134,24 @@ class AiChatAdapter(
 
     private fun parseMessageContent(content: String): ParsedMessage {
         val cards = mutableListOf<SearchBookCard>()
-        val visibleContent = searchResultBlockRegex.replace(content) { match ->
+        val toolEvents = mutableListOf<ToolEventCard>()
+        val withoutToolEvents = toolEventBlockRegex.replace(content) { match ->
+            runCatching {
+                val payload = JSONObject(match.groupValues[1])
+                val events = payload.optJSONArray("events") ?: return@runCatching
+                for (index in 0 until events.length()) {
+                    val item = events.optJSONObject(index) ?: continue
+                    toolEvents += ToolEventCard(
+                        name = item.optString("name"),
+                        stage = item.optString("stage"),
+                        content = item.optString("content"),
+                        success = item.optBoolean("success", true)
+                    )
+                }
+            }
+            ""
+        }
+        val visibleContent = searchResultBlockRegex.replace(withoutToolEvents) { match ->
             runCatching {
                 val payload = JSONObject(match.groupValues[1])
                 val results = payload.optJSONArray("results") ?: return@runCatching
@@ -158,7 +176,11 @@ class AiChatAdapter(
             }
             ""
         }.trim()
-        return ParsedMessage(visibleContent, cards.distinctBy { it.bookUrl })
+        return ParsedMessage(
+            visibleContent,
+            cards.distinctBy { it.bookUrl },
+            toolEvents
+        )
     }
 
     private fun bindSearchCards(binding: ItemAiMessageAssistantBinding, cards: List<SearchBookCard>) {
@@ -168,6 +190,86 @@ class AiChatAdapter(
         cards.forEach { card ->
             container.addView(createSearchCardView(card))
         }
+    }
+
+    private fun bindToolEvents(binding: ItemAiMessageAssistantBinding, events: List<ToolEventCard>) {
+        val container = binding.toolEventContainer
+        container.removeAllViews()
+        container.isVisible = events.isNotEmpty()
+        events.forEach { event ->
+            container.addView(createToolEventView(event))
+        }
+    }
+
+    private fun createToolEventView(event: ToolEventCard): View {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = GradientDrawable().apply {
+                cornerRadius = 12.dpToPx().toFloat()
+                setColor(ColorUtils.blendColors(context.backgroundColor, context.accentColor, 0.05f))
+                setStroke(
+                    1.dpToPx(),
+                    ColorUtils.adjustAlpha(
+                        if (event.success) context.accentColor else ContextCompat.getColor(context, R.color.md_red_500),
+                        0.16f
+                    )
+                )
+            }
+            setPadding(10.dpToPx(), 9.dpToPx(), 10.dpToPx(), 9.dpToPx())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 6.dpToPx()
+            }
+        }
+        row.addView(ImageView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(18.dpToPx(), 18.dpToPx()).apply {
+                marginEnd = 8.dpToPx()
+                topMargin = 1.dpToPx()
+            }
+            setImageResource(
+                when {
+                    event.name.contains("search", true) -> R.drawable.ic_search
+                    event.name.contains("source", true) -> R.drawable.ic_code
+                    event.name.contains("book", true) -> R.drawable.ic_storage_black_24dp
+                    else -> R.drawable.ic_settings
+                }
+            )
+            setColorFilter(
+                if (event.success) context.accentColor else ContextCompat.getColor(context, R.color.md_red_500)
+            )
+        })
+        row.addView(LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            addView(TextView(context).apply {
+                text = buildString {
+                    append(event.name)
+                    append(" · ")
+                    append(
+                        when (event.stage) {
+                            "call" -> "调用中"
+                            "result" -> if (event.success) "调用完成" else "调用失败"
+                            else -> event.stage
+                        }
+                    )
+                }
+                setTextColor(context.primaryTextColor)
+                textSize = 13.5f
+                setTypeface(typeface, Typeface.BOLD)
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            })
+            addView(TextView(context).apply {
+                text = event.content.replace(Regex("\\s+"), " ").trim()
+                setTextColor(context.secondaryTextColor)
+                textSize = 12f
+                maxLines = 3
+                ellipsize = TextUtils.TruncateAt.END
+            })
+        })
+        return row
     }
 
     private fun createSearchCardView(card: SearchBookCard): View {
@@ -336,12 +438,14 @@ class AiChatAdapter(
                 binding.tvMessage.movementMethod = LinkMovementMethod.getInstance()
             }
             bindSearchCards(binding, parsed.searchCards)
+            bindToolEvents(binding, parsed.toolEvents)
         }
     }
 
     private data class ParsedMessage(
         val content: String,
-        val searchCards: List<SearchBookCard>
+        val searchCards: List<SearchBookCard>,
+        val toolEvents: List<ToolEventCard>
     )
 
     private data class SearchBookCard(
@@ -357,10 +461,21 @@ class AiChatAdapter(
         val target: String
     )
 
+    private data class ToolEventCard(
+        val name: String,
+        val stage: String,
+        val content: String,
+        val success: Boolean
+    )
+
     private companion object {
         const val TYPE_USER = 1
         const val TYPE_ASSISTANT = 2
         const val searchBookScheme = "legado-search-book://"
+        val toolEventBlockRegex = Regex(
+            "```legado-tool-events\\s*\\n([\\s\\S]*?)\\n```",
+            setOf(RegexOption.MULTILINE)
+        )
         val searchResultBlockRegex = Regex(
             "```legado-search-results\\s*\\n([\\s\\S]*?)\\n```",
             setOf(RegexOption.MULTILINE)

@@ -829,7 +829,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 selection.rect.right + page.epubDrawOffsetX,
                 selection.rect.bottom + page.epubDrawOffsetY + offset
             )
-            nativeSelectedText = selection.text
+            nativeSelectedText = selection.expandedText ?: selection.text
             nativeSelectionRect = hitRect
             postInvalidate()
             upSelectedStart(hitRect.left, hitRect.bottom, hitRect.top)
