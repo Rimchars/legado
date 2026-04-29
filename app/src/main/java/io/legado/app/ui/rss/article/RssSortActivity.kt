@@ -15,6 +15,7 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -50,6 +51,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
     private val sortList = mutableListOf<Pair<String, String>>()
     private val fragmentMap = hashMapOf<String, Fragment>()
     private val orientation by lazy { resources.configuration.orientation }
+    private var shouldFocusSearch = false
     private val editSourceResult = registerForActivityResult(
         StartActivityContract(RssSourceEditActivity::class.java)
     ) {
@@ -206,6 +208,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent) // 更新当前intent
+        shouldFocusSearch = intent.getBooleanExtra("focusSearch", false)
         // 重新初始化数据，复用时重建
         viewModel.initData(intent) {
             upFragments()
@@ -213,6 +216,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
+        shouldFocusSearch = intent.getBooleanExtra("focusSearch", false)
         binding.viewPager.adapter = adapter
         binding.viewPager.addOnPageChangeListener(object : ViewPager.SimpleOnPageChangeListener() {
             override fun onPageSelected(position: Int) {
@@ -276,6 +280,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
             if (hasSearchUrl) {
                 (actionView as? SearchView)?.apply {
                     isSubmitButtonEnabled = true
+                    queryHint = getString(R.string.rss_search_hint)
                     setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                         override fun onQueryTextSubmit(query: String): Boolean {
                             clearFocus()
@@ -290,6 +295,17 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
                     setOnQueryTextFocusChangeListener { _, hasFocus ->
                         if (!hasFocus) {
                             isIconified = true
+                        }
+                    }
+                    if (shouldFocusSearch) {
+                        shouldFocusSearch = false
+                        post {
+                            isIconified = false
+                            requestFocus()
+                            findFocus()?.let { focusView ->
+                                (getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                                    ?.showSoftInput(focusView, InputMethodManager.SHOW_IMPLICIT)
+                            }
                         }
                     }
                 }
@@ -453,11 +469,18 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
     }
 
     companion object {
-        fun start(context: Context, sortUrl: String?, sourceUrl: String, key: String? = null) {
+        fun start(
+            context: Context,
+            sortUrl: String?,
+            sourceUrl: String,
+            key: String? = null,
+            focusSearch: Boolean = false
+        ) {
             context.startActivity<RssSortActivity> {
                 putExtra("sortUrl", sortUrl)
                 putExtra("sourceUrl", sourceUrl)
                 putExtra("key", key)
+                putExtra("focusSearch", focusSearch)
             }
         }
     }
