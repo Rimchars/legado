@@ -374,6 +374,27 @@ object LocalBook {
         }
     }
 
+    fun prepareImportedBookCache(
+        book: Book,
+        onProgress: (chapterIndex: Int, chapterCount: Int, chapterTitle: String) -> Unit = { _, _, _ -> }
+    ) {
+        if (!book.isEpub) return
+        val chapterList = getChapterList(book)
+        if (chapterList.isEmpty()) return
+        appDb.bookChapterDao.delByBook(book.bookUrl)
+        appDb.bookChapterDao.insert(*chapterList.toTypedArray())
+        appDb.bookDao.update(book)
+        chapterList.forEachIndexed { index, chapter ->
+            onProgress(index, chapterList.size, chapter.title)
+            if (!chapter.isVolume) {
+                getContent(book, chapter)?.let { content ->
+                    BookHelp.saveText(book, chapter, content)
+                }
+            }
+            onProgress(index + 1, chapterList.size, chapter.title)
+        }
+    }
+
     /**
      * 从文件分析书籍必要信息（书名 作者等）
      */

@@ -188,11 +188,14 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
                     binding.tvPath.text = currentPathText
                 } else {
                     binding.refreshProgressBar.isAutoLoading = true
-                    binding.tvPath.text = "导入中：${progress.processed}/${progress.total}，成功${progress.imported}，失败${progress.failed}"
+                    val message = progress.message.ifBlank {
+                        "导入中：${progress.processed}/${progress.total}，成功${progress.imported}，失败${progress.failed}"
+                    }
+                    binding.tvPath.text = message
                     importProgressDialog?.run {
                         max = progress.total
                         this.progress = progress.processed
-                        setMessage("成功${progress.imported}本，失败${progress.failed}本")
+                        setMessage("${message}\n成功${progress.imported}本，失败${progress.failed}本")
                     }
                 }
             }
