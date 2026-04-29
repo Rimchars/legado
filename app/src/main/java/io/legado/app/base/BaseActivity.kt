@@ -156,10 +156,10 @@ abstract class BaseActivity<VB : ViewBinding>(
             }
 
             else -> {
-                if (ColorUtils.isColorLight(primaryColor)) {
-                    setTheme(R.style.AppTheme_Light)
-                } else {
+                if (AppConfig.isNightTheme) {
                     setTheme(R.style.AppTheme_Dark)
+                } else {
+                    setTheme(R.style.AppTheme_Light)
                 }
                window.decorView.applyBackgroundTint(backgroundColor)
             }
