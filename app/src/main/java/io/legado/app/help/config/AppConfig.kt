@@ -572,6 +572,10 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
         get() = appCtx.getPrefBoolean(PreferKey.aiTavilyEnabled, false)
         set(value) = appCtx.putPrefBoolean(PreferKey.aiTavilyEnabled, value)
 
+    var aiShowToolSummary: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.aiShowToolSummary, true)
+        set(value) = appCtx.putPrefBoolean(PreferKey.aiShowToolSummary, value)
+
     var aiTavilyApiKey: String
         get() = appCtx.getPrefString(PreferKey.aiTavilyApiKey).orEmpty()
         set(value) {

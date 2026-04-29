@@ -18,6 +18,7 @@ import io.legado.app.data.entities.RssSource
 import io.legado.app.databinding.FragmentRssBinding
 import io.legado.app.databinding.ItemRssBinding
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.ui.main.MainFragmentInterface
@@ -30,6 +31,7 @@ import io.legado.app.ui.rss.source.manage.RssSourceActivity
 import io.legado.app.ui.rss.subscription.RuleSubActivity
 import io.legado.app.utils.applyTint
 import io.legado.app.utils.applyMainBottomBarPadding
+import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.openUrl
 import io.legado.app.utils.setEdgeEffectColor
@@ -74,9 +76,14 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
+        binding.titleBar.applyStatusBarPadding(withInitialPadding = true)
         initSearchView()
         initRecyclerView()
         initGroupData()
+        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            upRssFlowJob(searchView.query?.toString())
+        }
         upRssFlowJob()
     }
 
@@ -177,7 +184,9 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             ).catch {
                 AppLog.put("订阅界面更新数据出错", it)
             }.flowOn(IO).collect {
+                binding.swipeRefreshLayout.isRefreshing = false
                 adapter.setItems(it)
+                binding.tvEmptyMsg.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE
             }
         }
     }

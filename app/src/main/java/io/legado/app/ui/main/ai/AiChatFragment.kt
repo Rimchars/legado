@@ -85,7 +85,7 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
         }
         tintSendButton()
         binding.composerContainer.background = GradientDrawable().apply {
-            cornerRadius = 14.dpToPx().toFloat()
+            cornerRadius = 18.dpToPx().toFloat()
             setColor(
                 ColorUtils.adjustAlpha(
                     ColorUtils.blendColors(primaryTextColor, Color.GRAY, 0.72f),
@@ -94,7 +94,7 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
             )
             setStroke(1.dpToPx(), ColorUtils.adjustAlpha(primaryTextColor, 0.08f))
         }
-        binding.composerContainer.elevation = 8.dpToPx().toFloat()
+        binding.composerContainer.elevation = 0f
         binding.etAiInput.setTextColor(primaryTextColor)
         binding.etAiInput.setHintTextColor(secondaryTextColor)
     }
@@ -118,6 +118,15 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
                 hideThinkingPanel()
             }
             updateComposerState()
+        }
+        viewModel.thinkingLiveData.observe(viewLifecycleOwner) { thinking ->
+            val detail = thinking.trim()
+            binding.tvThinkingDetail.text = detail
+            binding.thinkingScroll.isVisible = detail.isNotBlank() &&
+                detail != getString(R.string.ai_chat_thinking)
+            if (viewModel.isRequesting) {
+                binding.thinkingPanel.isVisible = true
+            }
         }
     }
 
@@ -157,11 +166,17 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
     }
 
     private fun showThinkingPanel() {
-        binding.thinkingPanel.isVisible = false
+        binding.tvThinkingTitle.text = getString(R.string.ai_chat_thinking)
+        val detail = viewModel.thinkingLiveData.value.orEmpty().trim()
+        binding.tvThinkingDetail.text = detail
+        binding.thinkingScroll.isVisible = detail.isNotBlank() &&
+            detail != getString(R.string.ai_chat_thinking)
+        binding.thinkingPanel.isVisible = true
     }
 
     private fun hideThinkingPanel() {
         binding.thinkingPanel.isVisible = false
+        binding.thinkingScroll.isVisible = false
     }
 
     private fun tintSendButton() {
