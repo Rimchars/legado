@@ -182,7 +182,7 @@ class ImportBookActivity : BaseImportBookActivity<ImportBookViewModel>(),
             }
         }
         lifecycleScope.launch {
-            viewModel.importProgressFlow.conflate().collect { progress ->
+            viewModel.importProgressFlow.collect { progress ->
                 if (progress == null) {
                     binding.refreshProgressBar.isAutoLoading = false
                     binding.tvPath.text = currentPathText
