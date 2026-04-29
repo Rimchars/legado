@@ -320,6 +320,13 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     val modernRssPage: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.modernRssPage, true)
 
+    val mergeDiscoveryRss: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.mergeDiscoveryRss, false)
+
+    var mergedDiscoveryRssTarget: String
+        get() = appCtx.getPrefString(PreferKey.mergedDiscoveryRssTarget, "explore") ?: "explore"
+        set(value) = appCtx.putPrefString(PreferKey.mergedDiscoveryRssTarget, value)
+
     var modernDiscoverySourceUrl: String?
         get() = appCtx.getPrefString(PreferKey.modernDiscoverySourceUrl)
         set(value) {
@@ -327,6 +334,16 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
                 appCtx.removePref(PreferKey.modernDiscoverySourceUrl)
             } else {
                 appCtx.putPrefString(PreferKey.modernDiscoverySourceUrl, value)
+            }
+        }
+
+    var modernRssSourceUrl: String?
+        get() = appCtx.getPrefString(PreferKey.modernRssSourceUrl)
+        set(value) {
+            if (value.isNullOrBlank()) {
+                appCtx.removePref(PreferKey.modernRssSourceUrl)
+            } else {
+                appCtx.putPrefString(PreferKey.modernRssSourceUrl, value)
             }
         }
 

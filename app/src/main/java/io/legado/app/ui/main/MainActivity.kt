@@ -136,6 +136,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private val bottomGlassPulseInterpolator by lazy { AccelerateDecelerateInterpolator() }
     private var liquidGlassReady = false
     private val boundLiquidGlassViewIds = hashSetOf<Int>()
+    private var mergedDiscoveryLongClickView: View? = null
     private val hideBottomIndicatorRunnable = Runnable {
         binding.bottomNavigationIndicatorContainer.animate()
             .alpha(0f)
@@ -246,7 +247,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 viewPagerMain.setCurrentItem(0, false)
 
             R.id.menu_discovery ->
-                viewPagerMain.setCurrentItem(realPositions.indexOf(idExplore), false)
+                viewPagerMain.setCurrentItem(realPositions.indexOf(resolveDiscoveryNavTarget()), false)
 
             R.id.menu_rss ->
                 viewPagerMain.setCurrentItem(realPositions.indexOf(idRss), false)
@@ -274,7 +275,10 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 if (System.currentTimeMillis() - exploreReselected > 300) {
                     exploreReselected = System.currentTimeMillis()
                 } else {
-                    (fragmentMap[1] as? ExploreFragment)?.compressExplore()
+                    when (resolveDiscoveryNavTarget()) {
+                        idExplore -> (fragmentMap[idExplore] as? ExploreFragment)?.compressExplore()
+                        idRss -> (fragmentMap[idRss] as? RssFragment)?.gotoTop()
+                    }
                 }
             }
         }
@@ -316,6 +320,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             view.bottomPadding = height + 14.dpToPx()
             windowInsets.inset(0, 0, 0, height)
         }
+        bindMergedDiscoveryLongClick()
     }
 
     private fun scheduleLiquidGlassSetup(delayMillis: Long = 0L) {
@@ -652,10 +657,54 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         return when (realPositions[position]) {
             idBookshelf -> R.id.menu_bookshelf
             idExplore -> R.id.menu_discovery
-            idRss -> R.id.menu_rss
+            idRss -> if (AppConfig.mergeDiscoveryRss && AppConfig.showDiscovery && AppConfig.showRSS) {
+                R.id.menu_discovery
+            } else {
+                R.id.menu_rss
+            }
             idReadRecord -> R.id.menu_read_record
             else -> R.id.menu_my_config
         }
+    }
+
+    private fun resolveDiscoveryNavTarget(): Int {
+        val showDiscovery = AppConfig.showDiscovery
+        val showRss = AppConfig.showRSS
+        if (!(AppConfig.mergeDiscoveryRss && showDiscovery && showRss)) {
+            return when {
+                showDiscovery -> idExplore
+                showRss -> idRss
+                else -> idExplore
+            }
+        }
+        return if (AppConfig.mergedDiscoveryRssTarget == "rss") idRss else idExplore
+    }
+
+    private fun toggleMergedDiscoveryNavTarget() {
+        if (!(AppConfig.mergeDiscoveryRss && AppConfig.showDiscovery && AppConfig.showRSS)) return
+        AppConfig.mergedDiscoveryRssTarget =
+            if (resolveDiscoveryNavTarget() == idRss) "explore" else "rss"
+        upBottomMenu()
+        val targetPosition = realPositions.indexOf(resolveDiscoveryNavTarget())
+        if (targetPosition >= 0) {
+            binding.viewPagerMain.setCurrentItem(targetPosition, false)
+        }
+    }
+
+    private fun bindMergedDiscoveryLongClick() {
+        val menuView = binding.bottomNavigationView.getChildAt(0) as? ViewGroup ?: return
+        val itemView = findBottomNavigationItemView(menuView, R.id.menu_discovery) ?: return
+        if (mergedDiscoveryLongClickView === itemView) return
+        mergedDiscoveryLongClickView?.setOnLongClickListener(null)
+        itemView.setOnLongClickListener {
+            if (AppConfig.mergeDiscoveryRss && AppConfig.showDiscovery && AppConfig.showRSS) {
+                toggleMergedDiscoveryNavTarget()
+                true
+            } else {
+                false
+            }
+        }
+        mergedDiscoveryLongClickView = itemView
     }
 
     /**
@@ -838,17 +887,30 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private fun upBottomMenu() {
         val showDiscovery = AppConfig.showDiscovery
         val showRss = AppConfig.showRSS && binding.bottomNavigationView.menu.findItem(R.id.menu_rss) != null
+        val mergedDiscovery = AppConfig.mergeDiscoveryRss && showDiscovery && showRss
         binding.bottomNavigationView.menu.let { menu ->
-            menu.findItem(R.id.menu_discovery).isVisible = showDiscovery
-            menu.findItem(R.id.menu_rss)?.isVisible = showRss
+            menu.findItem(R.id.menu_discovery).isVisible = showDiscovery || (mergedDiscovery && showRss)
+            menu.findItem(R.id.menu_rss)?.isVisible = showRss && !mergedDiscovery
+            if (mergedDiscovery) {
+                if (resolveDiscoveryNavTarget() == idRss) {
+                    menu.findItem(R.id.menu_discovery).setIcon(R.drawable.ic_bottom_rss_feed)
+                    menu.findItem(R.id.menu_discovery).setTitle(R.string.rss)
+                } else {
+                    menu.findItem(R.id.menu_discovery).setIcon(R.drawable.ic_bottom_explore)
+                    menu.findItem(R.id.menu_discovery).setTitle(R.string.discovery)
+                }
+            } else {
+                menu.findItem(R.id.menu_discovery).setIcon(R.drawable.ic_bottom_explore)
+                menu.findItem(R.id.menu_discovery).setTitle(R.string.discovery)
+            }
         }
         var index = 0
         realPositions[index] = idBookshelf
-        if (showDiscovery) {
+        if (showDiscovery || (mergedDiscovery && showRss)) {
             index++
-            realPositions[index] = idExplore
+            realPositions[index] = if (mergedDiscovery) resolveDiscoveryNavTarget() else idExplore
         }
-        if (showRss) {
+        if (showRss && !mergedDiscovery) {
             index++
             realPositions[index] = idRss
         }
@@ -859,6 +921,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         bottomMenuCount = index + 1
         adapter.notifyDataSetChanged()
         binding.bottomNavigationView.post {
+            bindMergedDiscoveryLongClick()
             updateBottomNavigationIndicator(animate = false)
         }
     }
@@ -878,8 +941,10 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private fun resolveHomePagePosition(): Int {
         val visiblePositions = realPositions.take(bottomMenuCount)
         return when (AppConfig.defaultHomePage) {
-            "explore" -> if (AppConfig.showDiscovery) visiblePositions.indexOf(idExplore) else 0
-            "rss" -> visiblePositions.indexOf(idRss)
+            "explore" -> if (AppConfig.showDiscovery || AppConfig.mergeDiscoveryRss) visiblePositions.indexOf(idExplore).takeIf { it >= 0 }
+                ?: visiblePositions.indexOf(resolveDiscoveryNavTarget()) else 0
+            "rss" -> visiblePositions.indexOf(idRss).takeIf { it >= 0 }
+                ?: visiblePositions.indexOf(resolveDiscoveryNavTarget())
             "my" -> visiblePositions.indexOf(idMy)
             else -> 0
         }.takeIf { it >= 0 } ?: 0
