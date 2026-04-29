@@ -73,7 +73,11 @@ internal data class EpubComputedStyle(
             "visibility",
             "white-space",
             "word-break",
-            "word-spacing"
+            "word-spacing",
+            "writing-mode",
+            "-epub-writing-mode",
+            "-webkit-writing-mode",
+            "direction"
         )
     }
 }

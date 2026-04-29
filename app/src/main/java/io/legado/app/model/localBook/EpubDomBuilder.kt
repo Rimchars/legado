@@ -149,11 +149,18 @@ internal class EpubDomBuilder(
         val value = lastOrNull { it.name == "content" }?.value?.trim() ?: return null
         if (value.equals("none", ignoreCase = true) || value.equals("normal", ignoreCase = true)) return null
         val tokens = EpubCss.splitValueList(value)
+        var counterFallback = 1
         return tokens
             .joinToString("") { token ->
                 when {
                     token.startsWith("'") && token.endsWith("'") && token.length >= 2 -> token.substring(1, token.lastIndex)
                     token.startsWith("\"") && token.endsWith("\"") && token.length >= 2 -> token.substring(1, token.lastIndex)
+                    token.equals("open-quote", ignoreCase = true) -> "“"
+                    token.equals("close-quote", ignoreCase = true) -> "”"
+                    token.equals("no-open-quote", ignoreCase = true) -> ""
+                    token.equals("no-close-quote", ignoreCase = true) -> ""
+                    token.startsWith("counter(", ignoreCase = true) -> counterFallback++.toString()
+                    token.startsWith("counters(", ignoreCase = true) -> counterFallback++.toString()
                     token.startsWith("attr(", ignoreCase = true) && token.endsWith(")") -> {
                         val name = token.substringAfter('(').substringBeforeLast(')').trim()
                         element.attr(name)
@@ -164,6 +171,23 @@ internal class EpubDomBuilder(
             .replace("\\A", "\n")
             .replace("\\a", "\n")
             .takeIf { it.isNotEmpty() }
+    }
+
+    private fun Element.toRubyFallbackText(): String {
+        val builder = StringBuilder()
+        childNodes().forEach { child ->
+            when (child) {
+                is TextNode -> builder.append(child.wholeText)
+                is Element -> when (child.normalName()) {
+                    "rt" -> child.text().trim().takeIf { it.isNotBlank() }?.let {
+                        builder.append('（').append(it).append('）')
+                    }
+                    "rp" -> Unit
+                    else -> builder.append(child.text())
+                }
+            }
+        }
+        return builder.toString().ifBlank { text() }
     }
 
     private fun Element.addGeneratedContent(content: String, style: String, before: Boolean) {
@@ -227,6 +251,15 @@ internal class EpubDomBuilder(
                 else -> attr.value
             }
             attr.key to value
+        }
+        if (element.normalName() == "ruby") {
+            return EpubDomElement(
+                tagName = "span",
+                attributes = attributes,
+                style = style,
+                children = listOf(EpubDomText(element.toRubyFallbackText(), sourcePath)),
+                sourcePath = sourcePath
+            )
         }
         val children = element.childNodes().mapIndexedNotNull { index, child ->
             buildNode(
@@ -303,8 +336,19 @@ internal class EpubDomBuilder(
         EpubCss.parseDeclarations(element.attr("style")).forEach { declaration ->
             putDeclaration(declaration, sourceRank = 1, specificity = 1000, ruleOrder = Int.MAX_VALUE)
         }
+        merged.normalizeVerticalWritingFallback()
         merged.normalizeRelativeFontSize(parentStyle)
         return EpubComputedStyle(merged.resolveBackgroundUrls(baseHref))
+    }
+
+    private fun LinkedHashMap<String, EpubStyleValue>.normalizeVerticalWritingFallback() {
+        val writingMode = this["writing-mode"]
+            ?: this["-epub-writing-mode"]
+            ?: this["-webkit-writing-mode"]
+            ?: return
+        if (!writingMode.value.lowercase().startsWith("vertical")) return
+        putIfAbsent("text-align", writingMode.copy(value = "center"))
+        putIfAbsent("line-height", writingMode.copy(value = "1.45"))
     }
 
     private fun LinkedHashMap<String, EpubStyleValue>.normalizeRelativeFontSize(parentStyle: EpubComputedStyle) {

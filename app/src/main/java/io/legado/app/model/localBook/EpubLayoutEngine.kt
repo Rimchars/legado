@@ -457,11 +457,23 @@ internal class EpubLayoutEngine(
                 )
             }
             val rowHeight = measuredCells.maxOfOrNull { it.height } ?: lineHeight(row.style)
+            val shouldMoveWholeRow = rowTop > 0f &&
+                rowTop + rowHeight > viewportHeight &&
+                rowHeight < viewportHeight * 0.9f &&
+                currentCommands.hasVisibleContentAfter(0)
+            val renderRowTop = if (shouldMoveWholeRow) {
+                cursorY = rowTop
+                flushPageIfNeeded(force = true)
+                cursorY
+            } else {
+                rowTop
+            }
+            val rowShift = renderRowTop - rowTop
             measuredCells.forEach { measured ->
                 val offsetY = measured.gridCell.node.style.tableVerticalOffset(rowHeight, measured.height)
-                currentCommands.addAll(measured.commands.fitTableCell(measured, rowHeight, offsetY))
+                currentCommands.addAll(measured.commands.fitTableCell(measured, rowHeight, offsetY + rowShift))
             }
-            cursorY = rowTop + rowHeight
+            cursorY = renderRowTop + rowHeight
             if (rowIndex < grid.rows.lastIndex) {
                 cursorY += verticalSpacing
             }

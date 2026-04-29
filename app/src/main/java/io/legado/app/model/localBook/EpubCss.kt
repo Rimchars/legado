@@ -38,6 +38,8 @@ internal object EpubCss {
         "direction",
         "unicode-bidi",
         "writing-mode",
+        "-epub-writing-mode",
+        "-webkit-writing-mode",
         "vertical-align",
         "page-break-before",
         "page-break-after",
