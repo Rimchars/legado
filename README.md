@@ -1,23 +1,22 @@
 # [English](English.md) [中文](README.md)
 
-![icon_android](app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)
 <a href="https://jb.gg/OpenSourceSupport" target="_blank">
 <img width="24" height="24" src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.svg?_gl=1*135yekd*_ga*OTY4Mjg4NDYzLjE2Mzk0NTE3MzQ.*_ga_9J976DJZ68*MTY2OTE2MzM5Ny4xMy4wLjE2NjkxNjMzOTcuNjAuMC4w&_ga=2.257292110.451256242.1669085120-968288463.1639451734" alt="idea"/>
 </a>
 
 <div align="center">
-<img width="125" height="125" src="https://github.com/gedoor/legado/raw/master/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="legado"/>
+<img width="125" height="125" src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="阅读Archive"/>
 <br>
-阅读Sigma
+阅读Archive
 <br>
 <a href="https://loyc.xyz/c/legado.html" target="_blank">软件介绍页</a>
 <br>
-阅读Sigma继承自 Lyc 维护的 Legado 分支，并延续 <a href="https://github.com/gedoor/legado" target="_blank">Legado</a> 的开源阅读体验，在其基础上继续增强界面、AI、EPUB、漫画、视频和主题能力。
+阅读Archive继承自 Lyc 维护的 Legado 分支，并延续 <a href="https://github.com/gedoor/legado" target="_blank">Legado</a> 的开源阅读体验，在其基础上继续增强界面、AI、EPUB、漫画、视频和主题能力。
 <br>
-本分支已更换应用图标，使用新的蓝色圆角书本图标作为主视觉。
+本分支使用当前应用默认图标作为主视觉。
 </div>
 
-## 阅读Sigma特色
+## 阅读Archive特色
 - 更现代的书架、发现、订阅源和搜索界面，底部导航支持玻璃/磨砂/常规等视觉模式。
 - 加强主题管理，支持日间/夜间主题、背景图、界面颜色等配置的本地与云端管理。
 - 增强 EPUB 本地阅读体验，持续补全原生解析、图片、注解、分页和样式兼容。
