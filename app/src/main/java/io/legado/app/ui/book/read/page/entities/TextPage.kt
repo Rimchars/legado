@@ -608,6 +608,7 @@ data class TextPage(
                     is EpubBlockBox -> drawEpubNativeBlock(this, paint, command)
                     is EpubBullet -> drawEpubNativeBullet(this, textPaint, command)
                     is EpubImageBox -> drawEpubNativeImage(view, this, command)
+                    is EpubLinkArea -> Unit
                     is EpubPageColor -> Unit
                     is EpubRuleLine -> drawEpubNativeRuleLine(this, paint, command)
                     is EpubTextRun -> drawEpubNativeText(this, textPaint, command)
@@ -911,6 +912,7 @@ data class TextPage(
                 is EpubBlockBox -> epubDrawOffsetY + command.y + command.height
                 is EpubBullet -> epubDrawOffsetY + command.baseline + command.size
                 is EpubImageBox -> epubDrawOffsetY + command.y + command.height
+                is EpubLinkArea -> epubDrawOffsetY + command.y + command.height
                 is EpubPageColor -> height.coerceAtLeast(ChapterProvider.viewHeight.toFloat())
                 is EpubRuleLine -> epubDrawOffsetY + command.y + command.strokeWidth
                 is EpubTextRun -> epubDrawOffsetY + command.baseline + command.size
