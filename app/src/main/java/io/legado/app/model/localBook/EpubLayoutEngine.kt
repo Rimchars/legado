@@ -1369,6 +1369,7 @@ internal class EpubLayoutEngine(
             when (command) {
                 is EpubTextRun -> command.copy(y = command.y + dy, baseline = command.baseline + dy)
                 is EpubImageBox -> command.copy(y = command.y + dy)
+                is EpubLinkArea -> command.copy(y = command.y + dy)
                 is EpubBlockBox -> command.copy(y = command.y + dy)
                 is EpubRuleLine -> command.copy(y = command.y + dy)
                 is EpubBullet -> command.copy(baseline = command.baseline + dy)
@@ -1407,6 +1408,7 @@ internal class EpubLayoutEngine(
         return when (this) {
             is EpubTextRun -> copy(y = y + dy, baseline = baseline + dy)
             is EpubImageBox -> copy(y = y + dy)
+            is EpubLinkArea -> copy(y = y + dy)
             is EpubBlockBox -> copy(y = y + dy)
             is EpubRuleLine -> copy(y = y + dy)
             is EpubBullet -> copy(baseline = baseline + dy)

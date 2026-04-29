@@ -443,7 +443,9 @@ class EpubFile(var book: Book) {
             }
         }
         if (primary != null) return primary
-        rawResources.forEach { (href, source) ->
+        epubBook?.resources?.all.orEmpty().forEach { resource ->
+            val href = resource.href ?: return@forEach
+            val source = runCatching { String(resource.data, mCharset) }.getOrNull() ?: return@forEach
             if (!source.contains(targetId)) return@forEach
             val doc = runCatching { Jsoup.parse(source) }.getOrNull() ?: return@forEach
             if (doc.getElementById(targetId) != null) {

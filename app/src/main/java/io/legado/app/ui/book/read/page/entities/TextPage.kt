@@ -24,6 +24,7 @@ import io.legado.app.model.localBook.EpubBorderSide
 import io.legado.app.model.localBook.EpubBullet
 import io.legado.app.model.localBook.EpubDrawCommand
 import io.legado.app.model.localBook.EpubImageBox
+import io.legado.app.model.localBook.EpubLinkArea
 import io.legado.app.model.localBook.EpubPageColor
 import io.legado.app.model.localBook.EpubRuleLine
 import io.legado.app.model.localBook.EpubTextRun
