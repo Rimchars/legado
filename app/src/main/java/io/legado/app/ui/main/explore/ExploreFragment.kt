@@ -42,7 +42,6 @@ import io.legado.app.help.source.clearExploreKindsCache
 import io.legado.app.help.source.exploreKinds
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
-import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.model.webBook.WebBook
@@ -145,7 +144,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         usingModernDiscovery = AppConfig.modernDiscoveryPage
         discoveryModeLoaded = false
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
-        binding.swipeRefreshLayout.setProgressBackgroundColorSchemeColor(bottomBackground)
         binding.swipeRefreshLayout.setOnRefreshListener {
             if (usingModernDiscovery) {
                 loadDiscoverBooks(reset = true)

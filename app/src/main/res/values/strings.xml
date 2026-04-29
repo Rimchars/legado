@@ -617,8 +617,13 @@
     <string name="ai_current_model_summary_no_provider_models">No models under the current provider</string>
     <string name="ai_add_model">Add model</string>
     <string name="ai_add_model_summary">Add a new model ID</string>
+    <string name="ai_add_model_summary_modern">Choose from fetched models or enter a model ID manually</string>
+    <string name="ai_add_model_from_list">Choose from fetched list</string>
+    <string name="ai_add_model_manual">Enter model ID manually</string>
+    <string name="ai_add_all_models">Add all new models</string>
     <string name="ai_fetch_models">Fetch model list</string>
     <string name="ai_fetch_models_summary">Read models from the standard OpenAI /v1/models API</string>
+    <string name="ai_fetch_models_summary_modern">Read /v1/models and choose which models to save</string>
     <string name="ai_fetch_models_loading">Fetching model list...</string>
     <string name="ai_fetch_models_empty">No models returned</string>
     <string name="ai_fetch_models_no_new">No new models</string>

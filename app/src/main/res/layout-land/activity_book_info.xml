@@ -356,7 +356,7 @@
                     android:id="@+id/ll_detail_tabs"
                     android:layout_width="match_parent"
                     android:layout_height="38dp"
-                    android:background="@drawable/bg_book_info_intro_panel"
+                    android:background="@android:color/transparent"
                     android:gravity="center"
                     android:orientation="horizontal"
                     android:padding="3dp">
