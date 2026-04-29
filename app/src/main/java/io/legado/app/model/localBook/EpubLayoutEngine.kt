@@ -561,7 +561,7 @@ internal class EpubLayoutEngine(
                         currentLineHeight = maxOf(currentLineHeight, imageHeight * 1.2f)
                     } else {
                         flushLine()
-                        layoutImageNode(item.image, left, width)
+                        layoutImageNode(item.image, left, width, item.linkHref)
                     }
                 }
                 is InlineText -> {
@@ -731,7 +731,12 @@ internal class EpubLayoutEngine(
         }
     }
 
-    private fun layoutImageNode(node: EpubImageNode, left: Float, width: Float) {
+    private fun layoutImageNode(
+        node: EpubImageNode,
+        left: Float,
+        width: Float,
+        linkHref: String? = null
+    ) {
         if (node.isBackground) {
             if (currentCommands.any { it !is EpubPageColor }) {
                 flushPageIfNeeded(force = true)
@@ -784,7 +789,7 @@ internal class EpubLayoutEngine(
                 objectFit = node.style["object-fit"],
                 objectPosition = node.style["object-position"],
                 sourcePath = node.sourcePath,
-                linkHref = node.attributes["href"]?.takeIf { it.isNotBlank() }
+                linkHref = linkHref ?: node.attributes["href"]?.takeIf { it.isNotBlank() }
             )
         )
         cursorY += imageHeight
