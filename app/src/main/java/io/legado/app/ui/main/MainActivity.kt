@@ -342,6 +342,23 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 searchButton.setBackgroundResource(R.drawable.bg_eink_circle_button)
                 return
             }
+            val effectMode = AppConfig.bottomBarEffectMode
+            if (effectMode == "solid") {
+                bottomNavigationGlassView.visibility = android.view.View.GONE
+                bottomNavigationIndicatorGlassView.visibility = android.view.View.GONE
+                searchButtonGlassView.visibility = android.view.View.GONE
+                bottomNavigationShellOverlay.isVisible = false
+                searchButtonShellOverlay.isVisible = false
+                bottomNavigationIndicatorContainer.isVisible = true
+                bottomNavigationIndicatorContainer.alpha = 1f
+                bottomNavigationIndicatorContainer.scaleX = 1f
+                bottomNavigationIndicatorContainer.scaleY = 1f
+                bottomNavigationView.setBackgroundColor(bottomBackground)
+                searchButton.background = createSolidBottomControlDrawable(searchButtonCornerRadius)
+                bottomNavigationIndicatorOverlay.background = createSolidBottomIndicatorDrawable()
+                updateBottomNavigationIndicator(animate = false)
+                return
+            }
             bottomNavigationIndicatorContainer.isVisible = true
             bottomNavigationIndicatorContainer.alpha = 0f
             bottomNavigationIndicatorContainer.scaleX = 0.82f
@@ -350,6 +367,9 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             searchButtonShellOverlay.isVisible = true
             bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
             searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
+            bottomNavigationGlassView.visibility = android.view.View.VISIBLE
+            bottomNavigationIndicatorGlassView.visibility = android.view.View.VISIBLE
+            searchButtonGlassView.visibility = android.view.View.VISIBLE
             if (!liquidGlassReady || !contentContainer.isLaidOut || !bottomControls.isLaidOut) {
                 contentContainer.doOnPreDraw {
                     liquidGlassReady = true
@@ -357,12 +377,36 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 }
                 return
             }
-            val glassLevel = AppConfig.frostedGlassLevel / 100f
-            val blurRadius = (6f + glassLevel * 18f).dpToPx()
-            val tintAlpha = 0.08f + glassLevel * 0.12f
-            val dispersion = 0.46f + glassLevel * 0.32f
-            val refractionHeight = (18f + glassLevel * 14f).dpToPx()
-            val refractionOffset = (72f + glassLevel * 34f).dpToPx()
+            val glassLevel = when (effectMode) {
+                "frosted" -> AppConfig.frostedGlassLevel / 100f
+                else -> AppConfig.liquidGlassLevel / 100f
+            }
+            val frostedMode = effectMode == "frosted"
+            val blurRadius = if (frostedMode) {
+                (10f + glassLevel * 24f).dpToPx()
+            } else {
+                (5f + glassLevel * 14f).dpToPx()
+            }
+            val tintAlpha = if (frostedMode) {
+                0.12f + glassLevel * 0.18f
+            } else {
+                0.05f + glassLevel * 0.10f
+            }
+            val dispersion = if (frostedMode) {
+                (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f)
+            } else {
+                0.46f + glassLevel * 0.32f
+            }
+            val refractionHeight = if (frostedMode) {
+                (12f + glassLevel * 10f).dpToPx()
+            } else {
+                (18f + glassLevel * 14f).dpToPx()
+            }
+            val refractionOffset = if (frostedMode) {
+                (36f + glassLevel * 18f).dpToPx()
+            } else {
+                (72f + glassLevel * 34f).dpToPx()
+            }
             bottomNavigationShellOverlay.background = createLiquidGlassShellDrawable(
                 glassLevel = glassLevel,
                 cornerRadius = bottomBarCornerRadius,
@@ -414,6 +458,28 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 elasticEnabled = true,
                 touchEffectEnabled = true
             )
+        }
+    }
+
+    private fun createSolidBottomControlDrawable(cornerRadius: Float): GradientDrawable {
+        val baseColor = bottomBackground
+        val strokeColor = AppColorUtils.withAlpha(
+            if (AppColorUtils.isColorLight(baseColor)) Color.BLACK else Color.WHITE,
+            0.10f
+        )
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            this.cornerRadius = cornerRadius
+            setColor(baseColor)
+            setStroke(1.dpToPx(), strokeColor)
+        }
+    }
+
+    private fun createSolidBottomIndicatorDrawable(): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = bottomIndicatorCornerRadius
+            setColor(primaryColor)
         }
     }
 

@@ -880,6 +880,23 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefInt(PreferKey.frostedGlassLevel, value.coerceIn(0, 100))
         }
 
+    var liquidGlassLevel: Int
+        get() = appCtx.getPrefInt(PreferKey.liquidGlassLevel, 68).coerceIn(0, 100)
+        set(value) {
+            appCtx.putPrefInt(PreferKey.liquidGlassLevel, value.coerceIn(0, 100))
+        }
+
+    var bottomBarEffectMode: String
+        get() = appCtx.getPrefString(PreferKey.bottomBarEffectMode, "glass")
+            ?.takeIf { it in setOf("glass", "frosted", "solid") }
+            ?: "glass"
+        set(value) {
+            appCtx.putPrefString(
+                PreferKey.bottomBarEffectMode,
+                value.takeIf { it in setOf("glass", "frosted", "solid") } ?: "glass"
+            )
+        }
+
     var readUrlInBrowser: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.readUrlOpenInBrowser)
         set(value) {

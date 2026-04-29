@@ -63,4 +63,10 @@
         <item>en</item>
     </string-array>
 
+    <string-array name="bottom_bar_effect_mode_values">
+        <item>solid</item>
+        <item>glass</item>
+        <item>frosted</item>
+    </string-array>
+
 </resources>

@@ -105,6 +105,12 @@
         <item>替换规则</item>
     </string-array>
 
+    <string-array name="bottom_bar_effect_mode_entries">
+        <item>常规</item>
+        <item>毛玻璃</item>
+        <item>磨砂玻璃</item>
+    </string-array>
+
     <string-array name="tip_color">
         <item>跟随内容</item>
         <item>自定义</item>

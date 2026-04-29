@@ -46,6 +46,20 @@
         android:title="@string/bar_elevation"
         app:iconSpaceReserved="false" />
 
+    <io.legado.app.lib.prefs.NameListPreference
+        android:defaultValue="glass"
+        android:key="bottomBarEffectMode"
+        android:title="@string/bottom_bar_effect_mode"
+        app:entries="@array/bottom_bar_effect_mode_entries"
+        app:entryValues="@array/bottom_bar_effect_mode_values"
+        app:iconSpaceReserved="false" />
+
+    <io.legado.app.lib.prefs.Preference
+        android:key="liquidGlassLevel"
+        android:summary="@string/liquid_glass_level_summary"
+        android:title="@string/liquid_glass_level"
+        app:iconSpaceReserved="false" />
+
     <io.legado.app.lib.prefs.Preference
         android:key="frostedGlassLevel"
         android:summary="@string/frosted_glass_level_summary"

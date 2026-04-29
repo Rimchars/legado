@@ -822,23 +822,19 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             if (!page.isNativeEpubPage()) continue
             val offset = relativeOffset(relativePos)
             val localY = y - offset
-            val bounds = page.nativeTextBounds() ?: continue
+            val selection = page.findNativeTextSelectionAt(x, localY) ?: continue
             val hitRect = RectF(
-                bounds.left + page.epubDrawOffsetX,
-                bounds.top + page.epubDrawOffsetY + offset,
-                bounds.right + page.epubDrawOffsetX,
-                bounds.bottom + page.epubDrawOffsetY + offset
+                selection.rect.left + page.epubDrawOffsetX,
+                selection.rect.top + page.epubDrawOffsetY + offset,
+                selection.rect.right + page.epubDrawOffsetX,
+                selection.rect.bottom + page.epubDrawOffsetY + offset
             )
-            if (!hitRect.contains(x, y) && page.findEpubLinkAt(x, localY) == null) {
-                continue
-            }
-            val text = page.extractNativeText().takeIf { it.isNotBlank() } ?: continue
-            nativeSelectedText = text
+            nativeSelectedText = selection.text
             nativeSelectionRect = hitRect
             postInvalidate()
             upSelectedStart(hitRect.left, hitRect.bottom, hitRect.top)
             upSelectedEnd(hitRect.right, hitRect.bottom)
-            return text
+            return selection.text
         }
         return null
     }

@@ -60,6 +60,11 @@ data class TextPage(
     var renderHeight: Int = 0
 ) {
 
+    data class NativeTextSelection(
+        val text: String,
+        val rect: RectF
+    )
+
     companion object {
         val readProgressFormatter = DecimalFormat("0.0%")
         val emptyTextPage = TextPage()
@@ -453,6 +458,52 @@ data class TextPage(
             return null
         }
         return RectF(left, top, right, bottom)
+    }
+
+    fun findNativeTextSelectionAt(x: Float, y: Float): NativeTextSelection? {
+        val runs = epubNativeCommands.filterIsInstance<EpubTextRun>()
+            .filter { it.text.isNotBlank() }
+        if (runs.isEmpty()) return null
+        val localX = x - epubDrawOffsetX
+        val localY = y - epubDrawOffsetY
+        val targetRun = runs.firstOrNull { run ->
+            RectF(run.x, run.y, run.x + run.width, run.y + run.height).contains(localX, localY)
+        } ?: return null
+        val baselineThreshold = max(targetRun.size, 1f) * 0.55f
+        val lineRuns = runs.filter { run ->
+            abs(run.baseline - targetRun.baseline) <= baselineThreshold &&
+                abs(run.y - targetRun.y) <= max(targetRun.height, run.height) * 0.35f
+        }.sortedBy { it.x }
+        if (lineRuns.isEmpty()) return null
+        val text = buildString {
+            var previous: EpubTextRun? = null
+            lineRuns.forEach { run ->
+                val prev = previous
+                if (prev != null && shouldInsertSpace(prev, run)) {
+                    append(' ')
+                }
+                append(run.text)
+                previous = run
+            }
+        }.trim()
+        if (text.isBlank()) return null
+        var left = Float.MAX_VALUE
+        var top = Float.MAX_VALUE
+        var right = Float.MIN_VALUE
+        var bottom = Float.MIN_VALUE
+        lineRuns.forEach { run ->
+            left = min(left, run.x - run.backgroundPaddingLeft)
+            top = min(top, run.y - run.backgroundPaddingTop)
+            right = max(right, run.x + run.width + run.backgroundPaddingRight)
+            bottom = max(bottom, run.y + run.height + run.backgroundPaddingBottom)
+        }
+        if (!left.isFinite() || !top.isFinite() || !right.isFinite() || !bottom.isFinite()) {
+            return null
+        }
+        return NativeTextSelection(
+            text = text,
+            rect = RectF(left, top, right, bottom)
+        )
     }
 
     private fun shouldInsertSpace(previous: EpubTextRun, current: EpubTextRun): Boolean {

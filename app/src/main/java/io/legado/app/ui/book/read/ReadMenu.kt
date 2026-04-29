@@ -670,14 +670,8 @@ class ReadMenu @JvmOverloads constructor(
             binding.tvChapterName.text = it.title
             binding.tvChapterName.visible()
             if (!ReadBook.isLocalBook) {
-                currentChapterUrl = it.chapter.getAbsoluteURL()
-                val chapterMeta = formatChapterMeta(currentChapterUrl)
-                if (chapterMeta.isNullOrBlank()) {
-                    binding.tvChapterUrl.gone()
-                } else {
-                    binding.tvChapterUrl.text = chapterMeta
-                    binding.tvChapterUrl.visible()
-                }
+                currentChapterUrl = resolveChapterUrl(it.chapter)
+                binding.tvChapterUrl.gone()
             } else {
                 currentChapterUrl = null
                 binding.tvChapterUrl.gone()
@@ -697,20 +691,16 @@ class ReadMenu @JvmOverloads constructor(
         return url.takeIf { it.isNotBlank() && !it.startsWith("data:", true) }
     }
 
-    private fun formatChapterMeta(url: String?): String? {
-        val rawUrl = url?.substringBefore(",{")?.trim().orEmpty()
-        val sourceName = ReadBook.bookSource?.bookSourceName?.takeIf { it.isNotBlank() }
-        if (rawUrl.isBlank() || rawUrl.startsWith("data:", true)) {
-            return sourceName
-        }
-        val host = runCatching { Uri.parse(rawUrl).host }
-            .getOrNull()
-            ?.removePrefix("www.")
-            ?.takeIf { it.isNotBlank() }
-        return listOfNotNull(sourceName, host)
-            .distinct()
-            .joinToString(" · ")
-            .ifBlank { sourceName ?: host ?: rawUrl.take(32) }
+    private fun resolveChapterUrl(chapter: io.legado.app.data.entities.BookChapter): String? {
+        val candidates = listOf(
+            runCatching { chapter.getAbsoluteURL() }.getOrNull(),
+            chapter.url,
+            chapter.baseUrl,
+            ReadBook.book?.bookUrl
+        )
+        return candidates.asSequence()
+            .mapNotNull { it?.substringBefore(",{")?.trim() }
+            .firstOrNull { it.isNotBlank() && !it.startsWith("data:", true) }
     }
 
     fun upSeekBar() {
