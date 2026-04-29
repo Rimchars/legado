@@ -402,20 +402,27 @@ class EpubFile(var book: Book) {
 
     private fun getFootnote(href: String): EpubFootnote? {
         val cleanHref = href.substringBeforeLast("#")
-        val targetId = href.substringAfterLast("#", "").takeIf { it.isNotBlank() } ?: return null
-        val resource = findEpubResource(cleanHref) ?: return null
-        val doc = runCatching { Jsoup.parse(String(resource.data, mCharset)) }.getOrNull() ?: return null
-        val target = doc.getElementById(targetId)?.clone() ?: return null
+        val targetId = href.substringAfterLast("#", "")
+            .decodeEpubFragment()
+            .takeIf { it.isNotBlank() }
+            ?: return null
+        val noteSource = findFootnoteSource(cleanHref, targetId) ?: return null
+        val target = noteSource.document.getElementById(targetId)?.clone() ?: return null
         target.select("a[href]").forEach { link ->
             val linkHref = link.attr("href")
-            if (linkHref.startsWith("#") || linkHref.substringAfterLast("#", "") == targetId) {
+            val linkTarget = linkHref.substringAfterLast("#", "").decodeEpubFragment()
+            if (linkHref.startsWith("#") || linkTarget == targetId || linkTarget.endsWith("-back")) {
                 link.remove()
             }
         }
-        target.select("img[src]").forEach { image ->
-            val src = image.attr("src").trim()
+        target.select("img").forEach { image ->
+            val src = image.attr("src")
+                .ifBlank { image.attr("data-src") }
+                .ifBlank { image.attr("xlink:href") }
+                .ifBlank { image.attr("href") }
+                .trim()
             if (src.isNotBlank()) {
-                image.attr("src", resolveEpubResourceHref(cleanHref, src))
+                image.attr("src", resolveEpubResourceHref(noteSource.href, src))
             }
         }
         val html = target.html().ifBlank { target.text() }.trim()
@@ -424,6 +431,30 @@ class EpubFile(var book: Book) {
             title = target.attr("title").ifBlank { "注解" },
             html = html.takeIf { it.isNotBlank() } ?: text
         ).takeIf { text.isNotBlank() || it.html.isNotBlank() }
+    }
+
+    private fun findFootnoteSource(cleanHref: String, targetId: String): FootnoteSource? {
+        val primary = findEpubResource(cleanHref)?.let { resource ->
+            val doc = runCatching { Jsoup.parse(String(resource.data, mCharset)) }.getOrNull()
+            if (doc?.getElementById(targetId) != null) {
+                FootnoteSource(resource.href, doc)
+            } else {
+                null
+            }
+        }
+        if (primary != null) return primary
+        rawResources.forEach { (href, source) ->
+            if (!source.contains(targetId)) return@forEach
+            val doc = runCatching { Jsoup.parse(source) }.getOrNull() ?: return@forEach
+            if (doc.getElementById(targetId) != null) {
+                return FootnoteSource(href, doc)
+            }
+        }
+        return null
+    }
+
+    private fun String.decodeEpubFragment(): String {
+        return runCatching { URLDecoder.decode(this, "UTF-8") }.getOrDefault(this)
     }
 
     private fun Document.hideEpubFootnotes() {
@@ -1722,6 +1753,11 @@ class EpubFile(var book: Book) {
     internal data class EpubFootnote(
         val title: String,
         val html: String
+    )
+
+    private data class FootnoteSource(
+        val href: String,
+        val document: Document
     )
 
     private fun normalizeChapterList(chapterList: ArrayList<BookChapter>) {

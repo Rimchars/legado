@@ -245,6 +245,20 @@ internal class EpubLayoutEngine(
                 currentCommands[index] = old.copy(height = height)
             }
         }
+        node.linkHref()?.let { href ->
+            val areaTop = visualBoxTop
+            val areaHeight = (cursorY - boxTop).coerceAtLeast(minLinkHitSize)
+            currentCommands.add(
+                EpubLinkArea(
+                    href = href,
+                    x = visualLeft + marginLeft,
+                    y = areaTop,
+                    width = outerWidth,
+                    height = areaHeight,
+                    sourcePath = node.sourcePath
+                )
+            )
+        }
         requestedHeight?.let { height ->
             if (cursorY < boxTop + height) {
                 cursorY = boxTop + height
@@ -463,9 +477,7 @@ internal class EpubLayoutEngine(
                 is EpubTextNode -> items.add(InlineText(current.text, current.style, current.sourcePath, linkHref))
                 is EpubBreakNode -> items.add(InlineBreak(current.style))
                 is EpubInlineNode -> {
-                    val childLink = current.attributes["href"]
-                        ?.takeIf { current.tagName == "a" && it.isNotBlank() }
-                        ?: linkHref
+                    val childLink = current.linkHref() ?: linkHref
                     current.children.forEach { child -> collect(child, childLink) }
                 }
                 is EpubImageNode -> items.add(InlineImage(current, linkHref))
@@ -716,6 +728,20 @@ internal class EpubLayoutEngine(
                         backgroundPaddingBottom = segment.backgroundPaddingBottom,
                         shadow = segment.shadow,
                         linkHref = segment.linkHref,
+                        sourcePath = segment.sourcePath
+                    )
+                )
+            }
+            segment.linkHref?.takeIf { it.isNotBlank() }?.let { href ->
+                val hitWidth = maxOf(segment.width, minLinkHitSize)
+                val hitHeight = maxOf(lineHeight, minLinkHitSize)
+                currentCommands.add(
+                    EpubLinkArea(
+                        href = href,
+                        x = x - ((hitWidth - segment.width) / 2f).coerceAtLeast(0f),
+                        y = top - ((hitHeight - lineHeight) / 2f).coerceAtLeast(0f),
+                        width = hitWidth,
+                        height = hitHeight,
                         sourcePath = segment.sourcePath
                     )
                 )
@@ -2019,7 +2045,38 @@ internal class EpubLayoutEngine(
         val bottom: Float
     )
 
+    private fun EpubBlockNode.linkHref(): String? {
+        return attributes.epubNoteHref(tagName)
+    }
+
+    private fun EpubInlineNode.linkHref(): String? {
+        return attributes.epubNoteHref(tagName)
+    }
+
+    private fun Map<String, String>.epubNoteHref(tagName: String): String? {
+        val href = this["href"]?.takeIf { it.isNotBlank() }
+        if (tagName == "a" && href != null) return href
+        val type = (this["epub:type"] ?: this["type"]).orEmpty().lowercase(Locale.ROOT)
+        val role = this["role"].orEmpty().lowercase(Locale.ROOT)
+        val clazz = this["class"].orEmpty().lowercase(Locale.ROOT)
+        val rel = this["rel"].orEmpty().lowercase(Locale.ROOT)
+        val looksLikeNoteRef = type.contains("noteref") ||
+            type.contains("footnote") ||
+            type.contains("endnote") ||
+            role == "doc-noteref" ||
+            role == "noteref" ||
+            rel.contains("footnote") ||
+            clazz.split(' ').any { it == "noteref" || it == "footnote-ref" || it == "duokan-footnote" }
+        if (looksLikeNoteRef && href != null) return href
+        return this["aria-describedby"]
+            ?.trim()
+            ?.split(Regex("\\s+"))
+            ?.firstOrNull { it.isNotBlank() }
+            ?.let { "#$it" }
+    }
+
     private companion object {
+        const val minLinkHitSize = 42f
         val backgroundPositionKeywords = setOf("left", "center", "right", "top", "bottom")
         val borderStyleTokens = setOf(
             "none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"

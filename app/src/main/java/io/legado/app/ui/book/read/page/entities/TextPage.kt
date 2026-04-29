@@ -355,6 +355,10 @@ data class TextPage(
                     val rect = RectF(command.x, command.y, command.x + command.width, command.y + command.height)
                     if (rect.contains(localX, localY)) href else null
                 }
+                is EpubLinkArea -> {
+                    val rect = RectF(command.x, command.y, command.x + command.width, command.y + command.height)
+                    if (rect.contains(localX, localY)) command.href else null
+                }
                 else -> null
             }
         }
