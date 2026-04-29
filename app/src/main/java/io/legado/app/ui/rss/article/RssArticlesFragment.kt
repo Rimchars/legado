@@ -4,11 +4,11 @@ import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.Bundle
 import android.view.View
-import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -50,7 +50,9 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
     private var isResumed = false
 
     private val binding by viewBinding(FragmentRssArticlesBinding::bind)
-    private val activityViewModel by activityViewModels<RssSortViewModel>()
+    private val activityViewModel by lazy(LazyThreadSafetyMode.NONE) {
+        ViewModelProvider(parentFragment ?: requireActivity())[RssSortViewModel::class.java]
+    }
     override val viewModel by viewModels<RssArticlesViewModel>()
     private val isPreload by lazy { activityViewModel.rssSource?.preload ?: false }
     private val orientation by lazy { resources.configuration.orientation }
