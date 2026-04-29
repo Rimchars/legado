@@ -201,6 +201,7 @@ internal class EpubLayoutEngine(
             inlineItems.clear()
         }
         val positionedChildren = arrayListOf<EpubBoxNode>()
+        val positionedContainingTop = visualBoxTop + marginTop + borderWidth + paddingTop
         node.children.forEach { child ->
             when (child) {
                 is EpubTextNode,
@@ -223,7 +224,15 @@ internal class EpubLayoutEngine(
         positionedChildren
             .sortedBy { it.style.zIndexValue() }
             .forEach { child ->
-                layoutPositionedNode(child, contentLeft, contentWidth, boxTop)
+                layoutPositionedNode(
+                    node = child,
+                    containingLeft = visualLeft + marginLeft + borderWidth + paddingLeft,
+                    containingWidth = (outerWidth - borderWidth * 2 - paddingLeft - paddingRight).coerceAtLeast(1f),
+                    containingTop = positionedContainingTop,
+                    containingHeight = requestedHeight?.coerceAtLeast(0f)
+                        ?: (cursorY - positionedContainingTop).coerceAtLeast(0f),
+                    pageAnchorTop = visualBoxTop
+                )
             }
         if (blockStyle != null && !currentCommands.hasVisibleContentAfter(contentCommandStartIndex)) {
             val fallbackText = node.plainText()
@@ -316,30 +325,49 @@ internal class EpubLayoutEngine(
         node: EpubBoxNode,
         containingLeft: Float,
         containingWidth: Float,
-        containingTop: Float
+        containingTop: Float,
+        containingHeight: Float,
+        pageAnchorTop: Float
     ) {
         val style = node.style
         val oldCursorY = cursorY
         val oldFirstLineIndent = firstLineIndent
         val oldPageHasFullBackground = pageHasFullBackground
+        val containingHeightSafe = containingHeight.coerceAtLeast(0f)
         val positionedWidth = style.resolveHorizontalSize(containingWidth)
             ?: style["width"]?.toCssLengthPx(containingWidth)
             ?: containingWidth
         val leftOffset = style["left"]?.toCssLengthPx(containingWidth)
         val rightOffset = style["right"]?.toCssLengthPx(containingWidth)
-        val topOffset = style.verticalPositionPx("top", viewportHeight.toFloat())
-        val bottomOffset = style.verticalPositionPx("bottom", viewportHeight.toFloat())
+        val topOffset = style.verticalPositionPx(
+            "top",
+            style.positionVerticalReference(viewportHeight.toFloat(), containingHeightSafe, pageHasFullBackground)
+        )
+        val bottomOffset = style.verticalPositionPx(
+            "bottom",
+            style.positionVerticalReference(viewportHeight.toFloat(), containingHeightSafe, pageHasFullBackground)
+        )
         val position = style["position"]?.trim()?.lowercase(Locale.ROOT)
-        val baseTop = if (position == "fixed" || pageHasFullBackground) 0f else containingTop
+        val baseTop = when {
+            position == "fixed" -> 0f
+            pageHasFullBackground -> 0f
+            position == "absolute" -> containingTop
+            else -> pageAnchorTop
+        }
         val x = when {
             leftOffset != null -> containingLeft + leftOffset
             rightOffset != null -> containingLeft + containingWidth - rightOffset - positionedWidth
             else -> containingLeft + style.lengthPx("margin-left", containingWidth)
         }
+        val estimatedHeight = style.resolveVerticalSize(containingWidth)
+            ?: estimateBlockHeight(node.asBlockNode(), positionedWidth)
         val y = when {
             topOffset != null -> baseTop + topOffset
-            bottomOffset != null -> viewportHeight - bottomOffset -
-                (style.resolveVerticalSize(containingWidth) ?: estimateBlockHeight(node.asBlockNode(), positionedWidth))
+            bottomOffset != null -> when {
+                position == "absolute" && !pageHasFullBackground ->
+                    containingTop + containingHeightSafe - bottomOffset - estimatedHeight
+                else -> viewportHeight - bottomOffset - estimatedHeight
+            }
             else -> oldCursorY
         }.coerceAtLeast(0f)
         cursorY = y
@@ -413,68 +441,36 @@ internal class EpubLayoutEngine(
         val contentTableWidth = (tableWidth - horizontalSpacing * (maxColumns - 1).coerceAtLeast(0))
             .coerceAtLeast(1f)
         val columnWidths = node.tableColumnWidths(grid, contentTableWidth)
-        grid.rows.forEachIndexed { rowIndex, row ->
-            if (cursorY + lineHeight(row.style) > viewportHeight && currentCommands.isNotEmpty()) {
+        val tableLayout = measureTableLayout(
+            grid = grid,
+            tableLeft = tableLeft,
+            columnWidths = columnWidths,
+            contentTableWidth = contentTableWidth,
+            horizontalSpacing = horizontalSpacing,
+            cellPadding = cellPadding
+        )
+        tableLayout.rows.forEachIndexed { rowIndex, rowLayout ->
+            if (cursorY + rowLayout.height > viewportHeight && currentCommands.hasVisibleContentAfter(0)) {
                 flushPageIfNeeded(force = true)
             }
-            val rowTop = cursorY
-            val measuredCells = row.cells.map { gridCell ->
-                val oldCursor = cursorY
-                val commandBuffer = currentCommands
-                val oldCommandsSize = currentCommands.size
-                val cell = gridCell.node.withTableCellPadding(cellPadding)
-                val cellLeft = tableLeft +
-                    columnWidths.take(gridCell.column).sum() +
-                    horizontalSpacing * gridCell.column
-                val cellWidth = columnWidths
-                    .drop(gridCell.column)
-                    .take(gridCell.colSpan)
-                    .sum()
-                    .plus(horizontalSpacing * (gridCell.colSpan - 1).coerceAtLeast(0))
-                    .takeIf { it > 0f }
-                    ?: (contentTableWidth / maxColumns)
-                cursorY = rowTop
-                layoutBlockNode(
-                    node = cell,
-                    left = cellLeft,
-                    width = cellWidth
+            val renderRowTop = cursorY
+            rowLayout.cells.forEach { measured ->
+                val cellBoxHeight = tableLayout.spanHeight(
+                    rowIndex = rowIndex,
+                    rowSpan = measured.gridCell.rowSpan,
+                    verticalSpacing = verticalSpacing
                 )
-                val cellBottom = cursorY
-                val cellCommands = if (commandBuffer === currentCommands && oldCommandsSize <= currentCommands.size) {
-                    currentCommands.subList(oldCommandsSize, currentCommands.size).toList().also {
-                        currentCommands.subList(oldCommandsSize, currentCommands.size).clear()
-                    }
-                } else {
-                    emptyList()
-                }
-                cursorY = oldCursor
-                MeasuredTableCell(
-                    gridCell = gridCell,
-                    left = cellLeft,
-                    width = cellWidth,
-                    height = (cellBottom - rowTop).coerceAtLeast(0f),
-                    commands = cellCommands
+                val offsetY = measured.gridCell.node.style.tableVerticalOffset(cellBoxHeight, measured.height)
+                currentCommands.addAll(
+                    measured.commands.fitTableCell(
+                        measured = measured,
+                        cellBoxHeight = cellBoxHeight,
+                        contentOffsetY = (renderRowTop - rowLayout.originalTop) + offsetY
+                    )
                 )
             }
-            val rowHeight = measuredCells.maxOfOrNull { it.height } ?: lineHeight(row.style)
-            val shouldMoveWholeRow = rowTop > 0f &&
-                rowTop + rowHeight > viewportHeight &&
-                rowHeight < viewportHeight * 0.9f &&
-                currentCommands.hasVisibleContentAfter(0)
-            val renderRowTop = if (shouldMoveWholeRow) {
-                cursorY = rowTop
-                flushPageIfNeeded(force = true)
-                cursorY
-            } else {
-                rowTop
-            }
-            val rowShift = renderRowTop - rowTop
-            measuredCells.forEach { measured ->
-                val offsetY = measured.gridCell.node.style.tableVerticalOffset(rowHeight, measured.height)
-                currentCommands.addAll(measured.commands.fitTableCell(measured, rowHeight, offsetY + rowShift))
-            }
-            cursorY = renderRowTop + rowHeight
-            if (rowIndex < grid.rows.lastIndex) {
+            cursorY = renderRowTop + rowLayout.height
+            if (rowIndex < tableLayout.rows.lastIndex) {
                 cursorY += verticalSpacing
             }
         }
@@ -1386,7 +1382,7 @@ internal class EpubLayoutEngine(
 
     private fun List<EpubDrawCommand>.fitTableCell(
         measured: MeasuredTableCell,
-        rowHeight: Float,
+        cellBoxHeight: Float,
         contentOffsetY: Float
     ): List<EpubDrawCommand> {
         if (isEmpty()) return this
@@ -1395,7 +1391,7 @@ internal class EpubLayoutEngine(
         return map { command ->
             if (cellHasDecoration && !consumedCellBox && command is EpubBlockBox) {
                 consumedCellBox = true
-                command.copy(height = rowHeight.coerceAtLeast(command.height))
+                command.copy(height = cellBoxHeight.coerceAtLeast(command.height))
             } else {
                 command.offsetBy(dy = contentOffsetY)
             }
@@ -1479,6 +1475,105 @@ internal class EpubLayoutEngine(
             minHeight != null -> minHeight
             else -> null
         }
+    }
+
+    private fun EpubComputedStyle.positionVerticalReference(
+        viewportHeight: Float,
+        containingHeight: Float,
+        pageHasBackground: Boolean
+    ): Float {
+        val position = this["position"]?.trim()?.lowercase(Locale.ROOT)
+        return when {
+            position == "fixed" -> viewportHeight
+            pageHasBackground -> viewportHeight
+            position == "absolute" && containingHeight > 0f -> containingHeight
+            else -> viewportHeight
+        }
+    }
+
+    private fun measureTableLayout(
+        grid: TableGrid,
+        tableLeft: Float,
+        columnWidths: List<Float>,
+        contentTableWidth: Float,
+        horizontalSpacing: Float,
+        cellPadding: Float
+    ): TableLayout {
+        val measuredRows = arrayListOf<MeasuredTableRow>()
+        grid.rows.forEachIndexed { rowIndex, row ->
+            val rowTop = cursorY
+            val measuredCells = row.cells.map { gridCell ->
+                val oldCursor = cursorY
+                val commandBuffer = currentCommands
+                val oldCommandsSize = currentCommands.size
+                val cell = gridCell.node.withTableCellPadding(cellPadding)
+                val cellLeft = tableLeft +
+                    columnWidths.take(gridCell.column).sum() +
+                    horizontalSpacing * gridCell.column
+                val cellWidth = columnWidths
+                    .drop(gridCell.column)
+                    .take(gridCell.colSpan)
+                    .sum()
+                    .plus(horizontalSpacing * (gridCell.colSpan - 1).coerceAtLeast(0))
+                    .takeIf { it > 0f }
+                    ?: (contentTableWidth / grid.columnCount.coerceAtLeast(1))
+                cursorY = rowTop
+                layoutBlockNode(
+                    node = cell,
+                    left = cellLeft,
+                    width = cellWidth
+                )
+                val cellBottom = cursorY
+                val cellCommands = if (commandBuffer === currentCommands && oldCommandsSize <= currentCommands.size) {
+                    currentCommands.subList(oldCommandsSize, currentCommands.size).toList().also {
+                        currentCommands.subList(oldCommandsSize, currentCommands.size).clear()
+                    }
+                } else {
+                    emptyList()
+                }
+                cursorY = oldCursor
+                MeasuredTableCell(
+                    gridCell = gridCell,
+                    left = cellLeft,
+                    width = cellWidth,
+                    height = (cellBottom - rowTop).coerceAtLeast(0f),
+                    commands = cellCommands
+                )
+            }
+            measuredRows += MeasuredTableRow(
+                rowIndex = rowIndex,
+                style = row.style,
+                originalTop = rowTop,
+                cells = measuredCells
+            )
+        }
+        val rowHeights = MutableList(measuredRows.size) { index ->
+            measuredRows[index].cells
+                .filter { it.gridCell.rowSpan <= 1 }
+                .maxOfOrNull { it.height }
+                ?: lineHeight(measuredRows[index].style)
+        }
+        measuredRows.forEachIndexed { rowIndex, row ->
+            row.cells
+                .filter { it.gridCell.rowSpan > 1 }
+                .forEach { measured ->
+                    val endExclusive = (rowIndex + measured.gridCell.rowSpan).coerceAtMost(rowHeights.size)
+                    val currentSpanHeight = rowHeights.subList(rowIndex, endExclusive).sum()
+                    val deficit = measured.height - currentSpanHeight
+                    if (deficit > 0f) {
+                        val spanCount = (endExclusive - rowIndex).coerceAtLeast(1)
+                        val increment = deficit / spanCount
+                        for (index in rowIndex until endExclusive) {
+                            rowHeights[index] += increment
+                        }
+                    }
+                }
+        }
+        return TableLayout(
+            rows = measuredRows.mapIndexed { index, row ->
+                row.copy(height = rowHeights.getOrElse(index) { lineHeight(row.style) })
+            }
+        )
     }
 
     private fun Float.applyMinMax(minValue: Float?, maxValue: Float?): Float {
@@ -2045,6 +2140,25 @@ internal class EpubLayoutEngine(
         val height: Float,
         val commands: List<EpubDrawCommand>
     )
+
+    private data class MeasuredTableRow(
+        val rowIndex: Int,
+        val style: EpubComputedStyle,
+        val originalTop: Float,
+        val cells: List<MeasuredTableCell>,
+        val height: Float = 0f
+    )
+
+    private data class TableLayout(
+        val rows: List<MeasuredTableRow>
+    ) {
+        fun spanHeight(rowIndex: Int, rowSpan: Int, verticalSpacing: Float): Float {
+            val endExclusive = (rowIndex + rowSpan).coerceAtMost(rows.size)
+            val baseHeight = rows.subList(rowIndex, endExclusive).sumOf { it.height.toDouble() }.toFloat()
+            val spacingHeight = verticalSpacing * (endExclusive - rowIndex - 1).coerceAtLeast(0)
+            return baseHeight + spacingHeight
+        }
+    }
 
     private sealed class InlineItem
 
