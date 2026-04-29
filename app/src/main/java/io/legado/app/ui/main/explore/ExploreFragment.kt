@@ -325,10 +325,14 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.btnDiscoverSourceLogin.setOnClickListener {
             openSelectedSourceLogin()
         }
+        binding.btnDiscoverSourceSearch.setOnClickListener {
+            openDiscoverSearch()
+        }
         binding.btnDiscoverTagFilter.setOnClickListener {
             showDiscoverTagFilterMenu()
         }
         updateDiscoverTagFilterButtonState()
+        updateDiscoverSearchButtonState()
     }
 
     private fun openSelectedSourceLogin() {
@@ -347,6 +351,24 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         val canLogin = selectedDiscoverSourcePart?.hasLoginUrl == true
         binding.btnDiscoverSourceLogin.isEnabled = canLogin
         binding.btnDiscoverSourceLogin.alpha = if (canLogin) 1f else 0.45f
+    }
+
+    private fun updateDiscoverSearchButtonState() {
+        val canSearch = !selectedDiscoverSource?.searchUrl.isNullOrBlank()
+        binding.btnDiscoverSourceSearch.isVisible = canSearch
+        binding.btnDiscoverSourceSearch.isEnabled = canSearch
+        binding.btnDiscoverSourceSearch.alpha = if (canSearch) 1f else 0.45f
+    }
+
+    private fun openDiscoverSearch() {
+        val source = selectedDiscoverSource ?: return
+        if (source.searchUrl.isNullOrBlank()) {
+            context?.toastOnUi(R.string.search_book_key)
+            return
+        }
+        startActivity<SearchActivity> {
+            putExtra("searchScope", "${source.bookSourceName}::${source.bookSourceUrl}")
+        }
     }
 
     private fun observeDiscoverSources() {
@@ -375,6 +397,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         renderDiscoverTags(emptyList(), -1)
                         binding.tvDiscoverSourceSelect.text = getString(R.string.explore_empty)
                         updateDiscoverLoginButtonState()
+                        updateDiscoverSearchButtonState()
                         updateDiscoverTagFilterButtonState()
                         binding.pbDiscoverLoading.gone()
                         return@collect
@@ -390,6 +413,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                     } else {
                         updateDiscoverSourceTitle()
                         updateDiscoverLoginButtonState()
+                        updateDiscoverSearchButtonState()
                     }
                 }
         }
@@ -562,6 +586,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             }
             selectedDiscoverSource = fullSource
             updateDiscoverSourceTitle()
+            updateDiscoverSearchButtonState()
             loadDiscoverKindsAndDefault()
         }
     }

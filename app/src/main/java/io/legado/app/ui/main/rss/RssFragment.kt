@@ -25,16 +25,21 @@ import io.legado.app.data.AppDatabase
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.RssSource
 import io.legado.app.databinding.FragmentRssBinding
+import io.legado.app.help.config.AppConfig
 import io.legado.app.help.source.sortUrls
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
+import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.main.MainFragmentInterface
 import io.legado.app.ui.rss.article.ReadRecordDialog
 import io.legado.app.ui.rss.article.RssArticlesFragment
 import io.legado.app.ui.rss.article.RssSortViewModel
 import io.legado.app.ui.rss.favorites.RssFavoritesActivity
+import io.legado.app.ui.rss.read.ReadRssActivity
+import io.legado.app.ui.rss.source.edit.RssSourceEditActivity
 import io.legado.app.ui.rss.source.manage.RssSourceActivity
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.applyStatusBarPadding
@@ -43,8 +48,10 @@ import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
 import io.legado.app.utils.openUrl
+import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
+import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.transaction
 import io.legado.app.utils.visible
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -58,7 +65,8 @@ import kotlinx.coroutines.launch
 /**
  * 订阅界面
  */
-class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainFragmentInterface {
+class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainFragmentInterface,
+    RssAdapter.CallBack {
 
     constructor(position: Int) : this() {
         val bundle = Bundle()
@@ -71,6 +79,9 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private val binding by viewBinding(FragmentRssBinding::bind)
     override val viewModel by viewModels<RssViewModel>()
     private val sortHostViewModel by viewModels<RssSortViewModel>()
+    private val adapter by lazy {
+        RssAdapter(requireContext(), this, this, viewLifecycleOwner.lifecycle)
+    }
     private val searchView: SearchView by lazy {
         binding.titleBar.findViewById(R.id.search_view)
     }
@@ -85,19 +96,29 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private val currentSorts = mutableListOf<Pair<String, String>>()
     private var selectedTagIndex = 0
     private var currentSearchKey: String? = null
+    private var usingModernRss = false
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
         binding.titleBar.applyStatusBarPadding(withInitialPadding = true)
+        binding.flRssContent.applyMainBottomBarPadding(withInitialPadding = true)
         initSearchView()
         initGroupData()
-        initModernRssView()
-        observeRssSources()
+        applyRssMode()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (usingModernRss != AppConfig.modernRssPage) {
+            applyRssMode()
+        }
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu) {
         menuInflater.inflate(R.menu.main_rss, menu)
         groupsMenu = menu.findItem(R.id.menu_group)?.subMenu
+        menu.findItem(R.id.menu_rss_star)?.isVisible = !usingModernRss
+        menu.findItem(R.id.menu_rss_config)?.isVisible = !usingModernRss
         upGroupsMenu()
     }
 
@@ -107,7 +128,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             R.id.menu_read_record -> showDialogFragment<ReadRecordDialog>()
             R.id.menu_rss_config -> startActivity<RssSourceActivity>()
             R.id.menu_rss_star -> startActivity<RssFavoritesActivity>()
-            else -> if (item.groupId == R.id.menu_group_text) {
+            else -> if (!usingModernRss && item.groupId == R.id.menu_group_text) {
                 searchView.setQuery("group:${item.title}", true)
             }
         }
@@ -129,6 +150,26 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         super.onDestroyView()
     }
 
+    private fun applyRssMode() {
+        usingModernRss = AppConfig.modernRssPage
+        binding.titleBar.isGone = usingModernRss
+        binding.llRssSourceRow.isVisible = usingModernRss
+        binding.rvRssTags.isVisible = false
+        binding.rssFragmentContainer.isGone = true
+        binding.rssWebContainer.isGone = true
+        binding.recyclerView.isGone = usingModernRss
+        binding.pbRssLoading.gone()
+        binding.tvEmptyMsg.gone()
+        if (usingModernRss) {
+            initModernRssView()
+            observeRssSources()
+        } else {
+            initClassicRecycler()
+            observeClassicRssSources()
+        }
+        activity?.invalidateOptionsMenu()
+    }
+
     private fun upGroupsMenu() = groupsMenu?.transaction { subMenu ->
         subMenu.removeGroup(R.id.menu_group_text)
         groups.forEach {
@@ -144,13 +185,34 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             override fun onQueryTextSubmit(query: String?): Boolean = false
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                observeRssSources(newText)
+                if (usingModernRss) {
+                    observeRssSources(newText)
+                } else {
+                    observeClassicRssSources(newText)
+                }
                 return false
             }
         })
     }
 
+    private fun initClassicRecycler() {
+        binding.recyclerView.setEdgeEffectColor(primaryColor)
+        binding.recyclerView.clipToPadding = false
+        binding.recyclerView.applyMainBottomBarPadding()
+        if (binding.recyclerView.adapter !== adapter) {
+            binding.recyclerView.adapter = adapter
+        }
+        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            observeClassicRssSources(searchView.query?.toString())
+        }
+        binding.swipeRefreshLayout.post {
+            binding.swipeRefreshLayout.setProgressViewOffset(false, 0, 56.dpToPx())
+        }
+    }
+
     private fun initModernRssView() {
+        binding.llRssSourceRow.applyStatusBarPadding(withInitialPadding = true)
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
         binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
         binding.swipeRefreshLayout.setOnRefreshListener {
@@ -161,13 +223,17 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         }
         binding.llRssSourceRow.addOnLayoutChangeListener(refreshAnchorListener)
         binding.rvRssTags.addOnLayoutChangeListener(refreshAnchorListener)
-        binding.titleBar.addOnLayoutChangeListener(refreshAnchorListener)
-        binding.flRssContent.applyMainBottomBarPadding(withInitialPadding = true)
         binding.llRssSourceSelect.setOnClickListener {
             showSourceSelector()
         }
         binding.btnRssSourceLogin.setOnClickListener {
-            selectedRssSource?.let(::login)
+            selectedRssSource?.let(::openRssLogin)
+        }
+        binding.btnRssSourceStar.setOnClickListener {
+            startActivity<RssFavoritesActivity>()
+        }
+        binding.btnRssSourceSearch.setOnClickListener {
+            openRssSearch()
         }
         binding.rvRssTags.setOnTagClickListener { index ->
             if (index == selectedTagIndex) return@setOnTagClickListener
@@ -180,7 +246,11 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private fun updateRefreshIndicatorOffset() {
         val swipePos = IntArray(2)
         binding.swipeRefreshLayout.getLocationInWindow(swipePos)
-        val anchorView = if (binding.rvRssTags.isVisible) binding.rvRssTags else binding.llRssSourceRow
+        val anchorView = if (usingModernRss) {
+            if (binding.rvRssTags.isVisible) binding.rvRssTags else binding.llRssSourceRow
+        } else {
+            binding.titleBar
+        }
         val anchorPos = IntArray(2)
         anchorView.getLocationInWindow(anchorPos)
         val start = (anchorPos[1] - swipePos[1]).coerceAtLeast(0)
@@ -206,17 +276,35 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         }
     }
 
+    private fun observeClassicRssSources(searchKey: String? = currentSearchKey) {
+        currentSearchKey = searchKey
+        rssFlowJob?.cancel()
+        rssFlowJob = viewLifecycleOwner.lifecycleScope.launch {
+            when {
+                searchKey.isNullOrEmpty() -> appDb.rssSourceDao.flowEnabled()
+                searchKey.startsWith("group:") -> appDb.rssSourceDao.flowEnabledByGroup(searchKey.substringAfter("group:"))
+                else -> appDb.rssSourceDao.flowEnabled(searchKey)
+            }.flowWithLifecycleAndDatabaseChange(
+                viewLifecycleOwner.lifecycle,
+                Lifecycle.State.RESUMED,
+                AppDatabase.RSS_SOURCE_TABLE_NAME
+            ).catch {
+                AppLog.put("订阅界面更新数据出错", it)
+            }.flowOn(IO).collect {
+                binding.swipeRefreshLayout.isRefreshing = false
+                adapter.setItems(it)
+                binding.tvEmptyMsg.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
     private fun observeRssSources(searchKey: String? = currentSearchKey) {
         currentSearchKey = searchKey
         rssFlowJob?.cancel()
         rssFlowJob = viewLifecycleOwner.lifecycleScope.launch {
             when {
                 searchKey.isNullOrEmpty() -> appDb.rssSourceDao.flowEnabled()
-                searchKey.startsWith("group:") -> {
-                    val key = searchKey.substringAfter("group:")
-                    appDb.rssSourceDao.flowEnabledByGroup(key)
-                }
-
+                searchKey.startsWith("group:") -> appDb.rssSourceDao.flowEnabledByGroup(searchKey.substringAfter("group:"))
                 else -> appDb.rssSourceDao.flowEnabled(searchKey)
             }.flowWithLifecycleAndDatabaseChange(
                 viewLifecycleOwner.lifecycle,
@@ -245,6 +333,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         selectedRssSource = source
         binding.tvRssSourceSelect.text = source.sourceName
         binding.btnRssSourceLogin.isVisible = !source.loginUrl.isNullOrBlank()
+        binding.btnRssSourceSearch.isVisible = !source.searchUrl.isNullOrBlank()
         if (changed) {
             selectedTagIndex = 0
         }
@@ -283,7 +372,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         if (visibleTags.size > 1 || (currentSorts.size == 1 && currentSorts.first().first.isNotBlank())) {
             binding.rvRssTags.visible()
             binding.rvRssTags.submitItems(
-                currentSorts.map { io.legado.app.ui.widget.RoundedTagBarView.Item(it.first.ifBlank { source.sourceName }) },
+                currentSorts.map { io.legado.app.ui.widget.RoundedTagBarView.Item(it.first) },
                 selectedTagIndex.coerceIn(0, currentSorts.lastIndex)
             )
         } else {
@@ -302,6 +391,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         selectedTagIndex = selectedTagIndex.coerceIn(0, currentSorts.lastIndex)
         binding.rvRssTags.setSelectedIndex(selectedTagIndex, smooth = false)
         val sort = currentSorts[selectedTagIndex]
+        binding.recyclerView.gone()
         binding.rssWebContainer.gone()
         binding.rssFragmentContainer.visible()
         binding.pbRssLoading.gone()
@@ -316,6 +406,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun renderWebSource(source: RssSource) {
+        binding.recyclerView.gone()
         binding.rssFragmentContainer.gone()
         binding.rssWebContainer.visible()
         val webView = rssWebView ?: WebView(requireContext()).also { created ->
@@ -367,6 +458,10 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     }
 
     private fun refreshCurrentRssContent() {
+        if (!usingModernRss) {
+            observeClassicRssSources(searchView.query?.toString())
+            return
+        }
         selectedRssSource?.let { source ->
             if (source.ruleArticles.isNullOrBlank()) {
                 renderWebSource(source)
@@ -386,7 +481,9 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         currentSorts.clear()
         binding.tvRssSourceSelect.text = getString(R.string.rss)
         binding.btnRssSourceLogin.gone()
+        binding.btnRssSourceSearch.gone()
         binding.rvRssTags.gone()
+        binding.recyclerView.gone()
         binding.rssFragmentContainer.gone()
         binding.rssWebContainer.gone()
         binding.pbRssLoading.gone()
@@ -408,10 +505,78 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             .show()
     }
 
-    private fun login(rssSource: RssSource) {
+    private fun openRssSearch() {
+        val source = selectedRssSource ?: return
+        if (source.searchUrl.isNullOrBlank()) return
+        startActivity<SearchActivity> {
+            putExtra("searchScope", "${source.sourceName}::${source.sourceUrl}")
+        }
+    }
+
+    private fun openRssLogin(rssSource: RssSource) {
         startActivity<SourceLoginActivity> {
             putExtra("type", "rssSource")
             putExtra("key", rssSource.sourceUrl)
         }
+    }
+
+    override fun openRss(rssSource: RssSource) {
+        if (rssSource.singleUrl) {
+            viewModel.getSingleUrl(rssSource) { url ->
+                if (url.startsWith("http", true)) {
+                    ReadRssActivity.start(
+                        requireContext(),
+                        true,
+                        rssSource.sourceUrl,
+                        rssSource.sourceName,
+                        url
+                    )
+                } else {
+                    context?.openUrl(url)
+                }
+            }
+        } else {
+            viewModel.launchRssWithHtml(rssSource, {
+                startActivity<io.legado.app.ui.rss.article.RssSortActivity> {
+                    putExtra("sourceUrl", rssSource.sourceUrl)
+                }
+            }) { html ->
+                ReadRssActivity.start(
+                    requireContext(),
+                    true,
+                    rssSource.sourceUrl,
+                    rssSource.sourceName,
+                    startHtml = html
+                )
+            }
+        }
+    }
+
+    override fun toTop(rssSource: RssSource) {
+        viewModel.topSource(rssSource)
+    }
+
+    override fun login(rssSource: RssSource) {
+        openRssLogin(rssSource)
+    }
+
+    override fun edit(rssSource: RssSource) {
+        startActivity<RssSourceEditActivity> {
+            putExtra("sourceUrl", rssSource.sourceUrl)
+        }
+    }
+
+    override fun del(rssSource: RssSource) {
+        alert(R.string.draw) {
+            setMessage(getString(R.string.sure_del) + "\n" + rssSource.sourceName)
+            noButton()
+            yesButton {
+                viewModel.del(rssSource)
+            }
+        }
+    }
+
+    override fun disable(rssSource: RssSource) {
+        viewModel.disable(rssSource)
     }
 }

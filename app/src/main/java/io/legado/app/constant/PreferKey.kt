@@ -45,6 +45,7 @@ object PreferKey {
     const val nextKeys = "nextKeyCodes"
     const val showDiscovery = "showDiscovery"
     const val modernDiscoveryPage = "modernDiscoveryPage"
+    const val modernRssPage = "modernRssPage"
     const val modernDiscoverySourceUrl = "modernDiscoverySourceUrl"
     const val aiAssistantEnabled = "aiAssistantEnabled"
     const val aiProviderList = "aiProviderList"

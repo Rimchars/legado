@@ -647,6 +647,10 @@
     <string name="tone_colour">在线朗读音色</string>
     <string name="select_count">（%1$d/%2$d）</string>
     <string name="show_rss">显示订阅</string>
+    <string name="modern_rss_page">新版订阅页</string>
+    <string name="modern_rss_page_summary">使用新的订阅首页布局，支持切换源、分类标签和内嵌内容。</string>
+    <string name="rss_source_manage">订阅源管理</string>
+    <string name="rss_source_manage_summary">管理订阅源和源仓库。</string>
     <string name="service_stop">服务已停止</string>
     <string name="service_start">正在启动服务\n具体信息请查看通知栏</string>
     <string name="default_path">默认路径</string>
@@ -1435,7 +1439,7 @@
     <string name="ai_tool_call">调用工具：%1$s\n参数：%2$s</string>
     <string name="ai_tool_result">工具返回：%1$s\n%2$s</string>
     <string name="ai_tool_round_limit_summary">工具调用轮次已达到上限，且模型没有返回总结</string>
-    <string name="ai_restore_thinking">正在思考中...</string>
+    <string name="ai_restore_thinking">正在思考中</string>
     <string name="read_record_date_pattern">yyyy年MM月dd日</string>
     <string name="read_record_month_pattern">M月</string>
     <string name="duration_day">%d天</string>

@@ -787,6 +787,10 @@
     <string name="tone_colour">Online Speech tone</string>
     <string name="select_count">(%1$d/%2$d)</string>
     <string name="show_rss">Show RSS feeds</string>
+    <string name="modern_rss_page">Modern RSS page</string>
+    <string name="modern_rss_page_summary">Use the new RSS home layout with source switch, categories, and embedded content.</string>
+    <string name="rss_source_manage">RSS source management</string>
+    <string name="rss_source_manage_summary">Manage RSS sources and source repository.</string>
     <string name="service_stop">Service stopped</string>
     <string name="service_start">Starting service\nChecking notification bar for details</string>
     <string name="default_path">Default path</string>
