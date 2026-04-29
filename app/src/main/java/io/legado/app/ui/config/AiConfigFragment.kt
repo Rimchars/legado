@@ -69,6 +69,11 @@ class AiConfigFragment : PreferenceFragment(),
             "aiManageModels" -> showManageModelsDialog()
             "aiAddMcpServer" -> showEditMcpServerDialog()
             "aiManageMcpServers" -> showManageMcpServersDialog()
+            PreferKey.aiTavilyApiKey -> showTavilyApiKeyDialog()
+            PreferKey.aiTavilyBaseUrl -> showTavilyBaseUrlDialog()
+            PreferKey.aiTavilyTopic -> showTavilyTopicDialog()
+            PreferKey.aiTavilySearchDepth -> showTavilySearchDepthDialog()
+            PreferKey.aiTavilyMaxResults -> showTavilyMaxResultsDialog()
             PreferKey.aiSystemPrompt -> showSystemPromptDialog()
             "aiImportDefaultSkill" -> importDefaultSkill()
             PreferKey.aiSkillPrompt -> showManageSkillsDialog()
@@ -569,6 +574,92 @@ class AiConfigFragment : PreferenceFragment(),
         }
     }
 
+    private fun showTavilyApiKeyDialog() {
+        val binding = DialogEditTextBinding.inflate(layoutInflater).apply {
+            editView.hint = getString(R.string.ai_tavily_api_key_hint)
+            editView.inputType = InputType.TYPE_CLASS_TEXT
+            editView.setText(AppConfig.aiTavilyApiKey)
+            editView.setSelection(editView.text?.length ?: 0)
+        }
+        alert(titleResource = R.string.ai_tavily_api_key) {
+            customView { binding.root }
+            okButton {
+                AppConfig.aiTavilyApiKey = binding.editView.text?.toString().orEmpty()
+                refreshUi()
+            }
+            cancelButton()
+        }
+    }
+
+    private fun showTavilyBaseUrlDialog() {
+        val binding = DialogEditTextBinding.inflate(layoutInflater).apply {
+            editView.hint = "https://api.tavily.com/search"
+            editView.inputType = InputType.TYPE_CLASS_TEXT
+            editView.setText(AppConfig.aiTavilyBaseUrl)
+            editView.setSelection(editView.text?.length ?: 0)
+        }
+        alert(titleResource = R.string.ai_tavily_base_url) {
+            customView { binding.root }
+            okButton {
+                AppConfig.aiTavilyBaseUrl = binding.editView.text?.toString().orEmpty()
+                refreshUi()
+            }
+            neutralButton(R.string.restore_default) {
+                AppConfig.aiTavilyBaseUrl = "https://api.tavily.com/search"
+                refreshUi()
+            }
+            cancelButton()
+        }
+    }
+
+    private fun showTavilyTopicDialog() {
+        val values = listOf("general", "news", "finance")
+        val labels = listOf(
+            getString(R.string.ai_tavily_topic_general),
+            getString(R.string.ai_tavily_topic_news),
+            getString(R.string.ai_tavily_topic_finance)
+        )
+        context?.selector(getString(R.string.ai_tavily_topic), labels) { _, _, index ->
+            AppConfig.aiTavilyTopic = values[index]
+            refreshUi()
+        }
+    }
+
+    private fun showTavilySearchDepthDialog() {
+        val values = listOf("basic", "advanced", "ultra-fast")
+        val labels = listOf(
+            getString(R.string.ai_tavily_search_depth_basic),
+            getString(R.string.ai_tavily_search_depth_advanced),
+            getString(R.string.ai_tavily_search_depth_ultra_fast)
+        )
+        context?.selector(getString(R.string.ai_tavily_search_depth), labels) { _, _, index ->
+            AppConfig.aiTavilySearchDepth = values[index]
+            refreshUi()
+        }
+    }
+
+    private fun showTavilyMaxResultsDialog() {
+        val binding = DialogEditTextBinding.inflate(layoutInflater).apply {
+            editView.hint = "1-10"
+            editView.inputType = InputType.TYPE_CLASS_NUMBER
+            editView.setText(AppConfig.aiTavilyMaxResults.toString())
+            editView.setSelection(editView.text?.length ?: 0)
+        }
+        alert(titleResource = R.string.ai_tavily_max_results) {
+            customView { binding.root }
+            okButton {
+                val value = binding.editView.text?.toString()?.trim()?.toIntOrNull()
+                if (value == null) {
+                    toastOnUi(R.string.ai_tavily_max_results_invalid)
+                    return@okButton
+                }
+                AppConfig.aiTavilyMaxResults = value
+                refreshUi()
+            }
+            cancelButton()
+        }
+    }
+
     private fun importDefaultSkill() {
         toastOnUi(R.string.ai_skill_importing)
         lifecycleScope.launch {
@@ -780,6 +871,37 @@ class AiConfigFragment : PreferenceFragment(),
                     mcpServers.size
                 )
             }
+        findPreference<SwitchPreference>(PreferKey.aiTavilyEnabled)?.summary =
+            getString(
+                if (AppConfig.aiTavilyApiKey.isBlank()) {
+                    R.string.ai_tavily_enable_summary_missing
+                } else {
+                    R.string.ai_tavily_enable_summary
+                }
+            )
+        findPreference<Preference>(PreferKey.aiTavilyApiKey)?.summary =
+            if (AppConfig.aiTavilyApiKey.isBlank()) {
+                getString(R.string.ai_tavily_api_key_summary)
+            } else {
+                getString(R.string.ai_tavily_api_key_summary_ready)
+            }
+        findPreference<Preference>(PreferKey.aiTavilyBaseUrl)?.summary = AppConfig.aiTavilyBaseUrl
+        findPreference<Preference>(PreferKey.aiTavilyTopic)?.summary = getString(
+            when (AppConfig.aiTavilyTopic) {
+                "news" -> R.string.ai_tavily_topic_news
+                "finance" -> R.string.ai_tavily_topic_finance
+                else -> R.string.ai_tavily_topic_general
+            }
+        )
+        findPreference<Preference>(PreferKey.aiTavilySearchDepth)?.summary = getString(
+            when (AppConfig.aiTavilySearchDepth) {
+                "advanced" -> R.string.ai_tavily_search_depth_advanced
+                "ultra-fast" -> R.string.ai_tavily_search_depth_ultra_fast
+                else -> R.string.ai_tavily_search_depth_basic
+            }
+        )
+        findPreference<Preference>(PreferKey.aiTavilyMaxResults)?.summary =
+            AppConfig.aiTavilyMaxResults.toString()
         findPreference<Preference>(PreferKey.aiSystemPrompt)?.summary =
             getString(R.string.ai_system_prompt_summary)
         val skills = AppConfig.aiSkillList

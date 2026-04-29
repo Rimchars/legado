@@ -12,8 +12,6 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
 import splitties.init.appCtx
 import java.util.UUID
 
@@ -33,7 +31,8 @@ class AiChatViewModel : ViewModel() {
         private var activeSessionId: String? = null
         private var activeViewModel: AiChatViewModel? = null
         private var activePendingContent: String = ""
-        private val activeStatusEvents = linkedMapOf<String, JSONObject>()
+        private var activeThinkingMessageId: String? = null
+        private val activeToolMessageIds = linkedMapOf<String, String>()
     }
 
     init {
@@ -57,26 +56,40 @@ class AiChatViewModel : ViewModel() {
         activeSessionId = currentSessionId
         val requestSessionId = currentSessionId
         activeViewModel = this
-        activeStatusEvents.clear()
+        activeThinkingMessageId = null
+        activeToolMessageIds.clear()
         append(AiChatMessage(role = AiChatMessage.Role.USER, content = userContent))
+        val thinkingMessageId = UUID.randomUUID().toString()
+        activeThinkingMessageId = thinkingMessageId
+        append(
+            AiChatMessage(
+                id = thinkingMessageId,
+                role = AiChatMessage.Role.ASSISTANT,
+                content = thinkingText,
+                pending = true,
+                kind = AiChatMessage.Kind.STATUS,
+                statusName = "思考中",
+                statusStage = "thinking",
+                statusSuccess = true
+            )
+        )
         append(
             AiChatMessage(
                 role = AiChatMessage.Role.ASSISTANT,
-                content = buildPendingAssistantContent(thinkingText),
+                content = "",
                 pending = true
             )
         )
-        activePendingContent = thinkingText
+        activePendingContent = ""
         val requestMessages = snapshotForRequest()
         activeJob = requestScope.launch {
             val result = runCatching {
                 AiChatService.chatStream(
                     messages = requestMessages,
                     onPartial = { partial ->
-                        activePendingContent = partial.ifBlank { thinkingText }
-                        targetFor(requestSessionId).upsertPendingAssistant(
-                            buildPendingAssistantContent(activePendingContent)
-                        )
+                        targetFor(requestSessionId).markThinkingCompleted()
+                        activePendingContent = partial
+                        targetFor(requestSessionId).upsertPendingAssistant(partial.ifBlank { "" })
                     },
                     onThinking = { thinking ->
                         targetFor(requestSessionId).upsertThinkingStatus(thinking)
@@ -91,11 +104,13 @@ class AiChatViewModel : ViewModel() {
             activeSessionId = null
             result.onSuccess { content ->
                 activePendingContent = ""
-                activeStatusEvents.clear()
+                activeToolMessageIds.clear()
+                targetFor(requestSessionId).markThinkingCompleted()
                 targetFor(requestSessionId).replacePendingAssistant(content.ifBlank { thinkingText })
             }.onFailure { throwable ->
                 activePendingContent = ""
-                activeStatusEvents.clear()
+                activeToolMessageIds.clear()
+                targetFor(requestSessionId).markThinkingCompleted()
                 if (throwable is CancellationException) {
                     targetFor(requestSessionId).replacePendingAssistant(cancelledText)
                     return@onFailure
@@ -117,7 +132,8 @@ class AiChatViewModel : ViewModel() {
         activeJob = null
         activeSessionId = null
         activePendingContent = ""
-        activeStatusEvents.clear()
+        activeThinkingMessageId = null
+        activeToolMessageIds.clear()
         setRequesting(false)
         if (cancelledText.isNotBlank()) {
             replacePendingAssistant(cancelledText)
@@ -150,22 +166,92 @@ class AiChatViewModel : ViewModel() {
     fun upsertThinkingStatus(thinking: String) {
         val normalized = thinking.replace(Regex("\\s+"), " ").trim()
         if (normalized.isBlank()) return
-        activeStatusEvents["thinking"] = JSONObject().apply {
-            put("key", "thinking")
-            put("kind", "thinking")
-            put("name", "思考中")
-            put("stage", "thinking")
-            put("label", "思考中")
-            put("content", normalized.takeLast(280))
-            put("success", true)
+        val id = activeThinkingMessageId ?: UUID.randomUUID().toString().also {
+            activeThinkingMessageId = it
+            messages.add(
+                messages.indexOfLast { message ->
+                    message.role == AiChatMessage.Role.ASSISTANT && message.pending && message.kind == AiChatMessage.Kind.TEXT
+                }.coerceAtLeast(0),
+                AiChatMessage(
+                    id = it,
+                    role = AiChatMessage.Role.ASSISTANT,
+                    content = normalized.takeLast(280),
+                    pending = true,
+                    kind = AiChatMessage.Kind.STATUS,
+                    statusName = "思考中",
+                    statusStage = "thinking",
+                    statusSuccess = true
+                )
+            )
         }
-        upsertPendingAssistant(buildPendingAssistantContent(activePendingContent))
+        val index = messages.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            messages[index] = messages[index].copy(
+                content = normalized.takeLast(280),
+                pending = true,
+                kind = AiChatMessage.Kind.STATUS,
+                statusName = "思考中",
+                statusStage = "thinking",
+                statusSuccess = true
+            )
+            publish()
+        }
     }
 
-    fun upsertStatus(status: JSONObject) {
+    fun upsertStatus(status: org.json.JSONObject) {
+        markThinkingCompleted()
         val key = status.optString("key").ifBlank { UUID.randomUUID().toString() }
-        activeStatusEvents[key] = JSONObject(status.toString())
-        upsertPendingAssistant(buildPendingAssistantContent(activePendingContent))
+        val name = status.optString("name").ifBlank { "工具调用" }
+        val stage = status.optString("stage").ifBlank { "call" }
+        val label = status.optString("label").ifBlank {
+            when (stage) {
+                "call" -> "调用中"
+                "result" -> if (status.optBoolean("success", true)) "调用完成" else "调用失败"
+                else -> stage
+            }
+        }
+        val content = status.optString("content")
+        val success = status.optBoolean("success", true)
+        val messageId = activeToolMessageIds[key]
+        if (messageId != null) {
+            val index = messages.indexOfFirst { it.id == messageId }
+            if (index >= 0) {
+                messages[index] = messages[index].copy(
+                    content = content,
+                    pending = stage == "call",
+                    kind = AiChatMessage.Kind.STATUS,
+                    statusName = "$name · $label",
+                    statusStage = stage,
+                    statusSuccess = success
+                )
+                publish()
+                return
+            }
+        }
+        val newId = UUID.randomUUID().toString()
+        activeToolMessageIds[key] = newId
+        val pendingTextIndex = messages.indexOfLast {
+            it.role == AiChatMessage.Role.ASSISTANT && it.pending && it.kind == AiChatMessage.Kind.TEXT
+        }
+        val insertIndex = when {
+            pendingTextIndex < 0 -> messages.size
+            messages[pendingTextIndex].content.isNotBlank() -> pendingTextIndex + 1
+            else -> pendingTextIndex
+        }
+        messages.add(
+            insertIndex,
+            AiChatMessage(
+                id = newId,
+                role = AiChatMessage.Role.ASSISTANT,
+                content = content,
+                pending = stage == "call",
+                kind = AiChatMessage.Kind.STATUS,
+                statusName = "$name · $label",
+                statusStage = stage,
+                statusSuccess = success
+            )
+        )
+        publish()
     }
 
     fun finishPendingAssistant() {
@@ -242,7 +328,7 @@ class AiChatViewModel : ViewModel() {
     }
 
     fun snapshotForRequest(): List<AiChatMessage> {
-        return messages.filterNot { it.pending }
+        return messages.filterNot { it.pending || it.kind == AiChatMessage.Kind.STATUS }
     }
 
     fun restoreCurrentSession() {
@@ -294,23 +380,19 @@ class AiChatViewModel : ViewModel() {
         messagesLiveData.postValue(messages.toList())
     }
 
-    private fun buildPendingAssistantContent(visibleContent: String): String {
-        if (activeStatusEvents.isEmpty()) return visibleContent
-        return buildString {
-            append("```legado-status-events\n")
-            append(
-                JSONObject().apply {
-                    put(
-                        "events",
-                        JSONArray().apply {
-                            activeStatusEvents.values.forEach { put(it) }
-                        }
-                    )
-                }
+    private fun markThinkingCompleted() {
+        val id = activeThinkingMessageId ?: return
+        val index = messages.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            val old = messages[index]
+            messages[index] = old.copy(
+                pending = false,
+                statusName = "思考完成",
+                statusStage = "done"
             )
-            append("\n```\n")
-            append(visibleContent)
+            publish()
         }
+        activeThinkingMessageId = null
     }
 
     private fun saveCurrentSession() {

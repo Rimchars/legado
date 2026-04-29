@@ -421,11 +421,11 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
         binding.emptyContainer.background = createSurfaceDrawable(surfaceColor, strokeColor, 20f)
         binding.composerContainer.background = createSurfaceDrawable(
             ColorUtils.adjustAlpha(
-                ColorUtils.blendColors(primaryTextColor, android.graphics.Color.GRAY, 0.72f),
-                0.16f
+                ColorUtils.blendColors(baseColor, accentColor, if (baseIsLight) 0.08f else 0.18f),
+                if (baseIsLight) 0.96f else 0.88f
             ),
-            ColorUtils.adjustAlpha(primaryTextColor, 0.08f),
-            28f
+            ColorUtils.adjustAlpha(accentColor, if (baseIsLight) 0.18f else 0.24f),
+            30f
         )
         binding.composerContainer.elevation = 8f.dpToPx()
         modelActionText?.setTextColor(primaryTextColor)
