@@ -18,6 +18,12 @@
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.Preference
+            android:key="rssSourceManage"
+            android:summary="@string/rss_source_manage_summary"
+            android:title="@string/rss_source_manage"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
             android:key="txtTocRuleManage"
             android:summary="@string/config_txt_toc_rule"
             android:title="@string/txt_toc_rule"

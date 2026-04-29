@@ -17,6 +17,8 @@ import java.util.UUID
 
 class AiChatViewModel : ViewModel() {
 
+    private val pendingThinkingLabel = appCtx.getString(R.string.ai_restore_thinking)
+
     val messagesLiveData = MutableLiveData<List<AiChatMessage>>(emptyList())
     val requestingLiveData = MutableLiveData(false)
     var isRequesting = false
@@ -63,7 +65,7 @@ class AiChatViewModel : ViewModel() {
         append(AiChatMessage(role = AiChatMessage.Role.USER, content = userContent))
         val pendingMessage = AiChatMessage(
             role = AiChatMessage.Role.ASSISTANT,
-            content = "",
+            content = pendingThinkingLabel,
             pending = true
         )
         activePendingAssistantMessageId = pendingMessage.id
@@ -92,7 +94,7 @@ class AiChatViewModel : ViewModel() {
             result.onSuccess { content ->
                 activePendingContent = ""
                 activeToolMessageIds.clear()
-                targetFor(requestSessionId).replacePendingAssistant(content.ifBlank { "" })
+                targetFor(requestSessionId).replacePendingAssistant(content.ifBlank { pendingThinkingLabel })
             }.onFailure { throwable ->
                 activePendingContent = ""
                 activeToolMessageIds.clear()
@@ -150,12 +152,11 @@ class AiChatViewModel : ViewModel() {
 
     fun upsertThinkingStatus(thinkingTitle: String, thinking: String) {
         if (activePendingContent.isNotBlank()) return
-        val normalized = thinking.replace(Regex("\\s+"), " ").trim()
         val messageId = activePendingAssistantMessageId ?: return
         val index = messages.indexOfFirst { it.id == messageId }
         if (index >= 0) {
             messages[index] = messages[index].copy(
-                content = normalized.ifBlank { "" },
+                content = pendingThinkingLabel,
                 pending = true
             )
             publish()
@@ -257,7 +258,7 @@ class AiChatViewModel : ViewModel() {
         if (requesting && messages.none { it.role == AiChatMessage.Role.ASSISTANT && it.pending }) {
             val restored = AiChatMessage(
                 role = AiChatMessage.Role.ASSISTANT,
-                content = activePendingContent.ifBlank { "" },
+                content = activePendingContent.ifBlank { pendingThinkingLabel },
                 pending = true
             )
             activePendingAssistantMessageId = restored.id

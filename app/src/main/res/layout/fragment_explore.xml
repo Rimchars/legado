@@ -52,8 +52,9 @@
 
                     <LinearLayout
                         android:id="@+id/ll_discover_source_select"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="42dp"
+                        android:layout_weight="1"
                         android:background="@drawable/bg_discover_embedded_action"
                         android:clickable="true"
                         android:focusable="true"
@@ -64,14 +65,14 @@
 
                         <TextView
                             android:id="@+id/tv_discover_source_select"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
+                            android:layout_weight="1"
                             android:ellipsize="end"
                             android:includeFontPadding="false"
-                            android:maxWidth="220dp"
                             android:maxLines="1"
                             android:textColor="@color/primaryText"
-                            android:textSize="24sp"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             tools:text="默认书源" />
 
@@ -90,6 +91,22 @@
                         android:layout_width="0dp"
                         android:layout_height="1dp"
                         android:layout_weight="1" />
+
+                    <androidx.appcompat.widget.AppCompatImageButton
+                        android:id="@+id/btn_discover_source_search"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:background="@drawable/bg_discover_embedded_action"
+                        android:contentDescription="@string/search"
+                        android:padding="8dp"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/ic_search"
+                        android:tint="@color/primaryText"
+                        android:visibility="gone" />
+
+                    <Space
+                        android:layout_width="10dp"
+                        android:layout_height="1dp" />
 
                     <androidx.appcompat.widget.AppCompatImageButton
                         android:id="@+id/btn_discover_tag_filter"

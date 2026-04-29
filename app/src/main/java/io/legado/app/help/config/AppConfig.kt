@@ -317,6 +317,9 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     val modernDiscoveryPage: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.modernDiscoveryPage, true)
 
+    val modernRssPage: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.modernRssPage, true)
+
     var modernDiscoverySourceUrl: String?
         get() = appCtx.getPrefString(PreferKey.modernDiscoverySourceUrl)
         set(value) {
