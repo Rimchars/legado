@@ -535,7 +535,11 @@ internal class EpubLayoutEngine(
                 is InlineImage -> {
                     val inlineSize = item.image.inlineImageSize(width, currentLineHeight)
                     if (inlineSize != null) {
-                        val (imageWidth, imageHeight) = inlineSize
+                        val (imageWidth, imageHeight) = if (item.linkHref != null && item.image.isFootnoteIcon()) {
+                            inlineSize.fitInside(currentLineHeight * 0.95f)
+                        } else {
+                            inlineSize
+                        }
                         if (lineSegments.isNotEmpty() && lineWidth + imageWidth > lineWidthLimit) {
                             flushLine()
                         }
@@ -1480,6 +1484,20 @@ internal class EpubLayoutEngine(
         val maxInlineWidth = lineWidth * 0.35f
         if (imageWidth > maxInlineWidth || imageHeight > maxInlineHeight) return null
         return imageWidth.coerceAtLeast(1f) to imageHeight.coerceAtLeast(1f)
+    }
+
+    private fun EpubImageNode.isFootnoteIcon(): Boolean {
+        val cleanSrc = src.substringBefore('?').substringBefore('#').substringAfterLast('/').lowercase(Locale.ROOT)
+        return cleanSrc.startsWith("note.") ||
+            cleanSrc.contains("footnote") ||
+            attributes["class"].orEmpty().lowercase(Locale.ROOT).contains("footnote")
+    }
+
+    private fun Pair<Float, Float>.fitInside(maxSize: Float): Pair<Float, Float> {
+        val currentMax = maxOf(first, second)
+        if (currentMax <= 0f || currentMax <= maxSize) return this
+        val scale = maxSize / currentMax
+        return (first * scale).coerceAtLeast(1f) to (second * scale).coerceAtLeast(1f)
     }
 
     private fun String.toCssLengthPx(relativeTo: Float): Float? {
