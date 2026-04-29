@@ -70,7 +70,6 @@
                         android:id="@+id/iv_rss_source_arrow"
                         android:layout_width="18dp"
                         android:layout_height="18dp"
-                        android:layout_marginStart="2dp"
                         android:contentDescription="@string/rss"
                         android:src="@drawable/ic_arrow_drop_down"
                         app:tint="@color/primaryText" />
