@@ -83,7 +83,7 @@ object SourceSelectDialog {
         }
         val recyclerView = RecyclerView(context).apply {
             layoutManager = LinearLayoutManager(context)
-            adapter = adapter
+            this.adapter = adapter
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
