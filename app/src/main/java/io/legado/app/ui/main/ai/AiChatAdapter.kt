@@ -21,6 +21,7 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
 import io.legado.app.data.entities.SearchBook
+import io.legado.app.help.config.AppConfig
 import io.legado.app.databinding.ItemAiMessageAssistantBinding
 import io.legado.app.databinding.ItemAiMessageUserBinding
 import io.legado.app.lib.theme.accentColor
@@ -56,7 +57,7 @@ class AiChatAdapter(
 
     fun submitList(list: List<AiChatMessage>) {
         items.clear()
-        items.addAll(list)
+        items.addAll(list.filterNot { (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.STATUS })
         notifyDataSetChanged()
     }
 
@@ -134,16 +135,19 @@ class AiChatAdapter(
 
     private fun parseMessageContent(content: String): ParsedMessage {
         val cards = mutableListOf<SearchBookCard>()
-        val toolEvents = mutableListOf<ToolEventCard>()
+        val toolEvents = linkedMapOf<String, ToolEventCard>()
         val withoutToolEvents = toolEventBlockRegex.replace(content) { match ->
             runCatching {
                 val payload = JSONObject(match.groupValues[1])
                 val events = payload.optJSONArray("events") ?: return@runCatching
                 for (index in 0 until events.length()) {
                     val item = events.optJSONObject(index) ?: continue
-                    toolEvents += ToolEventCard(
-                        name = item.optString("name"),
-                        stage = item.optString("stage"),
+                    val stage = item.optString("stage")
+                    val name = item.optString("name").ifBlank { "工具" }
+                    if (stage != "result") continue
+                    toolEvents[name] = ToolEventCard(
+                        name = name,
+                        stage = "done",
                         content = item.optString("content"),
                         success = item.optBoolean("success", true),
                         label = ""
@@ -180,7 +184,7 @@ class AiChatAdapter(
         return ParsedMessage(
             visibleContent,
             cards.distinctBy { it.bookUrl },
-            toolEvents
+            toolEvents.values.toList()
         )
     }
 
@@ -196,27 +200,37 @@ class AiChatAdapter(
     private fun bindToolEvents(binding: ItemAiMessageAssistantBinding, events: List<ToolEventCard>) {
         val container = binding.toolEventContainer
         container.removeAllViews()
-        container.isVisible = events.isNotEmpty()
-        events.forEach { event ->
-            container.addView(createToolEventView(event))
+        val showSummary = AppConfig.aiShowToolSummary && events.isNotEmpty()
+        container.isVisible = showSummary
+        if (showSummary) {
+            container.addView(createToolSummaryView(events))
         }
     }
 
-    private fun createToolEventView(event: ToolEventCard): View {
+    private fun createToolSummaryView(events: List<ToolEventCard>): View {
+        val allSuccess = events.all { it.success }
+        val summary = events.joinToString("、") { it.name.ifBlank { "工具" } }
+        val detail = events.joinToString("\n\n") { event ->
+            buildString {
+                append(event.name.ifBlank { "工具" })
+                append('\n')
+                append(event.content.trim().ifBlank { if (event.success) "已完成" else "调用失败" })
+            }
+        }
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                cornerRadius = 18.dpToPx().toFloat()
-                setColor(ColorUtils.blendColors(context.backgroundColor, context.accentColor, 0.04f))
+                cornerRadius = 16.dpToPx().toFloat()
+                setColor(ColorUtils.blendColors(context.backgroundColor, context.accentColor, 0.05f))
                 setStroke(
                     1.dpToPx(),
                     ColorUtils.adjustAlpha(
-                        if (event.success) context.accentColor else ContextCompat.getColor(context, R.color.md_red_500),
-                        0.16f
+                        if (allSuccess) context.accentColor else ContextCompat.getColor(context, R.color.md_red_500),
+                        0.14f
                     )
                 )
             }
-            setPadding(14.dpToPx(), 11.dpToPx(), 14.dpToPx(), 11.dpToPx())
+            setPadding(14.dpToPx(), 10.dpToPx(), 14.dpToPx(), 10.dpToPx())
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -232,34 +246,17 @@ class AiChatAdapter(
             layoutParams = LinearLayout.LayoutParams(16.dpToPx(), 16.dpToPx()).apply {
                 marginEnd = 8.dpToPx()
             }
-            setImageResource(
-                when {
-                    event.name.contains("search", true) -> R.drawable.ic_search
-                    event.stage.contains("thinking", true) || event.name.contains("思考", true) -> R.drawable.ic_menu
-                    event.name.contains("source", true) -> R.drawable.ic_code
-                    event.name.contains("book", true) -> R.drawable.ic_storage_black_24dp
-                    else -> R.drawable.ic_settings
-                }
-            )
+            setImageResource(R.drawable.ic_settings)
             setColorFilter(
-                if (event.success) context.accentColor else ContextCompat.getColor(context, R.color.md_red_500)
+                if (allSuccess) context.accentColor else ContextCompat.getColor(context, R.color.md_red_500)
             )
         })
         header.addView(TextView(context).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            text = buildString {
-                append(event.name.ifBlank { "工具状态" })
-                append(" · ")
-                append(
-                    event.label.ifBlank {
-                        when (event.stage) {
-                            "call" -> "调用中"
-                            "result" -> if (event.success) "调用完成" else "调用失败"
-                            "thinking" -> "思考中"
-                            else -> event.stage
-                        }
-                    }
-                )
+            text = if (events.size == 1) {
+                "${summary} · 工具结果"
+            } else {
+                "已调用 ${events.size} 个工具"
             }
             setTextColor(context.primaryTextColor)
             textSize = 13f
@@ -274,7 +271,7 @@ class AiChatAdapter(
         }
         header.addView(arrow)
         val detailView = TextView(context).apply {
-            text = event.content.trim()
+            text = detail
             setTextColor(context.secondaryTextColor)
             textSize = 12f
             maxLines = Int.MAX_VALUE
@@ -283,6 +280,14 @@ class AiChatAdapter(
             setTextIsSelectable(true)
         }
         row.addView(header)
+        row.addView(TextView(context).apply {
+            text = summary
+            setTextColor(context.secondaryTextColor)
+            textSize = 12.5f
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(0, 4.dpToPx(), 18.dpToPx(), 0)
+        })
         row.addView(detailView)
         row.setOnClickListener {
             val expanded = !detailView.isVisible
@@ -423,25 +428,6 @@ class AiChatAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(message: AiChatMessage) {
-            if (message.kind == AiChatMessage.Kind.STATUS) {
-                binding.tvMessage.isVisible = false
-                binding.searchCardScroller.isVisible = false
-                binding.toolEventContainer.removeAllViews()
-                binding.toolEventContainer.isVisible = true
-                binding.messageContainer.minimumWidth = 0
-                binding.toolEventContainer.addView(
-                    createToolEventView(
-                        ToolEventCard(
-                            name = message.statusName ?: "状态",
-                            stage = message.statusStage.orEmpty(),
-                            content = message.content,
-                            success = message.statusSuccess,
-                            label = ""
-                        )
-                    )
-                )
-                return
-            }
             val parsed = parseMessageContent(message.content)
             val backgroundColor = context.backgroundColor
             val bubbleColor = if (ColorUtils.isColorLight(backgroundColor)) {

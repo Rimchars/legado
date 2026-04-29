@@ -58,7 +58,7 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
     private val historyTimeFormat by lazy {
         SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
     }
-    private val composerBaseBottomMargin by lazy { 14.dpToPx() }
+    private val composerBaseBottomMargin by lazy { 0 }
     private var modelActionText: TextView? = null
     private var modernMenuPopup: PopupWindow? = null
 
@@ -231,6 +231,15 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
             }
             updateComposerState()
         }
+        viewModel.thinkingLiveData.observe(this) { thinking ->
+            val detail = thinking.trim()
+            binding.tvThinkingDetail.text = detail
+            binding.thinkingScroll.isVisible = detail.isNotBlank() &&
+                detail != getString(R.string.ai_chat_thinking)
+            if (viewModel.isRequesting) {
+                binding.thinkingPanel.isVisible = true
+            }
+        }
     }
 
     private fun updateHeader() {
@@ -381,11 +390,17 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
     }
 
     private fun showThinkingPanel() {
-        binding.thinkingPanel.isVisible = false
+        binding.tvThinkingTitle.text = getString(R.string.ai_chat_thinking)
+        val detail = viewModel.thinkingLiveData.value.orEmpty().trim()
+        binding.tvThinkingDetail.text = detail
+        binding.thinkingScroll.isVisible = detail.isNotBlank() &&
+            detail != getString(R.string.ai_chat_thinking)
+        binding.thinkingPanel.isVisible = true
     }
 
     private fun hideThinkingPanel() {
         binding.thinkingPanel.isVisible = false
+        binding.thinkingScroll.isVisible = false
     }
 
     private fun tintSendButton() {
@@ -425,9 +440,9 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
                 if (baseIsLight) 0.96f else 0.88f
             ),
             ColorUtils.adjustAlpha(accentColor, if (baseIsLight) 0.18f else 0.24f),
-            30f
+            22f
         )
-        binding.composerContainer.elevation = 8f.dpToPx()
+        binding.composerContainer.elevation = 0f
         binding.titleBar.setTextColor(primaryTextColor)
         binding.titleBar.setSubTitleTextColor(secondaryTextColor)
         binding.titleBar.setColorFilter(primaryTextColor)

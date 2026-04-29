@@ -1317,6 +1317,8 @@
     <string name="ai_tavily_enable">启用 Tavily 搜索</string>
     <string name="ai_tavily_enable_summary">将 Tavily 暴露给 AI 作为实时联网搜索工具。</string>
     <string name="ai_tavily_enable_summary_missing">请先填写 Tavily API Key，再启用工具。</string>
+    <string name="ai_show_tool_summary">显示工具摘要</string>
+    <string name="ai_show_tool_summary_summary">在助手回复下方显示一个可折叠的工具摘要。</string>
     <string name="ai_tavily_api_key">Tavily API Key</string>
     <string name="ai_tavily_api_key_hint">tvly-...</string>
     <string name="ai_tavily_api_key_summary">点按填写 Tavily API Key。</string>

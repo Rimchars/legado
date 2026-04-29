@@ -19,6 +19,7 @@ class AiChatViewModel : ViewModel() {
 
     val messagesLiveData = MutableLiveData<List<AiChatMessage>>(emptyList())
     val requestingLiveData = MutableLiveData(false)
+    val thinkingLiveData = MutableLiveData("")
     var isRequesting = false
         private set
 
@@ -61,20 +62,7 @@ class AiChatViewModel : ViewModel() {
         activePendingAssistantMessageId = null
         activeToolMessageIds.clear()
         append(AiChatMessage(role = AiChatMessage.Role.USER, content = userContent))
-        val thinkingMessageId = UUID.randomUUID().toString()
-        activeThinkingMessageId = thinkingMessageId
-        append(
-            AiChatMessage(
-                id = thinkingMessageId,
-                role = AiChatMessage.Role.ASSISTANT,
-                content = thinkingText,
-                pending = true,
-                kind = AiChatMessage.Kind.STATUS,
-                statusName = "思考中",
-                statusStage = "thinking",
-                statusSuccess = true
-            )
-        )
+        thinkingLiveData.postValue(thinkingText)
         activePendingContent = ""
         val requestMessages = snapshotForRequest()
         activeJob = requestScope.launch {
@@ -82,12 +70,12 @@ class AiChatViewModel : ViewModel() {
                 AiChatService.chatStream(
                     messages = requestMessages,
                     onPartial = { partial ->
-                        targetFor(requestSessionId).markThinkingCompleted()
+                        targetFor(requestSessionId).clearThinkingState()
                         activePendingContent = partial
                         targetFor(requestSessionId).upsertPendingAssistant(partial.ifBlank { "" })
                     },
                     onThinking = { thinking ->
-                        targetFor(requestSessionId).upsertThinkingStatus(thinking)
+                        targetFor(requestSessionId).upsertThinkingStatus(thinkingText, thinking)
                     },
                     onStatus = { status ->
                         targetFor(requestSessionId).upsertStatus(status)
@@ -100,12 +88,12 @@ class AiChatViewModel : ViewModel() {
             result.onSuccess { content ->
                 activePendingContent = ""
                 activeToolMessageIds.clear()
-                targetFor(requestSessionId).markThinkingCompleted()
+                targetFor(requestSessionId).clearThinkingState()
                 targetFor(requestSessionId).replacePendingAssistant(content.ifBlank { thinkingText })
             }.onFailure { throwable ->
                 activePendingContent = ""
                 activeToolMessageIds.clear()
-                targetFor(requestSessionId).markThinkingCompleted()
+                targetFor(requestSessionId).clearThinkingState()
                 if (throwable is CancellationException) {
                     targetFor(requestSessionId).replacePendingAssistant(cancelledText)
                     return@onFailure
@@ -130,6 +118,7 @@ class AiChatViewModel : ViewModel() {
         activeThinkingMessageId = null
         activePendingAssistantMessageId = null
         activeToolMessageIds.clear()
+        clearThinkingState()
         setRequesting(false)
         if (cancelledText.isNotBlank()) {
             replacePendingAssistant(cancelledText)
@@ -158,89 +147,14 @@ class AiChatViewModel : ViewModel() {
         publish()
     }
 
-    fun upsertThinkingStatus(thinking: String) {
+    fun upsertThinkingStatus(thinkingTitle: String, thinking: String) {
+        if (activePendingContent.isNotBlank()) return
         val normalized = thinking.replace(Regex("\\s+"), " ").trim()
-        if (normalized.isBlank()) return
-        val id = activeThinkingMessageId ?: UUID.randomUUID().toString().also {
-            activeThinkingMessageId = it
-            messages.add(
-                messages.indexOfLast { message ->
-                    message.role == AiChatMessage.Role.ASSISTANT &&
-                        message.pending &&
-                        (message.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
-                }.coerceAtLeast(0),
-                AiChatMessage(
-                    id = it,
-                    role = AiChatMessage.Role.ASSISTANT,
-                    content = normalized.takeLast(280),
-                    pending = true,
-                    kind = AiChatMessage.Kind.STATUS,
-                    statusName = "思考中",
-                    statusStage = "thinking",
-                    statusSuccess = true
-                )
-            )
-        }
-        val index = messages.indexOfFirst { it.id == id }
-        if (index >= 0) {
-            messages[index] = messages[index].copy(
-                content = normalized.takeLast(280),
-                pending = true,
-                kind = AiChatMessage.Kind.STATUS,
-                statusName = "思考中",
-                statusStage = "thinking",
-                statusSuccess = true
-            )
-            publish()
-        }
+        thinkingLiveData.postValue(normalized.ifBlank { thinkingTitle })
     }
 
     fun upsertStatus(status: org.json.JSONObject) {
-        markThinkingCompleted()
-        finishPendingAssistant()
-        val key = status.optString("key").ifBlank { UUID.randomUUID().toString() }
-        val name = status.optString("name").ifBlank { "工具调用" }
-        val stage = status.optString("stage").ifBlank { "call" }
-        val label = status.optString("label").ifBlank {
-            when (stage) {
-                "call" -> "调用中"
-                "result" -> if (status.optBoolean("success", true)) "调用完成" else "调用失败"
-                else -> stage
-            }
-        }
-        val content = status.optString("content")
-        val success = status.optBoolean("success", true)
-        val messageId = activeToolMessageIds[key]
-        if (messageId != null) {
-            val index = messages.indexOfFirst { it.id == messageId }
-            if (index >= 0) {
-                messages[index] = messages[index].copy(
-                    content = content,
-                    pending = stage == "call",
-                    kind = AiChatMessage.Kind.STATUS,
-                    statusName = "$name · $label",
-                    statusStage = stage,
-                    statusSuccess = success
-                )
-                publish()
-                return
-            }
-        }
-        val newId = UUID.randomUUID().toString()
-        activeToolMessageIds[key] = newId
-        messages.add(
-            AiChatMessage(
-                id = newId,
-                role = AiChatMessage.Role.ASSISTANT,
-                content = content,
-                pending = stage == "call",
-                kind = AiChatMessage.Kind.STATUS,
-                statusName = "$name · $label",
-                statusStage = stage,
-                statusSuccess = success
-            )
-        )
-        publish()
+        return
     }
 
     fun finishPendingAssistant() {
@@ -369,23 +283,17 @@ class AiChatViewModel : ViewModel() {
         messagesLiveData.postValue(messages.toList())
     }
 
-    private fun markThinkingCompleted() {
-        val id = activeThinkingMessageId ?: return
-        val index = messages.indexOfFirst { it.id == id }
-        if (index >= 0) {
-            val old = messages[index]
-            messages[index] = old.copy(
-                pending = false,
-                statusName = "思考完成",
-                statusStage = "done"
-            )
-            publish()
-        }
+    private fun clearThinkingState() {
         activeThinkingMessageId = null
+        thinkingLiveData.postValue("")
     }
 
     private fun saveCurrentSession() {
         val snapshot = messages.filterNot { it.pending }
+            .filterNot {
+                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.STATUS &&
+                    it.content.isBlank()
+            }
             .map { it.copy(pending = false) }
             .filter { it.content.isNotBlank() }
         val history = AppConfig.aiChatSessionList.toMutableList()

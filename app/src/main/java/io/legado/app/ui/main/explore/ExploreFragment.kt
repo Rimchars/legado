@@ -202,15 +202,20 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun updateRefreshIndicatorOffset() {
-        val end = if (usingModernDiscovery && binding.llModernDiscovery.isVisible) {
-            maxOf(
-                binding.llDiscoverSourceRow.bottom,
-                if (binding.rvDiscoverTags.isVisible) binding.rvDiscoverTags.bottom else 0
-            ) + 8.dpToPx()
-        } else {
-            56.dpToPx()
-        }.coerceAtLeast(56.dpToPx())
-        binding.swipeRefreshLayout.setProgressViewOffset(false, 0, end)
+        val swipePos = IntArray(2)
+        binding.swipeRefreshLayout.getLocationInWindow(swipePos)
+        val anchorView = when {
+            usingModernDiscovery && binding.rvDiscoverTags.isVisible -> binding.rvDiscoverTags
+            usingModernDiscovery -> binding.llDiscoverSourceRow
+            binding.titleBar.isVisible -> binding.titleBar
+            else -> binding.swipeRefreshLayout
+        }
+        val anchorPos = IntArray(2)
+        anchorView.getLocationInWindow(anchorPos)
+        val start = (anchorPos[1] - swipePos[1]).coerceAtLeast(0)
+        val end = (anchorPos[1] - swipePos[1] + anchorView.height + 8.dpToPx())
+            .coerceAtLeast(56.dpToPx())
+        binding.swipeRefreshLayout.setProgressViewOffset(false, start, end)
     }
 
     private fun scheduleDiscoveryWarmup() {
