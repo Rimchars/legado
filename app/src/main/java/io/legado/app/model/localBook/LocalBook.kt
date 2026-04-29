@@ -32,7 +32,6 @@ import io.legado.app.help.book.isPdf
 import io.legado.app.help.book.isUmd
 import io.legado.app.help.book.removeLocalUriCache
 import io.legado.app.help.book.simulatedTotalChapterNum
-import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.webdav.WebDav
 import io.legado.app.lib.webdav.WebDavException
 import io.legado.app.model.analyzeRule.AnalyzeUrl
@@ -384,32 +383,22 @@ object LocalBook {
         appDb.bookChapterDao.delByBook(book.bookUrl)
         appDb.bookChapterDao.insert(*chapterList.toTypedArray())
         appDb.bookDao.update(book)
-        val decodeTotal = chapterList.count { !it.isVolume }.coerceAtLeast(1)
+        val decodeTargets = chapterList.filterNot { it.isVolume }
+        val decodeTotal = decodeTargets.size.coerceAtLeast(1)
+        onProgress("decode", 0, decodeTotal, "")
         var decodeProcessed = 0
-        chapterList.forEach { chapter ->
-            if (!chapter.isVolume) {
-                onProgress("decode", decodeProcessed, decodeTotal, chapter.title)
+        decodeTargets.forEach { chapter ->
+            runCatching {
                 getContent(book, chapter)?.let { content ->
                     BookHelp.saveText(book, chapter, content)
                 }
-                decodeProcessed += 1
-                onProgress("decode", decodeProcessed, decodeTotal, chapter.title)
             }
+            decodeProcessed += 1
+            onProgress("decode", decodeProcessed, decodeTotal, chapter.title)
         }
-        val hrefList = chapterList.asSequence()
-            .filterNot { it.isVolume }
-            .map { it.url.substringBeforeLast("#") }
-            .filter { it.isNotBlank() && !it.startsWith("skip:") }
-            .distinct()
-            .toList()
-        val layoutTotal = hrefList.size.coerceAtLeast(1)
-        var layoutProcessed = 0
-        hrefList.forEach { href ->
-            onProgress("layout", layoutProcessed, layoutTotal, href)
-            EpubFile.getNativeLayout(book, href)
-            layoutProcessed += 1
-            onProgress("layout", layoutProcessed, layoutTotal, href)
-        }
+        onProgress("index", 0, 1, book.name)
+        EpubFile.warmImportIndex(book)
+        onProgress("index", 1, 1, book.name)
     }
 
     /**

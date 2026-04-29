@@ -149,7 +149,11 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
                             val shouldEmit = stageProcessed >= stageTotal || now - lastEmitTime >= 120L
                             if (shouldEmit) {
                                 lastEmitTime = now
-                                val stageName = if (stage == "layout") "排版缓存" else "正文解码"
+                                val stageName = when (stage) {
+                                    "index" -> "索引构建"
+                                    "layout" -> "排版缓存"
+                                    else -> "正文解码"
+                                }
                                 val decodeProgress = ImportProgress(
                                     total = max(stageTotal, 1),
                                     processed = stageProcessed.coerceIn(0, max(stageTotal, 1)),
