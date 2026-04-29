@@ -14,6 +14,7 @@ object AiToolRegistry {
     suspend fun resolveAvailableTools(): List<AiResolvedTool> {
         val tools = AiBookshelfTool.resolvedTools().toMutableList()
         tools += AiLibraryTool.resolvedTools()
+        tools += AiTavilyTool.resolvedTools()
         tools += AiBookSourceTool.resolvedTools()
         tools += AiMcpClient.resolveTools(AppConfig.aiEnabledMcpServers)
         return tools.distinctBy { it.name }

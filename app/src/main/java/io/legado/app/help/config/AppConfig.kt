@@ -556,6 +556,38 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             persistAiSkills(normalizeAiSkills(value))
         }
 
+    var aiTavilyEnabled: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.aiTavilyEnabled, false)
+        set(value) = appCtx.putPrefBoolean(PreferKey.aiTavilyEnabled, value)
+
+    var aiTavilyApiKey: String
+        get() = appCtx.getPrefString(PreferKey.aiTavilyApiKey).orEmpty()
+        set(value) {
+            val key = value.trim()
+            if (key.isBlank()) appCtx.removePref(PreferKey.aiTavilyApiKey)
+            else appCtx.putPrefString(PreferKey.aiTavilyApiKey, key)
+        }
+
+    var aiTavilyBaseUrl: String
+        get() = appCtx.getPrefString(PreferKey.aiTavilyBaseUrl, "https://api.tavily.com/search")
+            ?: "https://api.tavily.com/search"
+        set(value) {
+            val url = value.trim().ifBlank { "https://api.tavily.com/search" }
+            appCtx.putPrefString(PreferKey.aiTavilyBaseUrl, url)
+        }
+
+    var aiTavilySearchDepth: String
+        get() = appCtx.getPrefString(PreferKey.aiTavilySearchDepth, "basic") ?: "basic"
+        set(value) = appCtx.putPrefString(PreferKey.aiTavilySearchDepth, value.trim().ifBlank { "basic" })
+
+    var aiTavilyTopic: String
+        get() = appCtx.getPrefString(PreferKey.aiTavilyTopic, "general") ?: "general"
+        set(value) = appCtx.putPrefString(PreferKey.aiTavilyTopic, value.trim().ifBlank { "general" })
+
+    var aiTavilyMaxResults: Int
+        get() = appCtx.getPrefInt(PreferKey.aiTavilyMaxResults, 5).coerceIn(1, 10)
+        set(value) = appCtx.putPrefInt(PreferKey.aiTavilyMaxResults, value.coerceIn(1, 10))
+
     val aiEnabledSkills: List<AiSkillConfig>
         get() = aiSkillList.filter { it.enabled }
 

@@ -117,4 +117,50 @@
 
     </io.legado.app.lib.prefs.PreferenceCategory>
 
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/ai_web_tools"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:key="aiTavilyEnabled"
+            android:defaultValue="false"
+            android:title="@string/ai_tavily_enable"
+            android:summary="@string/ai_tavily_enable_summary"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiTavilyApiKey"
+            android:title="@string/ai_tavily_api_key"
+            android:summary="@string/ai_tavily_api_key_summary"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiTavilyBaseUrl"
+            android:title="@string/ai_tavily_base_url"
+            android:summary="https://api.tavily.com/search"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiTavilyTopic"
+            android:title="@string/ai_tavily_topic"
+            android:summary="@string/ai_tavily_topic_general"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiTavilySearchDepth"
+            android:title="@string/ai_tavily_search_depth"
+            android:summary="@string/ai_tavily_search_depth_basic"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiTavilyMaxResults"
+            android:title="@string/ai_tavily_max_results"
+            android:summary="5"
+            app:iconSpaceReserved="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
 </androidx.preference.PreferenceScreen>
