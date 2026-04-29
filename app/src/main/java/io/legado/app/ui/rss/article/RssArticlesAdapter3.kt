@@ -19,6 +19,7 @@ import android.graphics.drawable.Drawable
 import androidx.collection.LruCache
 import com.bumptech.glide.request.target.Target
 import io.legado.app.help.CacheManager
+import io.legado.app.utils.dpToPx
 
 class RssArticlesAdapter3(context: Context, callBack: CallBack) :
     BaseRssArticlesAdapter<ItemRssArticle3Binding>(context, callBack) {
@@ -49,8 +50,15 @@ class RssArticlesAdapter3(context: Context, callBack: CallBack) :
     private var cardWidth = 0
     override fun getViewBinding(parent: ViewGroup): ItemRssArticle3Binding {
         if (cardWidth == 0) {
-            val parentWith = parent.width
-            cardWidth = (parentWith - (columnCount + 1) * 40) / columnCount
+            val parentWidth = parent.width.takeIf { it > 0 }
+                ?: parent.resources.displayMetrics.widthPixels
+            cardWidth = (
+                parentWidth -
+                    parent.paddingStart -
+                    parent.paddingEnd -
+                    (columnCount + 1) * 8.dpToPx()
+                ) / columnCount
+            cardWidth = cardWidth.coerceAtLeast(120.dpToPx())
         }
         return ItemRssArticle3Binding.inflate(inflater, parent, false)
     }
@@ -130,6 +138,7 @@ class RssArticlesAdapter3(context: Context, callBack: CallBack) :
                 layoutParams.height = (cardWidth * aspectRatio).toInt()
             }
             imageView.layoutParams = layoutParams
+            imageView.clipToOutline = true
             imageView.adjustViewBounds = true //自动调整ImageView的边界来适应图片的宽高比
             imageRequest.into(imageView)
         }
