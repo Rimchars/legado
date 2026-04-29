@@ -91,7 +91,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
      */
     fun setContent(textPage: TextPage) {
         this.textPage = textPage
-        preloadEpubFootnotes(textPage)
         // 非滑动翻页动画需要同步重绘，不然翻页可能会出现闪烁
         if (isScroll) {
             postInvalidate()
@@ -374,41 +373,30 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         return null
     }
 
-    private fun preloadEpubFootnotes(page: TextPage) {
-        val book = ReadBook.book ?: return
-        val links = page.epubFootnoteLinks()
-        if (links.isNotEmpty()) {
-            EpubFile.preloadFootnotes(book, links)
-        }
-    }
-
     private fun showEpubFootnote(book: Book, href: String) {
-        val textView = TextView(context).apply {
-            textSize = 15f
-            setTextColor(context.getCompatColor(R.color.primaryText))
-            setPadding(20.dpToPx(), 14.dpToPx(), 20.dpToPx(), 14.dpToPx())
-            text = "正在加载注解..."
-        }
-        val scrollView = ScrollView(context).apply {
-            addView(textView)
-            minimumHeight = 96.dpToPx()
-        }
-        val dialog = context.alert(title = "注解") {
-            customView { scrollView }
-            okButton()
-        }
         footnoteThread.execute {
             val note = runCatching {
                 EpubFile.getFootnote(book, href)
             }.getOrNull()
             post {
-                if (!dialog.isShowing) return@post
                 if (note == null) {
                     AppLog.put("EPUB Footnote resolve failed: href=$href")
-                    textView.text = "注解加载失败"
+                    context.toastOnUi("注解加载失败")
                 } else {
-                    dialog.setTitle(note.title)
-                    textView.setHtml(note.html)
+                    val textView = TextView(context).apply {
+                        textSize = 15f
+                        setTextColor(context.getCompatColor(R.color.primaryText))
+                        setPadding(20.dpToPx(), 14.dpToPx(), 20.dpToPx(), 14.dpToPx())
+                        setHtml(note.html)
+                    }
+                    val scrollView = ScrollView(context).apply {
+                        addView(textView)
+                        minimumHeight = 96.dpToPx()
+                    }
+                    context.alert(title = note.title) {
+                        customView { scrollView }
+                        okButton()
+                    }
                 }
             }
         }
