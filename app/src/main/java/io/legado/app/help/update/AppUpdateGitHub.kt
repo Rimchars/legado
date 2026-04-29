@@ -9,6 +9,7 @@ import io.legado.app.help.http.newCallResponse
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.help.http.text
 import io.legado.app.utils.GSON
+import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.fromJsonObject
 import kotlinx.coroutines.CoroutineScope
 
@@ -29,7 +30,7 @@ object AppUpdateGitHub : AppUpdate.AppUpdateInterface {
         val lastReleaseUrl = if (checkVariant.isBeta()) {
             "https://api.github.com/repos/Rimchars/legado/releases/tags/latest-arm64-debug"
         } else {
-            "https://api.github.com/repos/Rimchars/legado/releases/tags/latest-arm64-release"
+            "https://api.github.com/repos/Rimchars/legado/releases?per_page=10"
         }
         val res = okHttpClient.newCallResponse {
             url(lastReleaseUrl)
@@ -40,6 +41,15 @@ object AppUpdateGitHub : AppUpdate.AppUpdateInterface {
         val body = res.body.text()
         if (body.isBlank()) {
             throw NoStackTraceException("获取新版本出错")
+        }
+        if (!checkVariant.isBeta()) {
+            return GSON.fromJsonArray<GithubRelease>(body)
+                .getOrElse {
+                    throw NoStackTraceException("获取新版本出错 " + it.localizedMessage)
+                }
+                .filterNot { it.isPreRelease }
+                .flatMap { it.gitReleaseToAppReleaseInfo() }
+                .sortedByDescending { it.createdAt }
         }
         return GSON.fromJsonObject<GithubRelease>(body)
             .getOrElse {
