@@ -142,6 +142,14 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         setSupportToolbar(binding.titleBar.toolbar)
         usingModernDiscovery = AppConfig.modernDiscoveryPage
         discoveryModeLoaded = false
+        binding.swipeRefreshLayout.setColorSchemeColors(primaryColor)
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            if (usingModernDiscovery) {
+                loadDiscoverBooks(reset = true)
+            } else {
+                upExploreData(searchView?.query?.toString())
+            }
+        }
         binding.llDiscoverSourceRow.applyStatusBarPadding(withInitialPadding = true)
         binding.rvFind.clipToPadding = false
         binding.rvFind.applyMainBottomBarPadding()
@@ -813,6 +821,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         discoverLoadJob?.cancel()
         discoverLoadJob = null
         discoverLoading = false
+        binding.swipeRefreshLayout.isRefreshing = false
         binding.pbDiscoverLoading.gone()
         discoverCurrentUrl = null
         discoverHasMore = false
@@ -885,6 +894,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             } finally {
                 if (isAdded && requestVersion == discoverRequestVersion && url == discoverCurrentUrl) {
                     binding.pbDiscoverLoading.gone()
+                    binding.swipeRefreshLayout.isRefreshing = false
                     discoverLoading = false
                 }
             }
@@ -948,6 +958,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             ).catch {
                 AppLog.put("发现界面更新数据出错", it)
             }.conflate().flowOn(IO).collect {
+                binding.swipeRefreshLayout.isRefreshing = false
                 binding.tvEmptyMsg.isGone = it.isNotEmpty() || (searchView?.query?.isNotEmpty() == true)
                 adapter.setItems(it, diffItemCallBack)
                 delay(500)

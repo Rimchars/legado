@@ -458,32 +458,27 @@ class ReadMenu @JvmOverloads constructor(
                 return@OnClickListener
             }
             val chapterUrl = getChapterUrlForOpen() ?: return@OnClickListener
-            if (AppConfig.readUrlInBrowser) {
-                context.openUrl(chapterUrl)
-            } else {
-                Coroutine.async {
-                    context.startActivity<WebViewActivity> {
-                        val bookSource = ReadBook.bookSource
-                        putExtra("title", tvChapterName.text)
-                        putExtra("url", chapterUrl)
-                        putExtra("sourceOrigin", bookSource?.bookSourceUrl)
-                        putExtra("sourceName", bookSource?.bookSourceName)
-                        putExtra("sourceType", bookSource?.getSourceType())
-                    }
+            Coroutine.async {
+                context.startActivity<WebViewActivity> {
+                    val bookSource = ReadBook.bookSource
+                    putExtra("title", tvChapterName.text)
+                    putExtra("url", chapterUrl)
+                    putExtra("sourceOrigin", bookSource?.bookSourceUrl)
+                    putExtra("sourceName", bookSource?.bookSourceName)
+                    putExtra("sourceType", bookSource?.getSourceType())
                 }
             }
         }
         val chapterViewLongClickListener = OnLongClickListener {
-            if (ReadBook.isLocalBook) {
-                return@OnLongClickListener true
-            }
-            context.alert(R.string.open_fun) {
-                setMessage(R.string.use_browser_open)
-                okButton {
-                    AppConfig.readUrlInBrowser = true
-                }
-                noButton {
-                    AppConfig.readUrlInBrowser = false
+            if (!ReadBook.isLocalBook) {
+                getChapterUrlForOpen()?.let { chapterUrl ->
+                    context.alert(R.string.open_fun) {
+                        setMessage(R.string.use_browser_open)
+                        okButton {
+                            context.openUrl(chapterUrl)
+                        }
+                        noButton()
+                    }
                 }
             }
             true

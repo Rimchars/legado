@@ -3,6 +3,7 @@ package io.legado.app.ui.book.read.page
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -74,6 +75,8 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     private val renderRunnable by lazy { Runnable { preRenderPage() } }
     private var lastClickTime = 0L
     private var doubleClick = false
+    private var nativeSelectedText: String? = null
+    private var nativeSelectionRect: RectF? = null
 
     //绘制图片的paint
     val imagePaint by lazy {
@@ -90,6 +93,10 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
      * 设置内容
      */
     fun setContent(textPage: TextPage) {
+        if (this.textPage !== textPage) {
+            nativeSelectedText = null
+            nativeSelectionRect = null
+        }
         this.textPage = textPage
         // 非滑动翻页动画需要同步重绘，不然翻页可能会出现闪烁
         if (isScroll) {
@@ -127,17 +134,26 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     private fun drawPage(canvas: Canvas) {
         var relativeOffset = relativeOffset(0)
         textPage.draw(this, canvas, relativeOffset)
-        if (!callBack.isScroll) return
-        //滚动翻页
-        if (!pageFactory.hasNext()) return
-        val textPage1 = relativePage(1)
-        relativeOffset += textPage.height
-        textPage1.draw(this, canvas, relativeOffset)
-        if (!pageFactory.hasNextPlus()) return
-        relativeOffset += textPage1.height
-        if (relativeOffset < ChapterProvider.visibleHeight) {
-            val textPage2 = relativePage(2)
-            textPage2.draw(this, canvas, relativeOffset)
+        if (callBack.isScroll) {
+            if (!pageFactory.hasNext()) {
+                nativeSelectionRect?.let { rect ->
+                    canvas.drawRect(rect, selectedPaint)
+                }
+                return
+            }
+            val textPage1 = relativePage(1)
+            relativeOffset += textPage.height
+            textPage1.draw(this, canvas, relativeOffset)
+            if (pageFactory.hasNextPlus()) {
+                relativeOffset += textPage1.height
+                if (relativeOffset < ChapterProvider.visibleHeight) {
+                    val textPage2 = relativePage(2)
+                    textPage2.draw(this, canvas, relativeOffset)
+                }
+            }
+        }
+        nativeSelectionRect?.let { rect ->
+            canvas.drawRect(rect, selectedPaint)
         }
     }
 
@@ -247,7 +263,11 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         x: Float,
         y: Float,
         select: (textPos: TextPos) -> Unit,
-    ) {
+    ): Boolean {
+        if (selectNativeText(x, y) != null) {
+            return true
+        }
+        var handled = false
         touch(x, y) { _, textPos, _, _, column ->
             when (column) {
                 is ImageColumn -> callBack.onImageLongPress(x, y, column.src)
@@ -255,14 +275,17 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                     if (!selectAble) return@touch
                     column.selected = true
                     select(textPos)
+                    handled = true
                 }
                 is TextHtmlColumn -> {
                     if (!selectAble) return@touch
                     column.selected = true
                     select(textPos)
+                    handled = true
                 }
             }
         }
+        return handled
     }
 
     /**
@@ -719,6 +742,8 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     fun cancelSelect(clearSearchResult: Boolean = false) {
+        nativeSelectedText = null
+        nativeSelectionRect = null
         val last = if (callBack.isScroll) 2 else 0
         for (relativePos in 0..last) {
             val textPage = relativePage(relativePos)
@@ -741,6 +766,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     fun getSelectedText(): String {
+        nativeSelectedText?.takeIf { it.isNotBlank() }?.let { return it }
         val textPos = TextPos(0, 0, 0)
         val builder = StringBuilder()
         for (relativePos in selectStart.relativePagePos..selectEnd.relativePagePos) {
@@ -781,6 +807,40 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             }
         }
         return builder.toString()
+    }
+
+    fun hasSelection(): Boolean {
+        return !nativeSelectedText.isNullOrBlank() || (selectStart.isSelected() && selectEnd.isSelected())
+    }
+
+    fun hasNativeSelection(): Boolean = !nativeSelectedText.isNullOrBlank()
+
+    private fun selectNativeText(x: Float, y: Float): String? {
+        val last = if (callBack.isScroll) 2 else 0
+        for (relativePos in 0..last) {
+            val page = relativePage(relativePos)
+            if (!page.isNativeEpubPage()) continue
+            val offset = relativeOffset(relativePos)
+            val localY = y - offset
+            val bounds = page.nativeTextBounds() ?: continue
+            val hitRect = RectF(
+                bounds.left + page.epubDrawOffsetX,
+                bounds.top + page.epubDrawOffsetY + offset,
+                bounds.right + page.epubDrawOffsetX,
+                bounds.bottom + page.epubDrawOffsetY + offset
+            )
+            if (!hitRect.contains(x, y) && page.findEpubLinkAt(x, localY) == null) {
+                continue
+            }
+            val text = page.extractNativeText().takeIf { it.isNotBlank() } ?: continue
+            nativeSelectedText = text
+            nativeSelectionRect = hitRect
+            postInvalidate()
+            upSelectedStart(hitRect.left, hitRect.bottom, hitRect.top)
+            upSelectedEnd(hitRect.right, hitRect.bottom)
+            return text
+        }
+        return null
     }
 
     fun createBookmark(): Bookmark? {

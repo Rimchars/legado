@@ -41,6 +41,7 @@ import java.text.DecimalFormat
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.abs
 
 /**
  * 页面信息
@@ -401,6 +402,66 @@ data class TextPage(
             }
         }
         return "commands=${epubNativeCommands.size}, textLinks=$textLinks, imageLinks=$imageLinks, areas=$areas, samples=${samples.joinToString(";")}"
+    }
+
+    fun extractNativeText(): String {
+        if (epubNativeCommands.isEmpty()) return ""
+        val runs = epubNativeCommands.filterIsInstance<EpubTextRun>()
+            .filter { it.text.isNotBlank() }
+            .sortedWith(
+                compareBy<EpubTextRun> { it.baseline }
+                    .thenBy { it.y }
+                    .thenBy { it.x }
+            )
+        if (runs.isEmpty()) return ""
+        val builder = StringBuilder()
+        var previous: EpubTextRun? = null
+        runs.forEach { run ->
+            val textValue = run.text
+            val prev = previous
+            if (prev != null) {
+                val lineThreshold = max(prev.size, run.size) * 0.55f
+                if (abs(run.baseline - prev.baseline) > lineThreshold) {
+                    builder.append('\n')
+                } else if (shouldInsertSpace(prev, run)) {
+                    builder.append(' ')
+                }
+            }
+            builder.append(textValue)
+            previous = run
+        }
+        return builder.toString()
+            .replace(Regex("[ \\t]*\\n[ \\t]*"), "\n")
+            .trim()
+    }
+
+    fun nativeTextBounds(): RectF? {
+        val runs = epubNativeCommands.filterIsInstance<EpubTextRun>()
+            .filter { it.text.isNotBlank() }
+        if (runs.isEmpty()) return null
+        var left = Float.MAX_VALUE
+        var top = Float.MAX_VALUE
+        var right = Float.MIN_VALUE
+        var bottom = Float.MIN_VALUE
+        runs.forEach { run ->
+            left = min(left, run.x - run.backgroundPaddingLeft)
+            top = min(top, run.y - run.backgroundPaddingTop)
+            right = max(right, run.x + run.width + run.backgroundPaddingRight)
+            bottom = max(bottom, run.y + run.height + run.backgroundPaddingBottom)
+        }
+        if (!left.isFinite() || !top.isFinite() || !right.isFinite() || !bottom.isFinite()) {
+            return null
+        }
+        return RectF(left, top, right, bottom)
+    }
+
+    private fun shouldInsertSpace(previous: EpubTextRun, current: EpubTextRun): Boolean {
+        val prevLast = previous.text.lastOrNull() ?: return false
+        val currFirst = current.text.firstOrNull() ?: return false
+        if (prevLast.isWhitespace() || currFirst.isWhitespace()) return false
+        if (!prevLast.isLetterOrDigit() || !currFirst.isLetterOrDigit()) return false
+        val gap = current.x - (previous.x + previous.width)
+        return gap > max(previous.size, current.size) * 0.18f
     }
 
     fun draw(view: ContentTextView, canvas: Canvas, relativeOffset: Float) {
