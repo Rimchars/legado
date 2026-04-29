@@ -69,6 +69,15 @@ internal data class EpubImageBox(
     val linkHref: String? = null
 ) : EpubDrawCommand()
 
+internal data class EpubLinkArea(
+    val href: String,
+    val x: Float,
+    val y: Float,
+    val width: Float,
+    val height: Float,
+    override val sourcePath: String
+) : EpubDrawCommand()
+
 internal data class EpubBlockBox(
     val x: Float,
     val y: Float,
