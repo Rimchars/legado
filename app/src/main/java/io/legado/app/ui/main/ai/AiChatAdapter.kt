@@ -95,8 +95,8 @@ class AiChatAdapter(
         strokeColor: Int,
         isUser: Boolean
     ): GradientDrawable {
-        val large = 18f.dpToPx()
-        val small = 6f.dpToPx()
+        val large = 22f.dpToPx()
+        val small = 8f.dpToPx()
         return GradientDrawable().apply {
             cornerRadii = if (isUser) {
                 floatArrayOf(
@@ -135,24 +135,7 @@ class AiChatAdapter(
     private fun parseMessageContent(content: String): ParsedMessage {
         val cards = mutableListOf<SearchBookCard>()
         val toolEvents = mutableListOf<ToolEventCard>()
-        val withoutStatusEvents = statusEventBlockRegex.replace(content) { match ->
-            runCatching {
-                val payload = JSONObject(match.groupValues[1])
-                val events = payload.optJSONArray("events") ?: return@runCatching
-                for (index in 0 until events.length()) {
-                    val item = events.optJSONObject(index) ?: continue
-                    toolEvents += ToolEventCard(
-                        name = item.optString("name"),
-                        stage = item.optString("stage"),
-                        content = item.optString("content"),
-                        success = item.optBoolean("success", true),
-                        label = item.optString("label")
-                    )
-                }
-            }
-            ""
-        }
-        val withoutToolEvents = toolEventBlockRegex.replace(withoutStatusEvents) { match ->
+        val withoutToolEvents = toolEventBlockRegex.replace(content) { match ->
             runCatching {
                 val payload = JSONObject(match.groupValues[1])
                 val events = payload.optJSONArray("events") ?: return@runCatching
@@ -223,8 +206,8 @@ class AiChatAdapter(
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                cornerRadius = 16.dpToPx().toFloat()
-                setColor(ColorUtils.blendColors(context.backgroundColor, context.accentColor, 0.035f))
+                cornerRadius = 18.dpToPx().toFloat()
+                setColor(ColorUtils.blendColors(context.backgroundColor, context.accentColor, 0.04f))
                 setStroke(
                     1.dpToPx(),
                     ColorUtils.adjustAlpha(
@@ -233,7 +216,7 @@ class AiChatAdapter(
                     )
                 )
             }
-            setPadding(12.dpToPx(), 10.dpToPx(), 12.dpToPx(), 10.dpToPx())
+            setPadding(14.dpToPx(), 11.dpToPx(), 14.dpToPx(), 11.dpToPx())
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -291,12 +274,13 @@ class AiChatAdapter(
         }
         header.addView(arrow)
         val detailView = TextView(context).apply {
-            text = event.content.replace(Regex("\\s+"), " ").trim()
+            text = event.content.trim()
             setTextColor(context.secondaryTextColor)
             textSize = 12f
-            maxLines = 6
+            maxLines = Int.MAX_VALUE
             isVisible = false
             setPadding(0, 8.dpToPx(), 0, 0)
+            setTextIsSelectable(true)
         }
         row.addView(header)
         row.addView(detailView)
@@ -439,6 +423,25 @@ class AiChatAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(message: AiChatMessage) {
+            if (message.kind == AiChatMessage.Kind.STATUS) {
+                binding.tvMessage.isVisible = false
+                binding.searchCardScroller.isVisible = false
+                binding.toolEventContainer.removeAllViews()
+                binding.toolEventContainer.isVisible = true
+                binding.messageContainer.minimumWidth = 0
+                binding.toolEventContainer.addView(
+                    createToolEventView(
+                        ToolEventCard(
+                            name = message.statusName ?: "状态",
+                            stage = message.statusStage.orEmpty(),
+                            content = message.content,
+                            success = message.statusSuccess,
+                            label = ""
+                        )
+                    )
+                )
+                return
+            }
             val parsed = parseMessageContent(message.content)
             val backgroundColor = context.backgroundColor
             val bubbleColor = if (ColorUtils.isColorLight(backgroundColor)) {
@@ -511,10 +514,6 @@ class AiChatAdapter(
         const val searchBookScheme = "legado-search-book://"
         val toolEventBlockRegex = Regex(
             "```legado-tool-events\\s*\\n([\\s\\S]*?)\\n```",
-            setOf(RegexOption.MULTILINE)
-        )
-        val statusEventBlockRegex = Regex(
-            "```legado-status-events\\s*\\n([\\s\\S]*?)\\n```",
             setOf(RegexOption.MULTILINE)
         )
         val searchResultBlockRegex = Regex(

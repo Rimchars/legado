@@ -342,7 +342,8 @@ object ThemeConfig {
         val bookInfoBgImgPath =
             context.getPrefString(PreferKey.bookInfoBgImage)
 
-        return Config(
+        return mergeStoredThemeAssets(
+            Config(
             themeName = name,
             isNightTheme = false,
             primaryColor = "#${primary.hexString}",
@@ -355,6 +356,7 @@ object ThemeConfig {
             bookInfoBackgroundImgPath = bookInfoBgImgPath,
             primaryTextColor = "#${ThemeStore.textColorPrimary(context).hexString}",
             secondaryTextColor = "#${ThemeStore.textColorSecondary(context).hexString}"
+            )
         )
     }
 
@@ -386,7 +388,8 @@ object ThemeConfig {
             context.getPrefInt(PreferKey.bgImageNBlurring, 0)
         val bookInfoBgImgPath =
             context.getPrefString(PreferKey.bookInfoBgImageN)
-        return Config(
+        return mergeStoredThemeAssets(
+            Config(
             themeName = name,
             isNightTheme = true,
             primaryColor = "#${primary.hexString}",
@@ -399,7 +402,39 @@ object ThemeConfig {
             bookInfoBackgroundImgPath = bookInfoBgImgPath,
             primaryTextColor = "#${ThemeStore.textColorPrimary(context).hexString}",
             secondaryTextColor = "#${ThemeStore.textColorSecondary(context).hexString}"
+            )
         )
+    }
+
+    private fun mergeStoredThemeAssets(config: Config): Config {
+        if (config.themeName.isBlank()) return config
+        val stored = configList.firstOrNull {
+            it.themeName == config.themeName && it.isNightTheme == config.isNightTheme
+        } ?: return config
+        return config.copy(
+            backgroundImgPath = preferThemeAsset(config.backgroundImgPath, stored.backgroundImgPath),
+            bookInfoBackgroundImgPath = preferThemeAsset(
+                config.bookInfoBackgroundImgPath,
+                stored.bookInfoBackgroundImgPath
+            ),
+            backgroundImgBlur = if (config.backgroundImgPath.isNullOrBlank() && !stored.backgroundImgPath.isNullOrBlank()) {
+                stored.backgroundImgBlur
+            } else {
+                config.backgroundImgBlur
+            },
+            primaryTextColor = config.primaryTextColor ?: stored.primaryTextColor,
+            secondaryTextColor = config.secondaryTextColor ?: stored.secondaryTextColor
+        )
+    }
+
+    private fun preferThemeAsset(current: String?, fallback: String?): String? {
+        if (!current.isNullOrBlank()) {
+            if (current.startsWith("http", ignoreCase = true)) return current
+            if (File(current).exists()) return current
+        }
+        return fallback?.takeIf {
+            it.startsWith("http", ignoreCase = true) || File(it).exists()
+        } ?: current
     }
 
     fun saveNightTheme(context: Context, name: String) {
