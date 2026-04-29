@@ -147,6 +147,9 @@ class EpubFile(var book: Book) {
     private val nativeLayoutCache = linkedMapOf<String, EpubLayoutDocument>()
     private val imageSizeCache = linkedMapOf<String, Size>()
     private val fontTypefaceCache = linkedMapOf<String, Typeface?>()
+    private val footnoteCache = linkedMapOf<String, EpubFootnote?>()
+    private val footnoteSourceCache = linkedMapOf<String, FootnoteSource?>()
+    private val scheduledFullPreloadKeys = linkedSetOf<String>()
     private var nativeLayoutWidth = 0
     private var nativeLayoutHeight = 0
     private var nativeLayoutStyleKey = ""
@@ -353,6 +356,7 @@ class EpubFile(var book: Book) {
         bodyElement.materializePageBackgroundColor()
         bodyElement.materializeBackgroundImages(res)
         bodyElement.markEpubOverlayImagePage()
+        bodyElement.markEpubGalleryPage()
         bodyElement.markSingleImagePage()
         bodyElement.select("img").forEach {
             val src = it.attr("src").trim()
@@ -419,8 +423,18 @@ class EpubFile(var book: Book) {
             .decodeEpubFragment()
             .takeIf { it.isNotBlank() }
             ?: return null
-        val noteSource = findFootnoteSource(cleanHref, targetId) ?: return null
-        val target = noteSource.document.getElementById(targetId)?.clone() ?: return null
+        val cacheKey = "${cleanHref.ifBlank { "*" }}#$targetId"
+        if (footnoteCache.containsKey(cacheKey)) {
+            return footnoteCache[cacheKey]
+        }
+        val noteSource = findFootnoteSource(cleanHref, targetId) ?: run {
+            footnoteCache[cacheKey] = null
+            return null
+        }
+        val target = noteSource.document.getElementById(targetId)?.clone() ?: run {
+            footnoteCache[cacheKey] = null
+            return null
+        }
         target.select("a[href]").forEach { link ->
             val linkHref = link.attr("href")
             val linkTarget = linkHref.substringAfterLast("#", "").decodeEpubFragment()
@@ -446,13 +460,19 @@ class EpubFile(var book: Book) {
         }
         val html = target.html().ifBlank { target.text() }.trim()
         val text = target.text().cleanEpubInfoText()
-        return EpubFootnote(
+        val footnote = EpubFootnote(
             title = target.attr("title").ifBlank { "注解" },
             html = html.takeIf { it.isNotBlank() } ?: text
         ).takeIf { text.isNotBlank() || it.html.isNotBlank() }
+        footnoteCache[cacheKey] = footnote
+        return footnote
     }
 
     private fun findFootnoteSource(cleanHref: String, targetId: String): FootnoteSource? {
+        val cacheKey = "${cleanHref.ifBlank { "*" }}#$targetId"
+        if (footnoteSourceCache.containsKey(cacheKey)) {
+            return footnoteSourceCache[cacheKey]
+        }
         val primary = findEpubResource(cleanHref)?.let { resource ->
             val doc = runCatching { Jsoup.parse(String(resource.data, mCharset)) }.getOrNull()
             if (doc?.getElementById(targetId) != null) {
@@ -461,16 +481,22 @@ class EpubFile(var book: Book) {
                 null
             }
         }
-        if (primary != null) return primary
+        if (primary != null) {
+            footnoteSourceCache[cacheKey] = primary
+            return primary
+        }
         epubBook?.resources?.all.orEmpty().forEach { resource ->
             val href = resource.href ?: return@forEach
             val source = runCatching { String(resource.data, mCharset) }.getOrNull() ?: return@forEach
             if (!source.contains(targetId)) return@forEach
             val doc = runCatching { Jsoup.parse(source) }.getOrNull() ?: return@forEach
             if (doc.getElementById(targetId) != null) {
-                return FootnoteSource(href, doc)
+                return FootnoteSource(href, doc).also {
+                    footnoteSourceCache[cacheKey] = it
+                }
             }
         }
+        footnoteSourceCache[cacheKey] = null
         return null
     }
 
@@ -512,6 +538,7 @@ class EpubFile(var book: Book) {
             return null
         }
         val styleKey = currentNativeLayoutStyleKey()
+        scheduleFullNativeLayoutPreload(width, height, styleKey, href)
         if (nativeLayoutWidth != width || nativeLayoutHeight != height || nativeLayoutStyleKey != styleKey) {
             AppLog.put(
                 "EPUB Native Layout cache clear: old=${nativeLayoutWidth}x$nativeLayoutHeight, " +
@@ -564,6 +591,25 @@ class EpubFile(var book: Book) {
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生布局失败: $href\n${it.localizedMessage}", it)
         }.getOrNull()
+    }
+
+    private fun scheduleFullNativeLayoutPreload(width: Int, height: Int, styleKey: String, currentHref: String) {
+        val preloadKey = "${book.bookUrl}|${width}x$height|$styleKey"
+        synchronized(scheduledFullPreloadKeys) {
+            if (!scheduledFullPreloadKeys.add(preloadKey)) return
+        }
+        val hrefs = epubSpineContents
+            ?.asSequence()
+            ?.filter { it.isReadableEpubResource() }
+            ?.filterNot { it.isEpubBookInfoResource() }
+            ?.map { it.href }
+            ?.filter { it.isNotBlank() && it != currentHref }
+            ?.distinct()
+            ?.toList()
+            .orEmpty()
+        if (hrefs.isEmpty()) return
+        AppLog.put("EPUB Native Layout preload all: count=${hrefs.size}, view=${width}x$height")
+        preloadNativeLayouts(book, hrefs)
     }
 
     private fun nativeDomCacheKey(href: String): String {
@@ -1345,6 +1391,29 @@ class EpubFile(var book: Book) {
         image.attr("data-epub-background", "true")
     }
 
+    private fun Element.markEpubGalleryPage() {
+        val images = select("img").filterNot { it.attr("data-epub-background") == "true" }
+        if (images.size < 2) return
+        val text = text().cleanEpubInfoText()
+        if (text.length > 120) return
+        attr(
+            "style",
+            "${attr("style")};margin:0;padding:0;text-indent:0;text-align:center;line-height:1"
+        )
+        images.forEach { image ->
+            if (image.attr("data-legado-width").isBlank()) {
+                image.attr("data-legado-width", "100%")
+            }
+            if (image.attr("data-legado-style").isBlank()) {
+                image.attr("data-legado-style", Book.imgStyleSingle)
+            }
+            image.attr(
+                "style",
+                "${image.attr("style")};display:block;margin:0 auto;max-width:100%;height:auto"
+            )
+        }
+    }
+
     private fun Element.epubImageOptions(): Map<String, String> {
         val options = linkedMapOf<String, String>()
         val style = attr("style")
@@ -1358,6 +1427,9 @@ class EpubFile(var book: Book) {
             normalizeImageLength(height)?.let {
                 options["height"] = it
             }
+        }
+        if (attr("data-legado-style").isNotBlank()) {
+            options["style"] = attr("data-legado-style")
         }
         if (attr("data-epub-single-page") == "true") {
             options["style"] = Book.imgStyleSingle
@@ -1541,6 +1613,7 @@ class EpubFile(var book: Book) {
                 parseMenu(chapterList, refs, 0)
             }
         }
+        mergeMissingSpineChapters(chapterList)
         normalizeChapterList(chapterList)
         getWordCount(chapterList, book)
         return chapterList
@@ -1627,14 +1700,7 @@ class EpubFile(var book: Book) {
             val chapter = BookChapter()
             var title = content.title
             if (TextUtils.isEmpty(title)) {
-                val elements = Jsoup.parse(
-                    String(epubBook!!.resources.getByHref(content.href).data, mCharset)
-                ).getElementsByTag("title")
-                title =
-                    if (elements.isNotEmpty() && elements[0].text().isNotBlank())
-                        elements[0].text()
-                    else
-                        "--卷首--"
+                title = content.readableTitle(i)
             }
             chapter.bookUrl = book.bookUrl
             chapter.title = title
@@ -1666,7 +1732,7 @@ class EpubFile(var book: Book) {
                 }
                 val chapter = BookChapter()
                 chapter.bookUrl = book.bookUrl
-                chapter.title = ref.title
+                chapter.title = ref.title.cleanEpubChapterTitle(ref.resource, chapterList.size)
                 chapter.url = ref.completeHref
                 chapter.startFragmentId = ref.fragmentId
                 chapter.isVolume = ref.children != null && ref.children.isNotEmpty()
@@ -1675,7 +1741,7 @@ class EpubFile(var book: Book) {
             } else if (!ref.title.isNullOrBlank()) {
                 val chapter = BookChapter()
                 chapter.bookUrl = book.bookUrl
-                chapter.title = ref.title
+                chapter.title = ref.title.cleanEpubChapterTitle(null, chapterList.size)
                 chapter.url = "skip:${chapterList.size}:${ref.title}"
                 chapter.isVolume = true
                 chapterList.add(chapter)
@@ -1700,13 +1766,46 @@ class EpubFile(var book: Book) {
     }
 
     private fun Resource.readableTitle(spineIndex: Int): String {
-        if (!title.isNullOrBlank()) return title
+        if (!title.isNullOrBlank()) return title.cleanEpubChapterTitle(this, spineIndex)
         val doc = runCatching { Jsoup.parse(String(data, mCharset)) }.getOrNull()
-        val titleText = doc?.selectFirst("title")?.text()?.trim()
-            ?: doc?.selectFirst("h1,h2,h3,h4,h5,h6")?.text()?.trim()
-        if (!titleText.isNullOrBlank()) return titleText
+        val titleText = doc?.selectFirst("h1,h2,h3,h4,h5,h6,[id^=toc_],.chapter,.chapter-title,.title,.head")
+            ?.text()
+            ?.trim()
+            ?: doc?.selectFirst("title")?.text()?.trim()
+        if (!titleText.isNullOrBlank()) return titleText.cleanEpubChapterTitle(this, spineIndex)
         val fileName = href.substringAfterLast('/').substringBeforeLast('.').trim()
-        return fileName.ifBlank { "EPUB 页面 ${spineIndex + 1}" }
+        return fileName.cleanEpubChapterTitle(this, spineIndex).ifBlank { "EPUB 页面 ${spineIndex + 1}" }
+    }
+
+    private fun String?.cleanEpubChapterTitle(resource: Resource?, index: Int): String {
+        val raw = orEmpty()
+            .cleanEpubInfoText()
+            .replace(Regex("\\s+"), " ")
+            .trim('-', '—', '–', '_', ' ', '　')
+            .trim()
+        val lower = raw.lowercase(Locale.ROOT)
+        val hrefName = resource?.href
+            ?.substringAfterLast('/')
+            ?.substringBeforeLast('.')
+            ?.cleanEpubInfoText()
+            .orEmpty()
+        if (raw.isBlank()) return hrefName.ifBlank { "EPUB 页面 ${index + 1}" }
+        val generic = raw == "卷首" ||
+            raw == "卷首页" ||
+            raw == "chapter" ||
+            raw == "untitled" ||
+            lower.matches(Regex("chapter\\s*\\d+\\s*-\\s*\\d+")) ||
+            lower.matches(Regex("section\\d+")) ||
+            lower.matches(Regex("qynmn\\d+"))
+        if (!generic) return raw
+        return when {
+            hrefName.contains("gallery", ignoreCase = true) -> "人物画廊"
+            hrefName.contains("cover", ignoreCase = true) -> "封面"
+            hrefName.contains("intro", ignoreCase = true) -> "简介"
+            hrefName.contains("copyright", ignoreCase = true) -> "版权信息"
+            hrefName.isNotBlank() -> hrefName
+            else -> "卷首 ${index + 1}"
+        }
     }
 
     private fun findEpubBookInfo(): EpubBookInfo? {
@@ -1793,9 +1892,19 @@ class EpubFile(var book: Book) {
 
     private fun normalizeChapterList(chapterList: ArrayList<BookChapter>) {
         if (chapterList.isEmpty()) return
+        val titleCounts = linkedMapOf<String, Int>()
         for (index in chapterList.indices) {
             val chapter = chapterList[index]
             chapter.index = index
+            chapter.title = chapter.title.cleanEpubChapterTitle(
+                findEpubResource(chapter.url.substringBeforeLast("#")),
+                index
+            )
+            val count = titleCounts.getOrDefault(chapter.title, 0) + 1
+            titleCounts[chapter.title] = count
+            if (count > 1 && chapter.title.isGenericEpubTitle()) {
+                chapter.title = "${chapter.title} $count"
+            }
             val next = chapterList.getOrNull(index + 1)
             if (chapter.isVolume &&
                 next != null &&
@@ -1814,6 +1923,16 @@ class EpubFile(var book: Book) {
             chapter.endFragmentId = next?.startFragmentId
             chapter.putVariable("nextUrl", next?.url)
         }
+    }
+
+    private fun String.isGenericEpubTitle(): Boolean {
+        val clean = cleanEpubInfoText().trim('-', '—', '–', '_', ' ', '　')
+        return clean == "卷首" ||
+            clean.startsWith("卷首 ") ||
+            clean == "封面" ||
+            clean == "插图" ||
+            clean == "人物画廊" ||
+            clean.startsWith("EPUB 页面")
     }
 
 
