@@ -64,6 +64,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private var loadVersion = 0
     private val pendingRemoteSyncTasks = linkedMapOf<String, suspend () -> Unit>()
     private var syncingOnStop = false
+    private var appliedDayThemeOverride: String? = null
+    private var appliedNightThemeOverride: String? = null
     private val selectImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
             val targetPath = copySelectedImage(uri, if (it.requestCode == requestMainBackground) "main" else "book_info")
@@ -566,13 +568,27 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             }.onFailure {
                 toastOnUi("应用主题失败：${it.localizedMessage}")
             }.onSuccess {
+                if (entry.packageInfo.isNightTheme) {
+                    appliedNightThemeOverride = entry.packageInfo.name
+                } else {
+                    appliedDayThemeOverride = entry.packageInfo.name
+                }
                 toastOnUi("主题已应用")
+                adapter.notifyDataSetChanged()
                 loadThemes()
             }
         }
     }
 
     private fun isApplied(entry: ThemePackageManager.Entry): Boolean {
+        val overrideName = if (entry.packageInfo.isNightTheme) {
+            appliedNightThemeOverride
+        } else {
+            appliedDayThemeOverride
+        }
+        if (overrideName != null) {
+            return overrideName == entry.packageInfo.name
+        }
         val key = if (entry.packageInfo.isNightTheme) PreferKey.dNThemeName else PreferKey.dThemeName
         return getPrefString(key) == entry.packageInfo.name
     }
