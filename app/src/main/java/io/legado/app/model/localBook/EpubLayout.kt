@@ -1,23 +1,24 @@
 package io.legado.app.model.localBook
 
 import android.graphics.Typeface
+import java.io.Serializable
 
 internal data class EpubLayoutDocument(
     val href: String,
     val pages: List<EpubLayoutPage>,
     val snapshotId: Int
-)
+) : Serializable
 
 internal data class EpubLayoutPage(
     val index: Int,
     val commands: List<EpubDrawCommand>,
     val height: Float,
     val snapshotId: Int
-)
+) : Serializable
 
 internal sealed class EpubDrawCommand {
     abstract val sourcePath: String
-}
+} : Serializable
 
 internal data class EpubPageColor(
     val color: Int,
@@ -36,6 +37,7 @@ internal data class EpubTextRun(
     val backgroundColor: Int?,
     val bold: Boolean,
     val italic: Boolean,
+    @Transient
     val typeface: Typeface?,
     val underline: Boolean,
     val overline: Boolean,
@@ -100,7 +102,7 @@ internal data class EpubShadow(
     val dy: Float,
     val blur: Float,
     val color: Int
-)
+) : Serializable
 
 internal data class EpubBorder(
     val top: EpubBorderSide,
@@ -108,20 +110,20 @@ internal data class EpubBorder(
     val bottom: EpubBorderSide,
     val left: EpubBorderSide,
     val radius: EpubBorderRadius
-)
+) : Serializable
 
 internal data class EpubBorderSide(
     val width: Float,
     val color: Int?,
     val style: String?
-)
+) : Serializable
 
 internal data class EpubBorderRadius(
     val topLeft: Float,
     val topRight: Float,
     val bottomRight: Float,
     val bottomLeft: Float
-)
+) : Serializable
 
 internal data class EpubRuleLine(
     val x: Float,
