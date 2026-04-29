@@ -428,6 +428,9 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
             30f
         )
         binding.composerContainer.elevation = 8f.dpToPx()
+        binding.titleBar.setTextColor(primaryTextColor)
+        binding.titleBar.setSubTitleTextColor(secondaryTextColor)
+        binding.titleBar.setColorFilter(primaryTextColor)
         modelActionText?.setTextColor(primaryTextColor)
         binding.tvAiEmpty.setTextColor(secondaryTextColor)
         binding.ivAiEmptyIcon.setColorFilter(secondaryTextColor)

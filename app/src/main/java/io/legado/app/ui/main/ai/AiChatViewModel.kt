@@ -32,6 +32,7 @@ class AiChatViewModel : ViewModel() {
         private var activeViewModel: AiChatViewModel? = null
         private var activePendingContent: String = ""
         private var activeThinkingMessageId: String? = null
+        private var activePendingAssistantMessageId: String? = null
         private val activeToolMessageIds = linkedMapOf<String, String>()
     }
 
@@ -57,6 +58,7 @@ class AiChatViewModel : ViewModel() {
         val requestSessionId = currentSessionId
         activeViewModel = this
         activeThinkingMessageId = null
+        activePendingAssistantMessageId = null
         activeToolMessageIds.clear()
         append(AiChatMessage(role = AiChatMessage.Role.USER, content = userContent))
         val thinkingMessageId = UUID.randomUUID().toString()
@@ -71,13 +73,6 @@ class AiChatViewModel : ViewModel() {
                 statusName = "思考中",
                 statusStage = "thinking",
                 statusSuccess = true
-            )
-        )
-        append(
-            AiChatMessage(
-                role = AiChatMessage.Role.ASSISTANT,
-                content = "",
-                pending = true
             )
         )
         activePendingContent = ""
@@ -133,6 +128,7 @@ class AiChatViewModel : ViewModel() {
         activeSessionId = null
         activePendingContent = ""
         activeThinkingMessageId = null
+        activePendingAssistantMessageId = null
         activeToolMessageIds.clear()
         setRequesting(false)
         if (cancelledText.isNotBlank()) {
@@ -146,21 +142,18 @@ class AiChatViewModel : ViewModel() {
     }
 
     fun upsertPendingAssistant(content: String) {
-        val index = messages.indexOfLast {
-            it.role == AiChatMessage.Role.ASSISTANT &&
-                it.pending &&
-                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
-        }
+        val messageId = activePendingAssistantMessageId
+        val index = messageId?.let { id -> messages.indexOfFirst { it.id == id } } ?: -1
         if (index >= 0) {
             messages[index] = messages[index].copy(content = content, pending = true)
         } else {
-            messages.add(
-                AiChatMessage(
-                    role = AiChatMessage.Role.ASSISTANT,
-                    content = content,
-                    pending = true
-                )
+            val newMessage = AiChatMessage(
+                role = AiChatMessage.Role.ASSISTANT,
+                content = content,
+                pending = true
             )
+            activePendingAssistantMessageId = newMessage.id
+            messages.add(newMessage)
         }
         publish()
     }
@@ -204,6 +197,7 @@ class AiChatViewModel : ViewModel() {
 
     fun upsertStatus(status: org.json.JSONObject) {
         markThinkingCompleted()
+        finishPendingAssistant()
         val key = status.optString("key").ifBlank { UUID.randomUUID().toString() }
         val name = status.optString("name").ifBlank { "工具调用" }
         val stage = status.optString("stage").ifBlank { "call" }
@@ -234,18 +228,7 @@ class AiChatViewModel : ViewModel() {
         }
         val newId = UUID.randomUUID().toString()
         activeToolMessageIds[key] = newId
-        val pendingTextIndex = messages.indexOfLast {
-            it.role == AiChatMessage.Role.ASSISTANT &&
-                it.pending &&
-                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
-        }
-        val insertIndex = when {
-            pendingTextIndex < 0 -> messages.size
-            messages[pendingTextIndex].content.isNotBlank() -> pendingTextIndex + 1
-            else -> pendingTextIndex
-        }
         messages.add(
-            insertIndex,
             AiChatMessage(
                 id = newId,
                 role = AiChatMessage.Role.ASSISTANT,
@@ -261,28 +244,24 @@ class AiChatViewModel : ViewModel() {
     }
 
     fun finishPendingAssistant() {
-        val index = messages.indexOfLast {
-            it.role == AiChatMessage.Role.ASSISTANT &&
-                it.pending &&
-                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
-        }
+        val messageId = activePendingAssistantMessageId
+        val index = messageId?.let { id -> messages.indexOfFirst { it.id == id } } ?: -1
         if (index >= 0) {
             messages[index] = messages[index].copy(pending = false)
             publish()
         }
+        activePendingAssistantMessageId = null
     }
 
     fun failPendingAssistant(content: String) {
-        val index = messages.indexOfLast {
-            it.role == AiChatMessage.Role.ASSISTANT &&
-                it.pending &&
-                (it.kind ?: AiChatMessage.Kind.TEXT) == AiChatMessage.Kind.TEXT
-        }
+        val messageId = activePendingAssistantMessageId
+        val index = messageId?.let { id -> messages.indexOfFirst { it.id == id } } ?: -1
         if (index >= 0) {
             messages[index] = messages[index].copy(content = content, pending = false)
         } else {
             messages.add(AiChatMessage(role = AiChatMessage.Role.ASSISTANT, content = content))
         }
+        activePendingAssistantMessageId = null
         publish()
     }
 
@@ -353,15 +332,15 @@ class AiChatViewModel : ViewModel() {
         }
         val requesting = activeJob?.isActive == true && activeSessionId == currentSessionId
         if (requesting && messages.none { it.role == AiChatMessage.Role.ASSISTANT && it.pending }) {
-            messages.add(
-                AiChatMessage(
-                    role = AiChatMessage.Role.ASSISTANT,
-                    content = activePendingContent.ifBlank {
-                        appCtx.getString(R.string.ai_restore_thinking)
-                    },
-                    pending = true
-                )
+            val restored = AiChatMessage(
+                role = AiChatMessage.Role.ASSISTANT,
+                content = activePendingContent.ifBlank {
+                    appCtx.getString(R.string.ai_restore_thinking)
+                },
+                pending = true
             )
+            activePendingAssistantMessageId = restored.id
+            messages.add(restored)
         }
         setRequesting(requesting)
         publish(saveHistory = false)

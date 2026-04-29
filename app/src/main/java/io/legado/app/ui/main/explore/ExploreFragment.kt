@@ -144,10 +144,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         usingModernDiscovery = AppConfig.modernDiscoveryPage
         discoveryModeLoaded = false
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
-        binding.swipeRefreshLayout.post {
-            val end = (binding.llDiscoverSourceRow.height + 28.dpToPx()).coerceAtLeast(56.dpToPx())
-            binding.swipeRefreshLayout.setProgressViewOffset(false, 12.dpToPx(), end)
-        }
+        binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
         binding.swipeRefreshLayout.setOnRefreshListener {
             if (usingModernDiscovery) {
                 loadDiscoverBooks(reset = true)
@@ -155,6 +152,12 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 upExploreData(searchView?.query?.toString())
             }
         }
+        val refreshAnchorListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateRefreshIndicatorOffset()
+        }
+        binding.llDiscoverSourceRow.addOnLayoutChangeListener(refreshAnchorListener)
+        binding.rvDiscoverTags.addOnLayoutChangeListener(refreshAnchorListener)
+        binding.titleBar.addOnLayoutChangeListener(refreshAnchorListener)
         binding.llDiscoverSourceRow.applyStatusBarPadding(withInitialPadding = true)
         binding.rvFind.clipToPadding = false
         binding.rvFind.applyMainBottomBarPadding()
@@ -183,6 +186,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.rvFind.isGone = modern
         binding.tvEmptyMsg.isGone = modern
         searchView?.isGone = modern
+        binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
         if (!loadData) {
             activity?.invalidateOptionsMenu()
             return
@@ -195,6 +199,18 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             initClassicMode()
         }
         activity?.invalidateOptionsMenu()
+    }
+
+    private fun updateRefreshIndicatorOffset() {
+        val end = if (usingModernDiscovery && binding.llModernDiscovery.isVisible) {
+            maxOf(
+                binding.llDiscoverSourceRow.bottom,
+                if (binding.rvDiscoverTags.isVisible) binding.rvDiscoverTags.bottom else 0
+            ) + 8.dpToPx()
+        } else {
+            56.dpToPx()
+        }.coerceAtLeast(56.dpToPx())
+        binding.swipeRefreshLayout.setProgressViewOffset(false, 0, end)
     }
 
     private fun scheduleDiscoveryWarmup() {
