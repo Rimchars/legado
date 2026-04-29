@@ -264,7 +264,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         y: Float,
         select: (textPos: TextPos) -> Unit,
     ): Boolean {
-        if (selectNativeText(x, y) != null) {
+        if (isNativeEpubHit(x, y)) {
             return true
         }
         var handled = false
@@ -814,6 +814,27 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     fun hasNativeSelection(): Boolean = !nativeSelectedText.isNullOrBlank()
+
+    private fun isNativeEpubHit(x: Float, y: Float): Boolean {
+        val last = if (callBack.isScroll) 2 else 0
+        for (relativePos in 0..last) {
+            val page = relativePage(relativePos)
+            if (!page.isNativeEpubPage()) continue
+            val offset = relativeOffset(relativePos)
+            val localY = y - offset
+            val href = page.findEpubLinkAt(x, localY)
+            if (href != null) {
+                return false
+            }
+            if (page.findNativeTextSelectionAt(x, localY) != null) {
+                nativeSelectedText = null
+                nativeSelectionRect = null
+                postInvalidate()
+                return true
+            }
+        }
+        return false
+    }
 
     private fun selectNativeText(x: Float, y: Float): String? {
         val last = if (callBack.isScroll) 2 else 0

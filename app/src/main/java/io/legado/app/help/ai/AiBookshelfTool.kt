@@ -5,8 +5,12 @@ import io.legado.app.constant.EventBus
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookGroup
+import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.BookTagHelper
+import io.legado.app.model.webBook.WebBook
 import io.legado.app.utils.postEvent
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -21,6 +25,8 @@ object AiBookshelfTool {
     private const val TOOL_MANAGE_TAG = "manage_bookshelf_tag"
     private const val TOOL_SET_GROUP = "set_bookshelf_book_group"
     private const val TOOL_SET_TAGS = "set_bookshelf_book_tags"
+    private const val TOOL_LIST_CHAPTERS = "list_book_chapters"
+    private const val TOOL_READ_CHAPTER = "read_book_chapter_content"
     private const val DEFAULT_LIMIT = 6
     private const val MAX_LIMIT = 20
     private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
@@ -56,6 +62,16 @@ object AiBookshelfTool {
                 name = TOOL_SET_TAGS,
                 definition = setTagsDefinition(),
                 execute = { args -> setBookTags(args) }
+            ),
+            AiResolvedTool(
+                name = TOOL_LIST_CHAPTERS,
+                definition = listChaptersDefinition(),
+                execute = { args -> listBookChapters(args) }
+            ),
+            AiResolvedTool(
+                name = TOOL_READ_CHAPTER,
+                definition = readChapterDefinition(),
+                execute = { args -> readBookChapterContent(args) }
             )
         )
     }
@@ -361,6 +377,85 @@ object AiBookshelfTool {
         }
     }
 
+    private fun listChaptersDefinition(): JSONObject {
+        return JSONObject().apply {
+            put("type", "function")
+            put("function", JSONObject().apply {
+                put("name", TOOL_LIST_CHAPTERS)
+                put("description", "读取指定书籍的章节目录，可按关键词筛选并返回章节索引、标题、卷名和是否已缓存。")
+                put("parameters", JSONObject().apply {
+                    put("type", "object")
+                    put("properties", JSONObject().apply {
+                        put("bookUrl", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "书籍 URL，本地书也是本地路径。优先精确匹配。")
+                        })
+                        put("name", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "书名。没有 URL 时使用。")
+                        })
+                        put("author", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "作者名，可选。")
+                        })
+                        put("keyword", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "可选，按章节标题模糊筛选。")
+                        })
+                        put("limit", JSONObject().apply {
+                            put("type", "integer")
+                            put("minimum", 1)
+                            put("maximum", 200)
+                        })
+                    })
+                    put("additionalProperties", false)
+                })
+            })
+        }
+    }
+
+    private fun readChapterDefinition(): JSONObject {
+        return JSONObject().apply {
+            put("type", "function")
+            put("function", JSONObject().apply {
+                put("name", TOOL_READ_CHAPTER)
+                put("description", "读取指定书籍的某一章正文内容。可按章节索引或章节标题定位，支持限制返回长度。")
+                put("parameters", JSONObject().apply {
+                    put("type", "object")
+                    put("properties", JSONObject().apply {
+                        put("bookUrl", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "书籍 URL，本地书也是本地路径。优先精确匹配。")
+                        })
+                        put("name", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "书名。没有 URL 时使用。")
+                        })
+                        put("author", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "作者名，可选。")
+                        })
+                        put("chapterIndex", JSONObject().apply {
+                            put("type", "integer")
+                            put("description", "章节索引，从 0 开始。")
+                        })
+                        put("chapterTitle", JSONObject().apply {
+                            put("type", "string")
+                            put("description", "章节标题。未传 chapterIndex 时使用。")
+                        })
+                        put("maxChars", JSONObject().apply {
+                            put("type", "integer")
+                            put("minimum", 200)
+                            put("maximum", 20000)
+                            put("description", "正文最大返回字符数，默认 4000。")
+                        })
+                    })
+                    put("additionalProperties", false)
+                })
+            })
+        }
+    }
+
     private fun queryBookshelf(arguments: JSONObject?): String {
         val query = arguments?.optString("query")?.trim().orEmpty()
         val limit = (arguments?.optInt("limit", DEFAULT_LIMIT) ?: DEFAULT_LIMIT)
@@ -643,6 +738,59 @@ object AiBookshelfTool {
         }.toString()
     }
 
+    private suspend fun listBookChapters(arguments: JSONObject?): String = withContext(IO) {
+        val book = resolveBook(arguments)
+            ?: return@withContext errorJson("未找到书籍")
+        val keyword = arguments?.optString("keyword")?.trim().orEmpty()
+        val limit = (arguments?.optInt("limit", 80) ?: 80).coerceIn(1, 200)
+        val chapters = if (keyword.isBlank()) {
+            appDb.bookChapterDao.getChapterList(book.bookUrl)
+        } else {
+            appDb.bookChapterDao.search(book.bookUrl, keyword)
+        }.take(limit)
+        successJson().apply {
+            put("book", bookToJson(book))
+            put("chapterCount", appDb.bookChapterDao.getChapterCount(book.bookUrl))
+            put("chapters", JSONArray().apply {
+                chapters.forEach { chapter ->
+                    put(JSONObject().apply {
+                        put("index", chapter.index)
+                        put("title", chapter.title)
+                        put("volume", chapter.tag ?: "")
+                        put("url", chapter.url ?: "")
+                        put("cached", BookHelp.hasContent(book, chapter))
+                    })
+                }
+            })
+        }.toString()
+    }
+
+    private suspend fun readBookChapterContent(arguments: JSONObject?): String = withContext(IO) {
+        val book = resolveBook(arguments)
+            ?: return@withContext errorJson("未找到书籍")
+        val chapter = resolveChapter(book, arguments)
+            ?: return@withContext errorJson("未找到章节")
+        val content = BookHelp.getContent(book, chapter)
+            ?: runCatching {
+                val source = appDb.bookSourceDao.getBookSource(book.origin)
+                    ?: throw IllegalStateException("未找到书源")
+                WebBook.getContentAwait(source, book, chapter)
+            }.getOrNull()
+            ?: return@withContext errorJson("正文未缓存且读取失败")
+        val maxChars = (arguments?.optInt("maxChars", 4000) ?: 4000).coerceIn(200, 20000)
+        val normalized = content.replace(Regex("\\s+"), " ").trim()
+        successJson().apply {
+            put("book", bookToJson(book))
+            put("chapter", JSONObject().apply {
+                put("index", chapter.index)
+                put("title", chapter.title)
+                put("volume", chapter.tag ?: "")
+            })
+            put("truncated", normalized.length > maxChars)
+            put("content", normalized.take(maxChars))
+        }.toString()
+    }
+
     private fun resolveBook(arguments: JSONObject?): Book? {
         val bookUrl = arguments?.optString("bookUrl")?.trim().orEmpty()
         if (bookUrl.isNotBlank()) {
@@ -686,6 +834,20 @@ object AiBookshelfTool {
         return resolveBook(arguments)?.takeIf { book -> scopedBooks.any { it.bookUrl == book.bookUrl } }
             ?.let(::listOf)
             .orEmpty()
+    }
+
+    private fun resolveChapter(book: Book, arguments: JSONObject?): io.legado.app.data.entities.BookChapter? {
+        val index = arguments?.takeIf { it.has("chapterIndex") }?.optInt("chapterIndex", Int.MIN_VALUE)
+            ?: Int.MIN_VALUE
+        if (index != Int.MIN_VALUE) {
+            appDb.bookChapterDao.getChapter(book.bookUrl, index)?.let { return it }
+        }
+        val chapterTitle = arguments?.optString("chapterTitle")?.trim().orEmpty()
+        if (chapterTitle.isNotBlank()) {
+            appDb.bookChapterDao.getChapter(book.bookUrl, chapterTitle)?.let { return it }
+            return appDb.bookChapterDao.search(book.bookUrl, chapterTitle).firstOrNull()
+        }
+        return appDb.bookChapterDao.getChapter(book.bookUrl, book.durChapterIndex)
     }
 
     private fun resolveGroup(arguments: JSONObject?): BookGroup? {

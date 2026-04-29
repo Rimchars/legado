@@ -83,7 +83,8 @@ object AiChatService {
     suspend fun chatStream(
         messages: List<AiChatMessage>,
         onPartial: (String) -> Unit,
-        onThinking: (String) -> Unit = {}
+        onThinking: (String) -> Unit = {},
+        onStatus: (JSONObject) -> Unit = {}
     ): String {
         val provider = AppConfig.aiCurrentProvider
         val modelConfig = AppConfig.aiCurrentModelConfig
@@ -111,7 +112,8 @@ object AiChatService {
                 tools = tools,
                 requestLog = requestLog,
                 onPartial = onPartial,
-                onThinking = onThinking
+                onThinking = onThinking,
+                onStatus = onStatus
             )
         }.getOrElse { throwable ->
             if (throwable is AiChatException) {
@@ -134,7 +136,8 @@ object AiChatService {
         tools: List<AiResolvedTool>,
         requestLog: StringBuilder,
         onPartial: (String) -> Unit,
-        onThinking: (String) -> Unit
+        onThinking: (String) -> Unit,
+        onStatus: (JSONObject) -> Unit
     ): String {
         val toolMap = tools.associateBy { it.name }
         val searchResultCards = JSONArray()
@@ -164,7 +167,17 @@ object AiChatService {
                 return appendStructuredBlocks(content, searchResultCards, toolEvents)
             }
             assistantTurn.toolCalls.forEach { toolCall ->
-                onThinking(appCtx.getString(R.string.ai_tool_call, toolCall.name, toolCall.arguments))
+                onStatus(
+                    JSONObject().apply {
+                        put("key", toolCall.id.ifBlank { toolCall.name })
+                        put("kind", "tool")
+                        put("name", toolCall.name)
+                        put("stage", "call")
+                        put("label", "调用中")
+                        put("content", toolCall.arguments)
+                        put("success", true)
+                    }
+                )
                 toolEvents.put(
                     JSONObject().apply {
                         put("name", toolCall.name)
@@ -175,15 +188,26 @@ object AiChatService {
                 )
                 val result = executeToolCall(toolCall, toolMap)
                 collectSearchResultCards(toolCall, result, searchResultCards)
+                val resultSuccess = parseToolResultSuccess(result)
                 toolEvents.put(
                     JSONObject().apply {
                         put("name", toolCall.name)
                         put("stage", "result")
                         put("content", result)
-                        put("success", parseToolResultSuccess(result))
+                        put("success", resultSuccess)
                     }
                 )
-                onThinking(appCtx.getString(R.string.ai_tool_result, toolCall.name, result))
+                onStatus(
+                    JSONObject().apply {
+                        put("key", toolCall.id.ifBlank { toolCall.name })
+                        put("kind", "tool")
+                        put("name", toolCall.name)
+                        put("stage", "result")
+                        put("label", if (resultSuccess) "调用完成" else "调用失败")
+                        put("content", result)
+                        put("success", resultSuccess)
+                    }
+                )
                 conversation += JSONObject().apply {
                     put("role", "tool")
                     put("tool_call_id", toolCall.id)

@@ -135,7 +135,7 @@ class AiChatAdapter(
     private fun parseMessageContent(content: String): ParsedMessage {
         val cards = mutableListOf<SearchBookCard>()
         val toolEvents = mutableListOf<ToolEventCard>()
-        val withoutToolEvents = toolEventBlockRegex.replace(content) { match ->
+        val withoutStatusEvents = statusEventBlockRegex.replace(content) { match ->
             runCatching {
                 val payload = JSONObject(match.groupValues[1])
                 val events = payload.optJSONArray("events") ?: return@runCatching
@@ -145,7 +145,25 @@ class AiChatAdapter(
                         name = item.optString("name"),
                         stage = item.optString("stage"),
                         content = item.optString("content"),
-                        success = item.optBoolean("success", true)
+                        success = item.optBoolean("success", true),
+                        label = item.optString("label")
+                    )
+                }
+            }
+            ""
+        }
+        val withoutToolEvents = toolEventBlockRegex.replace(withoutStatusEvents) { match ->
+            runCatching {
+                val payload = JSONObject(match.groupValues[1])
+                val events = payload.optJSONArray("events") ?: return@runCatching
+                for (index in 0 until events.length()) {
+                    val item = events.optJSONObject(index) ?: continue
+                    toolEvents += ToolEventCard(
+                        name = item.optString("name"),
+                        stage = item.optString("stage"),
+                        content = item.optString("content"),
+                        success = item.optBoolean("success", true),
+                        label = ""
                     )
                 }
             }
@@ -203,10 +221,10 @@ class AiChatAdapter(
 
     private fun createToolEventView(event: ToolEventCard): View {
         val row = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                cornerRadius = 12.dpToPx().toFloat()
-                setColor(ColorUtils.blendColors(context.backgroundColor, context.accentColor, 0.05f))
+                cornerRadius = 16.dpToPx().toFloat()
+                setColor(ColorUtils.blendColors(context.backgroundColor, context.accentColor, 0.035f))
                 setStroke(
                     1.dpToPx(),
                     ColorUtils.adjustAlpha(
@@ -215,7 +233,7 @@ class AiChatAdapter(
                     )
                 )
             }
-            setPadding(10.dpToPx(), 9.dpToPx(), 10.dpToPx(), 9.dpToPx())
+            setPadding(12.dpToPx(), 10.dpToPx(), 12.dpToPx(), 10.dpToPx())
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -223,14 +241,18 @@ class AiChatAdapter(
                 topMargin = 6.dpToPx()
             }
         }
-        row.addView(ImageView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(18.dpToPx(), 18.dpToPx()).apply {
+        val header = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        header.addView(ImageView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(16.dpToPx(), 16.dpToPx()).apply {
                 marginEnd = 8.dpToPx()
-                topMargin = 1.dpToPx()
             }
             setImageResource(
                 when {
                     event.name.contains("search", true) -> R.drawable.ic_search
+                    event.stage.contains("thinking", true) || event.name.contains("思考", true) -> R.drawable.ic_menu
                     event.name.contains("source", true) -> R.drawable.ic_code
                     event.name.contains("book", true) -> R.drawable.ic_storage_black_24dp
                     else -> R.drawable.ic_settings
@@ -240,35 +262,49 @@ class AiChatAdapter(
                 if (event.success) context.accentColor else ContextCompat.getColor(context, R.color.md_red_500)
             )
         })
-        row.addView(LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
+        header.addView(TextView(context).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            addView(TextView(context).apply {
-                text = buildString {
-                    append(event.name)
-                    append(" · ")
-                    append(
+            text = buildString {
+                append(event.name.ifBlank { "工具状态" })
+                append(" · ")
+                append(
+                    event.label.ifBlank {
                         when (event.stage) {
                             "call" -> "调用中"
                             "result" -> if (event.success) "调用完成" else "调用失败"
+                            "thinking" -> "思考中"
                             else -> event.stage
                         }
-                    )
-                }
-                setTextColor(context.primaryTextColor)
-                textSize = 13.5f
-                setTypeface(typeface, Typeface.BOLD)
-                maxLines = 1
-                ellipsize = TextUtils.TruncateAt.END
-            })
-            addView(TextView(context).apply {
-                text = event.content.replace(Regex("\\s+"), " ").trim()
-                setTextColor(context.secondaryTextColor)
-                textSize = 12f
-                maxLines = 3
-                ellipsize = TextUtils.TruncateAt.END
-            })
+                    }
+                )
+            }
+            setTextColor(context.primaryTextColor)
+            textSize = 13f
+            setTypeface(typeface, Typeface.BOLD)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
         })
+        val arrow = ImageView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(14.dpToPx(), 14.dpToPx())
+            setImageResource(R.drawable.ic_arrow_drop_down)
+            setColorFilter(context.secondaryTextColor)
+        }
+        header.addView(arrow)
+        val detailView = TextView(context).apply {
+            text = event.content.replace(Regex("\\s+"), " ").trim()
+            setTextColor(context.secondaryTextColor)
+            textSize = 12f
+            maxLines = 6
+            isVisible = false
+            setPadding(0, 8.dpToPx(), 0, 0)
+        }
+        row.addView(header)
+        row.addView(detailView)
+        row.setOnClickListener {
+            val expanded = !detailView.isVisible
+            detailView.isVisible = expanded
+            arrow.rotation = if (expanded) 180f else 0f
+        }
         return row
     }
 
@@ -465,7 +501,8 @@ class AiChatAdapter(
         val name: String,
         val stage: String,
         val content: String,
-        val success: Boolean
+        val success: Boolean,
+        val label: String
     )
 
     private companion object {
@@ -474,6 +511,10 @@ class AiChatAdapter(
         const val searchBookScheme = "legado-search-book://"
         val toolEventBlockRegex = Regex(
             "```legado-tool-events\\s*\\n([\\s\\S]*?)\\n```",
+            setOf(RegexOption.MULTILINE)
+        )
+        val statusEventBlockRegex = Regex(
+            "```legado-status-events\\s*\\n([\\s\\S]*?)\\n```",
             setOf(RegexOption.MULTILINE)
         )
         val searchResultBlockRegex = Regex(
