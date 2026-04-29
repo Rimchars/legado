@@ -376,7 +376,7 @@ object LocalBook {
 
     fun prepareImportedBookCache(
         book: Book,
-        onProgress: (chapterIndex: Int, chapterCount: Int, chapterTitle: String) -> Unit = { _, _, _ -> }
+        onProgress: (stage: String, processed: Int, total: Int, title: String) -> Unit = { _, _, _, _ -> }
     ) {
         if (!book.isEpub) return
         val chapterList = getChapterList(book)
@@ -384,14 +384,31 @@ object LocalBook {
         appDb.bookChapterDao.delByBook(book.bookUrl)
         appDb.bookChapterDao.insert(*chapterList.toTypedArray())
         appDb.bookDao.update(book)
-        chapterList.forEachIndexed { index, chapter ->
-            onProgress(index, chapterList.size, chapter.title)
+        val decodeTotal = chapterList.count { !it.isVolume }.coerceAtLeast(1)
+        var decodeProcessed = 0
+        chapterList.forEach { chapter ->
             if (!chapter.isVolume) {
+                onProgress("decode", decodeProcessed, decodeTotal, chapter.title)
                 getContent(book, chapter)?.let { content ->
                     BookHelp.saveText(book, chapter, content)
                 }
+                decodeProcessed += 1
+                onProgress("decode", decodeProcessed, decodeTotal, chapter.title)
             }
-            onProgress(index + 1, chapterList.size, chapter.title)
+        }
+        val hrefList = chapterList.asSequence()
+            .filterNot { it.isVolume }
+            .map { it.url.substringBeforeLast("#") }
+            .filter { it.isNotBlank() && !it.startsWith("skip:") }
+            .distinct()
+            .toList()
+        val layoutTotal = hrefList.size.coerceAtLeast(1)
+        var layoutProcessed = 0
+        hrefList.forEach { href ->
+            onProgress("layout", layoutProcessed, layoutTotal, href)
+            EpubFile.getNativeLayout(book, href)
+            layoutProcessed += 1
+            onProgress("layout", layoutProcessed, layoutTotal, href)
         }
     }
 
