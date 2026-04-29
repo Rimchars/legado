@@ -396,7 +396,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                     }
                 }
                 if (wasApplied) {
-                    ThemePackageManager.apply(this@ThemeManageActivity, entry)
+                    ThemePackageManager.apply(this@ThemeManageActivity, entry, switchNightMode = false)
                 }
                 entry
             }.onSuccess {
@@ -564,7 +564,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 } else {
                     entry
                 }
-                ThemePackageManager.apply(this@ThemeManageActivity, localEntry)
+                ThemePackageManager.apply(this@ThemeManageActivity, localEntry, switchNightMode = false)
             }.onFailure {
                 toastOnUi("应用主题失败：${it.localizedMessage}")
             }.onSuccess {

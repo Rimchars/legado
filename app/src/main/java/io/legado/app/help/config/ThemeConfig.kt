@@ -227,7 +227,7 @@ object ThemeConfig {
         return null
     }
 
-    fun applyConfig(context: Context, config: Config) {
+    fun applyConfig(context: Context, config: Config, switchNightMode: Boolean = true) {
         try {
             if (needClearImg) {
                 needClearImg = false
@@ -299,12 +299,20 @@ object ThemeConfig {
                 context.putPrefInt(PreferKey.bgImageBlurring, backgroundBlur)
                 context.putPrefString(PreferKey.bookInfoBgImage, bookInfoBackgroundPath)
             }
-            AppConfig.isNightTheme = isNightTheme
+            if (switchNightMode) {
+                AppConfig.isNightTheme = isNightTheme
+            }
             val themeEditor = ThemeStore.editTheme(context)
             primaryTextColor?.let { themeEditor.textColorPrimary(it) }
             secondaryTextColor?.let { themeEditor.textColorSecondary(it) }
             themeEditor.apply()
-            applyDayNight(context)
+            if (switchNightMode) {
+                applyDayNight(context)
+            } else {
+                applyTheme(context)
+                BookCover.upDefaultCover()
+                postEvent(EventBus.RECREATE, "")
+            }
         } catch (e: Exception) {
             AppLog.put("设置主题出错\n$e", e, true)
         }
