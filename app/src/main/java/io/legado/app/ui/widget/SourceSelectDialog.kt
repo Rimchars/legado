@@ -33,6 +33,10 @@ object SourceSelectDialog {
         val adapter = object : RecyclerView.Adapter<SourceViewHolder>() {
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SourceViewHolder {
                 val textView = TextView(parent.context).apply {
+                    layoutParams = RecyclerView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
                     gravity = Gravity.CENTER_VERTICAL
                     includeFontPadding = false
                     minHeight = 48.dpToPx()
@@ -42,6 +46,8 @@ object SourceSelectDialog {
                     textSize = 15f
                     setPadding(18.dpToPx(), 0, 18.dpToPx(), 0)
                     setBackgroundResource(R.drawable.bg_popup_action_item)
+                    isClickable = true
+                    isFocusable = true
                 }
                 return SourceViewHolder(textView)
             }
