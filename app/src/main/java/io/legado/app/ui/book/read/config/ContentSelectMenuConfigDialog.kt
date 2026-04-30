@@ -5,11 +5,9 @@ import android.os.Bundle
 import android.view.Gravity
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
-import androidx.core.content.edit
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
 import io.legado.app.constant.PreferKey
-import io.legado.app.utils.defaultSharedPreferences
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.getPrefStringSet
@@ -17,7 +15,7 @@ import io.legado.app.utils.putPrefString
 import io.legado.app.utils.putPrefStringSet
 import io.legado.app.utils.postEvent
 
-class ContentSelectMenuConfigDialog : BaseDialogFragment() {
+class ContentSelectMenuConfigDialog : BaseDialogFragment(R.layout.dialog_wait) {
 
     private data class MenuAction(val id: String, val titleRes: Int)
 
@@ -101,4 +99,3 @@ class ContentSelectMenuConfigDialog : BaseDialogFragment() {
         return dialog
     }
 }
-
