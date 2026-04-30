@@ -622,9 +622,8 @@ class ReadBookActivity : BaseReadBookActivity(),
                     val textChapter = ReadBook.curTextChapter
                     if (textChapter != null
                         && !textChapter.sameTitleRemoved
-                        && !contentProcessor.removeSameTitleCache.contains(
-                            textChapter.chapter.getFileName("nr")
-                        )
+                        && !BookHelp.getChapterCacheFileNames(it, textChapter.chapter, "nr")
+                            .any(contentProcessor.removeSameTitleCache::contains)
                     ) {
                         toastOnUi("未找到可移除的重复标题")
                     }

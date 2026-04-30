@@ -178,7 +178,7 @@ class SearchContentActivity :
         observeEvent<Pair<Book, BookChapter>>(EventBus.SAVE_CONTENT) { (book, chapter) ->
             viewModel.book?.bookUrl?.let { bookUrl ->
                 if (book.bookUrl == bookUrl) {
-                    viewModel.cacheChapterNames.add(chapter.getFileName())
+                    viewModel.cacheChapterNames.addAll(BookHelp.getChapterCacheFileNames(book, chapter))
                     adapter.notifyItemChanged(chapter.index, true)
                 }
             }
@@ -202,7 +202,10 @@ class SearchContentActivity :
                 appDb.bookChapterDao.getChapterList(viewModel.bookUrl).forEach { bookChapter ->
                     ensureActive()
                     val searchResults = if (isLocalBook
-                        || viewModel.cacheChapterNames.contains(bookChapter.getFileName())
+                        || BookHelp.getChapterCacheFileNames(
+                            viewModel.book ?: return@forEach,
+                            bookChapter
+                        ).any(viewModel.cacheChapterNames::contains)
                     ) {
                         viewModel.searchChapter(query, bookChapter)
                     } else {

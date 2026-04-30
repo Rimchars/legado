@@ -11,6 +11,7 @@ import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.ItemChapterListBinding
+import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
@@ -127,7 +128,9 @@ class ChapterListAdapter(context: Context, val callback: Callback) :
             val isDur = callback.durChapterIndex() == item.index
             val cached = callback.isLocalBook
                     || item.isVolume
-                    || cacheFileNames.contains(item.getFileName())
+                    || callback.book?.let { book ->
+                        BookHelp.getChapterCacheFileNames(book, item).any(cacheFileNames::contains)
+                    } == true
             if (payloads.isEmpty()) {
                 if (isDur) {
                     tvChapterName.setTextColor(context.accentColor)

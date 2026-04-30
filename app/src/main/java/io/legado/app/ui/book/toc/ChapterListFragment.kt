@@ -106,7 +106,7 @@ class ChapterListFragment : VMBaseFragment<TocViewModel>(R.layout.fragment_chapt
         observeEvent<Pair<Book, BookChapter>>(EventBus.SAVE_CONTENT) { (book, chapter) ->
             viewModel.bookData.value?.bookUrl?.let { bookUrl ->
                 if (book.bookUrl == bookUrl) {
-                    adapter.cacheFileNames.add(chapter.getFileName())
+                    adapter.cacheFileNames.addAll(BookHelp.getChapterCacheFileNames(book, chapter))
                     if (viewModel.searchKey.isNullOrEmpty()) {
                         val position = visiblePositionOf(chapter.index)
                         if (position in 0 until adapter.itemCount) {

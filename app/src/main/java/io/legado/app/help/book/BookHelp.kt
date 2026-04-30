@@ -335,6 +335,15 @@ object BookHelp {
         return fileNames
     }
 
+    fun getChapterCacheFileNames(
+        book: Book,
+        chapter: BookChapter,
+        suffix: String = "nb"
+    ): Set<String> {
+        return getContentFileCandidates(book, chapter, suffix)
+            .mapTo(linkedSetOf()) { it.name }
+    }
+
     /**
      * 检测该章节是否下载
      */
@@ -532,13 +541,7 @@ object BookHelp {
      * 获取是否去除重复标题
      */
     fun removeSameTitle(book: Book, bookChapter: BookChapter): Boolean {
-        val path = FileUtils.getPath(
-            downloadDir,
-            cacheFolderName,
-            book.getFolderName(),
-            bookChapter.getFileName("nr")
-        )
-        return !File(path).exists()
+        return getContentFileCandidates(book, bookChapter, "nr").none { it.exists() }
     }
 
     /**

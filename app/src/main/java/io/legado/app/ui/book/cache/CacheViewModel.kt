@@ -30,7 +30,11 @@ class CacheViewModel(application: Application) : BaseViewModel(application) {
                         appDb.bookChapterDao.getChapterList(book.bookUrl).also {
                             book.totalChapterNum = it.size
                         }.forEach { chapter ->
-                            if (cacheNames.contains(chapter.getFileName()) || chapter.isVolume) {
+                            if (
+                                chapter.isVolume ||
+                                BookHelp.getChapterCacheFileNames(book, chapter)
+                                    .any(cacheNames::contains)
+                            ) {
                                 chapterCaches.add(chapter.url)
                             }
                         }
