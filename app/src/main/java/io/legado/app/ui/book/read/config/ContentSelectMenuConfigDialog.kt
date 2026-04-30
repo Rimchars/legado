@@ -3,6 +3,7 @@ package io.legado.app.ui.book.read.config
 import android.app.Dialog
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import io.legado.app.R
@@ -98,4 +99,6 @@ class ContentSelectMenuConfigDialog : BaseDialogFragment(R.layout.dialog_wait) {
         dialog.window?.setGravity(Gravity.CENTER)
         return dialog
     }
+
+    override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) = Unit
 }
