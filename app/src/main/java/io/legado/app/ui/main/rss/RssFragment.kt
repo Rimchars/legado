@@ -103,7 +103,6 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
         binding.titleBar.applyStatusBarPadding(withInitialPadding = true)
-        binding.flRssContent.applyMainBottomBarPadding(withInitialPadding = true)
         initSearchView()
         initGroupData()
         applyRssMode()
@@ -200,7 +199,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private fun initClassicRecycler() {
         binding.recyclerView.setEdgeEffectColor(primaryColor)
         binding.recyclerView.clipToPadding = false
-        binding.recyclerView.applyMainBottomBarPadding()
+        binding.recyclerView.applyMainBottomBarPadding(withInitialPadding = true)
         if (binding.recyclerView.adapter !== adapter) {
             binding.recyclerView.adapter = adapter
         }

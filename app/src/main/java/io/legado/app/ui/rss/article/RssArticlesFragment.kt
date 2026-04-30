@@ -26,7 +26,7 @@ import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.rss.read.ReadRss
 import io.legado.app.ui.widget.recycler.LoadMoreView
 import io.legado.app.ui.widget.recycler.VerticalDivider
-import io.legado.app.utils.applyNavigationBarPadding
+import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
@@ -82,7 +82,7 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
     private fun initView() = binding.run {
         refreshLayout.setColorSchemeColors(accentColor)
         recyclerView.setEdgeEffectColor(primaryColor)
-        recyclerView.applyNavigationBarPadding()
+        recyclerView.applyMainBottomBarPadding(withInitialPadding = true)
         loadMoreView.setOnClickListener {
             if (!loadMoreView.isLoading) {
                 scrollToBottom(true)
