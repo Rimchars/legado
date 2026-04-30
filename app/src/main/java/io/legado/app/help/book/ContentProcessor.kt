@@ -104,8 +104,9 @@ class ContentProcessor private constructor(
         val replaceBook by lazy { book.toReplaceBook() }
         if (content != "null") {
             //去除重复标题
-            val fileName = chapter.getFileName("nr")
-            if (!removeSameTitleCache.contains(fileName)) try {
+            val removeSameTitleMarked = BookHelp.getChapterCacheFileNames(book, chapter, "nr")
+                .any(removeSameTitleCache::contains)
+            if (!removeSameTitleMarked) try {
                 val name = Pattern.quote(book.name)
                 var title = chapter.title.escapeRegex().replace(spaceRegex, "\\\\s*")
                 var matcher = Pattern.compile("^(\\s|\\p{P}|${name})*${title}(\\s)*")
