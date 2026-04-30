@@ -2,14 +2,15 @@ package io.legado.app.ui.book.read.config
 
 import android.app.Dialog
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
-import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.forEach
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
 import io.legado.app.constant.PreferKey
-import io.legado.app.utils.dpToPx
+import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.filletBackground
+import io.legado.app.utils.applyTint
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.getPrefStringSet
 import io.legado.app.utils.putPrefString
@@ -51,29 +52,15 @@ class ContentSelectMenuConfigDialog : BaseDialogFragment(R.layout.dialog_wait) {
         val defaultItems = defaultOpenPairs.map { getString(it.second) }.toTypedArray()
         var defaultIndex = defaultOpenPairs.indexOfFirst { it.first == defaultOpen }.coerceAtLeast(0)
 
-        val container = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20.dpToPx(), 12.dpToPx(), 20.dpToPx(), 0)
-        }
-
-        val actionsDialog = AlertDialog.Builder(ctx)
-            .setTitle(R.string.content_select_actions)
+        val dialog = AlertDialog.Builder(ctx)
+            .setTitle(R.string.content_select_menu_config)
             .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
                 val id = actions[which].id
                 if (isChecked) selected.add(id) else selected.remove(id)
             }
-            .create()
-
-        val defaultDialog = AlertDialog.Builder(ctx)
-            .setTitle(R.string.content_select_default_open)
             .setSingleChoiceItems(defaultItems, defaultIndex) { _, which ->
                 defaultIndex = which
             }
-            .create()
-
-        val dialog = AlertDialog.Builder(ctx)
-            .setTitle(R.string.content_select_menu_config)
-            .setView(container)
             .setPositiveButton(R.string.dialog_confirm) { _, _ ->
                 if (selected.isEmpty()) {
                     selected += "copy"
@@ -88,15 +75,16 @@ class ContentSelectMenuConfigDialog : BaseDialogFragment(R.layout.dialog_wait) {
                 }
                 postEvent("contentSelectMenuConfigChanged", true)
             }
-            .setNeutralButton(R.string.content_select_actions) { _, _ ->
-                actionsDialog.show()
-            }
-            .setNegativeButton(R.string.content_select_default_open) { _, _ ->
-                defaultDialog.show()
-            }
+            .setNegativeButton(android.R.string.cancel, null)
             .create()
-
-        dialog.window?.setGravity(Gravity.CENTER)
+        dialog.window?.setBackgroundDrawable(ctx.filletBackground)
+        dialog.window?.decorView?.post {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(accentColor)
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(accentColor)
+            dialog.listView?.forEach {
+                it.applyTint(accentColor)
+            }
+        }
         return dialog
     }
 
