@@ -1,11 +1,14 @@
 package io.legado.app.ui.main.my
 
 import android.content.SharedPreferences
+import android.content.res.XmlResourceParser
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import androidx.appcompat.widget.SearchView
 import androidx.preference.Preference
+import androidx.preference.PreferenceGroup
 import io.legado.app.R
 import io.legado.app.base.BaseFragment
 import io.legado.app.constant.EventBus
@@ -42,6 +45,7 @@ import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.showHelp
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import org.xmlpull.v1.XmlPullParser
 
 class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInterface {
 
@@ -54,6 +58,9 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
     override val position: Int? get() = arguments?.getInt("position")
 
     private val binding by viewBinding(FragmentMyConfigBinding::bind)
+    private val settingsSearchView by lazy(LazyThreadSafetyMode.NONE) {
+        binding.root.findViewById<SearchView>(R.id.search_view)
+    }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
@@ -62,6 +69,7 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
         if (preferenceFragment == null) preferenceFragment = MyPreferenceFragment()
         childFragmentManager.beginTransaction()
             .replace(R.id.pre_fragment, preferenceFragment, fragmentTag).commit()
+        initSearchView()
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu) {
@@ -74,11 +82,38 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
         }
     }
 
+    private fun initSearchView() {
+        settingsSearchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                applySearchQuery(query)
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                applySearchQuery(newText)
+                return true
+            }
+        })
+        settingsSearchView.setOnCloseListener {
+            applySearchQuery("")
+            false
+        }
+    }
+
+    private fun applySearchQuery(query: String?) {
+        (childFragmentManager.findFragmentByTag("prefFragment") as? MyPreferenceFragment)
+            ?.filterMainPreferences(query)
+    }
+
     /**
      * 配置
      */
     class MyPreferenceFragment : PreferenceFragment(),
         SharedPreferences.OnSharedPreferenceChangeListener {
+
+        private val extraSearchText by lazy(LazyThreadSafetyMode.NONE) {
+            buildExtraSearchText()
+        }
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             putPrefBoolean(PreferKey.webService, WebService.isRun)
@@ -144,6 +179,95 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                 }
 
                 "recordLog" -> LogUtils.upLevel()
+            }
+        }
+
+        fun filterMainPreferences(query: String?) {
+            val keyword = query?.trim().orEmpty().lowercase()
+            val root = preferenceScreen ?: return
+            if (keyword.isBlank()) {
+                resetVisibility(root)
+                return
+            }
+            filterMainGroup(root, keyword)
+        }
+
+        private fun filterMainGroup(group: PreferenceGroup, keyword: String): Boolean {
+            var anyVisible = false
+            for (index in 0 until group.preferenceCount) {
+                val preference = group.getPreference(index)
+                val visible = when (preference) {
+                    is PreferenceGroup -> filterMainGroup(preference, keyword) || matchesMainPreference(preference, keyword)
+                    else -> matchesMainPreference(preference, keyword)
+                }
+                preference.isVisible = visible
+                anyVisible = anyVisible || visible
+            }
+            group.isVisible = anyVisible || group == preferenceScreen
+            return anyVisible
+        }
+
+        private fun resetVisibility(group: PreferenceGroup) {
+            group.isVisible = true
+            for (index in 0 until group.preferenceCount) {
+                val preference = group.getPreference(index)
+                preference.isVisible = true
+                if (preference is PreferenceGroup) {
+                    resetVisibility(preference)
+                }
+            }
+        }
+
+        private fun matchesMainPreference(preference: Preference, keyword: String): Boolean {
+            val key = preference.key.orEmpty()
+            val titleText = preference.title?.toString().orEmpty().lowercase()
+            val summaryText = preference.summary?.toString().orEmpty().lowercase()
+            val keyText = key.lowercase()
+            val extraText = extraSearchText[key].orEmpty()
+            return titleText.contains(keyword)
+                || summaryText.contains(keyword)
+                || keyText.contains(keyword)
+                || extraText.contains(keyword)
+        }
+
+        private fun buildExtraSearchText(): Map<String, String> {
+            return mapOf(
+                "theme_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_theme),
+                "web_dav_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_backup),
+                "coverConfig" to buildPreferenceXmlSearchText(R.xml.pref_config_cover),
+                "ai_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_ai),
+                "setting" to buildPreferenceXmlSearchText(R.xml.pref_config_other)
+            )
+        }
+
+        private fun buildPreferenceXmlSearchText(xmlRes: Int): String {
+            val parts = linkedSetOf<String>()
+            val parser: XmlResourceParser = resources.getXml(xmlRes)
+            try {
+                var eventType = parser.eventType
+                while (eventType != XmlPullParser.END_DOCUMENT) {
+                    if (eventType == XmlPullParser.START_TAG) {
+                        collectPreferenceAttr(parser, "title")?.let(parts::add)
+                        collectPreferenceAttr(parser, "summary")?.let(parts::add)
+                        collectPreferenceAttr(parser, "key")?.let(parts::add)
+                    }
+                    eventType = parser.next()
+                }
+            } finally {
+                parser.close()
+            }
+            return parts.joinToString(" ").lowercase()
+        }
+
+        private fun collectPreferenceAttr(parser: XmlPullParser, attrName: String): String? {
+            val namespace = "http://schemas.android.com/apk/res/android"
+            val attrValue = parser.getAttributeValue(namespace, attrName)?.trim().orEmpty()
+            if (attrValue.isBlank()) return null
+            val attrRes = parser.getAttributeResourceValue(namespace, attrName, 0)
+            return if (attrRes != 0) {
+                runCatching { getString(attrRes) }.getOrNull()?.trim().orEmpty().takeIf { it.isNotBlank() }
+            } else {
+                attrValue.removePrefix("@").takeIf { it.isNotBlank() }
             }
         }
 
