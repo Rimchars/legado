@@ -43,6 +43,7 @@ import io.legado.app.utils.getPrefString
 import io.legado.app.utils.hexString
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -158,6 +159,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 }
                 binding.tvSummary.text = appendPendingRemoteSummary(baseSummary)
             }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
                 if (version != loadVersion) return@launch
                 binding.tvSummary.text = if (useCloud) {
                     "云端读取失败：${it.localizedMessage}"
@@ -222,6 +224,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                     cancelButton()
                 }
             }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
                 toastOnUi("读取主题失败：${it.localizedMessage}")
             }
         }
@@ -404,6 +407,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 loadThemes()
                 enqueueUploadIfNeeded(it)
             }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
                 toastOnUi("保存主题失败：${it.localizedMessage}")
             }
         }
@@ -475,6 +479,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             } ?: return null
             file.absolutePath
         }.onFailure {
+            if (it.isJobCancellation()) return@onFailure
             toastOnUi(it.localizedMessage)
         }.getOrNull()
     }
@@ -532,6 +537,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                     )
                 }
             }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
                 toastOnUi("导出主题失败：${it.localizedMessage}")
             }
         }
@@ -551,6 +557,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 loadThemes()
                 enqueueUploadIfNeeded(it)
             }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
                 toastOnUi("导入主题失败：${it.localizedMessage}")
             }
         }
@@ -566,6 +573,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 }
                 ThemePackageManager.apply(this@ThemeManageActivity, localEntry, switchNightMode = false)
             }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
                 toastOnUi("应用主题失败：${it.localizedMessage}")
             }.onSuccess {
                 if (entry.packageInfo.isNightTheme) {
@@ -601,6 +609,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 toastOnUi(successMessage)
                 loadThemes()
             }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
                 toastOnUi(it.localizedMessage)
             }
         }
@@ -621,6 +630,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             }.onSuccess {
                 toastOnUi("云端主题状态已同步")
             }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
                 toastOnUi("云端主题同步失败：${it.localizedMessage}")
             }
             syncingOnStop = false
@@ -761,6 +771,10 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     override fun onDialogDismissed(dialogId: Int) = Unit
+
+    private fun Throwable.isJobCancellation(): Boolean {
+        return this is CancellationException || cause?.isJobCancellation() == true
+    }
 
     companion object {
         private const val requestMainBackground = 301
