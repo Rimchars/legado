@@ -135,7 +135,6 @@ import io.legado.app.utils.throttle
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.visible
 import io.legado.app.utils.dpToPx
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.widget.AppCompatTextView
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
@@ -942,12 +941,22 @@ class ReadBookActivity : BaseReadBookActivity(),
             maxLines = 12
             minLines = 2
         }
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.ai_reply)
-            .setView(dialogText)
-            .setPositiveButton(R.string.dialog_confirm, null)
-            .create()
-        dialog.show()
+        val dialog = runCatching {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.ai_reply)
+                .setView(dialogText)
+                .setPositiveButton(R.string.dialog_confirm, null)
+                .create()
+        }.getOrElse {
+            toastOnUi(it.localizedMessage ?: it.toString())
+            return
+        }
+        runCatching {
+            dialog.show()
+        }.onFailure {
+            toastOnUi(it.localizedMessage ?: it.toString())
+            return
+        }
         dialog.window?.setGravity(Gravity.BOTTOM)
         val requestJob = lifecycleScope.launch {
             val result = runCatching {
