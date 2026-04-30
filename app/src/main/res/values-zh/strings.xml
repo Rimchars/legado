@@ -198,6 +198,8 @@
     <string name="content_select_menu_config_summary">配置长按菜单动作与默认打开项</string>
     <string name="content_select_actions">长按动作</string>
     <string name="content_select_default_open">默认打开</string>
+    <string name="content_select_speak_from_selection">已切换为从选择处开始连续朗读</string>
+    <string name="content_select_speak_selected">已切换为朗读选择内容</string>
     <string name="default_none">不默认打开</string>
     <string name="default_dict">字典</string>
     <string name="default_ask_ai">问AI</string>
@@ -249,6 +251,9 @@
     <string name="data_loading">加载数据中…</string>
     <string name="load_error_retry">加载失败，点击重试</string>
     <string name="book_intro">内容简介</string>
+    <string name="book_info_tab_intro">简介</string>
+    <string name="book_info_tab_toc">目录</string>
+    <string name="book_info_tab_info">信息</string>
     <string name="intro_show">简介：%s</string>
     <string name="intro_show_null">简介：暂无简介</string>
     <string name="open_from_other">打开外部书籍</string>
@@ -1454,7 +1459,15 @@
     <string name="ai_remove_skill_confirm">删除这个 Skill？</string>
     <string name="ai_tool_call">调用工具：%1$s\n参数：%2$s</string>
     <string name="ai_tool_result">工具返回：%1$s\n%2$s</string>
+    <string name="ai_tool_default_name">工具</string>
+    <string name="ai_tool_status_calling">调用中</string>
+    <string name="ai_tool_status_done">调用完成</string>
+    <string name="ai_tool_status_failed">调用失败</string>
+    <string name="ai_tool_round_limit_system_prompt">工具调用轮次已达到上限。现在不要继续调用任何工具，请基于已经获得的工具结果，直接总结当前完成情况、剩余问题和下一步建议。</string>
     <string name="ai_tool_round_limit_summary">工具调用轮次已达到上限，且模型没有返回总结</string>
+    <string name="epub_button_pressed">按钮已触发</string>
+    <string name="epub_media_not_supported">EPUB 内嵌媒体已识别，当前原生阅读页暂不直接播放</string>
+    <string name="epub_footnote_load_failed">注解加载失败</string>
     <string name="ai_restore_thinking">正在思考中</string>
     <string name="read_record_date_pattern">yyyy年MM月dd日</string>
     <string name="read_record_month_pattern">M月</string>

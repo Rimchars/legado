@@ -199,6 +199,8 @@
     <string name="content_select_menu_config_summary">Configure long-press actions and default open action</string>
     <string name="content_select_actions">Long-press actions</string>
     <string name="content_select_default_open">Default open</string>
+    <string name="content_select_speak_from_selection">Switched to continuous reading from selection</string>
+    <string name="content_select_speak_selected">Switched to reading selected text</string>
     <string name="default_none">No default action</string>
     <string name="default_dict">Dictionary</string>
     <string name="default_ask_ai">Ask AI</string>
@@ -251,6 +253,9 @@
     <string name="data_loading">Loading…</string>
     <string name="load_error_retry">Load failed, tap to retry</string>
     <string name="book_intro">Book description</string>
+    <string name="book_info_tab_intro">Intro</string>
+    <string name="book_info_tab_toc">Chapters</string>
+    <string name="book_info_tab_info">Info</string>
     <string name="intro_show">Description:%s</string>
     <string name="intro_show_null">Description: no introduction</string>
     <string name="open_from_other">Open external book</string>
@@ -1560,7 +1565,15 @@
     <string name="ai_remove_skill_confirm">Remove this skill?</string>
     <string name="ai_tool_call">Calling tool: %1$s\nArguments: %2$s</string>
     <string name="ai_tool_result">Tool result: %1$s\n%2$s</string>
+    <string name="ai_tool_default_name">Tool</string>
+    <string name="ai_tool_status_calling">Calling</string>
+    <string name="ai_tool_status_done">Completed</string>
+    <string name="ai_tool_status_failed">Failed</string>
+    <string name="ai_tool_round_limit_system_prompt">Tool call round limit reached. Do not call more tools. Summarize the current result, remaining issues, and next steps from the tool results already available.</string>
     <string name="ai_tool_round_limit_summary">Tool call round limit reached, and the model returned no summary</string>
+    <string name="epub_button_pressed">Button pressed</string>
+    <string name="epub_media_not_supported">EPUB embedded media is recognized, but native reading page cannot play it yet</string>
+    <string name="epub_footnote_load_failed">Failed to load note</string>
     <string name="ai_restore_thinking">Thinking…</string>
     <string name="read_record_date_pattern">MMM d, yyyy</string>
     <string name="read_record_month_pattern">MMM</string>
