@@ -56,13 +56,13 @@
                 <LinearLayout
                     android:id="@+id/ll_info"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="match_parent"
                     android:background="@color/transparent"
                     android:orientation="vertical"
                     android:paddingStart="16dp"
                     android:paddingTop="16dp"
                     android:paddingEnd="16dp"
-                    android:paddingBottom="112dp">
+                    android:paddingBottom="84dp">
 
                     <io.legado.app.ui.widget.image.ArcView
                         android:id="@+id/arc_view"
@@ -134,10 +134,69 @@
                                 android:textColor="@color/tv_text_summary"
                                 android:textSize="14sp" />
 
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <ImageView
+                                    android:id="@+id/ic_book_last"
+                                    android:layout_width="15dp"
+                                    android:layout_height="15dp"
+                                    android:contentDescription="@string/read_dur_progress"
+                                    android:src="@drawable/ic_book_last"
+                                    app:tint="@color/tv_text_summary" />
+
+                                <TextView
+                                    android:id="@+id/tv_lasted"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="7dp"
+                                    android:layout_weight="1"
+                                    android:ellipsize="end"
+                                    android:includeFontPadding="false"
+                                    android:maxLines="1"
+                                    android:textColor="@color/tv_text_summary"
+                                    android:textSize="12.5sp"
+                                    tools:text="@string/read_dur_progress" />
+
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <ImageView
+                                    android:layout_width="15dp"
+                                    android:layout_height="15dp"
+                                    android:contentDescription="@string/reading_time_tag"
+                                    android:src="@drawable/ic_timer_black_24dp"
+                                    app:tint="@color/tv_text_summary" />
+
+                                <TextView
+                                    android:id="@+id/tv_read_time"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="7dp"
+                                    android:layout_weight="1"
+                                    android:ellipsize="end"
+                                    android:includeFontPadding="false"
+                                    android:maxLines="1"
+                                    android:textColor="@color/tv_text_summary"
+                                    android:textSize="12.5sp"
+                                    tools:text="@string/reading_time_tag" />
+
+                            </LinearLayout>
+
                             <HorizontalScrollView
                                 android:layout_width="match_parent"
                                 android:layout_height="34dp"
-                                android:layout_marginTop="12dp"
+                                android:layout_marginTop="10dp"
                                 android:scrollbars="none">
 
                                 <io.legado.app.ui.widget.LabelsBar
@@ -162,77 +221,6 @@
                         android:paddingTop="12dp"
                         android:paddingEnd="14dp"
                         android:paddingBottom="12dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <ImageView
-                                android:id="@+id/ic_book_last"
-                                android:layout_width="17dp"
-                                android:layout_height="17dp"
-                                android:contentDescription="@string/read_dur_progress"
-                                android:src="@drawable/ic_book_last"
-                                app:tint="@color/tv_text_summary" />
-
-                            <TextView
-                                android:id="@+id/tv_lasted"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="10dp"
-                                android:layout_weight="1"
-                                android:ellipsize="end"
-                                android:includeFontPadding="false"
-                                android:maxLines="1"
-                                android:textColor="@color/tv_text_summary"
-                                android:textSize="13.5sp"
-                                tools:text="@string/read_dur_progress" />
-
-                        </LinearLayout>
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="1px"
-                            android:layout_marginTop="11dp"
-                            android:layout_marginBottom="11dp"
-                            android:background="@color/bg_divider_line" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <ImageView
-                                android:layout_width="17dp"
-                                android:layout_height="17dp"
-                                android:contentDescription="@string/reading_time_tag"
-                                android:src="@drawable/ic_timer_black_24dp"
-                                app:tint="@color/tv_text_summary" />
-
-                            <TextView
-                                android:id="@+id/tv_read_time"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="10dp"
-                                android:layout_weight="1"
-                                android:ellipsize="end"
-                                android:includeFontPadding="false"
-                                android:maxLines="1"
-                                android:textColor="@color/tv_text_summary"
-                                android:textSize="13.5sp"
-                                tools:text="@string/reading_time_tag" />
-
-                        </LinearLayout>
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="1px"
-                            android:layout_marginTop="11dp"
-                            android:layout_marginBottom="11dp"
-                            android:background="@color/bg_divider_line" />
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -324,18 +312,21 @@
                         </LinearLayout>
 
                         <View
+                            android:id="@+id/divider_toc"
                             android:layout_width="match_parent"
                             android:layout_height="1px"
                             android:layout_marginTop="11dp"
                             android:layout_marginBottom="11dp"
-                            android:background="@color/bg_divider_line" />
+                            android:background="@color/bg_divider_line"
+                            android:visibility="gone" />
 
                         <LinearLayout
                             android:id="@+id/ll_toc"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:orientation="horizontal"
+                            android:visibility="gone">
 
                             <ImageView
                                 android:layout_width="17dp"
@@ -376,9 +367,11 @@
 
                     <LinearLayout
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="0dp"
                         android:layout_marginTop="14dp"
+                        android:layout_weight="1"
                         android:background="@drawable/bg_book_info_intro_panel"
+                        android:minHeight="260dp"
                         android:orientation="vertical"
                         android:paddingStart="14dp"
                         android:paddingTop="12dp"
@@ -436,8 +429,9 @@
                     <LinearLayout
                         android:id="@+id/ll_toc_page"
                         android:layout_width="match_parent"
-                        android:layout_height="320dp"
+                        android:layout_height="0dp"
                         android:layout_marginTop="12dp"
+                        android:layout_weight="1"
                         android:background="@color/transparent"
                         android:orientation="vertical"
                         android:padding="0dp"
@@ -464,14 +458,16 @@
                     <LinearLayout
                         android:id="@+id/ll_intro_page"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="0dp"
                         android:layout_marginTop="12dp"
+                        android:layout_weight="1"
                         android:orientation="vertical">
 
                         <FrameLayout
                             android:id="@+id/tv_intro_container"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="0dp"
+                            android:layout_weight="1" />
 
                         <TextView
                             android:id="@+id/tv_intro_toggle"

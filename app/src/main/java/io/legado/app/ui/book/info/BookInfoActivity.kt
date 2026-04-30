@@ -532,7 +532,7 @@ class BookInfoActivity :
             llToc.gone()
             tvLasted.text = getString(R.string.lasted_show, getString(R.string.downloading))
         } else {
-            llToc.visible()
+            llToc.gone()
         }
         menuCustomBtn?.isVisible = viewModel.hasCustomBtn
         upTvBookshelf()
