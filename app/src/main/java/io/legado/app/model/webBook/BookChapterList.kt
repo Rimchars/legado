@@ -308,12 +308,15 @@ object BookChapterList {
         }
         val chapterList = appDb.bookChapterDao.getChapterList(book.bookUrl)
         if (chapterList.isNotEmpty()) {
-            val map = HashMap<String, Triple<String?, String?, String?>>(chapterList.size)
+            val mapByIdentity = HashMap<String, Triple<String?, String?, String?>>(chapterList.size)
+            val mapByTitle = HashMap<String, Triple<String?, String?, String?>>(chapterList.size)
             for (chapter in chapterList) {
-                map["${chapter.index}_${chapter.title}"] = Triple(chapter.wordCount, chapter.variable, chapter.imgUrl)
+                val triple = Triple(chapter.wordCount, chapter.variable, chapter.imgUrl)
+                mapByIdentity[chapter.contentCacheIdentity()] = triple
+                mapByTitle.putIfAbsent(chapter.title.trim(), triple)
             }
             for (chapter in list) {
-                map["${chapter.index}_${chapter.title}"]?.let { (w, v, i) ->
+                (mapByIdentity[chapter.contentCacheIdentity()] ?: mapByTitle[chapter.title.trim()])?.let { (w, v, i) ->
                     chapter.run {
                         w?.let { wordCount = it }
                         v?.let { variable = it }
