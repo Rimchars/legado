@@ -2,6 +2,7 @@ package io.legado.app.ui.widget
 
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.text.TextUtils
 import android.view.View
 import android.view.Gravity
 import android.view.ViewGroup
@@ -32,24 +33,7 @@ object SourceSelectDialog {
         var filteredItems = items.toList()
         val adapter = object : RecyclerView.Adapter<SourceViewHolder>() {
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SourceViewHolder {
-                val textView = TextView(parent.context).apply {
-                    layoutParams = RecyclerView.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    )
-                    gravity = Gravity.CENTER_VERTICAL
-                    includeFontPadding = false
-                    minHeight = 48.dpToPx()
-                    maxLines = 2
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                    setTextColor(context.primaryTextColor)
-                    textSize = 15f
-                    setPadding(18.dpToPx(), 0, 18.dpToPx(), 0)
-                    setBackgroundResource(R.drawable.bg_popup_action_item)
-                    isClickable = true
-                    isFocusable = true
-                }
-                return SourceViewHolder(textView)
+                return SourceViewHolder(SourceOptionView(parent.context))
             }
 
             override fun getItemCount(): Int = filteredItems.size
@@ -57,8 +41,7 @@ object SourceSelectDialog {
             override fun onBindViewHolder(holder: SourceViewHolder, position: Int) {
                 val item = filteredItems[position]
                 val selectedPrefix = if (itemKey(item) == selectedKey) "✓ " else ""
-                holder.textView.text = selectedPrefix + displayName(item)
-                holder.textView.setOnClickListener {
+                holder.bind(selectedPrefix + displayName(item)) {
                     dialog?.dismiss()
                     onSelect(item)
                 }
@@ -132,5 +115,30 @@ object SourceSelectDialog {
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
     }
 
-    private class SourceViewHolder(val textView: TextView) : RecyclerView.ViewHolder(textView)
+    private class SourceOptionView(context: android.content.Context) : TextView(context) {
+        init {
+            layoutParams = RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            gravity = Gravity.CENTER_VERTICAL
+            includeFontPadding = false
+            minHeight = 48.dpToPx()
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            setTextColor(context.primaryTextColor)
+            textSize = 15f
+            setPadding(18.dpToPx(), 0, 18.dpToPx(), 0)
+            setBackgroundResource(R.drawable.bg_popup_action_item)
+            isClickable = true
+            isFocusable = true
+        }
+    }
+
+    private class SourceViewHolder(private val rowView: SourceOptionView) : RecyclerView.ViewHolder(rowView) {
+        fun bind(title: CharSequence, onClick: () -> Unit) {
+            rowView.text = title
+            rowView.setOnClickListener { onClick() }
+        }
+    }
 }
