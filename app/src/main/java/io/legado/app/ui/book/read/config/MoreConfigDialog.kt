@@ -160,6 +160,10 @@ class MoreConfigDialog : BasePrefDialogFragment() {
                 PreferKey.expandTextMenu -> {
                     (activity as? ReadBookActivity)?.textActionMenu?.upMenu()
                 }
+                PreferKey.contentSelectActions,
+                PreferKey.contentSelectDefaultOpen -> {
+                    (activity as? ReadBookActivity)?.textActionMenu?.upMenu()
+                }
 
                 PreferKey.doublePageHorizontal -> {
                     ChapterProvider.upLayout()
@@ -196,6 +200,9 @@ class MoreConfigDialog : BasePrefDialogFragment() {
                 "customPageKey" -> PageKeyDialog(requireContext()).show()
                 "clickRegionalConfig" -> {
                     (activity as? ReadBookActivity)?.showClickRegionalConfig()
+                }
+                PreferKey.contentSelectMenuConfig -> {
+                    ContentSelectMenuConfigDialog().show(parentFragmentManager, "contentSelectMenuConfig")
                 }
 
                 PreferKey.pageTouchSlop -> {

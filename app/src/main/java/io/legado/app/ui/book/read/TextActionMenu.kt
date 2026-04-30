@@ -27,6 +27,8 @@ import io.legado.app.databinding.ItemTextBinding
 import io.legado.app.databinding.PopupActionMenuBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.getPrefBoolean
+import io.legado.app.utils.getPrefString
+import io.legado.app.utils.getPrefStringSet
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.gone
 import io.legado.app.utils.isAbsUrl
@@ -44,10 +46,30 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
     private val adapter = Adapter(context).apply {
         setHasStableIds(true)
     }
-    private val menuItems: List<MenuItemImpl>
+    private val allMenuItems: List<MenuItemImpl>
     private val visibleMenuItems = arrayListOf<MenuItemImpl>()
     private val moreMenuItems = arrayListOf<MenuItemImpl>()
     private val expandTextMenu get() = context.getPrefBoolean(PreferKey.expandTextMenu)
+
+    private val configuredActionIds: Set<String>
+        get() = context.getPrefStringSet(
+            PreferKey.contentSelectActions,
+            mutableSetOf("replace", "copy", "bookmark", "aloud", "dict", "ask_ai", "generate_image")
+        )?.toSet() ?: emptySet()
+
+    private val defaultOpenActionId: String
+        get() = context.getPrefString(PreferKey.contentSelectDefaultOpen, "").orEmpty()
+
+    private fun menuItemToActionId(itemId: Int): String? = when (itemId) {
+        R.id.menu_replace -> "replace"
+        R.id.menu_copy -> "copy"
+        R.id.menu_bookmark -> "bookmark"
+        R.id.menu_aloud -> "aloud"
+        R.id.menu_dict -> "dict"
+        R.id.menu_ask_ai -> "ask_ai"
+        R.id.menu_generate_image -> "generate_image"
+        else -> null
+    }
 
     init {
         @SuppressLint("InflateParams")
@@ -66,9 +88,7 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             onInitializeMenu(otherMenu)
         }
-        menuItems = myMenu.visibleItems + otherMenu.visibleItems
-        visibleMenuItems.addAll(menuItems.subList(0, 5))
-        moreMenuItems.addAll(menuItems.subList(5, menuItems.size))
+        allMenuItems = myMenu.visibleItems + otherMenu.visibleItems
         binding.recyclerView.adapter = adapter
         binding.recyclerViewMore.adapter = adapter
         setOnDismissListener {
@@ -95,13 +115,31 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
         upMenu()
     }
 
+    private fun filteredMenuItems(): List<MenuItemImpl> {
+        return allMenuItems.filter { item ->
+            menuItemToActionId(item.itemId)?.let { configuredActionIds.contains(it) } ?: true
+        }
+    }
+
     fun upMenu() {
+        visibleMenuItems.clear()
+        moreMenuItems.clear()
+        val filteredItems = filteredMenuItems()
+        val visibleCount = minOf(5, filteredItems.size)
+        visibleMenuItems.addAll(filteredItems.subList(0, visibleCount))
+        if (filteredItems.size > visibleCount) {
+            moreMenuItems.addAll(filteredItems.subList(visibleCount, filteredItems.size))
+        }
         if (expandTextMenu) {
-            adapter.setItems(menuItems)
+            adapter.setItems(filteredItems)
             binding.ivMenuMore.gone()
         } else {
             adapter.setItems(visibleMenuItems)
-            binding.ivMenuMore.visible()
+            if (moreMenuItems.isEmpty()) {
+                binding.ivMenuMore.gone()
+            } else {
+                binding.ivMenuMore.visible()
+            }
         }
     }
 
@@ -114,6 +152,17 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
         endX: Int,
         endBottomY: Int
     ) {
+        val defaultActionId = defaultOpenActionId
+        if (defaultActionId.isNotEmpty() && configuredActionIds.contains(defaultActionId)) {
+            val defaultItem = filteredMenuItems().firstOrNull { menuItemToActionId(it.itemId) == defaultActionId }
+            if (defaultItem != null) {
+                if (!callBack.onMenuItemSelected(defaultItem.itemId)) {
+                    onMenuItemSelected(defaultItem)
+                }
+                callBack.onMenuActionFinally()
+                return
+            }
+        }
         if (expandTextMenu) {
             when {
                 startTopY > 500 -> {

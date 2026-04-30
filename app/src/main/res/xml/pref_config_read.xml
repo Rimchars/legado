@@ -214,6 +214,13 @@
         app:iconSpaceReserved="false"
         app:isBottomBackground="true" />
 
+    <io.legado.app.lib.prefs.Preference
+        android:key="contentSelectMenuConfig"
+        android:summary="@string/content_select_menu_config_summary"
+        android:title="@string/content_select_menu_config"
+        app:iconSpaceReserved="false"
+        app:isBottomBackground="true" />
+
     <io.legado.app.lib.prefs.SwitchPreference
         android:defaultValue="true"
         android:key="showReadTitleAddition"

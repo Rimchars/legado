@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Looper
+import android.text.method.ScrollingMovementMethod
 import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -50,6 +51,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.help.ai.AiChatService
 import io.legado.app.help.source.getSourceType
 import io.legado.app.help.storage.Backup
 import io.legado.app.lib.dialogs.SelectItem
@@ -132,6 +134,8 @@ import io.legado.app.utils.sysScreenOffTime
 import io.legado.app.utils.throttle
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.visible
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.appcompat.widget.AppCompatTextView
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.Job
@@ -905,8 +909,54 @@ class ReadBookActivity : BaseReadBookActivity(),
                 showDialogFragment(DictDialog(selectedText))
                 return true
             }
+            R.id.menu_ask_ai -> {
+                askAiBySelection()
+                return true
+            }
+            R.id.menu_generate_image -> {
+                toastOnUi(R.string.generating_image_placeholder)
+                return true
+            }
         }
         return false
+    }
+
+    private fun askAiBySelection() {
+        val text = selectedText.trim()
+        if (text.isEmpty()) return
+        if (!AppConfig.aiAssistantEnabled) {
+            toastOnUi(R.string.ai_not_enabled)
+            return
+        }
+        val dialogText = AppCompatTextView(this).apply {
+            text = getString(R.string.dynamic_loading)
+            setTextColor(ReadBookConfig.textColor)
+            textSize = 15f
+            setPadding(16.dpToPx(), 14.dpToPx(), 16.dpToPx(), 14.dpToPx())
+            movementMethod = ScrollingMovementMethod()
+            maxLines = 12
+            minLines = 2
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.ai_reply)
+            .setView(dialogText)
+            .setPositiveButton(R.string.dialog_confirm, null)
+            .create()
+        dialog.show()
+        lifecycleScope.launch {
+            val result = runCatching {
+                AiChatService.chat(
+                    listOf(
+                        io.legado.app.ui.main.ai.AiChatMessage(
+                            role = io.legado.app.ui.main.ai.AiChatMessage.Role.USER,
+                            content = text
+                        )
+                    )
+                )
+            }.getOrElse { it.localizedMessage ?: it.toString() }
+            dialogText.text = result
+            dialog.window?.setGravity(Gravity.BOTTOM)
+        }
     }
 
     /**
