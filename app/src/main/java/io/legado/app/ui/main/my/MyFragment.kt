@@ -259,7 +259,7 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             return parts.joinToString(" ").lowercase()
         }
 
-        private fun collectPreferenceAttr(parser: XmlPullParser, attrName: String): String? {
+        private fun collectPreferenceAttr(parser: XmlResourceParser, attrName: String): String? {
             val namespace = "http://schemas.android.com/apk/res/android"
             val attrValue = parser.getAttributeValue(namespace, attrName)?.trim().orEmpty()
             if (attrValue.isBlank()) return null
