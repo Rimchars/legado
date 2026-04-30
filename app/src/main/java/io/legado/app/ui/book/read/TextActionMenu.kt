@@ -117,7 +117,7 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
 
     private fun filteredMenuItems(): List<MenuItemImpl> {
         return allMenuItems.filter { item ->
-            menuItemToActionId(item.itemId)?.let { configuredActionIds.contains(it) } ?: true
+            menuItemToActionId(item.itemId)?.let { configuredActionIds.contains(it) } ?: false
         }
     }
 
@@ -125,11 +125,7 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
         visibleMenuItems.clear()
         moreMenuItems.clear()
         val filteredItems = filteredMenuItems()
-        val visibleCount = minOf(5, filteredItems.size)
-        visibleMenuItems.addAll(filteredItems.subList(0, visibleCount))
-        if (filteredItems.size > visibleCount) {
-            moreMenuItems.addAll(filteredItems.subList(visibleCount, filteredItems.size))
-        }
+        visibleMenuItems.addAll(filteredItems)
         if (expandTextMenu) {
             adapter.setItems(filteredItems)
             binding.ivMenuMore.gone()

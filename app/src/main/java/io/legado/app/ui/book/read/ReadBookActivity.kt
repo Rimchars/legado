@@ -5,8 +5,6 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Looper
-import android.text.method.ScrollingMovementMethod
-import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.Menu
@@ -51,7 +49,6 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
 import io.legado.app.help.coroutine.Coroutine
-import io.legado.app.help.ai.AiChatService
 import io.legado.app.help.source.getSourceType
 import io.legado.app.help.storage.Backup
 import io.legado.app.lib.dialogs.SelectItem
@@ -134,10 +131,7 @@ import io.legado.app.utils.sysScreenOffTime
 import io.legado.app.utils.throttle
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.visible
-import io.legado.app.utils.dpToPx
-import androidx.appcompat.widget.AppCompatTextView
 import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -932,59 +926,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             toastOnUi(R.string.ai_not_enabled)
             return
         }
-        val dialogText = AppCompatTextView(this).apply {
-            text = getString(R.string.dynamic_loading)
-            setTextColor(ReadBookConfig.textColor)
-            textSize = 15f
-            setPadding(16.dpToPx(), 14.dpToPx(), 16.dpToPx(), 14.dpToPx())
-            movementMethod = ScrollingMovementMethod()
-            maxLines = 12
-            minLines = 2
-        }
-        val dialog = runCatching {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.ai_reply)
-                .setView(dialogText)
-                .setPositiveButton(R.string.dialog_confirm, null)
-                .create()
-        }.getOrElse {
-            toastOnUi(it.localizedMessage ?: it.toString())
-            return
-        }
-        runCatching {
-            dialog.show()
-        }.onFailure {
-            toastOnUi(it.localizedMessage ?: it.toString())
-            return
-        }
-        dialog.window?.setGravity(Gravity.BOTTOM)
-        val requestJob = lifecycleScope.launch {
-            val result = runCatching {
-                withContext(IO) {
-                    AiChatService.chatStream(
-                        messages = listOf(
-                            io.legado.app.ui.main.ai.AiChatMessage(
-                                role = io.legado.app.ui.main.ai.AiChatMessage.Role.USER,
-                                content = prompt
-                            )
-                        ),
-                        onPartial = { partial ->
-                            lifecycleScope.launch(Main.immediate) {
-                                if (partial.isNotBlank() && dialog.isShowing) {
-                                    dialogText.text = partial
-                                }
-                            }
-                        }
-                    )
-                }
-            }.getOrElse { it.localizedMessage ?: it.toString() }
-            if (dialog.isShowing) {
-                dialogText.text = result
-            }
-        }
-        dialog.setOnDismissListener {
-            requestJob.cancel()
-        }
+        showDialogFragment(AiSelectionDialog(prompt))
     }
 
     /**
