@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/tool_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:theme="?attr/actionBarStyle"
+        app:popupTheme="@style/AppTheme.PopupOverlay"
+        app:title="@string/content_select_menu_config"
+        app:titleTextAppearance="@style/ToolbarTitle" />
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fillViewport="false">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="16dp"
+            android:paddingTop="8dp"
+            android:paddingRight="16dp"
+            android:paddingBottom="8dp">
+
+            <io.legado.app.ui.widget.text.AccentTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:paddingBottom="6dp"
+                android:text="@string/content_select_actions"
+                android:textSize="15sp" />
+
+            <io.legado.app.lib.theme.view.ThemeCheckBox
+                android:id="@+id/cb_replace"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/replace" />
+
+            <io.legado.app.lib.theme.view.ThemeCheckBox
+                android:id="@+id/cb_copy"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/copy_text" />
+
+            <io.legado.app.lib.theme.view.ThemeCheckBox
+                android:id="@+id/cb_bookmark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bookmark" />
+
+            <io.legado.app.lib.theme.view.ThemeCheckBox
+                android:id="@+id/cb_aloud"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/read_aloud" />
+
+            <io.legado.app.lib.theme.view.ThemeCheckBox
+                android:id="@+id/cb_dict"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dict" />
+
+            <io.legado.app.lib.theme.view.ThemeCheckBox
+                android:id="@+id/cb_ask_ai"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/ask_ai" />
+
+            <io.legado.app.lib.theme.view.ThemeCheckBox
+                android:id="@+id/cb_generate_image"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/generate_image" />
+
+            <io.legado.app.ui.widget.text.AccentTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="12dp"
+                android:paddingBottom="6dp"
+                android:text="@string/content_select_default_open"
+                android:textSize="15sp" />
+
+            <RadioGroup
+                android:id="@+id/rg_default_open"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <io.legado.app.lib.theme.view.ThemeRadioButton
+                    android:id="@+id/rb_default_none"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/default_none" />
+
+                <io.legado.app.lib.theme.view.ThemeRadioButton
+                    android:id="@+id/rb_default_dict"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/default_dict" />
+
+                <io.legado.app.lib.theme.view.ThemeRadioButton
+                    android:id="@+id/rb_default_ask_ai"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/default_ask_ai" />
+
+                <io.legado.app.lib.theme.view.ThemeRadioButton
+                    android:id="@+id/rb_default_generate_image"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/default_generate_image" />
+
+            </RadioGroup>
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
+
+    <com.google.android.flexbox.FlexboxLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        app:justifyContent="flex_end">
+
+        <TextView
+            android:id="@+id/tv_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:text="@string/cancel"
+            android:textColor="@color/secondaryText"
+            tools:ignore="RtlHardcoded" />
+
+        <io.legado.app.ui.widget.text.AccentTextView
+            android:id="@+id/tv_ok"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:text="@string/ok"
+            tools:ignore="RtlHardcoded" />
+
+    </com.google.android.flexbox.FlexboxLayout>
+
+</LinearLayout>
