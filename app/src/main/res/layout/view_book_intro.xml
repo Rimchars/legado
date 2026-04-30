@@ -4,7 +4,7 @@
     android:id="@+id/tv_intro"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/bg_book_info_intro_panel"
+    android:background="@android:color/transparent"
     android:clickable="true"
     android:focusable="true"
     android:minHeight="48dp"
