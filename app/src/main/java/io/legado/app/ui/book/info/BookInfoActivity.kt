@@ -138,7 +138,7 @@ class BookInfoActivity :
     }
 
     private enum class DetailPage {
-        INTRO, TOC, INFO
+        INTRO, TOC
     }
 
     private val tocBatchSize = 30
@@ -841,7 +841,6 @@ class BookInfoActivity :
     private fun initDetailTabs() = binding.run {
         tvTabIntro.setOnClickListener { showDetailPage(DetailPage.INTRO) }
         tvTabToc.setOnClickListener { showDetailPage(DetailPage.TOC) }
-        tvTabInfo.setOnClickListener { showDetailPage(DetailPage.INFO) }
         tocScrollView.setOnScrollChangeListener { view, _, scrollY, _, _ ->
             val child = tocScrollView.getChildAt(0) ?: return@setOnScrollChangeListener
             if (scrollY + view.height >= child.height - 48.dpToPx()) {
@@ -880,8 +879,7 @@ class BookInfoActivity :
     private fun DetailPage.nextPage(): DetailPage {
         return when (this) {
             DetailPage.INTRO -> DetailPage.TOC
-            DetailPage.TOC -> DetailPage.INFO
-            DetailPage.INFO -> DetailPage.INFO
+            DetailPage.TOC -> DetailPage.TOC
         }
     }
 
@@ -889,7 +887,6 @@ class BookInfoActivity :
         return when (this) {
             DetailPage.INTRO -> DetailPage.INTRO
             DetailPage.TOC -> DetailPage.INTRO
-            DetailPage.INFO -> DetailPage.TOC
         }
     }
 
@@ -897,13 +894,10 @@ class BookInfoActivity :
         detailPage = page
         llIntroPage.visibility = if (page == DetailPage.INTRO) android.view.View.VISIBLE else android.view.View.GONE
         llTocPage.visibility = if (page == DetailPage.TOC) android.view.View.VISIBLE else android.view.View.GONE
-        llInfoPage.visibility = if (page == DetailPage.INFO) android.view.View.VISIBLE else android.view.View.GONE
         tvTabIntro.isSelected = page == DetailPage.INTRO
         tvTabToc.isSelected = page == DetailPage.TOC
-        tvTabInfo.isSelected = page == DetailPage.INFO
         tvTabIntro.setTextColor(if (page == DetailPage.INTRO) accentColor else secondaryTextColor)
         tvTabToc.setTextColor(if (page == DetailPage.TOC) accentColor else secondaryTextColor)
-        tvTabInfo.setTextColor(if (page == DetailPage.INFO) accentColor else secondaryTextColor)
         if (page == DetailPage.TOC) {
             renderTocPreview(viewModel.chapterListData.value)
         }
@@ -924,6 +918,7 @@ class BookInfoActivity :
             .coerceAtLeast(0)
         tocRenderedCount = (currentPosition - tocBatchSize / 2).coerceAtLeast(0)
         appendTocPreviewBatch()
+        centerCurrentTocItem(currentBook.durChapterIndex)
     }
 
     private fun appendTocPreviewBatch() = binding.run {
@@ -939,6 +934,7 @@ class BookInfoActivity :
         val nextCount = (tocRenderedCount + tocBatchSize).coerceAtMost(chapters.size)
         chapters.subList(tocRenderedCount, nextCount).forEach { chapter ->
             llTocPreview.addView(tocPreviewText(chapter.title, chapter.index == currentIndex).apply {
+                tag = chapter.index
                 setOnClickListener { openChapterDirect(chapter) }
             })
         }
@@ -949,6 +945,17 @@ class BookInfoActivity :
                 setTextColor(accentColor)
                 setOnClickListener { openChapterListSafely() }
             })
+        }
+    }
+
+    private fun centerCurrentTocItem(currentIndex: Int) = binding.run {
+        tocScrollView.post {
+            val targetView = (0 until llTocPreview.childCount)
+                .asSequence()
+                .map(llTocPreview::getChildAt)
+                .firstOrNull { it.tag == currentIndex } ?: return@post
+            val targetTop = targetView.top - (tocScrollView.height - targetView.height) / 2
+            tocScrollView.smoothScrollTo(0, targetTop.coerceAtLeast(0))
         }
     }
 
