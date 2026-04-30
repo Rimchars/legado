@@ -134,6 +134,7 @@ import io.legado.app.utils.sysScreenOffTime
 import io.legado.app.utils.throttle
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.visible
+import io.legado.app.utils.dpToPx
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.widget.AppCompatTextView
 import kotlinx.coroutines.Dispatchers.IO
@@ -922,8 +923,8 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     private fun askAiBySelection() {
-        val text = selectedText.trim()
-        if (text.isEmpty()) return
+        val prompt = selectedText.trim()
+        if (prompt.isEmpty()) return
         if (!AppConfig.aiAssistantEnabled) {
             toastOnUi(R.string.ai_not_enabled)
             return
@@ -949,7 +950,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                     listOf(
                         io.legado.app.ui.main.ai.AiChatMessage(
                             role = io.legado.app.ui.main.ai.AiChatMessage.Role.USER,
-                            content = text
+                            content = prompt
                         )
                     )
                 )
