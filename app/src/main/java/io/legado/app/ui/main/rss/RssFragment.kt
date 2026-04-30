@@ -48,7 +48,9 @@ import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
 import io.legado.app.utils.openUrl
+import io.legado.app.utils.navigationBarHeight
 import io.legado.app.utils.setEdgeEffectColor
+import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
@@ -104,7 +106,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
         binding.titleBar.applyStatusBarPadding(withInitialPadding = true)
-        binding.rssWebContainer.applyMainBottomBarPadding(withInitialPadding = true)
+        applyWebContainerBottomPadding()
         initSearchView()
         initGroupData()
         applyRssMode()
@@ -240,6 +242,9 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.btnRssSourceStar.setOnClickListener {
             startActivity<RssFavoritesActivity>()
         }
+        binding.btnRssSourceRefresh.setOnClickListener {
+            refreshCurrentRssContent(forceWebRefresh = true)
+        }
         binding.btnRssSourceSearch.setOnClickListener {
             openRssSearch()
         }
@@ -257,6 +262,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         val actionsWidth = listOf(
             binding.btnRssSourceSearch,
             binding.btnRssSourceStar,
+            binding.btnRssSourceRefresh,
             binding.btnRssSourceLogin
         ).filter { it.isVisible }.sumOf { it.measuredWidth.takeIf { width -> width > 0 } ?: it.layoutParams.width }
         val spacing = 36.dpToPx()
@@ -364,6 +370,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.tvRssSourceSelect.text = source.sourceName
         binding.btnRssSourceLogin.isVisible = !source.loginUrl.isNullOrBlank()
         binding.btnRssSourceSearch.isVisible = !source.searchUrl.isNullOrBlank()
+        binding.btnRssSourceRefresh.isVisible = source.ruleArticles.isNullOrBlank()
         binding.llRssSourceRow.post(::updateRssSourceNameWidth)
         if (changed) {
             selectedTagIndex = 0
@@ -423,6 +430,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             renderEmptyState()
             return
         }
+        binding.swipeRefreshLayout.isEnabled = true
         selectedTagIndex = selectedTagIndex.coerceIn(0, currentSorts.lastIndex)
         binding.rvRssTags.setSelectedIndex(selectedTagIndex, smooth = false)
         val sort = currentSorts[selectedTagIndex]
@@ -443,6 +451,8 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private fun renderWebSource(source: RssSource) {
         webSourceVersion += 1
         val currentVersion = webSourceVersion
+        binding.swipeRefreshLayout.isRefreshing = false
+        binding.swipeRefreshLayout.isEnabled = false
         binding.recyclerView.gone()
         binding.rssFragmentContainer.gone()
         binding.rssWebContainer.visible()
@@ -462,7 +472,6 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             binding.rssWebContainer.addView(created)
             rssWebView = created
         }
-        binding.rssWebContainer.applyMainBottomBarPadding(withInitialPadding = true)
         webView.settings.javaScriptEnabled = source.enableJs
         webView.settings.loadWithOverviewMode = true
         webView.settings.useWideViewPort = true
@@ -515,13 +524,16 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         }
     }
 
-    private fun refreshCurrentRssContent() {
+    private fun refreshCurrentRssContent(forceWebRefresh: Boolean = false) {
         if (!usingModernRss) {
             observeClassicRssSources(searchView.query?.toString())
             return
         }
         selectedRssSource?.let { source ->
             if (source.ruleArticles.isNullOrBlank()) {
+                if (forceWebRefresh) {
+                    lastRenderedWebSourceUrl = null
+                }
                 renderWebSource(source)
             } else {
                 viewLifecycleOwner.lifecycleScope.launch {
@@ -540,12 +552,28 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.tvRssSourceSelect.text = getString(R.string.rss)
         binding.btnRssSourceLogin.gone()
         binding.btnRssSourceSearch.gone()
+        binding.btnRssSourceRefresh.gone()
+        binding.swipeRefreshLayout.isEnabled = true
         binding.rvRssTags.gone()
         binding.recyclerView.gone()
         binding.rssFragmentContainer.gone()
         binding.rssWebContainer.gone()
         binding.pbRssLoading.gone()
         binding.tvEmptyMsg.visible()
+    }
+
+    private fun applyWebContainerBottomPadding() {
+        val initialPadding = binding.rssWebContainer.paddingBottom
+        val webBottomSpace = resources.getDimensionPixelSize(R.dimen.main_web_content_bottom_bar_padding)
+        binding.rssWebContainer.setOnApplyWindowInsetsListenerCompat { view, windowInsets ->
+            view.setPadding(
+                view.paddingLeft,
+                view.paddingTop,
+                view.paddingRight,
+                initialPadding + windowInsets.navigationBarHeight + webBottomSpace
+            )
+            windowInsets
+        }
     }
 
     private fun showSourceSelector() {

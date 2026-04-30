@@ -111,6 +111,22 @@
                     android:layout_height="1dp" />
 
                 <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btn_rss_source_refresh"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="@drawable/bg_discover_embedded_action"
+                    android:contentDescription="@string/refresh"
+                    android:padding="8dp"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/ic_refresh_black_24dp"
+                    android:tint="@color/primaryText"
+                    android:visibility="gone" />
+
+                <Space
+                    android:layout_width="10dp"
+                    android:layout_height="1dp" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/btn_rss_source_login"
                     android:layout_width="34dp"
                     android:layout_height="34dp"
