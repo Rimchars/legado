@@ -75,12 +75,15 @@ class AudioPlayViewModel(application: Application) : BaseViewModel(application) 
         try {
             val oldBook = book.copy()
             val cList = WebBook.getChapterListAwait(bookSource, book).getOrThrow()
+            val oldChapterList = appDb.bookChapterDao.getChapterList(oldBook.bookUrl)
+            BookHelp.remapContentCache(oldBook, oldChapterList, cList)
             if (oldBook.bookUrl == book.bookUrl) {
                 appDb.bookDao.update(book)
             } else {
                 appDb.bookDao.replace(oldBook, book)
+                BookHelp.updateCacheFolder(oldBook, book)
             }
-            appDb.bookChapterDao.delByBook(book.bookUrl)
+            appDb.bookChapterDao.delByBook(oldBook.bookUrl)
             appDb.bookChapterDao.insert(*cList.toTypedArray())
             AudioPlay.chapterSize = cList.size
             AudioPlay.simulatedChapterSize = book.simulatedTotalChapterNum()

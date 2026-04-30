@@ -476,6 +476,8 @@ object ReadManga : CoroutineScope by MainScope() {
         WebBook.getChapterList(this, bookSource, book).onSuccess(IO) { cList ->
             ensureActive()
             if (cList.size > chapterSize) {
+                val oldChapterList = appDb.bookChapterDao.getChapterList(oldBook.bookUrl)
+                BookHelp.remapContentCache(oldBook, oldChapterList, cList)
                 if (oldBook.bookUrl == book.bookUrl) {
                     appDb.bookDao.update(book)
                 } else {
