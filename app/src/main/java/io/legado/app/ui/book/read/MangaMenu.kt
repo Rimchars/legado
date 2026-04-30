@@ -158,7 +158,7 @@ class MangaMenu @JvmOverloads constructor(
             callBack.openBookInfoActivity()
         }
         val chapterViewClickListener = OnClickListener {
-            val url = tvChapterUrl.text.toString().substringBefore(",{").trim()
+            val url = tvChapterUrl.text.toString().trim()
             if (url.isBlank()) return@OnClickListener
             context.startActivity<WebViewActivity> {
                 val bookSource = ReadBook.bookSource
@@ -170,7 +170,7 @@ class MangaMenu @JvmOverloads constructor(
             }
         }
         val chapterViewLongClickListener = OnLongClickListener {
-            val url = tvChapterUrl.text.toString().substringBefore(",{").trim()
+            val url = tvChapterUrl.text.toString().trim()
             if (url.isNotBlank()) {
                 context.alert(R.string.open_fun) {
                     setMessage(R.string.use_browser_open)
