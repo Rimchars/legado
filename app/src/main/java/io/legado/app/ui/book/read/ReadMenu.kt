@@ -687,20 +687,20 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun getChapterUrlForOpen(): String? {
-        val url = currentChapterUrl?.substringBefore(",{")?.trim().orEmpty()
-        return url.takeIf { it.isNotBlank() && !it.startsWith("data:", true) }
+        val url = currentChapterUrl?.trim().orEmpty()
+        return url.takeIf { it.isNotBlank() }
     }
 
     private fun resolveChapterUrl(chapter: io.legado.app.data.entities.BookChapter): String? {
         val candidates = listOf(
-            runCatching { chapter.getAbsoluteURL() }.getOrNull(),
             chapter.url,
+            runCatching { chapter.getAbsoluteURL() }.getOrNull(),
             chapter.baseUrl,
             ReadBook.book?.bookUrl
         )
         return candidates.asSequence()
-            .mapNotNull { it?.substringBefore(",{")?.trim() }
-            .firstOrNull { it.isNotBlank() && !it.startsWith("data:", true) }
+            .mapNotNull { it?.trim() }
+            .firstOrNull { it.isNotBlank() }
     }
 
     fun upSeekBar() {
