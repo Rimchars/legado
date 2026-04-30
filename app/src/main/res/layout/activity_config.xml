@@ -12,30 +12,10 @@
         app:layout_constraintTop_toTopOf="parent"
         app:title="设置" />
 
-    <io.legado.app.ui.widget.SearchView
-        android:id="@+id/search_view"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:layout_marginStart="12dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="12dp"
-        android:layout_marginBottom="8dp"
-        android:background="@drawable/bg_searchview"
-        android:focusable="false"
-        android:imeOptions="actionSearch"
-        android:theme="?attr/actionBarStyle"
-        app:defaultQueryHint="搜索设置"
-        app:iconifiedByDefault="false"
-        app:queryBackground="@null"
-        app:searchHintIcon="@drawable/ic_search_hint"
-        app:searchIcon="@null"
-        app:submitBackground="@null" />
-
     <LinearLayout
         android:id="@+id/configFrameLayout"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="match_parent"
         android:orientation="vertical" />
 
 </LinearLayout>

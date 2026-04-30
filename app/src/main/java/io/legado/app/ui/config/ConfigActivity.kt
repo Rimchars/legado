@@ -4,7 +4,6 @@ import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.fragment.app.Fragment
-import androidx.appcompat.widget.SearchView
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.EventBus
@@ -17,11 +16,9 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
 
     override val binding by viewBinding(ActivityConfigBinding::inflate)
     override val viewModel by viewModels<ConfigViewModel>()
-    private var currentSearchQuery: String = ""
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         applyHeaderColors()
-        initSearchView()
         when (val configTag = intent.getStringExtra("configTag")) {
             ConfigTag.OTHER_CONFIG -> replaceFragment(configTag, OtherConfigFragment::class.java)
             ConfigTag.THEME_CONFIG -> replaceFragment(configTag, ThemeConfigFragment::class.java)
@@ -51,8 +48,6 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
         supportFragmentManager.beginTransaction()
             .replace(R.id.configFrameLayout, configFragment, configTag)
             .commit()
-        supportFragmentManager.executePendingTransactions()
-        applySearchQuery(currentSearchQuery)
     }
 
     override fun observeLiveBus() {
@@ -67,32 +62,6 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
         binding.titleBar.setColorFilter(primaryTextColor)
         binding.titleBar.setBackgroundColor(Color.TRANSPARENT)
         binding.titleBar.elevation = 0f
-    }
-
-    private fun initSearchView() {
-        binding.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                currentSearchQuery = query.orEmpty()
-                applySearchQuery(currentSearchQuery)
-                return true
-            }
-
-            override fun onQueryTextChange(newText: String?): Boolean {
-                currentSearchQuery = newText.orEmpty()
-                applySearchQuery(currentSearchQuery)
-                return true
-            }
-        })
-        binding.searchView.setOnCloseListener {
-            currentSearchQuery = ""
-            applySearchQuery("")
-            false
-        }
-    }
-
-    private fun applySearchQuery(query: String) {
-        (supportFragmentManager.findFragmentById(R.id.configFrameLayout) as? io.legado.app.lib.prefs.fragment.PreferenceFragment)
-            ?.filterPreferences(query)
     }
 
 }

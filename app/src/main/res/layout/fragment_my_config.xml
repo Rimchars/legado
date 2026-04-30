@@ -12,6 +12,8 @@
         app:attachToActivity="false"
         app:title="@string/my" />
 
+    <include layout="@layout/view_search" />
+
     <LinearLayout
         android:id="@+id/pre_fragment"
         android:layout_width="match_parent"
