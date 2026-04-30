@@ -88,6 +88,12 @@
         app:layout="@layout/view_preference_category">
 
         <io.legado.app.lib.prefs.Preference
+            android:key="contentSelectMenuConfig"
+            android:summary="@string/content_select_menu_config_summary"
+            android:title="@string/content_select_menu_config"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
             android:key="localPassword"
             android:summary="@string/set_local_password_summary"
             android:title="@string/set_local_password" />

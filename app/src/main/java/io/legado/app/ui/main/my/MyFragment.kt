@@ -111,9 +111,17 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
     class MyPreferenceFragment : PreferenceFragment(),
         SharedPreferences.OnSharedPreferenceChangeListener {
 
-        private val extraSearchText by lazy(LazyThreadSafetyMode.NONE) {
-            buildExtraSearchText()
+        private data class SubSearchItem(
+            val ownerKey: String,
+            val title: String,
+            val summary: String,
+            val key: String,
+        ) {
+            val searchText: String = listOf(title, summary, key).joinToString(" ").lowercase()
         }
+
+        private val subSearchItems by lazy(LazyThreadSafetyMode.NONE) { buildSubSearchItems() }
+        private val originalSummaries = hashMapOf<String, CharSequence?>()
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             putPrefBoolean(PreferKey.webService, WebService.isRun)
@@ -186,6 +194,7 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             val keyword = query?.trim().orEmpty().lowercase()
             val root = preferenceScreen ?: return
             if (keyword.isBlank()) {
+                restoreMainSummaries(root)
                 resetVisibility(root)
                 return
             }
@@ -223,40 +232,80 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             val titleText = preference.title?.toString().orEmpty().lowercase()
             val summaryText = preference.summary?.toString().orEmpty().lowercase()
             val keyText = key.lowercase()
-            val extraText = extraSearchText[key].orEmpty()
+            val matchedSubItems = subSearchItems
+                .filter { it.ownerKey == key && it.searchText.contains(keyword) }
+            updateSearchSummary(preference, matchedSubItems)
             return titleText.contains(keyword)
                 || summaryText.contains(keyword)
                 || keyText.contains(keyword)
-                || extraText.contains(keyword)
+                || matchedSubItems.isNotEmpty()
         }
 
-        private fun buildExtraSearchText(): Map<String, String> {
-            return mapOf(
-                "theme_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_theme),
-                "web_dav_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_backup),
-                "coverConfig" to buildPreferenceXmlSearchText(R.xml.pref_config_cover),
-                "ai_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_ai),
-                "setting" to buildPreferenceXmlSearchText(R.xml.pref_config_other)
-            )
+        private fun buildSubSearchItems(): List<SubSearchItem> {
+            return listOf(
+                "theme_setting" to R.xml.pref_config_theme,
+                "web_dav_setting" to R.xml.pref_config_backup,
+                "coverConfig" to R.xml.pref_config_cover,
+                "ai_setting" to R.xml.pref_config_ai,
+                "setting" to R.xml.pref_config_other,
+                "setting" to R.xml.pref_config_read
+            ).flatMap { (ownerKey, xmlRes) ->
+                buildPreferenceXmlSearchItems(ownerKey, xmlRes)
+            }
         }
 
-        private fun buildPreferenceXmlSearchText(xmlRes: Int): String {
-            val parts = linkedSetOf<String>()
+        private fun buildPreferenceXmlSearchItems(ownerKey: String, xmlRes: Int): List<SubSearchItem> {
+            val items = ArrayList<SubSearchItem>()
             val parser: XmlResourceParser = resources.getXml(xmlRes)
             try {
                 var eventType = parser.eventType
                 while (eventType != XmlPullParser.END_DOCUMENT) {
                     if (eventType == XmlPullParser.START_TAG) {
-                        collectPreferenceAttr(parser, "title")?.let(parts::add)
-                        collectPreferenceAttr(parser, "summary")?.let(parts::add)
-                        collectPreferenceAttr(parser, "key")?.let(parts::add)
+                        val title = collectPreferenceAttr(parser, "title").orEmpty()
+                        val key = collectPreferenceAttr(parser, "key").orEmpty()
+                        if (title.isNotBlank() && key.isNotBlank()) {
+                            items.add(
+                                SubSearchItem(
+                                    ownerKey = ownerKey,
+                                    title = title,
+                                    summary = collectPreferenceAttr(parser, "summary").orEmpty(),
+                                    key = key
+                                )
+                            )
+                        }
                     }
                     eventType = parser.next()
                 }
             } finally {
                 parser.close()
             }
-            return parts.joinToString(" ").lowercase()
+            return items
+        }
+
+        private fun updateSearchSummary(preference: Preference, matchedItems: List<SubSearchItem>) {
+            val key = preference.key ?: return
+            if (!originalSummaries.containsKey(key)) {
+                originalSummaries[key] = preference.summary
+            }
+            preference.summary = if (matchedItems.isEmpty()) {
+                originalSummaries[key]
+            } else {
+                matchedItems.take(3).joinToString(" / ") { it.title }
+            }
+        }
+
+        private fun restoreMainSummaries(group: PreferenceGroup) {
+            for (index in 0 until group.preferenceCount) {
+                val preference = group.getPreference(index)
+                preference.key?.let { key ->
+                    if (originalSummaries.containsKey(key)) {
+                        preference.summary = originalSummaries[key]
+                    }
+                }
+                if (preference is PreferenceGroup) {
+                    restoreMainSummaries(preference)
+                }
+            }
         }
 
         private fun collectPreferenceAttr(parser: XmlResourceParser, attrName: String): String? {

@@ -29,6 +29,7 @@ import io.legado.app.model.ImageProvider
 import io.legado.app.receiver.SharedReceiverActivity
 import io.legado.app.service.WebService
 import io.legado.app.ui.file.HandleFileContract
+import io.legado.app.ui.book.read.config.ContentSelectMenuConfigDialog
 import io.legado.app.ui.video.config.SettingsDialog
 import io.legado.app.ui.widget.code.addJsonPattern
 import io.legado.app.ui.widget.number.NumberPickerDialog
@@ -133,6 +134,8 @@ class OtherConfigFragment : PreferenceFragment(),
                 }
 
             PreferKey.cleanCache -> clearCache()
+            PreferKey.contentSelectMenuConfig -> ContentSelectMenuConfigDialog()
+                .show(parentFragmentManager, "contentSelectMenuConfig")
             PreferKey.uploadRule -> showDialogFragment<DirectLinkUploadConfig>()
             PreferKey.checkSource -> showDialogFragment<CheckSourceConfig>()
             PreferKey.bitmapCacheSize -> {
