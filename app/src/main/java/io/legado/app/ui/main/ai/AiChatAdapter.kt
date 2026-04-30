@@ -209,12 +209,18 @@ class AiChatAdapter(
 
     private fun createToolSummaryView(events: List<ToolEventCard>): View {
         val allSuccess = events.all { it.success }
-        val summary = events.joinToString("、") { it.name.ifBlank { "工具" } }
+        val summary = events.joinToString("、") { it.name.ifBlank { context.getString(R.string.ai_tool_default_name) } }
         val detail = events.joinToString("\n\n") { event ->
             buildString {
-                append(event.name.ifBlank { "工具" })
+                append(event.name.ifBlank { context.getString(R.string.ai_tool_default_name) })
                 append('\n')
-                append(event.content.trim().ifBlank { if (event.success) "已完成" else "调用失败" })
+                append(
+                    event.content.trim().ifBlank {
+                        context.getString(
+                            if (event.success) R.string.ai_tool_status_done else R.string.ai_tool_status_failed
+                        )
+                    }
+                )
             }
         }
         val row = LinearLayout(context).apply {

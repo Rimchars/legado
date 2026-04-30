@@ -60,19 +60,21 @@ class EpubFile(var book: Book) {
         private const val NATIVE_LAYOUT_DISK_CACHE_VERSION = 1
         private const val ENABLE_EPUB_DEBUG_DUMP = false
         private const val SMALL_EPUB_TEXT_PRELOAD_LIMIT = 12L * 1024L * 1024L
-        private const val MAX_NATIVE_DOM_CACHE = 600
-        private const val MAX_NATIVE_LAYOUT_CACHE = 1200
+        private val maxNativeDomCache: Int
+            get() = if (Runtime.getRuntime().maxMemory() <= 256L * 1024L * 1024L) 160 else 320
+        private val maxNativeLayoutCache: Int
+            get() = if (Runtime.getRuntime().maxMemory() <= 256L * 1024L * 1024L) 320 else 640
         private var eFile: EpubFile? = null
         private val preloadExecutor = Executors.newSingleThreadExecutor()
         private val preloadedNativeLayoutKeys = linkedSetOf<String>()
         private val globalNativeDomCache = object : LinkedHashMap<String, EpubDomDocument>(32, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, EpubDomDocument>?): Boolean {
-                return size > MAX_NATIVE_DOM_CACHE
+                return size > maxNativeDomCache
             }
         }
         private val globalNativeLayoutCache = object : LinkedHashMap<String, EpubLayoutDocument>(32, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, EpubLayoutDocument>?): Boolean {
-                return size > MAX_NATIVE_LAYOUT_CACHE
+                return size > maxNativeLayoutCache
             }
         }
 
@@ -1061,7 +1063,7 @@ class EpubFile(var book: Book) {
         renderedHtml: String
     ) {
         runCatching {
-            val root = File(FileUtils.getSdCardPath(), "Download/阅读Archive/epub-debug")
+            val root = File(appCtx.cacheDir, "epub-debug")
             val bookDirName = book.name
                 .ifBlank { book.originName }
                 .replace(Regex("[\\\\/:*?\"<>|]"), "_")
