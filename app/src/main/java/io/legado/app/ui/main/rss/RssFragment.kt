@@ -564,7 +564,10 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     private fun applyWebContainerBottomPadding() {
         val initialPadding = binding.rssWebContainer.paddingBottom
-        val webBottomSpace = resources.getDimensionPixelSize(R.dimen.main_web_content_bottom_bar_padding)
+        val webBottomSpace =
+            resources.getDimensionPixelSize(R.dimen.main_bottom_controls_bottom_padding) +
+                resources.getDimensionPixelSize(R.dimen.main_bottom_bar_height) +
+                5.dpToPx()
         binding.rssWebContainer.setOnApplyWindowInsetsListenerCompat { view, windowInsets ->
             view.setPadding(
                 view.paddingLeft,
