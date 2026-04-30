@@ -173,7 +173,7 @@ object AiChatService {
                         put("kind", "tool")
                         put("name", toolCall.name)
                         put("stage", "call")
-                        put("label", "调用中")
+                        put("label", appCtx.getString(R.string.ai_tool_status_calling))
                         put("content", toolCall.arguments)
                         put("success", true)
                     }
@@ -203,7 +203,12 @@ object AiChatService {
                         put("kind", "tool")
                         put("name", toolCall.name)
                         put("stage", "result")
-                        put("label", if (resultSuccess) "调用完成" else "调用失败")
+                        put(
+                            "label",
+                            appCtx.getString(
+                                if (resultSuccess) R.string.ai_tool_status_done else R.string.ai_tool_status_failed
+                            )
+                        )
                         put("content", result)
                         put("success", resultSuccess)
                     }
@@ -219,7 +224,7 @@ object AiChatService {
             put("role", "system")
             put(
                 "content",
-                "工具调用轮次已达到上限。现在不要继续调用任何工具，请基于已经获得的工具结果，直接总结当前完成情况、剩余问题和下一步建议。"
+                appCtx.getString(R.string.ai_tool_round_limit_system_prompt)
             )
         }
         val finalTurn = requestCompletionStream(

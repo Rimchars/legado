@@ -307,12 +307,12 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         touch(x, y) { _, textPos, textPage, textLine, column ->
             when (column) {
                 is ButtonColumn -> {
-                    context.toastOnUi("Button Pressed!")
+                    context.toastOnUi(R.string.epub_button_pressed)
                     handled = true
                 }
 
                 is ReviewColumn -> {
-                    context.toastOnUi("Button Pressed!")
+                    context.toastOnUi(R.string.epub_button_pressed)
                     handled = true
                 }
 
@@ -362,7 +362,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 is TextHtmlColumn -> {
                     column.linkUrl?.let {
                         if (it.startsWith(EPUB_MEDIA_LINK_PREFIX)) {
-                            context.toastOnUi("EPUB内嵌媒体已识别，当前原生阅读页暂不直接播放")
+                            context.toastOnUi(R.string.epub_media_not_supported)
                         } else {
                             activity?.startActivity<OpenUrlConfirmActivity> {
                                 putExtra("uri", it)
@@ -404,7 +404,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             post {
                 if (note == null) {
                     AppLog.put("EPUB Footnote resolve failed: href=$href")
-                    context.toastOnUi("注解加载失败")
+                    context.toastOnUi(R.string.epub_footnote_load_failed)
                 } else {
                     val textView = TextView(context).apply {
                         textSize = 15f

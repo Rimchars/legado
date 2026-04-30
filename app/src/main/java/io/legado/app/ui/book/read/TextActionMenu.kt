@@ -163,60 +163,25 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
                 return
             }
         }
-        if (expandTextMenu) {
-            when {
-                startTopY > 500 -> {
-                    showAtLocation(
-                        view,
-                        Gravity.BOTTOM or Gravity.START,
-                        startX,
-                        windowHeight - startTopY
-                    )
-                }
-
-                endBottomY - startBottomY > 500 -> {
-                    showAtLocation(view, Gravity.TOP or Gravity.START, startX, startBottomY)
-                }
-
-                else -> {
-                    showAtLocation(view, Gravity.TOP or Gravity.START, endX, endBottomY)
-                }
-            }
+        contentView.measure(
+            View.MeasureSpec.UNSPECIFIED,
+            View.MeasureSpec.UNSPECIFIED,
+        )
+        val popupWidth = contentView.measuredWidth
+        val popupHeight = contentView.measuredHeight
+        val margin = 8.dpToPx()
+        val spaceAbove = startTopY
+        val spaceBelow = windowHeight - endBottomY
+        val showAbove = spaceAbove >= popupHeight + margin || spaceAbove > spaceBelow
+        val preferredX = if (showAbove) startX else endX
+        val maxX = (view.width - popupWidth - margin).coerceAtLeast(margin)
+        val x = preferredX.coerceIn(margin, maxX)
+        val y = if (showAbove) {
+            (startTopY - popupHeight - margin).coerceAtLeast(margin)
         } else {
-            contentView.measure(
-                View.MeasureSpec.UNSPECIFIED,
-                View.MeasureSpec.UNSPECIFIED,
-            )
-            val popupHeight = contentView.measuredHeight
-            when {
-                startBottomY > 500 -> {
-                    showAtLocation(
-                        view,
-                        Gravity.TOP or Gravity.START,
-                        startX,
-                        startTopY - popupHeight
-                    )
-                }
-
-                endBottomY - startBottomY > 500 -> {
-                    showAtLocation(
-                        view,
-                        Gravity.TOP or Gravity.START,
-                        startX,
-                        startBottomY
-                    )
-                }
-
-                else -> {
-                    showAtLocation(
-                        view,
-                        Gravity.TOP or Gravity.START,
-                        endX,
-                        endBottomY
-                    )
-                }
-            }
+            (endBottomY + margin).coerceAtMost((windowHeight - popupHeight - margin).coerceAtLeast(margin))
         }
+        showAtLocation(view, Gravity.TOP or Gravity.START, x, y)
     }
 
     inner class Adapter(context: Context) :
@@ -253,10 +218,10 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
             holder.itemView.setOnLongClickListener {
                 if (AppConfig.contentSelectSpeakMod == 0) {
                     AppConfig.contentSelectSpeakMod = 1
-                    context.toastOnUi("切换为从选择的地方开始一直朗读")
+                    context.toastOnUi(R.string.content_select_speak_from_selection)
                 } else {
                     AppConfig.contentSelectSpeakMod = 0
-                    context.toastOnUi("切换为朗读选择内容")
+                    context.toastOnUi(R.string.content_select_speak_selected)
                 }
                 true
             }
