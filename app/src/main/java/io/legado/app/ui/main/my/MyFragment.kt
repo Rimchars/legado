@@ -8,7 +8,6 @@ import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.widget.SearchView
 import androidx.preference.Preference
-import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
 import io.legado.app.R
 import io.legado.app.base.BaseFragment
@@ -26,7 +25,6 @@ import io.legado.app.ui.about.AboutActivity
 import io.legado.app.ui.about.ReadRecordActivity
 import io.legado.app.ui.book.bookmark.AllBookmarkActivity
 import io.legado.app.ui.book.source.manage.BookSourceActivity
-import io.legado.app.ui.book.read.config.ContentSelectMenuConfigDialog
 import io.legado.app.ui.book.toc.rule.TxtTocRuleActivity
 import io.legado.app.ui.config.ConfigActivity
 import io.legado.app.ui.config.ConfigTag
@@ -113,33 +111,8 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
     class MyPreferenceFragment : PreferenceFragment(),
         SharedPreferences.OnSharedPreferenceChangeListener {
 
-        private data class SubSearchItem(
-            val key: String,
-            val title: String,
-            val summary: String,
-            val configTag: String,
-        )
-
-        private data class SubSearchSource(
-            val ownerKey: String,
-            val xmlRes: Int,
-            val configTag: String,
-        )
-
-        private val subSearchSources = listOf(
-            SubSearchSource("theme_setting", R.xml.pref_config_theme, ConfigTag.THEME_CONFIG),
-            SubSearchSource("web_dav_setting", R.xml.pref_config_backup, ConfigTag.BACKUP_CONFIG),
-            SubSearchSource("coverConfig", R.xml.pref_config_cover, ConfigTag.COVER_CONFIG),
-            SubSearchSource("ai_setting", R.xml.pref_config_ai, ConfigTag.AI_CONFIG),
-            SubSearchSource("setting", R.xml.pref_config_other, ConfigTag.OTHER_CONFIG),
-            SubSearchSource("contentSelectMenuConfigGlobal", R.xml.pref_config_read, ConfigTag.OTHER_CONFIG),
-        )
-
         private val extraSearchText by lazy(LazyThreadSafetyMode.NONE) {
             buildExtraSearchText()
-        }
-        private val subSearchItems by lazy(LazyThreadSafetyMode.NONE) {
-            buildSubSearchItems()
         }
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -213,12 +186,10 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             val keyword = query?.trim().orEmpty().lowercase()
             val root = preferenceScreen ?: return
             if (keyword.isBlank()) {
-                clearSearchResultCategory(root)
                 resetVisibility(root)
                 return
             }
             filterMainGroup(root, keyword)
-            showSearchResultCategory(root, keyword)
         }
 
         private fun filterMainGroup(group: PreferenceGroup, keyword: String): Boolean {
@@ -260,9 +231,13 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
         }
 
         private fun buildExtraSearchText(): Map<String, String> {
-            return subSearchSources.associate { source ->
-                source.ownerKey to buildPreferenceXmlSearchText(source.xmlRes)
-            }
+            return mapOf(
+                "theme_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_theme),
+                "web_dav_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_backup),
+                "coverConfig" to buildPreferenceXmlSearchText(R.xml.pref_config_cover),
+                "ai_setting" to buildPreferenceXmlSearchText(R.xml.pref_config_ai),
+                "setting" to buildPreferenceXmlSearchText(R.xml.pref_config_other)
+            )
         }
 
         private fun buildPreferenceXmlSearchText(xmlRes: Int): String {
@@ -296,81 +271,6 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             }
         }
 
-        private fun buildSubSearchItems(): List<SubSearchItem> {
-            return subSearchSources.flatMap { source ->
-                parsePreferenceItems(source.xmlRes).map { item ->
-                    item.copy(configTag = source.configTag)
-                }
-            }
-        }
-
-        private fun parsePreferenceItems(xmlRes: Int): List<SubSearchItem> {
-            val items = ArrayList<SubSearchItem>()
-            val parser: XmlResourceParser = resources.getXml(xmlRes)
-            try {
-                var eventType = parser.eventType
-                while (eventType != XmlPullParser.END_DOCUMENT) {
-                    if (eventType == XmlPullParser.START_TAG) {
-                        val key = collectPreferenceAttr(parser, "key").orEmpty()
-                        val title = collectPreferenceAttr(parser, "title").orEmpty()
-                        if (key.isNotBlank() && title.isNotBlank()) {
-                            val summary = collectPreferenceAttr(parser, "summary").orEmpty()
-                            items.add(
-                                SubSearchItem(
-                                    key = key,
-                                    title = title,
-                                    summary = summary,
-                                    configTag = ""
-                                )
-                            )
-                        }
-                    }
-                    eventType = parser.next()
-                }
-            } finally {
-                parser.close()
-            }
-            return items
-        }
-
-        private fun showSearchResultCategory(root: PreferenceGroup, keyword: String) {
-            clearSearchResultCategory(root)
-            val matched = subSearchItems.filter { item ->
-                item.title.lowercase().contains(keyword)
-                    || item.summary.lowercase().contains(keyword)
-                    || item.key.lowercase().contains(keyword)
-            }
-            if (matched.isEmpty()) return
-            val category = PreferenceCategory(requireContext()).apply {
-                key = "global_setting_search_results"
-                title = getString(R.string.search)
-                isIconSpaceReserved = false
-            }
-            matched.take(30).forEach { item ->
-                category.addPreference(
-                    Preference(requireContext()).apply {
-                        key = "result_${item.configTag}_${item.key}"
-                        title = item.title
-                        summary = item.summary.ifBlank { item.key }
-                        isIconSpaceReserved = false
-                        setOnPreferenceClickListener {
-                            startActivity<ConfigActivity> {
-                                putExtra("configTag", item.configTag)
-                            }
-                            true
-                        }
-                    }
-                )
-            }
-            root.addPreference(category)
-        }
-
-        private fun clearSearchResultCategory(root: PreferenceGroup) {
-            findPreference<PreferenceCategory>("global_setting_search_results")?.let {
-                root.removePreference(it)
-            }
-        }
-
         override fun onPreferenceTreeClick(preference: Preference): Boolean {
             when (preference.key) {
                 "bookSourceManage" -> startActivity<BookSourceActivity>()
@@ -399,10 +299,6 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
 
                 "ai_setting" -> startActivity<ConfigActivity> {
                     putExtra("configTag", ConfigTag.AI_CONFIG)
-                }
-                "contentSelectMenuConfigGlobal" -> {
-                    ContentSelectMenuConfigDialog()
-                        .show(parentFragmentManager, "contentSelectMenuConfig")
                 }
 
                 "fileManage" -> startActivity<FileManageActivity>()

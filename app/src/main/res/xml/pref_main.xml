@@ -83,12 +83,6 @@
             android:title="@string/ai_setting"
             app:iconSpaceReserved="false" />
 
-        <io.legado.app.lib.prefs.Preference
-            android:key="contentSelectMenuConfigGlobal"
-            android:summary="@string/content_select_menu_config_summary"
-            android:title="@string/content_select_menu_config"
-            app:iconSpaceReserved="false" />
-
     </io.legado.app.lib.prefs.PreferenceCategory>
 
     <io.legado.app.lib.prefs.PreferenceCategory
