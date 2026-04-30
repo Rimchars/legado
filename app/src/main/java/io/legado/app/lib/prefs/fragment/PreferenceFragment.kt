@@ -6,6 +6,7 @@ import android.view.View
 import androidx.fragment.app.DialogFragment
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
+import androidx.preference.PreferenceGroup
 import androidx.preference.MultiSelectListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
@@ -22,6 +23,54 @@ abstract class PreferenceFragment : PreferenceFragmentCompat() {
         super.onViewCreated(view, savedInstanceState)
         listView.clipToPadding = false
         listView.applyNavigationBarPadding()
+    }
+
+    /**
+     * 按标题/副标题过滤偏好项
+     */
+    fun filterPreferences(query: String?) {
+        val keyword = query?.trim().orEmpty()
+        val root = preferenceScreen ?: return
+        if (keyword.isBlank()) {
+            setPreferenceVisible(root)
+            return
+        }
+        filterPreferenceGroup(root, keyword.lowercase())
+    }
+
+    private fun filterPreferenceGroup(group: PreferenceGroup, keyword: String): Boolean {
+        var anyVisible = false
+        for (index in 0 until group.preferenceCount) {
+            val preference = group.getPreference(index)
+            val visible = when (preference) {
+                is PreferenceGroup -> filterPreferenceGroup(preference, keyword) || preference.matches(keyword)
+                else -> preference.matches(keyword)
+            }
+            preference.isVisible = visible
+            anyVisible = anyVisible || visible
+        }
+        group.isVisible = anyVisible || group == preferenceScreen
+        return anyVisible
+    }
+
+    private fun setPreferenceVisible(group: PreferenceGroup) {
+        group.isVisible = true
+        for (index in 0 until group.preferenceCount) {
+            val preference = group.getPreference(index)
+            preference.isVisible = true
+            if (preference is PreferenceGroup) {
+                setPreferenceVisible(preference)
+            }
+        }
+    }
+
+    private fun Preference.matches(keyword: String): Boolean {
+        val titleText = title?.toString().orEmpty().lowercase()
+        val summaryText = summary?.toString().orEmpty().lowercase()
+        val keyText = key?.lowercase().orEmpty()
+        return titleText.contains(keyword)
+            || summaryText.contains(keyword)
+            || keyText.contains(keyword)
     }
 
     @SuppressLint("RestrictedApi")

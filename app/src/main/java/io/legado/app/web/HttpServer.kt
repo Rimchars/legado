@@ -5,6 +5,7 @@ import fi.iki.elonen.NanoHTTPD
 import io.legado.app.api.ReturnData
 import io.legado.app.api.controller.BookController
 import io.legado.app.api.controller.BookSourceController
+import io.legado.app.api.controller.BookSourceWebController
 import io.legado.app.api.controller.ReplaceRuleController
 import io.legado.app.api.controller.RssSourceController
 import io.legado.app.help.coroutine.Coroutine
@@ -54,6 +55,10 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                         when (uri) {
                             "/saveBookSource" -> BookSourceController.saveSource(postData)
                             "/saveBookSources" -> BookSourceController.saveSources(postData)
+                            "/importBookSource" -> BookSourceWebController.importBookSource(postData)
+                            "/importBookSources" -> BookSourceWebController.importBookSources(postData)
+                            "/loginBookSource" -> BookSourceWebController.saveLoginData(postData)
+                            "/saveBookSourceLogin" -> BookSourceWebController.saveLoginData(postData)
                             "/deleteBookSources" -> BookSourceController.deleteSources(postData)
                             "/saveBook" -> BookController.saveBook(postData)
                             "/deleteBook" -> BookController.deleteBook(postData)
@@ -77,6 +82,13 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                     returnData = when (uri) {
                         "/getBookSource" -> BookSourceController.getSource(parameters)
                         "/getBookSources" -> BookSourceController.sources
+                        "/getBookSourceLoginInfo" -> BookSourceWebController.getLoginData(parameters)
+                        "/getBookSourceLogin" -> BookSourceWebController.getLoginData(parameters)
+                        "/getBookSourceDiscoverSources" -> BookSourceWebController.getDiscoverSources()
+                        "/getBookSourceDiscover" -> BookSourceWebController.getDiscoverSources()
+                        "/getBookSourceExploreKinds" -> BookSourceWebController.getDiscoverKinds(parameters)
+                        "/getBookSourceExploreBooks" -> BookSourceWebController.getDiscoverBooks(parameters)
+                        "/getBookSourceDiscoverBooks" -> BookSourceWebController.getDiscoverBooks(parameters)
                         "/getBookshelf" -> BookController.bookshelf
                         "/getChapterList" -> BookController.getChapterList(parameters)
                         "/refreshToc" -> BookController.refreshToc(parameters)

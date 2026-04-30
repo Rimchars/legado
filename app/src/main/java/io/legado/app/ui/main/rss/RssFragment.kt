@@ -99,10 +99,12 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private var currentSearchKey: String? = null
     private var usingModernRss = false
     private var webSourceVersion = 0L
+    private var lastRenderedWebSourceUrl: String? = null
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
         binding.titleBar.applyStatusBarPadding(withInitialPadding = true)
+        binding.rssWebContainer.applyMainBottomBarPadding(withInitialPadding = true)
         initSearchView()
         initGroupData()
         applyRssMode()
@@ -460,12 +462,15 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             binding.rssWebContainer.addView(created)
             rssWebView = created
         }
+        binding.rssWebContainer.applyMainBottomBarPadding(withInitialPadding = true)
         webView.settings.javaScriptEnabled = source.enableJs
         webView.settings.loadWithOverviewMode = true
         webView.settings.useWideViewPort = true
         webView.stopLoading()
-        webView.clearHistory()
-        webView.loadUrl("about:blank")
+        if (lastRenderedWebSourceUrl != source.sourceUrl) {
+            webView.clearHistory()
+            webView.loadUrl("about:blank")
+        }
         viewModel.launchRssWithHtml(source, {
             if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
                 return@launchRssWithHtml
@@ -477,6 +482,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                     }
                     binding.pbRssLoading.gone()
                     binding.swipeRefreshLayout.isRefreshing = false
+                    lastRenderedWebSourceUrl = source.sourceUrl
                     if (url.startsWith("http", true)) {
                         webView.loadUrl(url)
                     } else {
@@ -489,6 +495,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 }
                 binding.pbRssLoading.gone()
                 binding.swipeRefreshLayout.isRefreshing = false
+                lastRenderedWebSourceUrl = source.sourceUrl
                 webView.loadUrl(source.sourceUrl)
             }
         }) { html ->
@@ -497,6 +504,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             }
             binding.pbRssLoading.gone()
             binding.swipeRefreshLayout.isRefreshing = false
+            lastRenderedWebSourceUrl = source.sourceUrl
             webView.loadDataWithBaseURL(
                 source.sourceUrl,
                 html,
