@@ -925,6 +925,10 @@ class ReadBookActivity : BaseReadBookActivity(),
     private fun askAiBySelection() {
         val prompt = selectedText.trim()
         if (prompt.isEmpty()) return
+        if (AppConfig.aiCurrentProvider?.baseUrl.isNullOrBlank() || AppConfig.aiCurrentModelConfig == null) {
+            toastOnUi(R.string.ai_missing_config)
+            return
+        }
         if (!AppConfig.aiAssistantEnabled) {
             toastOnUi(R.string.ai_not_enabled)
             return
@@ -944,19 +948,21 @@ class ReadBookActivity : BaseReadBookActivity(),
             .setPositiveButton(R.string.dialog_confirm, null)
             .create()
         dialog.show()
+        dialog.window?.setGravity(Gravity.BOTTOM)
         lifecycleScope.launch {
             val result = runCatching {
-                AiChatService.chat(
-                    listOf(
-                        io.legado.app.ui.main.ai.AiChatMessage(
-                            role = io.legado.app.ui.main.ai.AiChatMessage.Role.USER,
-                            content = prompt
+                withContext(IO) {
+                    AiChatService.chat(
+                        listOf(
+                            io.legado.app.ui.main.ai.AiChatMessage(
+                                role = io.legado.app.ui.main.ai.AiChatMessage.Role.USER,
+                                content = prompt
+                            )
                         )
                     )
-                )
+                }
             }.getOrElse { it.localizedMessage ?: it.toString() }
             dialogText.text = result
-            dialog.window?.setGravity(Gravity.BOTTOM)
         }
     }
 
