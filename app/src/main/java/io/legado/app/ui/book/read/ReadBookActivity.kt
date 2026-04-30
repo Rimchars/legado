@@ -949,20 +949,32 @@ class ReadBookActivity : BaseReadBookActivity(),
             .create()
         dialog.show()
         dialog.window?.setGravity(Gravity.BOTTOM)
-        lifecycleScope.launch {
+        val requestJob = lifecycleScope.launch {
             val result = runCatching {
                 withContext(IO) {
-                    AiChatService.chat(
-                        listOf(
+                    AiChatService.chatStream(
+                        messages = listOf(
                             io.legado.app.ui.main.ai.AiChatMessage(
                                 role = io.legado.app.ui.main.ai.AiChatMessage.Role.USER,
                                 content = prompt
                             )
-                        )
+                        ),
+                        onPartial = { partial ->
+                            lifecycleScope.launch(Main.immediate) {
+                                if (partial.isNotBlank() && dialog.isShowing) {
+                                    dialogText.text = partial
+                                }
+                            }
+                        }
                     )
                 }
             }.getOrElse { it.localizedMessage ?: it.toString() }
-            dialogText.text = result
+            if (dialog.isShowing) {
+                dialogText.text = result
+            }
+        }
+        dialog.setOnDismissListener {
+            requestJob.cancel()
         }
     }
 

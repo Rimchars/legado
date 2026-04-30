@@ -460,7 +460,7 @@ class BookInfoActivity :
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (binding.llDetailContentPanel.let { isEventInsideView(it, ev) }) {
+        if (binding.llDetailContentPanel?.let { isEventInsideView(it, ev) } == true) {
             handleDetailSwipe(ev)
         } else if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
             detailSwipeStarted = false
