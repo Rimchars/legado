@@ -158,13 +158,12 @@
                 android:textColorHint="@color/secondaryText"
                 android:textSize="15sp" />
 
-            <androidx.appcompat.widget.AppCompatImageButton
+            <io.legado.app.ui.widget.image.RatioIconButton
                 android:id="@+id/btn_ai_send"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:background="@drawable/bg_ai_send_button"
                 android:contentDescription="@string/ai_chat_send"
-                android:padding="14dp"
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_arrow_right"
                 android:tint="@color/white" />

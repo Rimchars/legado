@@ -104,10 +104,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:background="@drawable/bg_ai_composer"
+        android:background="@drawable/bg_ai_surface_panel"
         android:elevation="8dp"
         android:gravity="center_vertical"
-        android:minHeight="56dp"
+        android:minHeight="60dp"
         android:orientation="horizontal"
         android:paddingStart="16dp"
         android:paddingTop="8dp"
@@ -124,19 +124,18 @@
             android:imeOptions="actionSend"
             android:inputType="textMultiLine|textCapSentences"
             android:maxLines="5"
-            android:minHeight="40dp"
-            android:paddingEnd="12dp"
+            android:minHeight="44dp"
+            android:paddingEnd="16dp"
             android:textColor="@color/primaryText"
             android:textColorHint="@color/secondaryText"
             android:textSize="15sp" />
 
-        <androidx.appcompat.widget.AppCompatImageButton
+        <io.legado.app.ui.widget.image.RatioIconButton
             android:id="@+id/btn_send"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="@drawable/bg_ai_send_button"
             android:contentDescription="@string/ai_chat_send"
-            android:padding="16dp"
             android:scaleType="centerInside"
             android:src="@drawable/ic_arrow_right"
             android:tint="@color/white" />

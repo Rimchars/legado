@@ -21,7 +21,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
@@ -43,8 +42,10 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.html.HtmlPlugin
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -105,7 +106,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             }
         }
         binding.etQuestion.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND) {
+            if (AppConfig.aiEnterToSend && actionId == EditorInfo.IME_ACTION_SEND) {
                 askFromInput()
                 true
             } else {
@@ -136,8 +137,6 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     fun close() {
-        answerJob?.cancel()
-        streamingAssistantContent = null
         updateSendButtonState()
         visibility = GONE
     }
@@ -181,9 +180,9 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     private fun ask(question: String) {
-        val owner = lifecycleOwner ?: return
         val context = readContext ?: return
         answerJob?.cancel()
+        val requestSessionId = currentSessionId
         appendMessage(context, ReadAiMessage.Role.USER, question)
         val pendingAssistantId = appendMessage(
             context,
@@ -191,8 +190,8 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             resources.getString(R.string.ai_chat_thinking)
         )
         val requestMessages = buildRequestMessages(context, question)
-        answerJob = owner.lifecycleScope.launch {
-            updateSendButtonState()
+        answerJob = requestScope.launch {
+            post { updateSendButtonState() }
             val result = runCatching {
                 withContext(IO) {
                     AiChatService.chatStream(
@@ -208,15 +207,31 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                         includeStructuredBlocks = false
                     )
                 }
-            }.getOrElse { throwable ->
-                if (throwable is CancellationException) throw throwable
-                throwable.localizedMessage ?: throwable.toString()
             }
-            streamingAssistantContent = null
-            replaceMessage(context, pendingAssistantId, result)
-            updateSendButtonState()
-            if (!showingHistory) renderCurrentSession()
+            post {
+                streamingAssistantContent = null
+                val content = result.fold(
+                    onSuccess = { it.ifBlank { resources.getString(R.string.ai_chat_cancelled) } },
+                    onFailure = { throwable ->
+                        if (throwable is CancellationException) {
+                            resources.getString(R.string.ai_chat_cancelled)
+                        } else {
+                            resources.getString(
+                                R.string.ai_request_failed,
+                                throwable.localizedMessage
+                                    ?: throwable.message
+                                    ?: resources.getString(R.string.ai_request_cancelled)
+                            )
+                        }
+                    }
+                )
+                replaceMessage(context, pendingAssistantId, content, requestSessionId)
+                answerJob = null
+                updateSendButtonState()
+                if (!showingHistory) renderCurrentSession()
+            }
         }
+        updateSendButtonState()
     }
 
     private fun showMessages() {
@@ -388,8 +403,13 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         return message.id
     }
 
-    private fun replaceMessage(context: ReadContext, messageId: String, content: String) {
-        updateCurrentSession(context) { session ->
+    private fun replaceMessage(
+        context: ReadContext,
+        messageId: String,
+        content: String,
+        sessionId: String = currentSessionId
+    ) {
+        updateSession(context, sessionId) { session ->
             session.copy(
                 updatedAt = System.currentTimeMillis(),
                 messages = session.messages.map {
@@ -400,7 +420,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     private fun deleteMessage(context: ReadContext, messageId: String) {
-        updateCurrentSession(context) { session ->
+        updateSession(context, currentSessionId) { session ->
             session.copy(
                 updatedAt = System.currentTimeMillis(),
                 messages = session.messages.filterNot { it.id == messageId }
@@ -446,8 +466,16 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     private fun updateCurrentSession(context: ReadContext, mapper: (ReadAiSession) -> ReadAiSession) {
+        updateSession(context, currentSessionId, mapper)
+    }
+
+    private fun updateSession(
+        context: ReadContext,
+        sessionId: String,
+        mapper: (ReadAiSession) -> ReadAiSession
+    ) {
         val history = currentBookHistory(context)
-        val session = history.sessions.firstOrNull { it.id == currentSessionId }
+        val session = history.sessions.firstOrNull { it.id == sessionId }
             ?: ensureSession(context, createNew = false)
         val mapped = mapper(session)
         saveBookHistory(
@@ -704,6 +732,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     companion object {
+        private val requestScope = CoroutineScope(SupervisorJob() + IO)
         private const val actionCopyMessage = 1
         private const val actionDeleteMessage = 2
     }
