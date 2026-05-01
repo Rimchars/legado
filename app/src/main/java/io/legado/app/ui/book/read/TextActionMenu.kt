@@ -168,7 +168,7 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
         val spaceAbove = startTopY
         val spaceBelow = windowHeight - endBottomY
         val showAbove = spaceAbove >= popupHeight + margin || spaceAbove > spaceBelow
-        val preferredX = if (showAbove) startX else endX
+        val preferredX = ((startX + endX) / 2f - popupWidth / 2f).toInt()
         val maxX = (view.width - popupWidth - margin).coerceAtLeast(margin)
         val x = preferredX.coerceIn(margin, maxX)
         val y = if (showAbove) {

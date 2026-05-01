@@ -844,7 +844,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             if (!ReadBookConfig.hideNavigationBar && navigationBarGravity == Gravity.BOTTOM)
                 binding.navigationBar.height else 0
         textActionMenu.show(
-            binding.textMenuPosition,
+            binding.root,
             binding.root.height + navigationBarHeight,
             binding.textMenuPosition.x.toInt(),
             binding.textMenuPosition.y.toInt(),

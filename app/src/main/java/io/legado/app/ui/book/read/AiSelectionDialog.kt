@@ -76,8 +76,8 @@ class AiSelectionDialog() : BaseDialogFragment(R.layout.dialog_dict) {
                         ),
                         onPartial = { partial ->
                             if (partial.isNotBlank()) {
-                                viewLifecycleOwner.lifecycleScope.launch {
-                                    renderMarkdown(partial)
+                                binding.tvDict.post {
+                                    binding.tvDict.text = partial
                                 }
                             }
                         }
