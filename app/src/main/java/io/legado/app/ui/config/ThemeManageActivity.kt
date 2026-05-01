@@ -44,7 +44,11 @@ import io.legado.app.utils.hexString
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -63,8 +67,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private var pendingMainBackgroundPath: String? = null
     private var pendingBookInfoBackgroundPath: String? = null
     private var loadVersion = 0
-    private val pendingRemoteSyncTasks = linkedMapOf<String, suspend () -> Unit>()
-    private var syncingOnStop = false
+    private val pendingRemoteSyncTasks = linkedMapOf<String, RemoteSyncTask>()
+    @Volatile
+    private var syncingRemoteTasks = false
     private var appliedDayThemeOverride: String? = null
     private var appliedNightThemeOverride: String? = null
     private val selectImage = registerForActivityResult(HandleFileContract()) {
@@ -96,11 +101,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         initView()
         loadThemes()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        flushPendingRemoteSyncTasks()
     }
 
     private fun initView() = binding.run {
@@ -393,9 +393,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                         ThemePackageManager.deleteLocal(oldEntry)
                     }
                     if (AppConfig.syncThemePackages && oldEntry.source != ThemePackageManager.Source.LOCAL) {
-                        enqueueRemoteSync("delete:${oldEntry.packageInfo.isNightTheme}:${oldEntry.dirName}") {
-                            ThemePackageManager.deleteRemote(oldEntry)
-                        }
+                        enqueueRemoteDelete(oldEntry)
                     }
                 }
                 if (wasApplied) {
@@ -415,9 +413,15 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
 
     private fun enqueueUploadIfNeeded(entry: ThemePackageManager.Entry) {
         if (!AppConfig.syncThemePackages) return
-        enqueueRemoteSync("upload:${entry.packageInfo.isNightTheme}:${entry.dirName}") {
-            ThemePackageManager.upload(entry)
-        }
+        enqueueRemoteSync(
+            RemoteSyncTask(
+                key = "upload:${entry.packageInfo.isNightTheme}:${entry.dirName}",
+                type = RemoteSyncTask.Type.UPLOAD,
+                isNightTheme = entry.packageInfo.isNightTheme,
+                dirName = entry.dirName,
+                entry = entry
+            )
+        )
         loadThemes()
     }
 
@@ -505,19 +509,15 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 "下载到本地" -> runAction("下载完成") { ThemePackageManager.download(entry) }
                 "上传到云端" -> {
                     enqueueUploadIfNeeded(entry)
-                    toastOnUi("已加入退出后同步队列")
+                    toastOnUi("已加入云端同步队列")
                 }
                 "删除本地" -> confirmDeleteTheme(entry, "删除本地主题？") { ThemePackageManager.deleteLocal(entry) }
                 "删除云端" -> confirmDeleteTheme(entry, "删除云端主题？") {
-                    enqueueRemoteSync("delete:${entry.packageInfo.isNightTheme}:${entry.dirName}") {
-                        ThemePackageManager.deleteRemote(entry)
-                    }
+                    enqueueRemoteDelete(entry)
                 }
                 "同时删除" -> confirmDeleteTheme(entry, "同时删除本地和云端主题？") {
                     ThemePackageManager.deleteLocal(entry)
-                    enqueueRemoteSync("delete:${entry.packageInfo.isNightTheme}:${entry.dirName}") {
-                        ThemePackageManager.deleteRemote(entry)
-                    }
+                    enqueueRemoteDelete(entry)
                 }
             }
         }
@@ -615,32 +615,70 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         }
     }
 
-    private fun enqueueRemoteSync(key: String, action: suspend () -> Unit) {
-        pendingRemoteSyncTasks[key] = action
+    private fun enqueueRemoteDelete(entry: ThemePackageManager.Entry) {
+        if (!AppConfig.syncThemePackages) return
+        enqueueRemoteSync(
+            RemoteSyncTask(
+                key = "delete:${entry.packageInfo.isNightTheme}:${entry.dirName}",
+                type = RemoteSyncTask.Type.DELETE,
+                isNightTheme = entry.packageInfo.isNightTheme,
+                dirName = entry.dirName,
+                entry = entry
+            )
+        )
+    }
+
+    private fun enqueueRemoteSync(task: RemoteSyncTask) {
+        synchronized(pendingRemoteSyncTasks) {
+            pendingRemoteSyncTasks[task.key] = task
+        }
+        flushPendingRemoteSyncTasks()
     }
 
     private fun flushPendingRemoteSyncTasks() {
-        if (syncingOnStop || pendingRemoteSyncTasks.isEmpty() || !AppConfig.syncThemePackages) return
-        val tasks = pendingRemoteSyncTasks.values.toList()
-        pendingRemoteSyncTasks.clear()
-        syncingOnStop = true
-        lifecycleScope.launch {
-            kotlin.runCatching {
-                tasks.forEach { it.invoke() }
-            }.onSuccess {
-                toastOnUi("云端主题状态已同步")
-            }.onFailure {
-                if (it.isJobCancellation()) return@onFailure
-                toastOnUi("云端主题同步失败：${it.localizedMessage}")
+        val hasPending = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.isNotEmpty() }
+        if (syncingRemoteTasks || !hasPending || !AppConfig.syncThemePackages) return
+        syncingRemoteTasks = true
+        themeRemoteSyncScope.launch {
+            val failed = linkedMapOf<String, RemoteSyncTask>()
+            val tasks = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.values.toList() }
+            tasks.forEach { task ->
+                kotlin.runCatching {
+                    task.execute()
+                }.onSuccess {
+                    synchronized(pendingRemoteSyncTasks) {
+                        if (pendingRemoteSyncTasks[task.key] == task) {
+                            pendingRemoteSyncTasks.remove(task.key)
+                        }
+                    }
+                }.onFailure {
+                    if (!it.isJobCancellation()) {
+                        failed[task.key] = task
+                    }
+                }
             }
-            syncingOnStop = false
+            syncingRemoteTasks = false
+            withContext(Dispatchers.Main) {
+                if (isFinishing || isDestroyed) return@withContext
+                if (failed.isEmpty()) {
+                    toastOnUi("云端主题状态已同步")
+                    loadThemes()
+                } else {
+                    binding.tvSummary.text = appendPendingRemoteSummary("云端主题同步失败，可稍后重试。")
+                    toastOnUi("云端主题同步失败：${failed.values.first().lastError}")
+                }
+            }
+            val pendingKeys = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.keys.toSet() }
+            if (pendingKeys.any { it !in failed.keys }) {
+                flushPendingRemoteSyncTasks()
+            }
         }
     }
 
     private fun appendPendingRemoteSummary(base: String): String {
-        val pendingCount = pendingRemoteSyncTasks.size
+        val pendingCount = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.size }
         return if (pendingCount > 0) {
-            "$base\n有 $pendingCount 项云端变更将在退出时同步。"
+            "$base\n有 $pendingCount 项云端变更正在后台同步。"
         } else {
             base
         }
@@ -777,6 +815,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     companion object {
+        private val themeRemoteSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private const val requestMainBackground = 301
         private const val requestBookInfoBackground = 302
         private const val colorPrimary = 401
@@ -785,5 +824,31 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         private const val colorBottomBackground = 404
         private const val colorPrimaryText = 405
         private const val colorSecondaryText = 406
+    }
+
+    private data class RemoteSyncTask(
+        val key: String,
+        val type: Type,
+        val isNightTheme: Boolean,
+        val dirName: String,
+        val entry: ThemePackageManager.Entry,
+        var lastError: String = ""
+    ) {
+        suspend fun execute() {
+            runCatching {
+                when (type) {
+                    Type.UPLOAD -> ThemePackageManager.upload(entry)
+                    Type.DELETE -> ThemePackageManager.deleteRemote(entry)
+                }
+            }.onFailure {
+                lastError = it.localizedMessage ?: it.toString()
+                throw it
+            }.getOrThrow()
+        }
+
+        enum class Type {
+            UPLOAD,
+            DELETE
+        }
     }
 }

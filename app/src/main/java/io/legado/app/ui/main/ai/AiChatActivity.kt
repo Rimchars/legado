@@ -12,7 +12,6 @@ import android.widget.PopupWindow
 import android.view.inputmethod.EditorInfo
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
-import androidx.core.content.res.use
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -409,13 +408,7 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
     }
 
     private fun tintSendButton() {
-        val typedArray = theme.obtainStyledAttributes(
-            intArrayOf(android.R.attr.colorAccent)
-        )
-        typedArray.use {
-            val color = it.getColor(0, accentColor)
-            binding.btnAiSend.backgroundTintList = ColorStateList.valueOf(color)
-        }
+        binding.btnAiSend.backgroundTintList = ColorStateList.valueOf(accentColor)
     }
 
     private fun applyPageChrome() {

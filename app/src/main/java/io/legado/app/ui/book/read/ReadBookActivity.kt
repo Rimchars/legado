@@ -915,10 +915,6 @@ class ReadBookActivity : BaseReadBookActivity(),
                 askAiBySelection()
                 return true
             }
-            R.id.menu_generate_image -> {
-                toastOnUi(R.string.generating_image_placeholder)
-                return true
-            }
         }
         return false
     }

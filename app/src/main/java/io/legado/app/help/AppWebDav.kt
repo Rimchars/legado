@@ -180,8 +180,8 @@ object AppWebDav {
     }
 
     suspend fun uploadThemePackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
-        val authorization = authorization ?: return
-        if (!NetworkUtils.isAvailable()) return
+        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         val typeUrl = getThemeTypeUrl(isNightTheme)
         WebDav(typeUrl, authorization).makeAsDir()
@@ -189,8 +189,8 @@ object AppWebDav {
     }
 
     suspend fun downloadThemePackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
-        val authorization = authorization ?: return
-        if (!NetworkUtils.isAvailable()) return
+        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         zipFile.parentFile?.mkdirs()
         WebDav(getThemeTypeUrl(isNightTheme) + fileName, authorization)
@@ -198,8 +198,8 @@ object AppWebDav {
     }
 
     suspend fun deleteThemePackage(isNightTheme: Boolean, remoteDirName: String) {
-        val authorization = authorization ?: return
-        if (!NetworkUtils.isAvailable()) return
+        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         WebDav(getThemeTypeUrl(isNightTheme) + fileName, authorization).delete()
     }

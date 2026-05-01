@@ -193,7 +193,6 @@
     <string name="rule_summary">规则说明</string>
     <string name="share">分享</string>
     <string name="ask_ai">问AI</string>
-    <string name="generate_image">生图</string>
     <string name="content_select_menu_config">正文长按条编辑</string>
     <string name="content_select_menu_config_summary">配置长按菜单动作与默认打开项</string>
     <string name="content_select_actions">长按动作</string>
@@ -203,10 +202,8 @@
     <string name="default_none">不默认打开</string>
     <string name="default_dict">字典</string>
     <string name="default_ask_ai">问AI</string>
-    <string name="default_generate_image">生图</string>
     <string name="ai_reply">AI回复</string>
     <string name="ai_not_enabled">AI助手未启用</string>
-    <string name="generating_image_placeholder">生图功能开发中</string>
     <string name="share_app">软件分享</string>
     <string name="flow_sys">跟随系统</string>
     <string name="add">添加</string>

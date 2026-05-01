@@ -73,12 +73,6 @@
                 android:layout_height="wrap_content"
                 android:text="@string/ask_ai" />
 
-            <io.legado.app.lib.theme.view.ThemeCheckBox
-                android:id="@+id/cb_generate_image"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/generate_image" />
-
             <io.legado.app.ui.widget.text.AccentTextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -110,12 +104,6 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/default_ask_ai" />
-
-                <io.legado.app.lib.theme.view.ThemeRadioButton
-                    android:id="@+id/rb_default_generate_image"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/default_generate_image" />
 
             </RadioGroup>
 

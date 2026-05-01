@@ -27,10 +27,6 @@
         android:title="@string/ask_ai" />
 
     <item
-        android:id="@+id/menu_generate_image"
-        android:title="@string/generate_image" />
-
-    <item
         android:id="@+id/menu_search_content"
         android:title="@string/search_content"
         app:showAsAction="never" />

@@ -27,8 +27,9 @@ class ContentSelectMenuConfigDialog : BaseDialogFragment(R.layout.dialog_content
     private data class MenuAction(val id: String, val checkBox: ThemeCheckBox)
 
     companion object {
-        private const val DEFAULT_ACTIONS = "replace,copy,bookmark,aloud,dict,ask_ai,generate_image"
-        private val defaultOpenValues = listOf("", "dict", "ask_ai", "generate_image")
+        private const val DEFAULT_ACTIONS = "replace,copy,bookmark,aloud,dict,ask_ai"
+        private val defaultOpenValues = listOf("", "dict", "ask_ai")
+        private val removedActionIds = setOf("generate_image")
     }
 
     private val actions: List<MenuAction>
@@ -40,7 +41,6 @@ class ContentSelectMenuConfigDialog : BaseDialogFragment(R.layout.dialog_content
                 MenuAction("aloud", cbAloud),
                 MenuAction("dict", cbDict),
                 MenuAction("ask_ai", cbAskAi),
-                MenuAction("generate_image", cbGenerateImage),
             )
         }
 
@@ -62,11 +62,15 @@ class ContentSelectMenuConfigDialog : BaseDialogFragment(R.layout.dialog_content
 
     private fun initData() {
         val selected = requireContext().getPrefStringSet(PreferKey.contentSelectActions, null)
+            ?.filterNot { it in removedActionIds }
+            ?.toSet()
             ?: DEFAULT_ACTIONS.split(",").toSet()
         actions.forEach { action ->
             action.checkBox.isChecked = selected.contains(action.id)
         }
         val defaultOpen = requireContext().getPrefString(PreferKey.contentSelectDefaultOpen, "").orEmpty()
+            .takeIf { it !in removedActionIds }
+            .orEmpty()
         val defaultIndex = defaultOpenValues.indexOf(defaultOpen).takeIf { it >= 0 } ?: 0
         binding.rgDefaultOpen.checkByIndex(defaultIndex)
     }

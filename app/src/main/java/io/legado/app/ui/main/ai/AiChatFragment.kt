@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import androidx.core.content.res.use
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
@@ -207,12 +206,6 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
     }
 
     private fun tintSendButton() {
-        val typedArray = requireContext().theme.obtainStyledAttributes(
-            intArrayOf(android.R.attr.colorAccent)
-        )
-        typedArray.use {
-            val color = it.getColor(0, accentColor)
-            binding.btnAiSend.backgroundTintList = android.content.res.ColorStateList.valueOf(color)
-        }
+        binding.btnAiSend.backgroundTintList = android.content.res.ColorStateList.valueOf(accentColor)
     }
 }
