@@ -844,12 +844,13 @@ class ReadBookActivity : BaseReadBookActivity(),
         val navigationBarHeight =
             if (!ReadBookConfig.hideNavigationBar && navigationBarGravity == Gravity.BOTTOM)
                 binding.navigationBar.height else 0
-        val centerX = ((binding.textMenuPosition.x + binding.cursorRight.x + binding.cursorRight.width) / 2f).toInt()
+        val startX = binding.textMenuPosition.x.toInt()
         val topY = binding.textMenuPosition.y.toInt()
-        val bottomY = maxOf(
-            binding.cursorLeft.y.toInt() + binding.cursorLeft.height,
-            binding.cursorRight.y.toInt() + binding.cursorRight.height
-        )
+        val endX = binding.cursorRight.x.toInt()
+        val startBottomY = binding.cursorLeft.y.toInt() + binding.cursorLeft.height
+        val endBottomY = binding.cursorRight.y.toInt() + binding.cursorRight.height
+        val centerX = ((startX + endX) / 2f).toInt()
+        val bottomY = maxOf(startBottomY, endBottomY)
         lastTextMenuAnchor = ReadAiFloatingPanel.Anchor(
             centerX = centerX,
             topY = topY,
@@ -858,11 +859,11 @@ class ReadBookActivity : BaseReadBookActivity(),
         textActionMenu.show(
             binding.root,
             binding.root.height + navigationBarHeight,
-            binding.textMenuPosition.x.toInt(),
-            binding.textMenuPosition.y.toInt(),
-            binding.cursorLeft.y.toInt() + binding.cursorLeft.height,
-            binding.cursorRight.x.toInt(),
-            binding.cursorRight.y.toInt() + binding.cursorRight.height
+            startX,
+            topY,
+            startBottomY,
+            endX,
+            endBottomY
         )
     }
 
