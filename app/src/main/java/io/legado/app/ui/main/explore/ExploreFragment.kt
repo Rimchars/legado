@@ -146,6 +146,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private var discoverSourceVersion = 0L
     private var discoveryModeLoaded = false
     private var discoverWebView: WebView? = null
+    private var discoverPendingPreloadJs: String? = null
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
@@ -332,6 +333,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
     @android.annotation.SuppressLint("SetJavaScriptEnabled")
     private fun showDiscoverWebPage(url: String, html: String? = null, preloadJs: String? = null) {
+        discoverPendingPreloadJs = preloadJs?.takeIf { it.isNotBlank() }
         val webView = discoverWebView ?: WebView(requireContext()).also { created ->
             created.layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -347,7 +349,13 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             created.settings.useWideViewPort = true
             created.setBackgroundColor(Color.TRANSPARENT)
             created.isVerticalScrollBarEnabled = false
-            created.webViewClient = WebViewClient()
+            created.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String?) {
+                    super.onPageFinished(view, url)
+                    val js = discoverPendingPreloadJs ?: return
+                    runCatching { view.evaluateJavascript(js, null) }
+                }
+            }
             created.webChromeClient = WebChromeClient()
             binding.discoverWebContainer.addView(created)
             discoverWebView = created
@@ -829,7 +837,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             binding.pbDiscoverLoading.visible()
             val result = withContext(IO) {
                 kotlin.runCatching {
-                    var handledByBrowser = false
+                    var handledByAction = false
                     val java = SourceLoginJsExtensions(
                         activity as? AppCompatActivity,
                         source,
@@ -843,7 +851,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                                 config: String?
                             ): Boolean {
                                 if (!isAdded) return false
-                                handledByBrowser = true
+                                handledByAction = true
                                 binding.root.post {
                                     showDiscoverWebPage(url, html, preloadJs)
                                 }
@@ -858,10 +866,15 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                             ): Boolean {
                                 if (!isAdded) return false
                                 if (name != "explore") return false
-                                handledByBrowser = true
+                                handledByAction = true
                                 val targetUrl = url?.takeIf { it.isNotBlank() } ?: return true
+                                val targetSourceUrl = origin
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: selectedDiscoverSource?.bookSourceUrl
+                                    ?: source.bookSourceUrl
+                                val targetTitle = title ?: item.text
                                 binding.root.post {
-                                    showDiscoverWebPage(targetUrl)
+                                    openExplore(targetSourceUrl, targetTitle, targetUrl)
                                 }
                                 return true
                             }
@@ -874,7 +887,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         }
                     }
                     when {
-                        handledByBrowser || isNavigationAction -> null
+                        handledByAction || isNavigationAction -> null
                         else -> {
                             source.clearExploreKindsCache()
                             source.exploreKinds()
@@ -910,14 +923,12 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             applyDiscoverTagFilterAndSelect(preferredUrl = discoverCurrentUrl)
             return
         }
-        blockedButtonActions
-            .getOrPut(source.bookSourceUrl) { linkedSetOf() }
-            .add(action)
-        val filteredItems = items.filterNot { it.isButton && it.kind.action == action }
-        discoverAllTagItems.clear()
-        discoverAllTagItems.addAll(filteredItems)
-        applyDiscoverTagFilterAndSelect(preferredUrl = discoverCurrentUrl)
-        context?.toastOnUi("该按钮未返回可用发现列表")
+        if (items.isNotEmpty()) {
+            discoverAllTagItems.clear()
+            discoverAllTagItems.addAll(items)
+            applyDiscoverTagFilterAndSelect(preferredUrl = discoverCurrentUrl)
+        }
+        context?.toastOnUi("该按钮未返回可用列表，保留当前标签")
     }
 
     private fun getDiscoverInfoMap(sourceUrl: String): InfoMap {
