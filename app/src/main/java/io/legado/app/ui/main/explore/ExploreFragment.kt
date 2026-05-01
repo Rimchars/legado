@@ -50,6 +50,7 @@ import io.legado.app.help.webView.WebJsExtensions.Companion.nameCache
 import io.legado.app.help.webView.WebJsExtensions.Companion.nameJava
 import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
@@ -135,6 +136,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private val discoverSources = mutableListOf<BookSourcePart>()
     private val discoverAllTagItems = mutableListOf<DiscoverTagItem>()
     private val discoverTagItems = mutableListOf<DiscoverTagItem>()
+    private val discoverSelectItems = mutableListOf<DiscoverTagItem>()
     private val discoverMajorGroups = mutableListOf<String>()
     private val discoverBookshelf = linkedSetOf<String>()
     private val discoverBooks = linkedSetOf<SearchBook>()
@@ -328,6 +330,10 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 return@setOnTagClickListener
             }
             selectDiscoverTag(index, item, selectTab = true)
+        }
+        binding.rvDiscoverSelects.setOnTagClickListener { index ->
+            val item = discoverSelectItems.getOrNull(index) ?: return@setOnTagClickListener
+            showDiscoverSelectDialog(item)
         }
         binding.rvDiscoverBooks.layoutManager = discoverBookLayoutManager
         binding.rvDiscoverBooks.adapter = discoverBookAdapter
@@ -648,8 +654,10 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.tvDiscoverEmpty.gone()
         discoverAllTagItems.clear()
         discoverMajorGroups.clear()
+        discoverSelectItems.clear()
         selectedDiscoverMajorGroup = null
         renderDiscoverTags(emptyList(), -1)
+        renderDiscoverSelects(emptyList())
         updateDiscoverTagFilterButtonState()
         viewLifecycleOwner.lifecycleScope.launch {
             val fullSource = withContext(IO) {
@@ -684,6 +692,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             discoverMajorGroups.clear()
             selectedDiscoverMajorGroup = null
             renderDiscoverTags(emptyList(), -1)
+            renderDiscoverSelects(emptyList())
             updateDiscoverTagFilterButtonState()
             clearDiscoverBooksToEmpty(getString(R.string.explore_empty))
             return
@@ -706,11 +715,22 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
             val action = kind.action?.takeIf { it.isNotBlank() }
             val url = kind.url?.takeIf { it.isNotBlank() }
+            val isSelect = kind.type == ExploreKind.Type.select
             val isButton = kind.type == ExploreKind.Type.button && !action.isNullOrBlank()
 
-            if (!url.isNullOrBlank() && !isButton) {
+            if (!url.isNullOrBlank() && !isButton && !isSelect) {
                 result += DiscoverTagItem(
                     kind = kind.copy(url = url),
+                    text = resolveDiscoverTagText(kind).limitDiscoverText(6),
+                    isButton = false,
+                    group = currentGroup
+                )
+                return@forEach
+            }
+
+            if (isSelect) {
+                result += DiscoverTagItem(
+                    kind = kind.copy(type = ExploreKind.Type.select),
                     text = resolveDiscoverTagText(kind).limitDiscoverText(6),
                     isButton = false,
                     group = currentGroup
@@ -795,18 +815,21 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             }
         }
 
+        val selectItems = filtered.filter { it.kind.type == ExploreKind.Type.select }
+        val tagItems = filtered.filter { it.kind.type != ExploreKind.Type.select }
         updateDiscoverTagFilterButtonState()
+        renderDiscoverSelects(selectItems)
         val targetIndexByUrl = preferredUrl
             ?.takeIf { it.isNotBlank() }
             ?.let { url ->
-                filtered.indexOfFirst { !it.isButton && it.kind.url == url }
+                tagItems.indexOfFirst { !it.isButton && it.kind.url == url }
                     .takeIf { idx -> idx >= 0 }
             }
         val targetIndex = targetIndexByUrl
-            ?: filtered.indexOfFirst { !it.isButton && !it.kind.url.isNullOrBlank() }
-        renderDiscoverTags(filtered, targetIndex)
+            ?: tagItems.indexOfFirst { !it.isButton && !it.kind.url.isNullOrBlank() }
+        renderDiscoverTags(tagItems, targetIndex)
         if (targetIndex >= 0) {
-            selectDiscoverTag(targetIndex, filtered[targetIndex], selectTab = true)
+            selectDiscoverTag(targetIndex, tagItems[targetIndex], selectTab = true)
         } else {
             clearDiscoverBooksToEmpty(getString(R.string.explore_empty))
         }
@@ -854,6 +877,62 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             items.map { RoundedTagBarView.Item(it.text, if (it.isButton) 0.9f else 1f) },
             selectedDiscoverTagIndex
         )
+    }
+
+    private fun renderDiscoverSelects(items: List<DiscoverTagItem>) {
+        discoverSelectItems.clear()
+        discoverSelectItems.addAll(items)
+        if (items.isEmpty()) {
+            binding.rvDiscoverSelects.gone()
+            binding.rvDiscoverSelects.submitItems(emptyList(), -1)
+            return
+        }
+        val size = if (items.size > 3) (1f / 3f) else (1f / items.size.coerceAtLeast(1))
+        binding.rvDiscoverSelects.visible()
+        binding.rvDiscoverSelects.submitItems(
+            items.map {
+                val value = currentDiscoverSelectValue(it)
+                RoundedTagBarView.Item("${it.text}:${value}", size)
+            },
+            -1
+        )
+    }
+
+    private fun currentDiscoverSelectValue(item: DiscoverTagItem): String {
+        val source = selectedDiscoverSource ?: return item.kind.default ?: ""
+        val key = item.kind.title
+        if (key.isBlank()) return item.kind.default ?: ""
+        val info = getDiscoverInfoMap(source.bookSourceUrl)
+        return info[key]?.takeIf { it.isNotBlank() }
+            ?: item.kind.default?.takeIf { it.isNotBlank() }
+            ?: item.kind.chars?.firstOrNull()?.orEmpty()
+    }
+
+    private fun showDiscoverSelectDialog(item: DiscoverTagItem) {
+        val source = selectedDiscoverSource ?: return
+        val key = item.kind.title
+        if (key.isBlank()) return
+        val options = item.kind.chars?.filterNotNull()?.filter { it.isNotBlank() } ?: emptyList()
+        if (options.isEmpty()) return
+        val infoMap = getDiscoverInfoMap(source.bookSourceUrl)
+        context?.selector(item.text, options) { _, value, _ ->
+            infoMap[key] = value
+            viewLifecycleOwner.lifecycleScope.launch(IO) {
+                val action = item.kind.action?.takeIf { it.isNotBlank() }
+                if (!action.isNullOrBlank()) {
+                    runScriptWithContext {
+                        source.evalJS(action) {
+                            put("java", SourceLoginJsExtensions(activity as? AppCompatActivity, source))
+                            put("infoMap", infoMap)
+                        }
+                    }
+                }
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    renderDiscoverSelects(discoverSelectItems)
+                    loadDiscoverKindsAndDefault()
+                }
+            }
+        }
     }
 
     private fun selectDiscoverTabByCode(index: Int, smooth: Boolean) {
