@@ -1342,6 +1342,8 @@
     <string name="ai_tavily_enable_summary_missing">请先填写 Tavily API Key，再启用工具。</string>
     <string name="ai_show_tool_summary">显示工具摘要</string>
     <string name="ai_show_tool_summary_summary">在助手回复下方显示一个可折叠的工具摘要。</string>
+    <string name="ai_manage_native_tools">管理原生工具</string>
+    <string name="ai_manage_native_tools_summary">启用或停用内置工具能力</string>
     <string name="ai_enter_to_send">回车发送</string>
     <string name="ai_enter_to_send_summary">开启后按回车直接发送；关闭后只能点击发送按钮发送。</string>
     <string name="ai_tavily_api_key">Tavily API Key</string>

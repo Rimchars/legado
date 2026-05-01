@@ -577,7 +577,45 @@ class AiConfigFragment : PreferenceFragment(),
 
     private fun toolDisplayName(name: String): String {
         val group = AiToolRegistry.groupLabelOfTool(name)
-        return "[$group] $name"
+        return "[${toolGroupZh(group)}] ${toolNameZh(name)}"
+    }
+
+    private fun toolGroupZh(group: String): String {
+        return when (group) {
+            "MCP" -> "MCP"
+            "书架" -> "书架"
+            "书源" -> "书源"
+            "阅读" -> "阅读"
+            "联网搜索" -> "联网搜索"
+            "设置" -> "设置"
+            else -> "其他"
+        }
+    }
+
+    private fun toolNameZh(name: String): String {
+        return when (name) {
+            "query_bookshelf" -> "查询书架书籍"
+            "get_bookshelf_book_info" -> "获取书籍详情"
+            "manage_bookshelf_group" -> "管理书架分组"
+            "manage_bookshelf_tag" -> "管理书架标签"
+            "set_bookshelf_book_group" -> "设置书籍分组"
+            "set_bookshelf_book_tags" -> "设置书籍标签"
+            "query_read_records" -> "查询阅读记录"
+            "list_book_chapters" -> "获取章节列表"
+            "read_book_chapter_content" -> "读取章节正文"
+            "list_book_sources" -> "列出书源"
+            "search_book_source" -> "搜索书源内容"
+            "create_book_source" -> "新增书源"
+            "get_book_source" -> "获取书源详情"
+            "update_book_source" -> "更新书源"
+            "fetch_source_html" -> "抓取网页源码"
+            "debug_book_source" -> "调试书源规则"
+            "search_web_tavily" -> "Tavily 联网搜索"
+            "get_app_settings" -> "读取设置项"
+            "set_app_setting" -> "修改单个设置"
+            "set_app_settings_batch" -> "批量修改设置"
+            else -> name
+        }
     }
 
     private fun showTavilyApiKeyDialog() {
