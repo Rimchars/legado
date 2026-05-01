@@ -41,6 +41,18 @@
             android:title="@string/ai_show_tool_summary"
             app:iconSpaceReserved="false" />
 
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiToolPolicy"
+            android:summary="@string/ai_tool_policy_summary_ask"
+            android:title="@string/ai_tool_policy"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="aiManageNativeTools"
+            android:summary="@string/ai_manage_native_tools_summary"
+            android:title="@string/ai_manage_native_tools"
+            app:iconSpaceReserved="false" />
+
         <io.legado.app.lib.prefs.SwitchPreference
             android:key="aiEnterToSend"
             android:defaultValue="true"

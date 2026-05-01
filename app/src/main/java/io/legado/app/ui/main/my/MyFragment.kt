@@ -305,7 +305,7 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             preference.summary = if (matchedItems.isEmpty()) {
                 originalSummaries[key]
             } else {
-                matchedItems.take(3).joinToString(" / ") { it.title }
+                matchedItems.first().title
             }
         }
 
