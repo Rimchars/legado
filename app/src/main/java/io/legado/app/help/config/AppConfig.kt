@@ -29,6 +29,7 @@ import io.legado.app.ui.main.ai.AiMcpServerConfig
 import io.legado.app.ui.main.ai.AiModelConfig
 import io.legado.app.ui.main.ai.AiProviderConfig
 import io.legado.app.ui.main.ai.AiSkillConfig
+import io.legado.app.ui.book.read.ReadAiBookHistory
 import splitties.init.appCtx
 import java.net.InetAddress
 import java.net.URI
@@ -546,6 +547,57 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             val currentId = appCtx.getPrefString(PreferKey.aiCurrentChatSessionId)
             if (currentId != null && sessions.none { it.id == currentId }) {
                 appCtx.removePref(PreferKey.aiCurrentChatSessionId)
+            }
+        }
+
+    var aiReadHistoryList: List<ReadAiBookHistory>
+        get() = runCatching {
+            GSON.fromJsonArray<ReadAiBookHistory>(appCtx.getPrefString(PreferKey.aiReadHistoryList))
+                .getOrDefault(emptyList())
+                .filter { it.bookUrl.isNotBlank() && it.records.isNotEmpty() }
+                .map { history ->
+                    history.copy(
+                        bookUrl = history.bookUrl.trim(),
+                        bookName = history.bookName.trim(),
+                        records = history.records
+                            .filter { it.id.isNotBlank() && it.question.isNotBlank() && it.answer.isNotBlank() }
+                            .sortedByDescending { it.createdAt }
+                            .take(50)
+                    )
+                }
+                .filter { it.records.isNotEmpty() }
+                .sortedByDescending { it.updatedAt }
+                .take(200)
+        }.getOrElse {
+            AppLog.put("读取阅读问 AI 历史失败, 已清理历史\n${it.localizedMessage}", it)
+            appCtx.removePref(PreferKey.aiReadHistoryList)
+            emptyList()
+        }
+        set(value) {
+            val histories = value.distinctBy { it.bookUrl }
+                .mapNotNull { history ->
+                    val bookUrl = history.bookUrl.trim()
+                    val records = history.records
+                        .filter { it.id.isNotBlank() && it.question.isNotBlank() && it.answer.isNotBlank() }
+                        .sortedByDescending { it.createdAt }
+                        .take(50)
+                    if (bookUrl.isBlank() || records.isEmpty()) {
+                        null
+                    } else {
+                        history.copy(
+                            bookUrl = bookUrl,
+                            bookName = history.bookName.trim(),
+                            updatedAt = history.updatedAt,
+                            records = records
+                        )
+                    }
+                }
+                .sortedByDescending { it.updatedAt }
+                .take(200)
+            if (histories.isEmpty()) {
+                appCtx.removePref(PreferKey.aiReadHistoryList)
+            } else {
+                appCtx.putPrefString(PreferKey.aiReadHistoryList, GSON.toJson(histories))
             }
         }
 

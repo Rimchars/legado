@@ -1412,6 +1412,10 @@
     <string name="ai_chat_send">发送</string>
     <string name="ai_chat_stop">停止</string>
     <string name="ai_chat_thinking">正在思考…</string>
+    <string name="ai_read_clear_history">清空本书历史</string>
+    <string name="ai_read_history_empty">本书暂无问 AI 历史。</string>
+    <string name="ai_read_delete_history">删除这条记录</string>
+    <string name="ai_read_clear_history_confirm">清空本书全部问 AI 历史？</string>
     <string name="ai_chat_thinking_collapsed">正在思考，点按展开</string>
     <string name="ai_chat_thinking_done">思考完成，点按展开</string>
     <string name="expand">展开</string>
