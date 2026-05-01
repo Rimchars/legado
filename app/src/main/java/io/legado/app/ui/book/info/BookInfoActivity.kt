@@ -847,13 +847,13 @@ class BookInfoActivity :
         tocScrollView.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN,
-                MotionEvent.ACTION_MOVE -> scrollView.requestDisallowInterceptTouchEvent(true)
+                MotionEvent.ACTION_MOVE -> scrollView?.requestDisallowInterceptTouchEvent(true)
                 MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_CANCEL -> scrollView.requestDisallowInterceptTouchEvent(false)
+                MotionEvent.ACTION_CANCEL -> scrollView?.requestDisallowInterceptTouchEvent(false)
             }
             false
         }
-        scrollView.setOnTouchListener { _, event ->
+        scrollView?.setOnTouchListener { _, event ->
             detailPage == DetailPage.TOC && event.actionMasked == MotionEvent.ACTION_MOVE
         }
         showDetailPage(DetailPage.INTRO)
