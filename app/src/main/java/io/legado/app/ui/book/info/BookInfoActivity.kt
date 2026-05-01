@@ -27,7 +27,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
@@ -123,7 +125,6 @@ import io.noties.markwon.image.glide.GlideImagesPlugin
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.abs
 
 class BookInfoActivity :
     VMBaseActivity<ActivityBookInfoBinding, BookInfoViewModel>(toolBarTheme = Theme.Dark, showOpenMenuIcon = false),
@@ -144,9 +145,7 @@ class BookInfoActivity :
     private val tocBatchSize = 30
     private var tocPreviewChapters: List<BookChapter> = emptyList()
     private var tocRenderedCount = 0
-    private var detailSwipeDownX = 0f
-    private var detailSwipeDownY = 0f
-    private var detailSwipeStarted = false
+    private var detailPanelLastHeight = -1
 
     private val tocActivityResult = registerForActivityResult(TocActivityResult()) {
         it?.let {
@@ -273,6 +272,7 @@ class BookInfoActivity :
         binding.vwBg.applyNavigationBarPadding()
         binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
         initDetailTabs()
+        binding.vwBg.doOnLayout { updateDetailContentPanelHeight() }
         viewModel.bookData.observe(this) { showBook(it) }
         viewModel.chapterListData.observe(this) {
             upLoading(false, it)
@@ -460,11 +460,6 @@ class BookInfoActivity :
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (binding.llDetailContentPanel?.let { isEventInsideView(it, ev) } == true) {
-            handleDetailSwipe(ev)
-        } else if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
-            detailSwipeStarted = false
-        }
         if (initIntroView && ev.action == MotionEvent.ACTION_DOWN) {
             currentFocus?.let {
                 if (it === introTextView && introTextView.hasSelection()) {
@@ -538,6 +533,7 @@ class BookInfoActivity :
         upTvBookshelf()
         upKinds(book)
         upGroup(book.group)
+        updateDetailContentPanelHeight()
     }
 
     inner class CustomWebViewClient : WebViewClient() {
@@ -575,6 +571,7 @@ class BookInfoActivity :
             super.onPageFinished(view, url)
             view?.post {
                 binding.tvIntroContainer.requestLayout()
+                updateDetailContentPanelHeight()
             }
         }
     }
@@ -847,47 +844,19 @@ class BookInfoActivity :
                 appendTocPreviewBatch()
             }
         }
+        tocScrollView.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN,
+                MotionEvent.ACTION_MOVE -> scrollView.requestDisallowInterceptTouchEvent(true)
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL -> scrollView.requestDisallowInterceptTouchEvent(false)
+            }
+            false
+        }
+        scrollView.setOnTouchListener { _, event ->
+            detailPage == DetailPage.TOC && event.actionMasked == MotionEvent.ACTION_MOVE
+        }
         showDetailPage(DetailPage.INTRO)
-    }
-
-    private fun handleDetailSwipe(event: MotionEvent) {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                detailSwipeStarted = true
-                detailSwipeDownX = event.rawX
-                detailSwipeDownY = event.rawY
-            }
-
-            MotionEvent.ACTION_UP -> {
-                if (!detailSwipeStarted) return
-                detailSwipeStarted = false
-                val dx = event.rawX - detailSwipeDownX
-                val dy = event.rawY - detailSwipeDownY
-                if (abs(dx) > 72.dpToPx() && abs(dx) > abs(dy) * 1.4f) {
-                    showDetailPage(
-                        if (dx < 0) detailPage.nextPage() else detailPage.previousPage()
-                    )
-                }
-            }
-
-            MotionEvent.ACTION_CANCEL -> {
-                detailSwipeStarted = false
-            }
-        }
-    }
-
-    private fun DetailPage.nextPage(): DetailPage {
-        return when (this) {
-            DetailPage.INTRO -> DetailPage.TOC
-            DetailPage.TOC -> DetailPage.TOC
-        }
-    }
-
-    private fun DetailPage.previousPage(): DetailPage {
-        return when (this) {
-            DetailPage.INTRO -> DetailPage.INTRO
-            DetailPage.TOC -> DetailPage.INTRO
-        }
     }
 
     private fun showDetailPage(page: DetailPage) = binding.run {
@@ -901,6 +870,7 @@ class BookInfoActivity :
         if (page == DetailPage.TOC) {
             renderTocPreview(viewModel.chapterListData.value)
         }
+        updateDetailContentPanelHeight()
     }
 
     private fun renderTocPreview(chapterList: List<BookChapter>?) = binding.run {
@@ -956,6 +926,24 @@ class BookInfoActivity :
                 .firstOrNull { it.tag == currentIndex } ?: return@post
             val targetTop = targetView.top - (tocScrollView.height - targetView.height) / 2
             tocScrollView.smoothScrollTo(0, targetTop.coerceAtLeast(0))
+        }
+    }
+
+    private fun updateDetailContentPanelHeight() = binding.run {
+        val panel = llDetailContentPanel ?: return
+        val action = flAction ?: return
+        val panelLoc = IntArray(2)
+        val actionLoc = IntArray(2)
+        panel.getLocationOnScreen(panelLoc)
+        action.getLocationOnScreen(actionLoc)
+        val bottomGap = 8.dpToPx()
+        val minHeight = 220.dpToPx()
+        val targetHeight = (actionLoc[1] - panelLoc[1] - bottomGap).coerceAtLeast(minHeight)
+        if (targetHeight == detailPanelLastHeight) return
+        detailPanelLastHeight = targetHeight
+        panel.updateLayoutParams<LinearLayout.LayoutParams> {
+            height = targetHeight
+            weight = 0f
         }
     }
 
