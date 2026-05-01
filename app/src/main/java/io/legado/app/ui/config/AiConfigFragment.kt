@@ -13,6 +13,7 @@ import io.legado.app.databinding.DialogAiMcpServerEditBinding
 import io.legado.app.databinding.DialogAiProviderEditBinding
 import io.legado.app.databinding.DialogEditTextBinding
 import io.legado.app.help.ai.AiChatService
+import io.legado.app.help.ai.AiToolRegistry
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.http.newCallResponse
 import io.legado.app.help.http.okHttpClient
@@ -67,6 +68,8 @@ class AiConfigFragment : PreferenceFragment(),
             "aiManageModels" -> showManageModelsDialog()
             "aiAddMcpServer" -> showEditMcpServerDialog()
             "aiManageMcpServers" -> showManageMcpServersDialog()
+            "aiToolPolicy" -> showToolPolicyDialog()
+            "aiManageNativeTools" -> showManageNativeToolsDialog()
             PreferKey.aiTavilyApiKey -> showTavilyApiKeyDialog()
             PreferKey.aiTavilyBaseUrl -> showTavilyBaseUrlDialog()
             PreferKey.aiTavilyTopic -> showTavilyTopicDialog()
@@ -538,6 +541,48 @@ class AiConfigFragment : PreferenceFragment(),
         }
     }
 
+    private fun showToolPolicyDialog() {
+        val labels = arrayListOf(
+            getString(R.string.ai_tool_policy_ask),
+            getString(R.string.ai_tool_policy_always_allow)
+        )
+        val values = listOf("ask", "always_allow")
+        context?.selector(getString(R.string.ai_tool_policy), labels) { _, _, index ->
+            AppConfig.aiToolPolicy = values[index]
+            refreshUi()
+        }
+    }
+
+    private fun showManageNativeToolsDialog() {
+        lifecycleScope.launch {
+            val tools = runCatching { AiToolRegistry.resolveAvailableTools() }
+                .getOrDefault(emptyList())
+                .map { it.name }
+                .distinct()
+                .sorted()
+            if (tools.isEmpty()) {
+                toastOnUi(R.string.not_available)
+                return@launch
+            }
+            val enabled = AppConfig.aiEnabledToolNames.toMutableSet()
+            val checked = BooleanArray(tools.size) { tools[it] in enabled || enabled.isEmpty() }
+            alert(getString(R.string.ai_manage_native_tools)) {
+                multiChoiceItems(tools.toTypedArray(), checked) { _, which, isChecked ->
+                    if (isChecked) enabled.add(tools[which]) else enabled.remove(tools[which])
+                }
+                okButton {
+                    AppConfig.aiEnabledToolNames = enabled
+                    refreshUi()
+                }
+                neutralButton(R.string.restore_default) {
+                    AppConfig.aiEnabledToolNames = emptySet()
+                    refreshUi()
+                }
+                cancelButton()
+            }
+        }
+    }
+
     private fun showTavilyApiKeyDialog() {
         val binding = DialogEditTextBinding.inflate(layoutInflater).apply {
             editView.hint = getString(R.string.ai_tavily_api_key_hint)
@@ -880,6 +925,21 @@ class AiConfigFragment : PreferenceFragment(),
             } else {
                 getString(R.string.ai_skill_prompt_summary, enabledSkillCount, skills.size)
             }
+        findPreference<Preference>("aiToolPolicy")?.summary = getString(
+            if (AppConfig.aiToolPolicy == "always_allow") {
+                R.string.ai_tool_policy_summary_always_allow
+            } else {
+                R.string.ai_tool_policy_summary_ask
+            }
+        )
+        findPreference<Preference>("aiManageNativeTools")?.summary = run {
+            val enabledTools = AppConfig.aiEnabledToolNames
+            if (enabledTools.isEmpty()) {
+                getString(R.string.ai_manage_native_tools_summary)
+            } else {
+                "${getString(R.string.ai_manage_native_tools_summary)} · ${enabledTools.size}"
+            }
+        }
         if (notifyMain || (!canEnable && storedEnabled)) {
             postEvent(EventBus.NOTIFY_MAIN, false)
         }

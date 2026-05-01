@@ -634,6 +634,13 @@
     <string name="ai_tavily_enable_summary_missing">Set a Tavily API key first, then enable the tool.</string>
     <string name="ai_show_tool_summary">Show tool summary</string>
     <string name="ai_show_tool_summary_summary">Display a collapsed tool summary under the assistant reply.</string>
+    <string name="ai_tool_policy">Tool call policy</string>
+    <string name="ai_tool_policy_summary_ask">Ask every time before executing tools</string>
+    <string name="ai_tool_policy_summary_always_allow">Always allow tool execution</string>
+    <string name="ai_tool_policy_ask">Ask every time</string>
+    <string name="ai_tool_policy_always_allow">Always allow</string>
+    <string name="ai_manage_native_tools">Manage native tools</string>
+    <string name="ai_manage_native_tools_summary">Enable or disable available built-in tools</string>
     <string name="ai_enter_to_send">Enter to send</string>
     <string name="ai_enter_to_send_summary">When enabled, pressing Enter sends the message. When disabled, only the send button sends.</string>
     <string name="ai_tavily_api_key">Tavily API key</string>
