@@ -66,7 +66,6 @@ object PreferKey {
     const val aiSkillList = "aiSkillList"
     const val aiShowToolSummary = "aiShowToolSummary"
     const val aiEnterToSend = "aiEnterToSend"
-    const val aiToolPolicy = "aiToolPolicy"
     const val aiEnabledToolNames = "aiEnabledToolNames"
     const val aiTavilyEnabled = "aiTavilyEnabled"
     const val aiTavilyApiKey = "aiTavilyApiKey"
