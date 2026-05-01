@@ -84,6 +84,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private var answerJob: Job? = null
     private var showingHistory = false
     private var streamingAssistantContent: String? = null
+    private var streamingAssistantMessageId: String? = null
     private var downRawX = 0f
     private var downRawY = 0f
     private var startX = 0f
@@ -145,6 +146,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         val context = readContext
         answerJob?.cancel()
         streamingAssistantContent = null
+        streamingAssistantMessageId = null
         if (context != null) {
             val pending = currentBookHistory(context).sessions
                 .firstOrNull { it.id == currentSessionId }
@@ -164,6 +166,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         val context = readContext ?: return
         answerJob?.cancel()
         streamingAssistantContent = null
+        streamingAssistantMessageId = null
         currentSessionId = ensureSession(context, createNew = true).id
         showingHistory = false
         showMessages()
@@ -190,6 +193,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             resources.getString(R.string.ai_chat_thinking)
         )
         val requestMessages = buildRequestMessages(context, question)
+        streamingAssistantMessageId = pendingAssistantId
         answerJob = requestScope.launch {
             post { updateSendButtonState() }
             val result = runCatching {
@@ -210,6 +214,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             }
             post {
                 streamingAssistantContent = null
+                streamingAssistantMessageId = null
                 val content = result.fold(
                     onSuccess = { it.ifBlank { resources.getString(R.string.ai_chat_cancelled) } },
                     onFailure = { throwable ->
@@ -265,6 +270,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
 
     private fun renderMessages(messages: List<ReadAiMessage>, allowDelete: Boolean) {
         messageAdapter.allowDelete = allowDelete
+        messageAdapter.streamingMessageId = streamingAssistantMessageId
         messageAdapter.submit(messages)
         binding.answerContainer.post {
             if (messageAdapter.itemCount > 0) {
@@ -662,6 +668,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private inner class MessageAdapter : RecyclerView.Adapter<MessageAdapter.Holder>() {
         private val messages = arrayListOf<ReadAiMessage>()
         var allowDelete: Boolean = true
+        var streamingMessageId: String? = null
 
         fun submit(items: List<ReadAiMessage>) {
             messages.clear()
@@ -721,7 +728,11 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     tvMessage.setTextClassifier(android.view.textclassifier.TextClassifier.NO_OP)
                 }
-                tvMessage.setMarkdown(markwon, markwon.toMarkdown(message.content), imgOnLongClickListener = {})
+                if (message.id == streamingMessageId) {
+                    tvMessage.text = message.content
+                } else {
+                    tvMessage.setMarkdown(markwon, markwon.toMarkdown(message.content), imgOnLongClickListener = {})
+                }
                 tvMessage.setOnLongClickListener {
                     if (!allowDelete) return@setOnLongClickListener false
                     showMessageActions(tvMessage, message)
