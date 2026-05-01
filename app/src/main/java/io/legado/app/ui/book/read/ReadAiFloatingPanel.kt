@@ -3,6 +3,7 @@ package io.legado.app.ui.book.read
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.util.AttributeSet
 import android.view.Gravity
@@ -13,6 +14,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
@@ -28,12 +30,15 @@ import io.legado.app.databinding.ViewReadAiFloatingPanelBinding
 import io.legado.app.help.ai.AiChatService
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.main.ai.AiChatMessage
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
+import io.legado.app.utils.sendToClip
 import io.legado.app.utils.setMarkdown
+import io.legado.app.utils.toastOnUi
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.html.HtmlPlugin
@@ -92,7 +97,13 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         binding.btnClose.setOnClickListener { close() }
         binding.btnNewChat.setOnClickListener { startNewChat() }
         binding.btnHistory.setOnClickListener { toggleHistory() }
-        binding.btnSend.setOnClickListener { askFromInput() }
+        binding.btnSend.setOnClickListener {
+            if (answerJob?.isActive == true) {
+                stopAnswer()
+            } else {
+                askFromInput()
+            }
+        }
         binding.etQuestion.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
                 askFromInput()
@@ -127,7 +138,27 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     fun close() {
         answerJob?.cancel()
         streamingAssistantContent = null
+        updateSendButtonState()
         visibility = GONE
+    }
+
+    private fun stopAnswer() {
+        val context = readContext
+        answerJob?.cancel()
+        streamingAssistantContent = null
+        if (context != null) {
+            val pending = currentBookHistory(context).sessions
+                .firstOrNull { it.id == currentSessionId }
+                ?.messages
+                ?.lastOrNull()
+            if (pending?.role == ReadAiMessage.Role.ASSISTANT &&
+                pending.content == resources.getString(R.string.ai_chat_thinking)
+            ) {
+                replaceMessage(context, pending.id, resources.getString(R.string.ai_chat_cancelled))
+            }
+        }
+        updateSendButtonState()
+        if (!showingHistory) renderCurrentSession()
     }
 
     private fun startNewChat() {
@@ -161,6 +192,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         )
         val requestMessages = buildRequestMessages(context, question)
         answerJob = owner.lifecycleScope.launch {
+            updateSendButtonState()
             val result = runCatching {
                 withContext(IO) {
                     AiChatService.chatStream(
@@ -182,6 +214,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             }
             streamingAssistantContent = null
             replaceMessage(context, pendingAssistantId, result)
+            updateSendButtonState()
             if (!showingHistory) renderCurrentSession()
         }
     }
@@ -495,6 +528,17 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         binding.btnNewChat.imageTintList = ColorStateList.valueOf(context.secondaryTextColor)
         binding.inputContainer.backgroundTintList =
             ColorStateList.valueOf(ColorUtils.adjustAlpha(context.primaryTextColor, 0.06f))
+        updateSendButtonState()
+    }
+
+    private fun updateSendButtonState() {
+        val requesting = answerJob?.isActive == true
+        binding.btnSend.contentDescription = resources.getString(
+            if (requesting) R.string.ai_chat_stop else R.string.ai_chat_send
+        )
+        binding.btnSend.setImageResource(
+            if (requesting) R.drawable.ic_stop_black_24dp else R.drawable.ic_arrow_right
+        )
     }
 
     private fun buildContextLabel(context: ReadContext): String {
@@ -505,17 +549,15 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     private fun buildPrompt(context: ReadContext, question: String): String {
-        return """
-            你是阅读页里的问 AI 助手。请围绕当前书籍和选中文本回答，优先解释原文含义、上下文、人物关系、伏笔或用户提问，不要编造未给出的剧情。
-
-            书名：${context.bookName}
-            作者：${context.author.ifBlank { "未知" }}
-            书源：${context.sourceName.ifBlank { "未知" }}
-            当前章节：${context.chapterTitle.ifBlank { "未知" }}（第 ${context.chapterIndex + 1} 章）
-
-            用户选中或追问：
-            $question
-        """.trimIndent()
+        return resources.getString(
+            R.string.ai_read_prompt_template,
+            context.bookName,
+            context.author.ifBlank { resources.getString(R.string.unknown) },
+            context.sourceName.ifBlank { resources.getString(R.string.unknown) },
+            context.chapterTitle.ifBlank { resources.getString(R.string.unknown) },
+            context.chapterIndex + 1,
+            question
+        )
     }
 
     private fun buildRequestMessages(context: ReadContext, question: String): List<AiChatMessage> {
@@ -540,6 +582,53 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             role = AiChatMessage.Role.USER,
             content = buildPrompt(context, question)
         )
+    }
+
+    private fun createBubble(fillColor: Int, strokeColor: Int, isUser: Boolean): GradientDrawable {
+        val large = 18f.dpToPx()
+        val small = 7f.dpToPx()
+        return GradientDrawable().apply {
+            cornerRadii = if (isUser) {
+                floatArrayOf(
+                    large, large,
+                    large, large,
+                    small, small,
+                    large, large
+                )
+            } else {
+                floatArrayOf(
+                    large, large,
+                    large, large,
+                    large, large,
+                    small, small
+                )
+            }
+            setColor(fillColor)
+            setStroke(1.dpToPx(), strokeColor)
+        }
+    }
+
+    private fun showMessageActions(anchor: View, message: ReadAiMessage) {
+        PopupMenu(context, anchor).apply {
+            menu.add(0, actionCopyMessage, 0, R.string.copy_text)
+            if (message.id.isNotBlank()) {
+                menu.add(0, actionDeleteMessage, 1, R.string.delete)
+            }
+            setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    actionCopyMessage -> {
+                        context.sendToClip(message.content)
+                        context.toastOnUi(R.string.copy_complete)
+                        true
+                    }
+                    actionDeleteMessage -> {
+                        deleteMessage(readContext ?: return@setOnMenuItemClickListener true, message.id)
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }.show()
     }
 
     private inner class MessageAdapter : RecyclerView.Adapter<MessageAdapter.Holder>() {
@@ -576,10 +665,28 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                 val params = tvMessage.layoutParams as FrameLayout.LayoutParams
                 params.gravity = if (isUser) Gravity.END else Gravity.START
                 tvMessage.layoutParams = params
-                tvMessage.background = ContextCompat.getDrawable(
-                    context,
-                    if (isUser) R.drawable.bg_ai_user_message else R.drawable.bg_read_ai_history_item
-                )
+                val backgroundColor = context.backgroundColor
+                val bubbleColor = if (isUser) {
+                    ColorUtils.blendColors(backgroundColor, context.accentColor, 0.18f)
+                } else if (ColorUtils.isColorLight(backgroundColor)) {
+                    ColorUtils.blendColors(
+                        backgroundColor,
+                        ContextCompat.getColor(context, R.color.background_card),
+                        0.68f
+                    )
+                } else {
+                    ColorUtils.blendColors(
+                        backgroundColor,
+                        ContextCompat.getColor(context, R.color.white),
+                        0.12f
+                    )
+                }
+                val strokeColor = if (isUser) {
+                    ColorUtils.adjustAlpha(context.accentColor, 0.18f)
+                } else {
+                    ColorUtils.adjustAlpha(context.secondaryTextColor, 0.08f)
+                }
+                tvMessage.background = createBubble(bubbleColor, strokeColor, isUser)
                 tvMessage.ellipsize = null
                 tvMessage.maxLines = Int.MAX_VALUE
                 tvMessage.setTextColor(context.primaryTextColor)
@@ -588,11 +695,16 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                 }
                 tvMessage.setMarkdown(markwon, markwon.toMarkdown(message.content), imgOnLongClickListener = {})
                 tvMessage.setOnLongClickListener {
-                    if (!allowDelete || message.id.isBlank()) return@setOnLongClickListener false
-                    deleteMessage(readContext ?: return@setOnLongClickListener false, message.id)
+                    if (!allowDelete) return@setOnLongClickListener false
+                    showMessageActions(tvMessage, message)
                     true
                 }
             }
         }
+    }
+
+    companion object {
+        private const val actionCopyMessage = 1
+        private const val actionDeleteMessage = 2
     }
 }

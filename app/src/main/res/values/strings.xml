@@ -1591,4 +1591,78 @@
     <string name="disable">Disable</string>
     <string name="video_source_label">Source: %s</string>
     <string name="video_origin_label">Origin: %s</string>
+    <string name="delete_success">Deleted</string>
+    <string name="theme_manage_title">Theme Manager</string>
+    <string name="theme_day">Day theme</string>
+    <string name="theme_night">Night theme</string>
+    <string name="theme_day_short">Day</string>
+    <string name="theme_night_short">Night</string>
+    <string name="theme_add">Add theme</string>
+    <string name="theme_manual_config">Manual config</string>
+    <string name="theme_import_zip">Import ZIP</string>
+    <string name="theme_manual_add">Add theme manually</string>
+    <string name="theme_edit">Edit theme</string>
+    <string name="theme_package_summary_default">Theme packages are saved separately and can sync to the WebDAV themes directory.</string>
+    <string name="theme_package_empty">No theme yet. Adding one saves the current %s theme.</string>
+    <string name="theme_package_load_failed">Load failed: %s</string>
+    <string name="theme_package_cloud_load_failed">Cloud load failed: %s</string>
+    <string name="theme_package_read_failed">Failed to read theme: %s</string>
+    <string name="theme_name_exists">A theme with this name already exists</string>
+    <string name="theme_saved_local">Theme saved locally</string>
+    <string name="theme_save_failed">Failed to save theme: %s</string>
+    <string name="theme_export_zip">Export ZIP</string>
+    <string name="theme_download_local">Download locally</string>
+    <string name="theme_upload_remote">Upload to cloud</string>
+    <string name="theme_delete_local">Delete local</string>
+    <string name="theme_delete_remote">Delete cloud</string>
+    <string name="theme_delete_both">Delete both</string>
+    <string name="theme_downloaded">Downloaded</string>
+    <string name="theme_sync_queued">Added to cloud sync queue</string>
+    <string name="theme_delete_local_confirm">Delete local theme?</string>
+    <string name="theme_delete_remote_confirm">Delete cloud theme?</string>
+    <string name="theme_delete_both_confirm">Delete both local and cloud theme?</string>
+    <string name="theme_export_failed">Failed to export theme: %s</string>
+    <string name="theme_zip_read_failed">Unable to read theme ZIP</string>
+    <string name="theme_imported">Theme imported</string>
+    <string name="theme_import_failed">Failed to import theme: %s</string>
+    <string name="theme_apply_failed">Failed to apply theme: %s</string>
+    <string name="theme_applied">Theme applied</string>
+    <string name="theme_sync_done">Cloud theme state synced</string>
+    <string name="theme_sync_failed_retry">Cloud theme sync failed. Try again later.</string>
+    <string name="theme_sync_failed">Cloud theme sync failed: %s</string>
+    <string name="theme_sync_pending">%d cloud change(s) are syncing in the background.</string>
+    <string name="theme_delete_applied_forbidden">Cannot delete the currently applied theme</string>
+    <string name="theme_source_using">In use</string>
+    <string name="theme_source_local">Local</string>
+    <string name="theme_source_remote">Cloud</string>
+    <string name="theme_source_both">Local + cloud</string>
+    <string name="theme_current_applied">Applied</string>
+    <string name="theme_time_unknown">No time recorded</string>
+    <string name="theme_apply">Apply</string>
+    <string name="theme_applied_state">Applied</string>
+    <string name="theme_zip_exported">Theme ZIP exported</string>
+    <string name="theme_color_primary">Primary color</string>
+    <string name="theme_color_accent">Accent color</string>
+    <string name="theme_color_background">Background color</string>
+    <string name="theme_color_bottom_background">Bottom bar color</string>
+    <string name="theme_color_primary_text">Primary text color</string>
+    <string name="theme_color_secondary_text">Secondary text color</string>
+    <string name="theme_image_main_background">Main background</string>
+    <string name="theme_image_book_info_background">Book detail background</string>
+    <string name="theme_image_blur">Background image blur</string>
+    <string name="theme_image_select">Select image</string>
+    <string name="theme_image_delete">Delete image</string>
+    <string name="theme_image_value_unselected">Not selected</string>
+    <string name="theme_image_value_unselected_blur">Not selected · blur %d</string>
+    <string name="theme_image_value_file_blur">%1$s · blur %2$d</string>
+    <string name="unknown">Unknown</string>
+    <string name="ai_read_prompt_template">You are the Ask AI assistant inside the reading page. Answer around the current book and selected text. Prioritize explaining the original text, context, character relationships, foreshadowing, or the user's question. Do not invent plot details not provided.
+
+Book: %1$s
+Author: %2$s
+Source: %3$s
+Current chapter: %4$s (chapter %5$d)
+
+Selected text or question:
+%6$s</string>
 </resources>

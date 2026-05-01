@@ -94,7 +94,9 @@
         android:layout_marginTop="8dp"
         android:clipToPadding="false"
         android:overScrollMode="never"
+        android:paddingStart="2dp"
         android:paddingTop="2dp"
+        android:paddingEnd="2dp"
         android:paddingBottom="2dp" />
 
     <LinearLayout
@@ -102,14 +104,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:background="@drawable/bg_read_ai_input"
+        android:background="@drawable/bg_ai_composer"
+        android:elevation="8dp"
         android:gravity="center_vertical"
-        android:minHeight="46dp"
+        android:minHeight="56dp"
         android:orientation="horizontal"
-        android:paddingStart="14dp"
-        android:paddingTop="4dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="4dp">
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp">
 
         <EditText
             android:id="@+id/et_question"
@@ -120,19 +123,21 @@
             android:hint="@string/ai_chat_hint"
             android:imeOptions="actionSend"
             android:inputType="textMultiLine|textCapSentences"
-            android:maxLines="4"
-            android:minHeight="38dp"
+            android:maxLines="5"
+            android:minHeight="40dp"
+            android:paddingEnd="12dp"
             android:textColor="@color/primaryText"
             android:textColorHint="@color/secondaryText"
-            android:textSize="14sp" />
+            android:textSize="15sp" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btn_send"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:background="@drawable/bg_ai_send_button"
             android:contentDescription="@string/ai_chat_send"
-            android:padding="12dp"
+            android:padding="16dp"
+            android:scaleType="centerInside"
             android:src="@drawable/ic_arrow_right"
             android:tint="@color/white" />
 
