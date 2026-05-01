@@ -163,7 +163,7 @@
             android:layout_height="40dp"
             android:background="@drawable/bg_ai_send_button"
             android:contentDescription="@string/ai_chat_send"
-            android:padding="10dp"
+            android:padding="13dp"
             android:scaleType="centerInside"
             android:src="@drawable/ic_arrow_right"
             android:tint="@color/white" />

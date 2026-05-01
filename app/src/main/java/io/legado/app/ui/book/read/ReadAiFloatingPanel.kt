@@ -1,6 +1,8 @@
 package io.legado.app.ui.book.read
 
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Build
 import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
@@ -24,6 +26,7 @@ import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.main.ai.AiChatMessage
+import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.setMarkdown
 import io.noties.markwon.Markwon
@@ -65,6 +68,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
     private var lifecycleOwner: LifecycleOwner? = null
     private var readContext: ReadContext? = null
+    private var currentSessionId: String = ""
     private var answerJob: Job? = null
     private var showingHistory = false
     private var downRawX = 0f
@@ -76,8 +80,8 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         orientation = VERTICAL
         binding.tvAnswer.movementMethod = LinkMovementMethod()
         binding.btnClose.setOnClickListener { close() }
+        binding.btnNewChat.setOnClickListener { startNewChat() }
         binding.btnHistory.setOnClickListener { toggleHistory() }
-        binding.btnClearHistory.setOnClickListener { confirmClearHistory() }
         binding.btnSend.setOnClickListener { askFromInput() }
         binding.etQuestion.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
@@ -97,15 +101,17 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
 
     fun open(readContext: ReadContext) {
         this.readContext = readContext
+        currentSessionId = ensureSession(readContext, createNew = false).id
         showingHistory = false
-        binding.historyContainer.isGone = true
-        binding.answerContainer.isVisible = true
+        showMessages()
         binding.tvContext.text = buildContextLabel(readContext)
         binding.etQuestion.setText("")
         visibility = VISIBLE
         bringToFront()
         post { ensureInsideParent() }
-        ask(readContext.selectedText)
+        if (readContext.selectedText.isNotBlank()) {
+            ask(readContext.selectedText)
+        }
     }
 
     fun close() {
@@ -113,21 +119,34 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         visibility = GONE
     }
 
+    private fun startNewChat() {
+        val context = readContext ?: return
+        answerJob?.cancel()
+        currentSessionId = ensureSession(context, createNew = true).id
+        showingHistory = false
+        showMessages()
+        binding.tvContext.text = buildContextLabel(context)
+    }
+
     private fun askFromInput() {
         val question = binding.etQuestion.text?.toString().orEmpty().trim()
         if (question.isBlank()) return
         binding.etQuestion.setText("")
         showingHistory = false
-        binding.historyContainer.isGone = true
-        binding.answerContainer.isVisible = true
+        showMessages()
         ask(question)
     }
 
     private fun ask(question: String) {
         val owner = lifecycleOwner ?: return
-        val readContext = readContext ?: return
+        val context = readContext ?: return
         answerJob?.cancel()
-        renderAnswer(resources.getString(R.string.ai_chat_thinking))
+        appendMessage(context, ReadAiMessage.Role.USER, question)
+        val pendingAssistantId = appendMessage(
+            context,
+            ReadAiMessage.Role.ASSISTANT,
+            resources.getString(R.string.ai_chat_thinking)
+        )
         answerJob = owner.lifecycleScope.launch {
             val result = runCatching {
                 withContext(IO) {
@@ -135,22 +154,54 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                         messages = listOf(
                             AiChatMessage(
                                 role = AiChatMessage.Role.USER,
-                                content = buildPrompt(readContext, question)
+                                content = buildPrompt(context, question)
                             )
                         ),
                         onPartial = { partial ->
                             if (partial.isNotBlank()) {
-                                post { renderAnswer(partial) }
+                                post {
+                                    replaceMessage(context, pendingAssistantId, partial)
+                                    if (!showingHistory) renderCurrentSession()
+                                }
                             }
-                        }
+                        },
+                        includeStructuredBlocks = false
                     )
                 }
             }.getOrElse { throwable ->
                 if (throwable is CancellationException) throw throwable
                 throwable.localizedMessage ?: throwable.toString()
             }
-            renderAnswer(result)
-            saveHistory(readContext, question, result)
+            replaceMessage(context, pendingAssistantId, result)
+            if (!showingHistory) renderCurrentSession()
+        }
+    }
+
+    private fun showMessages() {
+        binding.historyContainer.isGone = true
+        binding.answerContainer.isVisible = true
+        renderCurrentSession()
+    }
+
+    private fun renderCurrentSession() {
+        val context = readContext ?: return
+        val session = currentBookHistory(context).sessions.firstOrNull { it.id == currentSessionId }
+        val messages = session?.messages.orEmpty()
+        val content = if (messages.isEmpty()) {
+            resources.getString(R.string.ai_chat_empty)
+        } else {
+            messages.joinToString("\n\n") { message ->
+                val label = when (message.role) {
+                    ReadAiMessage.Role.USER -> "你"
+                    ReadAiMessage.Role.ASSISTANT -> "AI"
+                }
+                "**$label**\n${message.content}"
+            }
+        }
+        renderAnswer(content)
+        binding.tvAnswer.setOnLongClickListener {
+            showDeleteMessageDialog(messages)
+            true
         }
     }
 
@@ -164,32 +215,19 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         }
     }
 
-    private fun saveHistory(context: ReadContext, question: String, answer: String) {
-        if (answer.isBlank() || answer == resources.getString(R.string.ai_chat_thinking)) return
-        val list = AppConfig.aiReadHistoryList.toMutableList()
-        val index = list.indexOfFirst { it.bookUrl == context.bookUrl }
-        val old = list.getOrNull(index)
-        val record = ReadAiHistoryRecord(
-            question = question,
-            answer = answer,
-            chapterTitle = context.chapterTitle,
-            chapterIndex = context.chapterIndex
-        )
-        val updated = ReadAiBookHistory(
-            bookUrl = context.bookUrl,
-            bookName = context.bookName,
-            updatedAt = System.currentTimeMillis(),
-            records = listOf(record) + (old?.records.orEmpty().filterNot { it.id == record.id })
-        )
-        if (index >= 0) {
-            list[index] = updated
-        } else {
-            list.add(0, updated)
+    private fun showDeleteMessageDialog(messages: List<ReadAiMessage>) {
+        val context = readContext ?: return
+        if (messages.isEmpty()) return
+        val labels = messages.map { message ->
+            val role = if (message.role == ReadAiMessage.Role.USER) "你" else "AI"
+            "$role · ${message.content.lineSequence().firstOrNull().orEmpty().take(32)}"
         }
-        AppConfig.aiReadHistoryList = list
-        if (showingHistory) {
-            renderHistory()
-        }
+        AlertDialog.Builder(this.context)
+            .setTitle(R.string.delete)
+            .setItems(labels.toTypedArray()) { _, which ->
+                deleteMessage(context, messages[which].id)
+            }
+            .show()
     }
 
     private fun toggleHistory() {
@@ -198,23 +236,23 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         binding.answerContainer.isGone = showingHistory
         if (showingHistory) {
             renderHistory()
+        } else {
+            renderCurrentSession()
         }
     }
 
     private fun renderHistory() {
         val context = readContext ?: return
-        val records = AppConfig.aiReadHistoryList
-            .firstOrNull { it.bookUrl == context.bookUrl }
-            ?.records
-            .orEmpty()
+        val sessions = currentBookHistory(context).sessions
         binding.historyList.removeAllViews()
-        if (records.isEmpty()) {
+        if (sessions.isEmpty()) {
             binding.historyList.addView(makeHistoryEmptyView())
             return
         }
-        records.forEach { record ->
-            binding.historyList.addView(makeHistoryItem(record))
+        sessions.forEach { session ->
+            binding.historyList.addView(makeHistoryItem(session))
         }
+        binding.historyList.addView(makeClearAllView())
     }
 
     private fun makeHistoryEmptyView(): View {
@@ -226,7 +264,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         }
     }
 
-    private fun makeHistoryItem(record: ReadAiHistoryRecord): View {
+    private fun makeHistoryItem(session: ReadAiSession): View {
         val row = LinearLayout(context).apply {
             orientation = HORIZONTAL
             background = resources.getDrawable(R.drawable.bg_read_ai_history_item, context.theme)
@@ -237,9 +275,9 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         }
         val titleView = TextView(context).apply {
             text = buildString {
-                append(record.question.lineSequence().firstOrNull().orEmpty())
-                if (record.chapterTitle.isNotBlank()) append("\n").append(record.chapterTitle)
-                append(" · ").append(timeFormat.format(Date(record.createdAt)))
+                append(session.title.ifBlank { resources.getString(R.string.ai_new_chat) })
+                if (session.chapterTitle.isNotBlank()) append("\n").append(session.chapterTitle)
+                append(" · ").append(timeFormat.format(Date(session.updatedAt)))
             }
             setTextColor(context.primaryTextColor)
             textSize = 13f
@@ -253,37 +291,116 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             textSize = 13f
             gravity = android.view.Gravity.CENTER
             setPadding(10.dpToPx(), 0, 4.dpToPx(), 0)
-            setOnClickListener { deleteHistoryRecord(record.id) }
+            setOnClickListener { deleteSession(session.id) }
         }
         row.addView(deleteView, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         row.setOnClickListener {
+            currentSessionId = session.id
+            setCurrentSession(readContext ?: return@setOnClickListener, session.id)
             showingHistory = false
-            binding.historyContainer.isGone = true
-            binding.answerContainer.isVisible = true
-            binding.tvContext.text = record.chapterTitle.ifBlank { buildContextLabel(readContext ?: return@setOnClickListener) }
-            renderAnswer(record.answer)
+            showMessages()
         }
         row.setOnLongClickListener {
-            deleteHistoryRecord(record.id)
+            deleteSession(session.id)
             true
         }
         return row
     }
 
-    private fun deleteHistoryRecord(recordId: String) {
-        val context = readContext ?: return
-        val list = AppConfig.aiReadHistoryList.toMutableList()
-        val index = list.indexOfFirst { it.bookUrl == context.bookUrl }
-        if (index < 0) return
-        val old = list[index]
-        val records = old.records.filterNot { it.id == recordId }
-        if (records.isEmpty()) {
-            list.removeAt(index)
-        } else {
-            list[index] = old.copy(updatedAt = System.currentTimeMillis(), records = records)
+    private fun makeClearAllView(): View {
+        return TextView(context).apply {
+            text = resources.getString(R.string.ai_read_clear_history)
+            setTextColor(context.accentColor)
+            textSize = 13f
+            gravity = android.view.Gravity.CENTER
+            setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 12.dpToPx())
+            setOnClickListener { confirmClearHistory() }
         }
-        AppConfig.aiReadHistoryList = list
-        renderHistory()
+    }
+
+    private fun ensureSession(context: ReadContext, createNew: Boolean): ReadAiSession {
+        val history = currentBookHistory(context)
+        if (!createNew) {
+            val current = history.sessions.firstOrNull { it.id == history.currentSessionId }
+                ?: history.sessions.firstOrNull()
+            if (current != null) return current
+        }
+        val session = ReadAiSession(
+            title = context.selectedText.lineSequence().firstOrNull()?.take(24).orEmpty()
+                .ifBlank { resources.getString(R.string.ai_new_chat) },
+            chapterTitle = context.chapterTitle,
+            chapterIndex = context.chapterIndex
+        )
+        saveBookHistory(
+            context,
+            history.copy(
+                updatedAt = System.currentTimeMillis(),
+                currentSessionId = session.id,
+                sessions = listOf(session) + history.sessions
+            )
+        )
+        return session
+    }
+
+    private fun appendMessage(context: ReadContext, role: ReadAiMessage.Role, content: String): String {
+        val message = ReadAiMessage(role = role, content = content)
+        updateCurrentSession(context) { session ->
+            val title = if (session.title.isBlank() && role == ReadAiMessage.Role.USER) {
+                content.lineSequence().firstOrNull().orEmpty().take(24)
+            } else {
+                session.title
+            }
+            session.copy(
+                title = title,
+                updatedAt = System.currentTimeMillis(),
+                messages = session.messages + message
+            )
+        }
+        if (!showingHistory) renderCurrentSession()
+        return message.id
+    }
+
+    private fun replaceMessage(context: ReadContext, messageId: String, content: String) {
+        updateCurrentSession(context) { session ->
+            session.copy(
+                updatedAt = System.currentTimeMillis(),
+                messages = session.messages.map {
+                    if (it.id == messageId) it.copy(content = content) else it
+                }
+            )
+        }
+    }
+
+    private fun deleteMessage(context: ReadContext, messageId: String) {
+        updateCurrentSession(context) { session ->
+            session.copy(
+                updatedAt = System.currentTimeMillis(),
+                messages = session.messages.filterNot { it.id == messageId }
+            )
+        }
+        renderCurrentSession()
+    }
+
+    private fun deleteSession(sessionId: String) {
+        val context = readContext ?: return
+        val history = currentBookHistory(context)
+        val sessions = history.sessions.filterNot { it.id == sessionId }
+        if (sessions.isEmpty()) {
+            AppConfig.aiReadHistoryList = AppConfig.aiReadHistoryList.filterNot { it.bookUrl == context.bookUrl }
+            currentSessionId = ""
+        } else {
+            val nextId = if (currentSessionId == sessionId) sessions.first().id else currentSessionId
+            currentSessionId = nextId
+            saveBookHistory(
+                context,
+                history.copy(
+                    updatedAt = System.currentTimeMillis(),
+                    currentSessionId = nextId,
+                    sessions = sessions
+                )
+            )
+        }
+        if (showingHistory) renderHistory() else renderCurrentSession()
     }
 
     private fun confirmClearHistory() {
@@ -294,9 +411,51 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             .setPositiveButton(R.string.dialog_confirm) { _, _ ->
                 AppConfig.aiReadHistoryList =
                     AppConfig.aiReadHistoryList.filterNot { it.bookUrl == context.bookUrl }
-                if (showingHistory) renderHistory()
+                currentSessionId = ""
+                if (showingHistory) renderHistory() else renderCurrentSession()
             }
             .show()
+    }
+
+    private fun updateCurrentSession(context: ReadContext, mapper: (ReadAiSession) -> ReadAiSession) {
+        val history = currentBookHistory(context)
+        val session = history.sessions.firstOrNull { it.id == currentSessionId }
+            ?: ensureSession(context, createNew = false)
+        val mapped = mapper(session)
+        saveBookHistory(
+            context,
+            history.copy(
+                updatedAt = System.currentTimeMillis(),
+                currentSessionId = mapped.id,
+                sessions = listOf(mapped) + history.sessions.filterNot { it.id == mapped.id }
+            )
+        )
+    }
+
+    private fun setCurrentSession(context: ReadContext, sessionId: String) {
+        saveBookHistory(context, currentBookHistory(context).copy(currentSessionId = sessionId))
+    }
+
+    private fun currentBookHistory(context: ReadContext): ReadAiBookHistory {
+        return AppConfig.aiReadHistoryList.firstOrNull { it.bookUrl == context.bookUrl }
+            ?: ReadAiBookHistory(bookUrl = context.bookUrl, bookName = context.bookName)
+    }
+
+    private fun saveBookHistory(context: ReadContext, history: ReadAiBookHistory) {
+        val list = AppConfig.aiReadHistoryList.toMutableList()
+        val index = list.indexOfFirst { it.bookUrl == context.bookUrl }
+        val normalized = history.copy(
+            bookUrl = context.bookUrl,
+            bookName = context.bookName,
+            updatedAt = System.currentTimeMillis()
+        )
+        if (index >= 0) {
+            list[index] = normalized
+        } else {
+            list.add(0, normalized)
+        }
+        AppConfig.aiReadHistoryList = list
+        currentSessionId = normalized.currentSessionId
     }
 
     private fun handleDrag(event: MotionEvent): Boolean {
@@ -334,8 +493,13 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     private fun applyTheme() {
-        binding.btnSend.backgroundTintList = android.content.res.ColorStateList.valueOf(context.accentColor)
-        binding.btnSend.setColorFilter(android.graphics.Color.WHITE)
+        binding.btnSend.backgroundTintList = ColorStateList.valueOf(context.accentColor)
+        binding.btnSend.setColorFilter(Color.WHITE)
+        binding.btnClose.imageTintList = ColorStateList.valueOf(context.secondaryTextColor)
+        binding.btnHistory.imageTintList = ColorStateList.valueOf(context.secondaryTextColor)
+        binding.btnNewChat.imageTintList = ColorStateList.valueOf(context.secondaryTextColor)
+        binding.inputContainer.backgroundTintList =
+            ColorStateList.valueOf(ColorUtils.adjustAlpha(context.primaryTextColor, 0.06f))
     }
 
     private fun buildContextLabel(context: ReadContext): String {

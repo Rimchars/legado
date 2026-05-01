@@ -31,6 +31,16 @@
             android:textStyle="bold" />
 
         <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btn_new_chat"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/ai_new_chat"
+            android:padding="10dp"
+            android:src="@drawable/ic_add"
+            android:tint="@color/secondaryText" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btn_history"
             android:layout_width="40dp"
             android:layout_height="40dp"
@@ -41,23 +51,13 @@
             android:tint="@color/secondaryText" />
 
         <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btn_clear_history"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/ai_read_clear_history"
-            android:padding="10dp"
-            android:src="@drawable/ic_clear_all"
-            android:tint="@color/secondaryText" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btn_close"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/close"
             android:padding="10dp"
-            android:src="@drawable/ic_clear"
+            android:src="@drawable/ic_close_x"
             android:tint="@color/secondaryText" />
 
     </LinearLayout>
@@ -139,7 +139,7 @@
             android:layout_height="38dp"
             android:background="@drawable/bg_ai_send_button"
             android:contentDescription="@string/ai_chat_send"
-            android:padding="10dp"
+            android:padding="12dp"
             android:src="@drawable/ic_arrow_right"
             android:tint="@color/white" />
 

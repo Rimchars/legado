@@ -194,7 +194,6 @@
     <string name="rule_summary">Rules description</string>
     <string name="share">Share</string>
     <string name="ask_ai">Ask AI</string>
-    <string name="generate_image">Generate Image</string>
     <string name="content_select_menu_config">Long-press Menu Editor</string>
     <string name="content_select_menu_config_summary">Configure long-press actions and default open action</string>
     <string name="content_select_actions">Long-press actions</string>
@@ -204,10 +203,8 @@
     <string name="default_none">No default action</string>
     <string name="default_dict">Dictionary</string>
     <string name="default_ask_ai">Ask AI</string>
-    <string name="default_generate_image">Generate Image</string>
     <string name="ai_reply">AI Reply</string>
     <string name="ai_not_enabled">AI assistant is disabled</string>
-    <string name="generating_image_placeholder">Image generation is coming soon</string>
     <string name="share_app">Share to</string>
     <string name="flow_sys">Follow system</string>
     <string name="add">Add</string>

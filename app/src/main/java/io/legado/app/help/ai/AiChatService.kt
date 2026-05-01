@@ -84,7 +84,8 @@ object AiChatService {
         messages: List<AiChatMessage>,
         onPartial: (String) -> Unit,
         onThinking: (String) -> Unit = {},
-        onStatus: (JSONObject) -> Unit = {}
+        onStatus: (JSONObject) -> Unit = {},
+        includeStructuredBlocks: Boolean = true
     ): String {
         val provider = AppConfig.aiCurrentProvider
         val modelConfig = AppConfig.aiCurrentModelConfig
@@ -113,7 +114,8 @@ object AiChatService {
                 requestLog = requestLog,
                 onPartial = onPartial,
                 onThinking = onThinking,
-                onStatus = onStatus
+                onStatus = onStatus,
+                includeStructuredBlocks = includeStructuredBlocks
             )
         }.getOrElse { throwable ->
             if (throwable is AiChatException) {
@@ -137,7 +139,8 @@ object AiChatService {
         requestLog: StringBuilder,
         onPartial: (String) -> Unit,
         onThinking: (String) -> Unit,
-        onStatus: (JSONObject) -> Unit
+        onStatus: (JSONObject) -> Unit,
+        includeStructuredBlocks: Boolean
     ): String {
         val toolMap = tools.associateBy { it.name }
         val searchResultCards = JSONArray()
@@ -164,7 +167,11 @@ object AiChatService {
                         debugLog = requestLog.toString()
                     )
                 }
-                return appendStructuredBlocks(content, searchResultCards, toolEvents)
+                return if (includeStructuredBlocks) {
+                    appendStructuredBlocks(content, searchResultCards, toolEvents)
+                } else {
+                    content
+                }
             }
             assistantTurn.toolCalls.forEach { toolCall ->
                 onStatus(
@@ -245,7 +252,11 @@ object AiChatService {
                 debugLog = requestLog.toString()
             )
         }
-        return appendStructuredBlocks(finalTurn.content, searchResultCards, toolEvents)
+        return if (includeStructuredBlocks) {
+            appendStructuredBlocks(finalTurn.content, searchResultCards, toolEvents)
+        } else {
+            finalTurn.content
+        }
     }
 
     private fun collectSearchResultCards(

@@ -552,20 +552,27 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
 
     var aiReadHistoryList: List<ReadAiBookHistory>
         get() = runCatching {
-            GSON.fromJsonArray<ReadAiBookHistory>(appCtx.getPrefString(PreferKey.aiReadHistoryList))
-                .getOrDefault(emptyList())
-                .filter { it.bookUrl.isNotBlank() && it.records.isNotEmpty() }
+            readAiReadHistories()
+                .filter { it.bookUrl.isNotBlank() && it.sessions.isNotEmpty() }
                 .map { history ->
+                    val sessions = history.sessions
+                        .filter { it.id.isNotBlank() && it.messages.any { message -> message.content.isNotBlank() } }
+                        .map { session ->
+                            session.copy(
+                                messages = session.messages.filter { it.content.isNotBlank() }
+                            )
+                        }
+                        .sortedByDescending { it.updatedAt }
+                        .take(20)
                     history.copy(
                         bookUrl = history.bookUrl.trim(),
                         bookName = history.bookName.trim(),
-                        records = history.records
-                            .filter { it.id.isNotBlank() && it.question.isNotBlank() && it.answer.isNotBlank() }
-                            .sortedByDescending { it.createdAt }
-                            .take(50)
+                        currentSessionId = history.currentSessionId.takeIf { id -> sessions.any { it.id == id } }
+                            ?: sessions.firstOrNull()?.id.orEmpty(),
+                        sessions = sessions
                     )
                 }
-                .filter { it.records.isNotEmpty() }
+                .filter { it.sessions.isNotEmpty() }
                 .sortedByDescending { it.updatedAt }
                 .take(200)
         }.getOrElse {
@@ -577,18 +584,25 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             val histories = value.distinctBy { it.bookUrl }
                 .mapNotNull { history ->
                     val bookUrl = history.bookUrl.trim()
-                    val records = history.records
-                        .filter { it.id.isNotBlank() && it.question.isNotBlank() && it.answer.isNotBlank() }
-                        .sortedByDescending { it.createdAt }
-                        .take(50)
-                    if (bookUrl.isBlank() || records.isEmpty()) {
+                    val sessions = history.sessions
+                        .filter { it.id.isNotBlank() && it.messages.any { message -> message.content.isNotBlank() } }
+                        .map { session ->
+                            session.copy(
+                                messages = session.messages.filter { it.content.isNotBlank() }.takeLast(80)
+                            )
+                        }
+                        .sortedByDescending { it.updatedAt }
+                        .take(20)
+                    if (bookUrl.isBlank() || sessions.isEmpty()) {
                         null
                     } else {
                         history.copy(
                             bookUrl = bookUrl,
                             bookName = history.bookName.trim(),
                             updatedAt = history.updatedAt,
-                            records = records
+                            currentSessionId = history.currentSessionId.takeIf { id -> sessions.any { it.id == id } }
+                                ?: sessions.first().id,
+                            sessions = sessions
                         )
                     }
                 }
@@ -600,6 +614,70 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
                 appCtx.putPrefString(PreferKey.aiReadHistoryList, GSON.toJson(histories))
             }
         }
+
+    private fun readAiReadHistories(): List<ReadAiBookHistory> {
+        val raw = appCtx.getPrefString(PreferKey.aiReadHistoryList).orEmpty()
+        val histories = GSON.fromJsonArray<ReadAiBookHistory>(raw).getOrDefault(emptyList())
+        if (histories.any { it.sessions.isNotEmpty() }) {
+            return histories
+        }
+        return migrateLegacyReadAiHistories(raw)
+    }
+
+    private fun migrateLegacyReadAiHistories(raw: String): List<ReadAiBookHistory> {
+        return runCatching {
+            org.json.JSONArray(raw).let { array ->
+                buildList {
+                    for (index in 0 until array.length()) {
+                        val item = array.optJSONObject(index) ?: continue
+                        val records = item.optJSONArray("records") ?: continue
+                        val sessions = buildList {
+                            for (recordIndex in 0 until records.length()) {
+                                val record = records.optJSONObject(recordIndex) ?: continue
+                                val question = record.optString("question")
+                                val answer = record.optString("answer")
+                                if (question.isBlank() || answer.isBlank()) continue
+                                val createdAt = record.optLong("createdAt", System.currentTimeMillis())
+                                add(
+                                    io.legado.app.ui.book.read.ReadAiSession(
+                                        id = record.optString("id").ifBlank { java.util.UUID.randomUUID().toString() },
+                                        title = question.lineSequence().firstOrNull().orEmpty().take(24),
+                                        chapterTitle = record.optString("chapterTitle"),
+                                        chapterIndex = record.optInt("chapterIndex", -1),
+                                        createdAt = createdAt,
+                                        updatedAt = createdAt,
+                                        messages = listOf(
+                                            io.legado.app.ui.book.read.ReadAiMessage(
+                                                role = io.legado.app.ui.book.read.ReadAiMessage.Role.USER,
+                                                content = question,
+                                                createdAt = createdAt
+                                            ),
+                                            io.legado.app.ui.book.read.ReadAiMessage(
+                                                role = io.legado.app.ui.book.read.ReadAiMessage.Role.ASSISTANT,
+                                                content = answer,
+                                                createdAt = createdAt
+                                            )
+                                        )
+                                    )
+                                )
+                            }
+                        }
+                        if (sessions.isNotEmpty()) {
+                            add(
+                                ReadAiBookHistory(
+                                    bookUrl = item.optString("bookUrl"),
+                                    bookName = item.optString("bookName"),
+                                    updatedAt = item.optLong("updatedAt", sessions.maxOf { it.updatedAt }),
+                                    currentSessionId = sessions.first().id,
+                                    sessions = sessions
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
 
     var aiCurrentChatSessionId: String?
         get() = appCtx.getPrefString(PreferKey.aiCurrentChatSessionId)
