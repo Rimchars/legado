@@ -782,11 +782,16 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         val source = selectedDiscoverSource ?: return
         val action = item.kind.action?.takeIf { it.isNotBlank() } ?: return
         val infoMap = getDiscoverInfoMap(source.bookSourceUrl)
+        val actionLower = action.lowercase()
+        val isNavigationAction = actionLower.contains("showbrowser(")
+            || actionLower.contains("open(\"explore\"")
+            || actionLower.contains("open('explore'")
         discoverActionJob?.cancel()
         discoverActionJob = viewLifecycleOwner.lifecycleScope.launch {
             binding.pbDiscoverLoading.visible()
             val result = withContext(IO) {
                 kotlin.runCatching {
+                    var handledByBrowser = false
                     val java = SourceLoginJsExtensions(
                         activity as? AppCompatActivity,
                         source,
@@ -800,6 +805,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                                 config: String?
                             ): Boolean {
                                 if (!isAdded) return false
+                                handledByBrowser = true
                                 binding.root.post {
                                     showDiscoverWebPage(url, html)
                                 }
@@ -813,13 +819,21 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                             put("infoMap", infoMap)
                         }
                     }
-                    source.clearExploreKindsCache()
-                    source.exploreKinds()
+                    when {
+                        handledByBrowser || isNavigationAction -> null
+                        else -> {
+                            source.clearExploreKindsCache()
+                            source.exploreKinds()
+                        }
+                    }
                 }
             }
             binding.pbDiscoverLoading.gone()
             if (!isAdded) return@launch
             result.onSuccess { kinds ->
+                if (kinds == null) {
+                    return@onSuccess
+                }
                 applyDiscoverButtonResult(source, action, kinds)
             }.onFailure {
                 AppLog.put("发现标签按钮执行失败", it)
