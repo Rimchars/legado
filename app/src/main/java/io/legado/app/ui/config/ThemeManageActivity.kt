@@ -34,13 +34,17 @@ import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
+import io.legado.app.utils.GSON
 import io.legado.app.utils.externalFiles
+import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.getCompatColor
 import io.legado.app.utils.getFile
 import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.getPrefInt
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.hexString
+import io.legado.app.utils.putPrefString
+import io.legado.app.utils.removePref
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CancellationException
@@ -99,8 +103,10 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
+        restorePendingRemoteSyncTasks()
         initView()
         loadThemes()
+        flushPendingRemoteSyncTasks()
     }
 
     private fun initView() = binding.run {
@@ -418,8 +424,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 key = "upload:${entry.packageInfo.isNightTheme}:${entry.dirName}",
                 type = RemoteSyncTask.Type.UPLOAD,
                 isNightTheme = entry.packageInfo.isNightTheme,
-                dirName = entry.dirName,
-                entry = entry
+                dirName = entry.dirName
             )
         )
         loadThemes()
@@ -622,8 +627,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 key = "delete:${entry.packageInfo.isNightTheme}:${entry.dirName}",
                 type = RemoteSyncTask.Type.DELETE,
                 isNightTheme = entry.packageInfo.isNightTheme,
-                dirName = entry.dirName,
-                entry = entry
+                dirName = entry.dirName
             )
         )
     }
@@ -631,8 +635,32 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private fun enqueueRemoteSync(task: RemoteSyncTask) {
         synchronized(pendingRemoteSyncTasks) {
             pendingRemoteSyncTasks[task.key] = task
+            savePendingRemoteSyncTasksLocked()
         }
         flushPendingRemoteSyncTasks()
+    }
+
+    private fun restorePendingRemoteSyncTasks() {
+        val tasks = getPrefString(PreferKey.themePackageSyncTasks).orEmpty()
+            .takeIf { it.isNotBlank() }
+            ?.let { GSON.fromJsonArray<RemoteSyncTask>(it).getOrNull() }
+            .orEmpty()
+        if (tasks.isEmpty()) return
+        synchronized(pendingRemoteSyncTasks) {
+            pendingRemoteSyncTasks.clear()
+            tasks.forEach { task ->
+                pendingRemoteSyncTasks[task.key] = task.copy(lastError = "")
+            }
+        }
+    }
+
+    private fun savePendingRemoteSyncTasksLocked() {
+        val tasks = pendingRemoteSyncTasks.values.toList()
+        if (tasks.isEmpty()) {
+            removePref(PreferKey.themePackageSyncTasks)
+        } else {
+            putPrefString(PreferKey.themePackageSyncTasks, GSON.toJson(tasks))
+        }
     }
 
     private fun flushPendingRemoteSyncTasks() {
@@ -649,6 +677,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                     synchronized(pendingRemoteSyncTasks) {
                         if (pendingRemoteSyncTasks[task.key] == task) {
                             pendingRemoteSyncTasks.remove(task.key)
+                            savePendingRemoteSyncTasksLocked()
                         }
                     }
                 }.onFailure {
@@ -831,10 +860,20 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         val type: Type,
         val isNightTheme: Boolean,
         val dirName: String,
-        val entry: ThemePackageManager.Entry,
         var lastError: String = ""
     ) {
         suspend fun execute() {
+            val entry = ThemePackageManager.Entry(
+                packageInfo = ThemePackageManager.Package(
+                    name = dirName,
+                    dirName = dirName,
+                    isNightTheme = isNightTheme,
+                    updatedAt = 0L,
+                    config = null
+                ),
+                source = ThemePackageManager.Source.LOCAL,
+                localDir = ThemePackageManager.localDir(isNightTheme, dirName)
+            )
             runCatching {
                 when (type) {
                     Type.UPLOAD -> ThemePackageManager.upload(entry)
