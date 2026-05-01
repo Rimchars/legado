@@ -197,6 +197,16 @@
 		<item>beta_releaseS_version</item>
 	</string-array>
 
+	<string-array name="discovery_page_mode_entries">
+		<item>@string/discovery_page_mode_modern</item>
+		<item>@string/discovery_page_mode_legacy</item>
+	</string-array>
+
+	<string-array name="discovery_page_mode_values">
+		<item>modern</item>
+		<item>legacy</item>
+	</string-array>
+
 	<string-array name="bottom_bar_effect_mode_entries">
 		<item>常规</item>
 		<item>毛玻璃</item>
