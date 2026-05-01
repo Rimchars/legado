@@ -27,7 +27,7 @@ object AiSettingsTool {
     )
 
     private val settingDefs = listOf(
-        SettingDef(PreferKey.themeMode, "string", values = setOf("0", "1", "2", "3")),
+        SettingDef(PreferKey.themeMode, "int", min = 0, max = 3),
         SettingDef(PreferKey.showDiscovery, "boolean"),
         SettingDef(PreferKey.showRss, "boolean"),
         SettingDef(PreferKey.showReadRecord, "boolean"),
