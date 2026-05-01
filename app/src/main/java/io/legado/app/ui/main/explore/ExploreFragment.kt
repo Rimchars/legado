@@ -903,9 +903,10 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         val key = item.kind.title
         if (key.isBlank()) return item.kind.default ?: ""
         val info = getDiscoverInfoMap(source.bookSourceUrl)
-        return info[key]?.takeIf { it.isNotBlank() }
+        return info[key]?.toString()?.takeIf { it.isNotBlank() }
             ?: item.kind.default?.takeIf { it.isNotBlank() }
             ?: item.kind.chars?.firstOrNull()?.orEmpty()
+            ?: ""
     }
 
     private fun showDiscoverSelectDialog(item: DiscoverTagItem) {
