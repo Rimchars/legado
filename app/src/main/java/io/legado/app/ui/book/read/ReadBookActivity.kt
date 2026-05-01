@@ -932,13 +932,24 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
         val book = ReadBook.book
         val chapter = ReadBook.curTextChapter?.chapter
+        val rootLoc = IntArray(2)
+        val leftLoc = IntArray(2)
+        val rightLoc = IntArray(2)
+        val topLoc = IntArray(2)
+        binding.root.getLocationOnScreen(rootLoc)
+        binding.cursorLeft.getLocationOnScreen(leftLoc)
+        binding.cursorRight.getLocationOnScreen(rightLoc)
+        binding.textMenuPosition.getLocationOnScreen(topLoc)
+        val centerX = ((leftLoc[0] + rightLoc[0] + binding.cursorRight.width) / 2f - rootLoc[0]).toInt()
+        val topY = (topLoc[1] - rootLoc[1]).toInt()
+        val bottomY = maxOf(
+            (leftLoc[1] - rootLoc[1]).toInt() + binding.cursorLeft.height,
+            (rightLoc[1] - rootLoc[1]).toInt() + binding.cursorRight.height
+        )
         val anchor = ReadAiFloatingPanel.Anchor(
-            centerX = ((binding.cursorLeft.x + binding.cursorRight.x + binding.cursorRight.width) / 2f).toInt(),
-            topY = binding.textMenuPosition.y.toInt(),
-            bottomY = maxOf(
-                binding.cursorLeft.y.toInt() + binding.cursorLeft.height,
-                binding.cursorRight.y.toInt() + binding.cursorRight.height
-            )
+            centerX = centerX,
+            topY = topY,
+            bottomY = bottomY
         )
         binding.readAiPanel.open(
             ReadAiFloatingPanel.ReadContext(
