@@ -9,7 +9,6 @@ import android.util.AttributeSet
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -96,18 +95,12 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private var downRawY = 0f
     private var startX = 0f
     private var startY = 0f
-    private var panelScale = 0.8f
+    private var panelScale = 0.95f
     private val minScale = 0.6f
     private val maxScale = 1.25f
-    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            panelScale = (panelScale * detector.scaleFactor).coerceIn(minScale, maxScale)
-            scaleX = panelScale
-            scaleY = panelScale
-            post { ensureInsideParent() }
-            return true
-        }
-    })
+    private var resizeStartRawX = 0f
+    private var resizeStartRawY = 0f
+    private var resizeStartScale = panelScale
 
     init {
         orientation = VERTICAL
@@ -134,17 +127,10 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             }
         }
         binding.dragHandle.setOnTouchListener { _, event -> handleDrag(event) }
+        binding.resizeHandle.setOnTouchListener { _, event -> handleResize(event) }
         applyTheme()
         scaleX = panelScale
         scaleY = panelScale
-        setOnTouchListener { _, event ->
-            if (event.pointerCount > 1 || scaleDetector.isInProgress) {
-                scaleDetector.onTouchEvent(event)
-                true
-            } else {
-                false
-            }
-        }
     }
 
     fun attach(lifecycleOwner: LifecycleOwner) {
@@ -595,26 +581,59 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private fun ensureInsideParent() {
         val parentView = parent as? ViewGroup ?: return
         if (width <= 0 || height <= 0 || parentView.width <= 0 || parentView.height <= 0) return
-        x = min(max(0f, x), max(0, parentView.width - width).toFloat())
-        y = min(max(0f, y), max(0, parentView.height - height).toFloat())
+        val scaledWidth = width * panelScale
+        val scaledHeight = height * panelScale
+        x = min(max(0f, x), max(0f, parentView.width - scaledWidth))
+        y = min(max(0f, y), max(0f, parentView.height - scaledHeight))
     }
 
     private fun placeNearAnchor(anchor: Anchor) {
         val parentView = parent as? ViewGroup ?: return
         if (width <= 0 || height <= 0 || parentView.width <= 0 || parentView.height <= 0) return
         val margin = 10.dpToPx()
-        val preferredX = anchor.centerX - width / 2
-        val maxX = (parentView.width - width - margin).coerceAtLeast(margin)
+        val scaledWidth = (width * panelScale).toInt().coerceAtLeast(1)
+        val scaledHeight = (height * panelScale).toInt().coerceAtLeast(1)
+        val preferredX = anchor.centerX - scaledWidth / 2
+        val maxX = (parentView.width - scaledWidth - margin).coerceAtLeast(margin)
         x = preferredX.toFloat().coerceIn(margin.toFloat(), maxX.toFloat())
         val spaceAbove = anchor.topY - margin
         val spaceBelow = parentView.height - anchor.bottomY - margin
-        y = if (spaceBelow >= height || spaceBelow >= spaceAbove) {
+        y = if (spaceBelow >= scaledHeight || spaceBelow >= spaceAbove) {
             (anchor.bottomY + margin).toFloat()
-                .coerceAtMost((parentView.height - height - margin).toFloat())
+                .coerceAtMost((parentView.height - scaledHeight - margin).toFloat())
         } else {
-            (anchor.topY - height - margin).toFloat()
+            (anchor.topY - scaledHeight - margin).toFloat()
                 .coerceAtLeast(margin.toFloat())
         }
+    }
+
+    private fun handleResize(event: MotionEvent): Boolean {
+        val parentView = parent as? ViewGroup ?: return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                resizeStartRawX = event.rawX
+                resizeStartRawY = event.rawY
+                resizeStartScale = panelScale
+                parentView.requestDisallowInterceptTouchEvent(true)
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.rawX - resizeStartRawX
+                val dy = event.rawY - resizeStartRawY
+                val delta = (dx + dy) / (max(width, height).coerceAtLeast(1))
+                panelScale = (resizeStartScale + delta).coerceIn(minScale, maxScale)
+                scaleX = panelScale
+                scaleY = panelScale
+                ensureInsideParent()
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                ensureInsideParent()
+                parentView.requestDisallowInterceptTouchEvent(false)
+                return true
+            }
+        }
+        return true
     }
 
     private fun applyTheme() {

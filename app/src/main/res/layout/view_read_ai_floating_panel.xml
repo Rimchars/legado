@@ -142,4 +142,12 @@
 
     </LinearLayout>
 
+    <View
+        android:id="@+id/resize_handle"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_gravity="end"
+        android:background="@drawable/bg_read_ai_resize_handle"
+        android:contentDescription="@string/resize" />
+
 </LinearLayout>
