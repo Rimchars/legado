@@ -10,6 +10,7 @@ import androidx.core.view.postDelayed
 import androidx.fragment.app.activityViewModels
 import androidx.preference.ListPreference
 import androidx.preference.Preference
+import androidx.preference.SwitchPreferenceCompat
 import com.jeremyliao.liveeventbus.LiveEventBus
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
@@ -64,6 +65,7 @@ class OtherConfigFragment : PreferenceFragment(),
     }
 
     private var onlyUpdateReadPref: Preference? = null
+    private var targetKeyHandled = false
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         putPrefBoolean(PreferKey.processText, isProcessTextEnabled())
@@ -89,6 +91,12 @@ class OtherConfigFragment : PreferenceFragment(),
         activity?.setTitle(R.string.other_setting)
         preferenceManager.sharedPreferences?.registerOnSharedPreferenceChangeListener(this)
         listView.setEdgeEffectColor(primaryColor)
+        consumeTargetKey()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        consumeTargetKey()
     }
 
     override fun onDestroy() {
@@ -137,6 +145,12 @@ class OtherConfigFragment : PreferenceFragment(),
             PreferKey.contentSelectMenuConfig -> ContentSelectMenuConfigDialog()
                 .show(parentFragmentManager, "contentSelectMenuConfig")
             PreferKey.uploadRule -> showDialogFragment<DirectLinkUploadConfig>()
+            "discoverySettings" -> startActivity<ConfigActivity> {
+                putExtra("configTag", ConfigTag.DISCOVERY_CONFIG)
+            }
+            "subscriptionSettings" -> startActivity<ConfigActivity> {
+                putExtra("configTag", ConfigTag.SUBSCRIPTION_CONFIG)
+            }
             PreferKey.checkSource -> showDialogFragment<CheckSourceConfig>()
             PreferKey.bitmapCacheSize -> {
                 NumberPickerDialog(requireContext())
@@ -212,8 +226,7 @@ class OtherConfigFragment : PreferenceFragment(),
                 setProcessTextEnable(it.getBoolean(key, true))
             }
 
-            PreferKey.showDiscovery, PreferKey.showRss, PreferKey.showReadRecord -> postEvent(EventBus.NOTIFY_MAIN, true)
-            PreferKey.modernDiscoveryPage, PreferKey.modernRssPage, PreferKey.mergeDiscoveryRss -> postEvent(EventBus.NOTIFY_MAIN, false)
+            PreferKey.showReadRecord -> postEvent(EventBus.NOTIFY_MAIN, true)
             PreferKey.language -> listView.postDelayed(1000) {
                 appCtx.restart()
             }
@@ -376,6 +389,23 @@ class OtherConfigFragment : PreferenceFragment(),
                 LocalConfig.password = editTextBinding.editView.text.toString()
             }
             cancelButton()
+        }
+    }
+
+    private fun consumeTargetKey() {
+        if (targetKeyHandled) return
+        val targetKey = activity?.intent?.getStringExtra("targetKey")?.trim().orEmpty()
+        if (targetKey.isBlank()) return
+        val preference = findPreference<Preference>(targetKey) ?: return
+        targetKeyHandled = true
+        listView.post {
+            scrollToPreference(preference)
+            if (preference is SwitchPreferenceCompat) {
+                preference.isChecked = !preference.isChecked
+            } else {
+                onPreferenceTreeClick(preference)
+            }
+            activity?.intent?.removeExtra("targetKey")
         }
     }
 

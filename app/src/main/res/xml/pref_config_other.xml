@@ -37,23 +37,10 @@
             android:title="@string/pt_default_read"
             app:iconSpaceReserved="false" />
 
-        <io.legado.app.lib.prefs.SwitchPreference
-            android:defaultValue="true"
-            android:key="showDiscovery"
-            android:title="@string/show_discovery"
-            app:iconSpaceReserved="false" />
-
-        <io.legado.app.lib.prefs.SwitchPreference
-            android:defaultValue="true"
-            android:key="modernDiscoveryPage"
-            android:summary="@string/modern_discovery_page_summary"
-            android:title="@string/modern_discovery_page"
-            app:iconSpaceReserved="false" />
-
-        <io.legado.app.lib.prefs.SwitchPreference
-            android:defaultValue="false"
-            android:key="showRss"
-            android:title="@string/show_rss"
+        <io.legado.app.lib.prefs.Preference
+            android:key="discoverySettings"
+            android:summary="@string/discovery_settings_summary"
+            android:title="@string/discovery_settings_title"
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.SwitchPreference
@@ -62,18 +49,10 @@
             android:title="@string/show_read_record"
             app:iconSpaceReserved="false" />
 
-        <io.legado.app.lib.prefs.SwitchPreference
-            android:defaultValue="true"
-            android:key="modernRssPage"
-            android:summary="@string/modern_rss_page_summary"
-            android:title="@string/modern_rss_page"
-            app:iconSpaceReserved="false" />
-
-        <io.legado.app.lib.prefs.SwitchPreference
-            android:defaultValue="false"
-            android:key="mergeDiscoveryRss"
-            android:summary="@string/merge_discovery_rss_summary"
-            android:title="@string/merge_discovery_rss"
+        <io.legado.app.lib.prefs.Preference
+            android:key="subscriptionSettings"
+            android:summary="@string/subscription_settings_summary"
+            android:title="@string/subscription_settings_title"
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.NameListPreference

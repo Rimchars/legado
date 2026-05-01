@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <io.legado.app.lib.prefs.SwitchPreference
+        android:defaultValue="true"
+        android:key="showDiscovery"
+        android:title="@string/show_discovery"
+        app:iconSpaceReserved="false" />
+
+    <Preference
+        android:key="search_jump_showDiscovery"
+        android:title="@string/show_discovery"
+        android:summary="@string/show_discovery"
+        android:visible="false" />
+
+    <io.legado.app.lib.prefs.NameListPreference
+        android:defaultValue="modern"
+        android:key="modernDiscoveryMode"
+        android:summary="@string/modern_discovery_page_summary"
+        android:title="@string/modern_discovery_page"
+        app:entries="@array/discovery_page_mode_entries"
+        app:entryValues="@array/discovery_page_mode_values"
+        app:iconSpaceReserved="false" />
+
+    <Preference
+        android:key="search_jump_modernDiscoveryMode"
+        android:title="@string/modern_discovery_page"
+        android:summary="@string/modern_discovery_page_summary"
+        android:visible="false" />
+
+</androidx.preference.PreferenceScreen>

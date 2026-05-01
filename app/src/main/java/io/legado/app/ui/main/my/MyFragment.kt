@@ -116,11 +116,14 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             val title: String,
             val summary: String,
             val key: String,
+            val ownerConfigTag: String? = null,
         ) {
             val searchText: String = listOf(title, summary, key).joinToString(" ").lowercase()
         }
 
         private val subSearchItems by lazy(LazyThreadSafetyMode.NONE) { buildSubSearchItems() }
+        private val ownerMatchedSubItems = hashMapOf<String, List<SubSearchItem>>()
+        private var activeSearchKeyword: String = ""
         private val originalSummaries = hashMapOf<String, CharSequence?>()
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -192,6 +195,8 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
 
         fun filterMainPreferences(query: String?) {
             val keyword = query?.trim().orEmpty().lowercase()
+            activeSearchKeyword = keyword
+            ownerMatchedSubItems.clear()
             val root = preferenceScreen ?: return
             if (keyword.isBlank()) {
                 restoreMainSummaries(root)
@@ -234,6 +239,9 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             val keyText = key.lowercase()
             val matchedSubItems = subSearchItems
                 .filter { it.ownerKey == key && it.searchText.contains(keyword) }
+            if (matchedSubItems.isNotEmpty()) {
+                ownerMatchedSubItems[key] = matchedSubItems
+            }
             updateSearchSummary(preference, matchedSubItems)
             return titleText.contains(keyword)
                 || summaryText.contains(keyword)
@@ -243,18 +251,24 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
 
         private fun buildSubSearchItems(): List<SubSearchItem> {
             return listOf(
-                "theme_setting" to R.xml.pref_config_theme,
-                "web_dav_setting" to R.xml.pref_config_backup,
-                "coverConfig" to R.xml.pref_config_cover,
-                "ai_setting" to R.xml.pref_config_ai,
-                "setting" to R.xml.pref_config_other,
-                "setting" to R.xml.pref_config_read
-            ).flatMap { (ownerKey, xmlRes) ->
-                buildPreferenceXmlSearchItems(ownerKey, xmlRes)
+                Triple("theme_setting", R.xml.pref_config_theme, ConfigTag.THEME_CONFIG),
+                Triple("web_dav_setting", R.xml.pref_config_backup, ConfigTag.BACKUP_CONFIG),
+                Triple("coverConfig", R.xml.pref_config_cover, ConfigTag.COVER_CONFIG),
+                Triple("ai_setting", R.xml.pref_config_ai, ConfigTag.AI_CONFIG),
+                Triple("setting", R.xml.pref_config_other, ConfigTag.OTHER_CONFIG),
+                Triple("setting", R.xml.pref_config_read, ConfigTag.OTHER_CONFIG),
+                Triple("setting", R.xml.pref_config_discovery, ConfigTag.DISCOVERY_CONFIG),
+                Triple("setting", R.xml.pref_config_subscription, ConfigTag.SUBSCRIPTION_CONFIG)
+            ).flatMap { (ownerKey, xmlRes, ownerConfigTag) ->
+                buildPreferenceXmlSearchItems(ownerKey, xmlRes, ownerConfigTag)
             }
         }
 
-        private fun buildPreferenceXmlSearchItems(ownerKey: String, xmlRes: Int): List<SubSearchItem> {
+        private fun buildPreferenceXmlSearchItems(
+            ownerKey: String,
+            xmlRes: Int,
+            ownerConfigTag: String
+        ): List<SubSearchItem> {
             val items = ArrayList<SubSearchItem>()
             val parser: XmlResourceParser = resources.getXml(xmlRes)
             try {
@@ -269,7 +283,8 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                                     ownerKey = ownerKey,
                                     title = title,
                                     summary = collectPreferenceAttr(parser, "summary").orEmpty(),
-                                    key = key
+                                    key = key.removePrefix("search_jump_"),
+                                    ownerConfigTag = ownerConfigTag
                                 )
                             )
                         }
@@ -354,6 +369,20 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                 "readRecord" -> startActivity<ReadRecordActivity>()
                 "about" -> startActivity<AboutActivity>()
                 "exit" -> activity?.finish()
+                else -> Unit
+            }
+            if (activeSearchKeyword.isNotBlank()) {
+                ownerMatchedSubItems[preference.key.orEmpty()]
+                    ?.firstOrNull()
+                    ?.let { item ->
+                        item.ownerConfigTag?.let { configTag ->
+                            startActivity<ConfigActivity> {
+                                putExtra("configTag", configTag)
+                                putExtra("targetKey", item.key)
+                            }
+                            return true
+                        }
+                    }
             }
             return super.onPreferenceTreeClick(preference)
         }

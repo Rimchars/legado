@@ -1080,6 +1080,12 @@
     <string name="show_discovery">Show Discovery</string>
     <string name="modern_discovery_page">Use Modern Discovery Page</string>
     <string name="modern_discovery_page_summary">Use source selector + tag tabs + in-page discovery book list</string>
+    <string name="discovery_settings_title">Discovery settings</string>
+    <string name="discovery_settings_summary">Configure discovery entrance and page style.</string>
+    <string name="subscription_settings_title">Subscription settings</string>
+    <string name="subscription_settings_summary">Configure subscription entrance and page style.</string>
+    <string name="discovery_page_mode_modern">Modern discovery</string>
+    <string name="discovery_page_mode_legacy">Classic discovery</string>
     <string name="style">Style</string>
     <string name="group_style">Group style</string>
     <string name="export_file_name">Export file name</string>

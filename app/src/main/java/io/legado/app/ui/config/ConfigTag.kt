@@ -8,5 +8,7 @@ object ConfigTag {
     const val AI_CONFIG = "aiConfig"
     const val COVER_CONFIG = "coverConfig"
     const val WELCOME_CONFIG = "welcomeConfig"
+    const val DISCOVERY_CONFIG = "discoveryConfig"
+    const val SUBSCRIPTION_CONFIG = "subscriptionConfig"
 
 }

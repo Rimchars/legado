@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <io.legado.app.lib.prefs.SwitchPreference
+        android:defaultValue="false"
+        android:key="showRss"
+        android:title="@string/show_rss"
+        app:iconSpaceReserved="false" />
+
+    <Preference
+        android:key="search_jump_showRss"
+        android:title="@string/show_rss"
+        android:summary="@string/show_rss"
+        android:visible="false" />
+
+    <io.legado.app.lib.prefs.SwitchPreference
+        android:defaultValue="true"
+        android:key="modernRssPage"
+        android:summary="@string/modern_rss_page_summary"
+        android:title="@string/modern_rss_page"
+        app:iconSpaceReserved="false" />
+
+    <Preference
+        android:key="search_jump_modernRssPage"
+        android:title="@string/modern_rss_page"
+        android:summary="@string/modern_rss_page_summary"
+        android:visible="false" />
+
+    <io.legado.app.lib.prefs.SwitchPreference
+        android:defaultValue="false"
+        android:key="mergeDiscoveryRss"
+        android:summary="@string/merge_discovery_rss_summary"
+        android:title="@string/merge_discovery_rss"
+        app:iconSpaceReserved="false" />
+
+    <Preference
+        android:key="search_jump_mergeDiscoveryRss"
+        android:title="@string/merge_discovery_rss"
+        android:summary="@string/merge_discovery_rss_summary"
+        android:visible="false" />
+
+</androidx.preference.PreferenceScreen>
