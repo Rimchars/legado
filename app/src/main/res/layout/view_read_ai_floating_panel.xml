@@ -87,22 +87,15 @@
 
     </ScrollView>
 
-    <ScrollView
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/answer_container"
         android:layout_width="match_parent"
         android:layout_height="260dp"
         android:layout_marginTop="8dp"
-        android:fillViewport="false">
-
-        <TextView
-            android:id="@+id/tv_answer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:lineSpacingExtra="2dp"
-            android:textColor="@color/primaryText"
-            android:textSize="14sp" />
-
-    </ScrollView>
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp" />
 
     <LinearLayout
         android:id="@+id/input_container"

@@ -58,6 +58,7 @@ object PreferKey {
     const val aiMcpServerList = "aiMcpServerList"
     const val aiChatSessionList = "aiChatSessionList"
     const val aiReadHistoryList = "aiReadHistoryList"
+    const val themePackageSyncTasks = "themePackageSyncTasks"
     const val aiCurrentChatSessionId = "aiCurrentChatSessionId"
     const val aiSystemPrompt = "aiSystemPrompt"
     const val aiSkillPrompt = "aiSkillPrompt"

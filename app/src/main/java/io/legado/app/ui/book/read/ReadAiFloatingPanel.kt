@@ -4,21 +4,26 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Build
-import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
+import io.legado.app.databinding.ItemReadAiMessageBinding
 import io.legado.app.databinding.ViewReadAiFloatingPanelBinding
 import io.legado.app.help.ai.AiChatService
 import io.legado.app.help.config.AppConfig
@@ -66,11 +71,13 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             .build()
     }
     private val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    private val messageAdapter = MessageAdapter()
     private var lifecycleOwner: LifecycleOwner? = null
     private var readContext: ReadContext? = null
     private var currentSessionId: String = ""
     private var answerJob: Job? = null
     private var showingHistory = false
+    private var streamingAssistantContent: String? = null
     private var downRawX = 0f
     private var downRawY = 0f
     private var startX = 0f
@@ -78,7 +85,10 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
 
     init {
         orientation = VERTICAL
-        binding.tvAnswer.movementMethod = LinkMovementMethod()
+        binding.answerContainer.layoutManager = LinearLayoutManager(context).apply {
+            stackFromEnd = true
+        }
+        binding.answerContainer.adapter = messageAdapter
         binding.btnClose.setOnClickListener { close() }
         binding.btnNewChat.setOnClickListener { startNewChat() }
         binding.btnHistory.setOnClickListener { toggleHistory() }
@@ -116,12 +126,14 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
 
     fun close() {
         answerJob?.cancel()
+        streamingAssistantContent = null
         visibility = GONE
     }
 
     private fun startNewChat() {
         val context = readContext ?: return
         answerJob?.cancel()
+        streamingAssistantContent = null
         currentSessionId = ensureSession(context, createNew = true).id
         showingHistory = false
         showMessages()
@@ -147,20 +159,16 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             ReadAiMessage.Role.ASSISTANT,
             resources.getString(R.string.ai_chat_thinking)
         )
+        val requestMessages = buildRequestMessages(context, question)
         answerJob = owner.lifecycleScope.launch {
             val result = runCatching {
                 withContext(IO) {
                     AiChatService.chatStream(
-                        messages = listOf(
-                            AiChatMessage(
-                                role = AiChatMessage.Role.USER,
-                                content = buildPrompt(context, question)
-                            )
-                        ),
+                        messages = requestMessages,
                         onPartial = { partial ->
                             if (partial.isNotBlank()) {
                                 post {
-                                    replaceMessage(context, pendingAssistantId, partial)
+                                    streamingAssistantContent = partial
                                     if (!showingHistory) renderCurrentSession()
                                 }
                             }
@@ -172,6 +180,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                 if (throwable is CancellationException) throw throwable
                 throwable.localizedMessage ?: throwable.toString()
             }
+            streamingAssistantContent = null
             replaceMessage(context, pendingAssistantId, result)
             if (!showingHistory) renderCurrentSession()
         }
@@ -187,47 +196,33 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         val context = readContext ?: return
         val session = currentBookHistory(context).sessions.firstOrNull { it.id == currentSessionId }
         val messages = session?.messages.orEmpty()
-        val content = if (messages.isEmpty()) {
-            resources.getString(R.string.ai_chat_empty)
+        val displayMessages = streamingAssistantContent?.let { partial ->
+            messages.dropLast(1) + (messages.lastOrNull()?.copy(content = partial)
+                ?: ReadAiMessage(role = ReadAiMessage.Role.ASSISTANT, content = partial))
+        } ?: messages
+        if (displayMessages.isEmpty()) {
+            renderMessages(
+                listOf(
+                    ReadAiMessage(
+                        role = ReadAiMessage.Role.ASSISTANT,
+                        content = resources.getString(R.string.ai_chat_empty)
+                    )
+                ),
+                allowDelete = false
+            )
         } else {
-            messages.joinToString("\n\n") { message ->
-                val label = when (message.role) {
-                    ReadAiMessage.Role.USER -> "你"
-                    ReadAiMessage.Role.ASSISTANT -> "AI"
-                }
-                "**$label**\n${message.content}"
-            }
-        }
-        renderAnswer(content)
-        binding.tvAnswer.setOnLongClickListener {
-            showDeleteMessageDialog(messages)
-            true
+            renderMessages(displayMessages, allowDelete = true)
         }
     }
 
-    private fun renderAnswer(content: String) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            binding.tvAnswer.setTextClassifier(android.view.textclassifier.TextClassifier.NO_OP)
-        }
-        binding.tvAnswer.setMarkdown(markwon, markwon.toMarkdown(content), imgOnLongClickListener = {})
+    private fun renderMessages(messages: List<ReadAiMessage>, allowDelete: Boolean) {
+        messageAdapter.allowDelete = allowDelete
+        messageAdapter.submit(messages)
         binding.answerContainer.post {
-            binding.answerContainer.fullScroll(FOCUS_DOWN)
-        }
-    }
-
-    private fun showDeleteMessageDialog(messages: List<ReadAiMessage>) {
-        val context = readContext ?: return
-        if (messages.isEmpty()) return
-        val labels = messages.map { message ->
-            val role = if (message.role == ReadAiMessage.Role.USER) "你" else "AI"
-            "$role · ${message.content.lineSequence().firstOrNull().orEmpty().take(32)}"
-        }
-        AlertDialog.Builder(this.context)
-            .setTitle(R.string.delete)
-            .setItems(labels.toTypedArray()) { _, which ->
-                deleteMessage(context, messages[which].id)
+            if (messageAdapter.itemCount > 0) {
+                binding.answerContainer.scrollToPosition(messageAdapter.itemCount - 1)
             }
-            .show()
+        }
     }
 
     private fun toggleHistory() {
@@ -521,5 +516,83 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             用户选中或追问：
             $question
         """.trimIndent()
+    }
+
+    private fun buildRequestMessages(context: ReadContext, question: String): List<AiChatMessage> {
+        val historyMessages = currentBookHistory(context).sessions
+            .firstOrNull { it.id == currentSessionId }
+            ?.messages
+            .orEmpty()
+            .dropLast(2)
+            .takeLast(12)
+            .mapNotNull { message ->
+                val content = message.content.trim()
+                if (content.isBlank()) return@mapNotNull null
+                AiChatMessage(
+                    role = when (message.role) {
+                        ReadAiMessage.Role.USER -> AiChatMessage.Role.USER
+                        ReadAiMessage.Role.ASSISTANT -> AiChatMessage.Role.ASSISTANT
+                    },
+                    content = content
+                )
+            }
+        return historyMessages + AiChatMessage(
+            role = AiChatMessage.Role.USER,
+            content = buildPrompt(context, question)
+        )
+    }
+
+    private inner class MessageAdapter : RecyclerView.Adapter<MessageAdapter.Holder>() {
+        private val messages = arrayListOf<ReadAiMessage>()
+        var allowDelete: Boolean = true
+
+        fun submit(items: List<ReadAiMessage>) {
+            messages.clear()
+            messages.addAll(items)
+            notifyDataSetChanged()
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+            return Holder(
+                ItemReadAiMessageBinding.inflate(
+                    LayoutInflater.from(parent.context),
+                    parent,
+                    false
+                )
+            )
+        }
+
+        override fun onBindViewHolder(holder: Holder, position: Int) {
+            holder.bind(messages[position])
+        }
+
+        override fun getItemCount(): Int = messages.size
+
+        inner class Holder(private val itemBinding: ItemReadAiMessageBinding) :
+            RecyclerView.ViewHolder(itemBinding.root) {
+
+            fun bind(message: ReadAiMessage) = itemBinding.run {
+                val isUser = message.role == ReadAiMessage.Role.USER
+                val params = tvMessage.layoutParams as FrameLayout.LayoutParams
+                params.gravity = if (isUser) Gravity.END else Gravity.START
+                tvMessage.layoutParams = params
+                tvMessage.background = ContextCompat.getDrawable(
+                    context,
+                    if (isUser) R.drawable.bg_ai_user_message else R.drawable.bg_read_ai_history_item
+                )
+                tvMessage.ellipsize = null
+                tvMessage.maxLines = Int.MAX_VALUE
+                tvMessage.setTextColor(context.primaryTextColor)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    tvMessage.setTextClassifier(android.view.textclassifier.TextClassifier.NO_OP)
+                }
+                tvMessage.setMarkdown(markwon, markwon.toMarkdown(message.content), imgOnLongClickListener = {})
+                tvMessage.setOnLongClickListener {
+                    if (!allowDelete || message.id.isBlank()) return@setOnLongClickListener false
+                    deleteMessage(readContext ?: return@setOnLongClickListener false, message.id)
+                    true
+                }
+            }
+        }
     }
 }
