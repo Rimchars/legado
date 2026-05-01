@@ -316,10 +316,10 @@ open class RssJsExtensions(
         return analyzeRule.getElements(ruleStr)
     }
 
-}
     protected open fun onOpen(
         name: String,
         url: String? = null,
         title: String? = null,
         origin: String? = null
     ): Boolean = false
+}
