@@ -16,6 +16,10 @@ import android.widget.TextView
 import android.view.SubMenu
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.appcompat.widget.SearchView
 import androidx.core.os.bundleOf
 import androidx.core.view.isGone
@@ -139,6 +143,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private var discoverRequestVersion = 0L
     private var discoverSourceVersion = 0L
     private var discoveryModeLoaded = false
+    private var discoverWebView: WebView? = null
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
@@ -275,6 +280,9 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         discoverAllTagItems.clear()
         discoverMajorGroups.clear()
         discoverTagItems.clear()
+        discoverWebView?.stopLoading()
+        discoverWebView?.destroy()
+        discoverWebView = null
         selectedDiscoverMajorGroup = null
         selectedDiscoverTagIndex = -1
         selectedDiscoverUrlIndex = -1
@@ -317,6 +325,43 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 }
             }
         })
+    }
+
+    @android.annotation.SuppressLint("SetJavaScriptEnabled")
+    private fun showDiscoverWebPage(url: String, html: String? = null) {
+        val webView = discoverWebView ?: WebView(requireContext()).also { created ->
+            created.layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            created.overScrollMode = View.OVER_SCROLL_NEVER
+            created.settings.javaScriptEnabled = true
+            created.settings.domStorageEnabled = true
+            created.settings.cacheMode = WebSettings.LOAD_DEFAULT
+            created.settings.loadsImagesAutomatically = true
+            created.settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            created.settings.loadWithOverviewMode = true
+            created.settings.useWideViewPort = true
+            created.webViewClient = WebViewClient()
+            created.webChromeClient = WebChromeClient()
+            binding.discoverWebContainer.addView(created)
+            discoverWebView = created
+        }
+        binding.flDiscoverBooks.gone()
+        binding.discoverWebContainer.visible()
+        binding.pbDiscoverLoading.gone()
+        binding.swipeRefreshLayout.isRefreshing = false
+        webView.stopLoading()
+        if (html.isNullOrBlank()) {
+            webView.loadUrl(url)
+        } else {
+            webView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+        }
+    }
+
+    private fun restoreDiscoverListPage() {
+        binding.discoverWebContainer.gone()
+        binding.flDiscoverBooks.visible()
     }
 
     private fun bindDiscoverSourceSelector() {
@@ -720,6 +765,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
     private fun selectDiscoverTag(index: Int, item: DiscoverTagItem, selectTab: Boolean) {
         val url = item.kind.url?.takeIf { it.isNotBlank() } ?: return
+        restoreDiscoverListPage()
         selectedDiscoverTagIndex = index
         selectedDiscoverUrlIndex = index
         if (selectTab) {
@@ -747,6 +793,18 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         callback = object : SourceLoginJsExtensions.Callback {
                             override fun upUiData(data: Map<String, Any?>?) = Unit
                             override fun reUiView(deltaUp: Boolean) = Unit
+                            override fun showBrowser(
+                                url: String,
+                                html: String?,
+                                preloadJs: String?,
+                                config: String?
+                            ): Boolean {
+                                if (!isAdded) return false
+                                binding.root.post {
+                                    showDiscoverWebPage(url, html)
+                                }
+                                return true
+                            }
                         }
                     )
                     runScriptWithContext {
@@ -778,6 +836,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         val items = buildDiscoverTagItems(source, kinds)
         val firstUrlIndex = items.indexOfFirst { !it.isButton && !it.kind.url.isNullOrBlank() }
         if (firstUrlIndex >= 0) {
+            restoreDiscoverListPage()
             discoverAllTagItems.clear()
             discoverAllTagItems.addAll(items)
             applyDiscoverTagFilterAndSelect(preferredUrl = discoverCurrentUrl)
@@ -790,7 +849,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         discoverAllTagItems.clear()
         discoverAllTagItems.addAll(filteredItems)
         applyDiscoverTagFilterAndSelect(preferredUrl = discoverCurrentUrl)
-        context?.toastOnUi("该按钮未返回可用发现列表，已隐藏")
+        context?.toastOnUi("该按钮未返回可用发现列表")
     }
 
     private fun getDiscoverInfoMap(sourceUrl: String): InfoMap {
@@ -800,6 +859,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun clearDiscoverBooksToEmpty(message: String) {
+        restoreDiscoverListPage()
         discoverRequestVersion += 1
         discoverLoadJob?.cancel()
         discoverLoadJob = null
@@ -816,6 +876,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun loadDiscoverBooks(reset: Boolean) {
+        restoreDiscoverListPage()
         if (!usingModernDiscovery) return
         val source = selectedDiscoverSource ?: return
         val url = discoverCurrentUrl?.takeIf { it.isNotBlank() } ?: return

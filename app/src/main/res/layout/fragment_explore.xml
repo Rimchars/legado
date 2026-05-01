@@ -176,6 +176,14 @@
 
                 </FrameLayout>
 
+                <FrameLayout
+                    android:id="@+id/discover_web_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_marginTop="10dp"
+                    android:layout_weight="1"
+                    android:visibility="gone" />
+
             </LinearLayout>
 
             <io.legado.app.ui.widget.recycler.RecyclerViewAtPager2
