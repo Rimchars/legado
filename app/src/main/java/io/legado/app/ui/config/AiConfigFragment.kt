@@ -576,27 +576,7 @@ class AiConfigFragment : PreferenceFragment(),
     }
 
     private fun toolDisplayName(name: String): String {
-        val group = when {
-            name.startsWith("mcp_") -> "MCP"
-            name.startsWith("query_bookshelf")
-                || name.startsWith("get_bookshelf")
-                || name.startsWith("manage_bookshelf")
-                || name.startsWith("set_bookshelf")
-                || name.startsWith("query_read_records") -> "书架"
-            name.startsWith("list_book_sources")
-                || name.startsWith("search_book_source")
-                || name.startsWith("create_book_source")
-                || name.startsWith("get_book_source")
-                || name.startsWith("update_book_source")
-                || name.startsWith("fetch_source_html")
-                || name.startsWith("debug_book_source") -> "书源"
-            name.startsWith("list_book_chapters")
-                || name.startsWith("read_book_chapter_content") -> "阅读"
-            name.startsWith("search_web_tavily") -> "联网搜索"
-            name.startsWith("get_app_settings")
-                || name.startsWith("set_app_setting") -> "设置"
-            else -> "其他"
-        }
+        val group = AiToolRegistry.groupLabelOfTool(name)
         return "[$group] $name"
     }
 

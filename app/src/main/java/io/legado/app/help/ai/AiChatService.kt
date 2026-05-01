@@ -321,7 +321,7 @@ object AiChatService {
         toolMap: Map<String, AiResolvedTool>
     ): String {
         val enabled = AppConfig.aiEnabledToolNames.ifEmpty { AiToolRegistry.defaultEnabledTools }
-        if (toolCall.name !in enabled && !toolCall.name.startsWith("mcp_")) {
+        if (toolCall.name !in enabled) {
             return JSONObject().apply {
                 put("ok", false)
                 put("error", "Tool is disabled: ${toolCall.name}")

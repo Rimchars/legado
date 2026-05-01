@@ -58,6 +58,30 @@ object AiToolRegistry {
         val enabled = AppConfig.aiEnabledToolNames.ifEmpty { defaultEnabledTools }
         return tools
             .distinctBy { it.name }
-            .filter { it.name in enabled || it.name.startsWith("mcp_") }
+            .filter { it.name in enabled }
     }
 }
+    private val toolGroupPrefixes = listOf(
+        "mcp_" to "MCP",
+        "query_bookshelf" to "书架",
+        "get_bookshelf" to "书架",
+        "manage_bookshelf" to "书架",
+        "set_bookshelf" to "书架",
+        "query_read_records" to "书架",
+        "list_book_sources" to "书源",
+        "search_book_source" to "书源",
+        "create_book_source" to "书源",
+        "get_book_source" to "书源",
+        "update_book_source" to "书源",
+        "fetch_source_html" to "书源",
+        "debug_book_source" to "书源",
+        "list_book_chapters" to "阅读",
+        "read_book_chapter_content" to "阅读",
+        "search_web_tavily" to "联网搜索",
+        "get_app_settings" to "设置",
+        "set_app_setting" to "设置"
+    )
+
+    fun groupLabelOfTool(name: String): String {
+        return toolGroupPrefixes.firstOrNull { name.startsWith(it.first) }?.second ?: "其他"
+    }
