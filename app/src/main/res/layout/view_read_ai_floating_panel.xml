@@ -142,12 +142,31 @@
 
     </LinearLayout>
 
-    <View
-        android:id="@+id/resize_handle"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:layout_gravity="end"
-        android:background="@drawable/bg_read_ai_resize_handle"
-        android:contentDescription="@string/resize" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="18dp"
+        android:layout_marginTop="6dp"
+        android:gravity="bottom"
+        android:orientation="horizontal">
+
+        <View
+            android:id="@+id/resize_handle_left"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:background="@drawable/bg_read_ai_resize_handle_left"
+            android:contentDescription="@string/resize" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <View
+            android:id="@+id/resize_handle_right"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:background="@drawable/bg_read_ai_resize_handle_right"
+            android:contentDescription="@string/resize" />
+    </LinearLayout>
 
 </LinearLayout>
