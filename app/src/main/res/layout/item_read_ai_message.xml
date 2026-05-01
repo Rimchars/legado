@@ -10,7 +10,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:lineSpacingExtra="2dp"
-        android:maxWidth="312dp"
+        android:maxWidth="280dp"
         android:minHeight="38dp"
         android:minWidth="72dp"
         android:paddingStart="14dp"
