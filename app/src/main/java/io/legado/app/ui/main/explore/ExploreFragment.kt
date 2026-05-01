@@ -73,6 +73,7 @@ import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
 import io.legado.app.utils.InfoMap
 import io.legado.app.utils.navigationBarHeight
+import io.legado.app.utils.setDarkeningAllowed
 import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.startActivity
@@ -357,6 +358,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             created.settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             created.settings.loadWithOverviewMode = true
             created.settings.useWideViewPort = true
+            created.settings.setDarkeningAllowed(AppConfig.isNightTheme)
             created.setBackgroundColor(Color.TRANSPARENT)
             created.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             created.isVerticalScrollBarEnabled = false
@@ -377,6 +379,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 }
             }
             created.webChromeClient = WebChromeClient()
+            binding.discoverWebContainer.setBackgroundColor(Color.TRANSPARENT)
             binding.discoverWebContainer.addView(created)
             discoverWebView = created
         }
