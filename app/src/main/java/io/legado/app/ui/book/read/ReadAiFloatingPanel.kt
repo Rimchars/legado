@@ -18,6 +18,7 @@ import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.lifecycle.LifecycleOwner
@@ -135,24 +136,26 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         showMessages()
         binding.tvContext.text = buildContextLabel(readContext)
         binding.etQuestion.setText("")
+        animate().cancel()
+        translationY = 0f
         if (visibility != VISIBLE) {
             alpha = 0f
-            translationY = 14f.dpToPx().toFloat()
             visibility = VISIBLE
-            animate()
-                .alpha(1f)
-                .translationY(0f)
-                .setDuration(180L)
-                .start()
         } else {
             visibility = VISIBLE
         }
         bringToFront()
-        post {
+        doOnLayout {
             if (anchor != null) {
                 placeNearAnchor(anchor)
             }
             ensureInsideParent()
+            if (alpha < 1f) {
+                animate()
+                    .alpha(1f)
+                    .setDuration(160L)
+                    .start()
+            }
         }
         if (readContext.selectedText.isNotBlank()) {
             ask(readContext.selectedText)
