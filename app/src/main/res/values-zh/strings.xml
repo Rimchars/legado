@@ -1448,6 +1448,7 @@
     <string name="ai_request_cancelled">请求已取消</string>
     <string name="ai_request_error_title">AI 请求失败</string>
     <string name="ai_request_error_log">AI 请求日志</string>
+    <string name="resize">调整大小</string>
     <string name="ai_view_log">查看日志</string>
     <string name="change_book_source_action">更换书源</string>
     <string name="ai_import_default_skill">安装默认 阅读Archive Skill</string>
