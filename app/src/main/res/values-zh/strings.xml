@@ -813,6 +813,7 @@
     <string name="read_record">阅读记录</string>
     <string name="del_read_record">删除阅读记录</string>
     <string name="read_record_summary">阅读时间记录</string>
+    <string name="show_read_record">显示阅读统计入口</string>
     <string name="read_record_heatmap">阅读热力图</string>
     <string name="read_record_recent_books">最近在读</string>
     <string name="read_record_recent_days">按日摘要</string>
@@ -1341,6 +1342,8 @@
     <string name="ai_tavily_enable_summary_missing">请先填写 Tavily API Key，再启用工具。</string>
     <string name="ai_show_tool_summary">显示工具摘要</string>
     <string name="ai_show_tool_summary_summary">在助手回复下方显示一个可折叠的工具摘要。</string>
+    <string name="ai_enter_to_send">回车发送</string>
+    <string name="ai_enter_to_send_summary">开启后按回车直接发送；关闭后只能点击发送按钮发送。</string>
     <string name="ai_tavily_api_key">Tavily API Key</string>
     <string name="ai_tavily_api_key_hint">tvly-...</string>
     <string name="ai_tavily_api_key_summary">点按填写 Tavily API Key。</string>
@@ -1440,6 +1443,7 @@
     <string name="ai_remove_model_confirm">确定删除这个模型吗？</string>
     <string name="ai_model_removed">已删除模型</string>
     <string name="ai_request_failed">请求失败：%s</string>
+    <string name="ai_request_cancelled">请求已取消</string>
     <string name="ai_request_error_title">AI 请求失败</string>
     <string name="ai_request_error_log">AI 请求日志</string>
     <string name="ai_view_log">查看日志</string>

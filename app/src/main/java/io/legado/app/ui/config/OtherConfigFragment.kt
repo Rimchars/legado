@@ -212,7 +212,7 @@ class OtherConfigFragment : PreferenceFragment(),
                 setProcessTextEnable(it.getBoolean(key, true))
             }
 
-            PreferKey.showDiscovery, PreferKey.showRss -> postEvent(EventBus.NOTIFY_MAIN, true)
+            PreferKey.showDiscovery, PreferKey.showRss, PreferKey.showReadRecord -> postEvent(EventBus.NOTIFY_MAIN, true)
             PreferKey.modernDiscoveryPage, PreferKey.modernRssPage, PreferKey.mergeDiscoveryRss -> postEvent(EventBus.NOTIFY_MAIN, false)
             PreferKey.language -> listView.postDelayed(1000) {
                 appCtx.restart()

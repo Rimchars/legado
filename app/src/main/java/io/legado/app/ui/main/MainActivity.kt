@@ -253,7 +253,9 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 viewPagerMain.setCurrentItem(realPositions.indexOf(idRss), false)
 
             R.id.menu_read_record ->
-                viewPagerMain.setCurrentItem(realPositions.indexOf(idReadRecord), false)
+                realPositions.indexOf(idReadRecord).takeIf { it >= 0 }?.let {
+                    viewPagerMain.setCurrentItem(it, false)
+                }
 
             R.id.menu_my_config ->
                 viewPagerMain.setCurrentItem(realPositions.indexOf(idMy), false)
@@ -875,7 +877,8 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 }
                 upBottomMenu()
                 if (it) {
-                    viewPagerMain.setCurrentItem(bottomMenuCount - 1, false)
+                    pagePosition = resolveHomePagePosition().coerceIn(0, bottomMenuCount - 1)
+                    viewPagerMain.setCurrentItem(pagePosition, false)
                 }
             }
         }
@@ -887,10 +890,12 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private fun upBottomMenu() {
         val showDiscovery = AppConfig.showDiscovery
         val showRss = AppConfig.showRSS && binding.bottomNavigationView.menu.findItem(R.id.menu_rss) != null
+        val showReadRecord = AppConfig.showReadRecord
         val mergedDiscovery = AppConfig.mergeDiscoveryRss && showDiscovery && showRss
         binding.bottomNavigationView.menu.let { menu ->
             menu.findItem(R.id.menu_discovery).isVisible = showDiscovery || (mergedDiscovery && showRss)
             menu.findItem(R.id.menu_rss)?.isVisible = showRss && !mergedDiscovery
+            menu.findItem(R.id.menu_read_record)?.isVisible = showReadRecord
             if (mergedDiscovery) {
                 if (resolveDiscoveryNavTarget() == idRss) {
                     menu.findItem(R.id.menu_discovery).setIcon(R.drawable.ic_bottom_rss_feed)
@@ -914,11 +919,14 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             index++
             realPositions[index] = idRss
         }
-        index++
-        realPositions[index] = idReadRecord
+        if (showReadRecord) {
+            index++
+            realPositions[index] = idReadRecord
+        }
         index++
         realPositions[index] = idMy
         bottomMenuCount = index + 1
+        pagePosition = pagePosition.coerceIn(0, bottomMenuCount - 1)
         adapter.notifyDataSetChanged()
         binding.bottomNavigationView.post {
             bindMergedDiscoveryLongClick()

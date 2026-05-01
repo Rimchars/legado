@@ -351,6 +351,9 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     val showRSS: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.showRss, false)
 
+    val showReadRecord: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.showReadRecord, true)
+
     var bookshelfHiddenTags: Map<Long, Set<String>>
         get() {
             val rawMap = GSON.fromJsonObject<Map<String, List<String>>>(
@@ -725,6 +728,10 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     var aiShowToolSummary: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.aiShowToolSummary, false)
         set(value) = appCtx.putPrefBoolean(PreferKey.aiShowToolSummary, value)
+
+    var aiEnterToSend: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.aiEnterToSend, true)
+        set(value) = appCtx.putPrefBoolean(PreferKey.aiEnterToSend, value)
 
     var aiTavilyApiKey: String
         get() = appCtx.getPrefString(PreferKey.aiTavilyApiKey).orEmpty()

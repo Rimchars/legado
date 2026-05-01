@@ -187,7 +187,7 @@ class AiChatActivity : BaseActivity<ActivityAiChatBinding>(
         binding.etAiInput.setOnEditorActionListener { _, actionId, event ->
             val isSendAction = actionId == EditorInfo.IME_ACTION_SEND
             val isEnterKey = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
-            if (isSendAction || isEnterKey) {
+            if (AppConfig.aiEnterToSend && (isSendAction || isEnterKey)) {
                 dispatchSend()
                 true
             } else {
