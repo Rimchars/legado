@@ -18,7 +18,8 @@ class RoundedTagBarView @JvmOverloads constructor(
 
     data class Item(
         val text: CharSequence,
-        val alpha: Float = 1f
+        val alpha: Float = 1f,
+        val widthFraction: Float? = null
     )
 
     private val layoutManager = LinearLayoutManager(context, RecyclerView.HORIZONTAL, false)
@@ -147,6 +148,25 @@ class RoundedTagBarView @JvmOverloads constructor(
             val item = items[position]
             holder.textView.text = item.text
             holder.textView.alpha = item.alpha
+            val targetFraction = item.widthFraction
+            val lp = holder.textView.layoutParams as RecyclerView.LayoutParams
+            if (targetFraction != null && targetFraction > 0f && targetFraction <= 1f) {
+                val parentWidth = recyclerView.width
+                if (parentWidth > 0) {
+                    val horizontalMargin = lp.marginStart + lp.marginEnd
+                    val targetWidth = (parentWidth * targetFraction).toInt() - horizontalMargin
+                    if (targetWidth > 0 && lp.width != targetWidth) {
+                        lp.width = targetWidth
+                        holder.textView.layoutParams = lp
+                    }
+                } else {
+                    lp.width = RecyclerView.LayoutParams.WRAP_CONTENT
+                    holder.textView.layoutParams = lp
+                }
+            } else if (lp.width != RecyclerView.LayoutParams.WRAP_CONTENT) {
+                lp.width = RecyclerView.LayoutParams.WRAP_CONTENT
+                holder.textView.layoutParams = lp
+            }
             holder.textView.isSelected = position == selectedIndex
             holder.textView.setOnClickListener {
                 val bindingPosition = holder.bindingAdapterPosition
