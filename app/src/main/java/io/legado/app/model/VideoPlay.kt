@@ -48,16 +48,29 @@ import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import splitties.init.appCtx
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 object VideoPlay : CoroutineScope by MainScope(){
     private const val VIDEO_POS_NAME = "video_pos_" //单链接播放进度
     private const val VIDEO_POS_SAVE_TIME = 60 * 60 * 24 * 20 //20天
     private var needClearTemp = true //需要清理缓存
     private const val VIDEO_TEMP_PATH = "video_temp"
+    private const val CHAPTER_LINK_CACHE_TTL = 30 * 60 * 1000L
     private val videoTempFile by lazy { File(FileUtils.getCachePath(), VIDEO_TEMP_PATH) }
+    private data class CachedPlayLink(
+        val playUrl: String,
+        val headers: Map<String, String>,
+        val mediaUrl: String,
+        val createdAt: Long
+    )
+    private val chapterLinkCache = ConcurrentHashMap<String, CachedPlayLink>()
+    private val preloadingKeys = ConcurrentHashMap.newKeySet<String>()
+    private val preloadMutex = Mutex()
 
     const val VIDEO_PREF_NAME = "video_config"
 
@@ -248,7 +261,27 @@ object VideoPlay : CoroutineScope by MainScope(){
             appCtx.toastOnUi("未找到章节")
             return
         }
-        WebBook.getContent(loadScope, source as BookSource, book, chapter)
+        val chapterSource = source as BookSource
+        val chapterCacheKey = buildChapterCacheKey(chapterSource, book, chapter)
+        val cached = chapterLinkCache[chapterCacheKey]?.takeIf {
+            System.currentTimeMillis() - it.createdAt <= CHAPTER_LINK_CACHE_TTL
+        }
+        if (cached != null) {
+            videoUrl = cached.mediaUrl
+            when (val danmaku = chapter.getDanmaku()) {
+                is String -> danmakuStr = danmaku
+                is File -> danmakuFile = danmaku
+            }
+            player.mapHeadData = cached.headers.toMutableMap()
+            player.setUp(cached.playUrl, false, File(appCtx.externalCache, "exoplayer"), chapter.title)
+            if (autoPlay) {
+                player.startPlayLogic()
+            }
+            preloadNextEpisode(chapterSource, book)
+            isLoading = false
+            return
+        }
+        WebBook.getContent(loadScope, chapterSource, book, chapter)
             .onSuccess(IO) { content ->
                 val content = content.trim()
                 val mUrl = if (content.isEmpty()) {
@@ -273,6 +306,12 @@ object VideoPlay : CoroutineScope by MainScope(){
                     is File -> danmakuFile = danmaku
                 }
                 val playUrl = analyzeUrl.url
+                chapterLinkCache[chapterCacheKey] = CachedPlayLink(
+                    playUrl = playUrl,
+                    headers = analyzeUrl.headerMap.toMap(),
+                    mediaUrl = mUrl,
+                    createdAt = System.currentTimeMillis()
+                )
                 withContext(Main) {
                     player.mapHeadData = analyzeUrl.headerMap
                     player.setUp(playUrl, false, File(appCtx.externalCache, "exoplayer"), chapter.title)
@@ -280,10 +319,59 @@ object VideoPlay : CoroutineScope by MainScope(){
                         player.startPlayLogic()
                     }
                 }
+                preloadNextEpisode(chapterSource, book)
             }.onError {
                 AppLog.put("获取资源链接出错\n$it", it, true)
             }
         isLoading = false
+    }
+
+    private fun buildChapterCacheKey(source: BookSource, book: Book, chapter: BookChapter): String {
+        return "${source.getKey()}|${book.bookUrl}|${chapter.url}"
+    }
+
+    private fun preloadNextEpisode(source: BookSource, book: Book) {
+        val nextChapter = episodes?.getOrNull(chapterInVolumeIndex + 1) ?: return
+        val nextKey = buildChapterCacheKey(source, book, nextChapter)
+        val exists = chapterLinkCache[nextKey]?.let {
+            System.currentTimeMillis() - it.createdAt <= CHAPTER_LINK_CACHE_TTL
+        } == true
+        if (exists || !preloadingKeys.add(nextKey)) return
+        Coroutine.async(loadScope, IO) {
+            preloadMutex.withLock {
+                try {
+                    if (chapterLinkCache[nextKey]?.let {
+                            System.currentTimeMillis() - it.createdAt <= CHAPTER_LINK_CACHE_TTL
+                        } == true
+                    ) return@withLock
+                    val content = WebBook.getContentAwait(source, book, nextChapter).trim()
+                    if (content.isEmpty()) return@withLock
+                    val mUrl = if (content.startsWith("<")) {
+                        val name = MD5Utils.md5Encode(content) + ".mpd"
+                        val file = FileUtils.createFileIfNotExist(videoTempFile, name)
+                        file.writeText(content)
+                        Uri.fromFile(file).toString()
+                    } else {
+                        content
+                    }
+                    val analyzeUrl = AnalyzeUrl(
+                        mUrl,
+                        source = source,
+                        ruleData = book,
+                        chapter = nextChapter
+                    )
+                    chapterLinkCache[nextKey] = CachedPlayLink(
+                        playUrl = analyzeUrl.url,
+                        headers = analyzeUrl.headerMap.toMap(),
+                        mediaUrl = mUrl,
+                        createdAt = System.currentTimeMillis()
+                    )
+                } catch (_: Throwable) {
+                } finally {
+                    preloadingKeys.remove(nextKey)
+                }
+            }
+        }
     }
 
     /**

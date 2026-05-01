@@ -50,7 +50,7 @@
                 android:background="@drawable/bg_bookshelf_tag_item"
                 android:gravity="center"
                 android:includeFontPadding="false"
-                android:text="@string/book_intro"
+                android:text="@string/book_info_tab_intro"
                 android:textColor="@color/primaryText"
                 android:textSize="14sp" />
 
@@ -74,7 +74,7 @@
                 android:background="@drawable/bg_bookshelf_tag_item"
                 android:gravity="center"
                 android:includeFontPadding="false"
-                android:text="@string/book_info"
+                android:text="@string/book_info_tab_info"
                 android:textColor="@color/tv_text_summary"
                 android:textSize="14sp" />
 
