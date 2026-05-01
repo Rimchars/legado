@@ -127,7 +127,8 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             }
         }
         binding.dragHandle.setOnTouchListener { _, event -> handleDrag(event) }
-        binding.resizeHandle.setOnTouchListener { _, event -> handleResize(event) }
+        binding.resizeHandleLeft.setOnTouchListener { _, event -> handleResize(event, fromLeft = true) }
+        binding.resizeHandleRight.setOnTouchListener { _, event -> handleResize(event, fromLeft = false) }
         applyTheme()
         scaleX = panelScale
         scaleY = panelScale
@@ -607,7 +608,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         }
     }
 
-    private fun handleResize(event: MotionEvent): Boolean {
+    private fun handleResize(event: MotionEvent, fromLeft: Boolean): Boolean {
         val parentView = parent as? ViewGroup ?: return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -618,7 +619,8 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                val dx = event.rawX - resizeStartRawX
+                val dxRaw = event.rawX - resizeStartRawX
+                val dx = if (fromLeft) -dxRaw else dxRaw
                 val dy = event.rawY - resizeStartRawY
                 val delta = (dx + dy) / (max(width, height).coerceAtLeast(1))
                 panelScale = (resizeStartScale + delta).coerceIn(minScale, maxScale)
