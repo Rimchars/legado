@@ -9,6 +9,7 @@ import android.util.AttributeSet
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -95,7 +96,18 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private var downRawY = 0f
     private var startX = 0f
     private var startY = 0f
-    private var panelScale = 1f
+    private var panelScale = 0.8f
+    private val minScale = 0.6f
+    private val maxScale = 1.25f
+    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            panelScale = (panelScale * detector.scaleFactor).coerceIn(minScale, maxScale)
+            scaleX = panelScale
+            scaleY = panelScale
+            post { ensureInsideParent() }
+            return true
+        }
+    })
 
     init {
         orientation = VERTICAL
@@ -104,8 +116,6 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         }
         binding.answerContainer.adapter = messageAdapter
         binding.btnClose.setOnClickListener { close() }
-        binding.btnScaleDown.setOnClickListener { adjustScale(-0.1f) }
-        binding.btnScaleUp.setOnClickListener { adjustScale(0.1f) }
         binding.btnNewChat.setOnClickListener { startNewChat() }
         binding.btnHistory.setOnClickListener { toggleHistory() }
         binding.btnSend.setOnClickListener {
@@ -125,6 +135,16 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         }
         binding.dragHandle.setOnTouchListener { _, event -> handleDrag(event) }
         applyTheme()
+        scaleX = panelScale
+        scaleY = panelScale
+        setOnTouchListener { _, event ->
+            if (event.pointerCount > 1 || scaleDetector.isInProgress) {
+                scaleDetector.onTouchEvent(event)
+                true
+            } else {
+                false
+            }
+        }
     }
 
     fun attach(lifecycleOwner: LifecycleOwner) {
@@ -595,18 +615,6 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             (anchor.topY - height - margin).toFloat()
                 .coerceAtLeast(margin.toFloat())
         }
-    }
-
-    private fun adjustScale(delta: Float) {
-        val minScale = 0.6f
-        val maxScale = 1.25f
-        panelScale = (panelScale + delta).coerceIn(minScale, maxScale)
-        animate()
-            .scaleX(panelScale)
-            .scaleY(panelScale)
-            .setDuration(130L)
-            .start()
-        post { ensureInsideParent() }
     }
 
     private fun applyTheme() {

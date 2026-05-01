@@ -31,26 +31,6 @@
             android:textStyle="bold" />
 
         <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btn_scale_down"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/reduce"
-            android:padding="10dp"
-            android:src="@drawable/ic_expand_less"
-            android:tint="@color/secondaryText" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btn_scale_up"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/add"
-            android:padding="10dp"
-            android:src="@drawable/ic_add"
-            android:tint="@color/secondaryText" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btn_new_chat"
             android:layout_width="40dp"
             android:layout_height="40dp"
