@@ -36,6 +36,12 @@ class SourceLoginJsExtensions(
             preloadJs: String? = null,
             config: String? = null
         ): Boolean = false
+        fun open(
+            name: String,
+            url: String? = null,
+            title: String? = null,
+            origin: String? = null
+        ): Boolean = false
     }
 
     fun upLoginData(data: Map<String, Any?>?) {
@@ -49,6 +55,15 @@ class SourceLoginJsExtensions(
 
     fun refreshExplore() {
         callbackRef.get()?.reUiView()
+    }
+
+    override fun onOpen(
+        name: String,
+        url: String?,
+        title: String?,
+        origin: String?
+    ): Boolean {
+        return callbackRef.get()?.open(name, url, title, origin) == true
     }
 
     fun refreshBookInfo() {

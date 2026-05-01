@@ -328,7 +328,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     @android.annotation.SuppressLint("SetJavaScriptEnabled")
-    private fun showDiscoverWebPage(url: String, html: String? = null) {
+    private fun showDiscoverWebPage(url: String, html: String? = null, preloadJs: String? = null) {
         val webView = discoverWebView ?: WebView(requireContext()).also { created ->
             created.layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -355,7 +355,23 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         if (html.isNullOrBlank()) {
             webView.loadUrl(url)
         } else {
-            webView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+            val patchedHtml = if (preloadJs.isNullOrBlank()) {
+                html
+            } else {
+                val headIndex = html.indexOf("<head", ignoreCase = true)
+                if (headIndex >= 0) {
+                    val closingHeadIndex = html.indexOf('>', startIndex = headIndex)
+                    if (closingHeadIndex >= 0) {
+                        val insertPos = closingHeadIndex + 1
+                        StringBuilder(html).insert(insertPos, "<script>${preloadJs}</script>").toString()
+                    } else {
+                        "<script>${preloadJs}</script>$html"
+                    }
+                } else {
+                    "<script>${preloadJs}</script>$html"
+                }
+            }
+            webView.loadDataWithBaseURL(url, patchedHtml, "text/html", "utf-8", url)
         }
     }
 
@@ -807,7 +823,23 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                                 if (!isAdded) return false
                                 handledByBrowser = true
                                 binding.root.post {
-                                    showDiscoverWebPage(url, html)
+                                    showDiscoverWebPage(url, html, preloadJs)
+                                }
+                                return true
+                            }
+
+                            override fun open(
+                                name: String,
+                                url: String?,
+                                title: String?,
+                                origin: String?
+                            ): Boolean {
+                                if (!isAdded) return false
+                                if (name != "explore") return false
+                                handledByBrowser = true
+                                val targetUrl = url?.takeIf { it.isNotBlank() } ?: return true
+                                binding.root.post {
+                                    showDiscoverWebPage(targetUrl)
                                 }
                                 return true
                             }
