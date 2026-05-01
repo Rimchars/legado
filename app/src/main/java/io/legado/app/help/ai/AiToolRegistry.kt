@@ -11,7 +11,7 @@ data class AiResolvedTool(
 
 object AiToolRegistry {
 
-    private val defaultEnabledTools = setOf(
+    val defaultEnabledTools = setOf(
         "query_bookshelf",
         "get_bookshelf_book_info",
         "manage_bookshelf_group",
@@ -34,16 +34,30 @@ object AiToolRegistry {
         "set_app_settings_batch"
     )
 
-    suspend fun resolveAvailableTools(): List<AiResolvedTool> {
+    private fun nativeResolvedTools(): List<AiResolvedTool> {
         val tools = AiBookshelfTool.resolvedTools().toMutableList()
         tools += AiLibraryTool.resolvedTools()
         tools += AiTavilyTool.resolvedTools()
         tools += AiBookSourceTool.resolvedTools()
         tools += AiSettingsTool.resolvedTools()
+        return tools.distinctBy { it.name }
+    }
+
+    suspend fun resolveAllToolNamesForManage(): List<String> {
+        val dynamic = mutableSetOf<String>()
+        dynamic += nativeResolvedTools().map { it.name }
+        dynamic += AiMcpClient.resolveTools(AppConfig.aiEnabledMcpServers).map { it.name }
+        dynamic += AppConfig.aiEnabledToolNames
+        dynamic += defaultEnabledTools
+        return dynamic.toList().sorted()
+    }
+
+    suspend fun resolveAvailableTools(): List<AiResolvedTool> {
+        val tools = nativeResolvedTools().toMutableList()
         tools += AiMcpClient.resolveTools(AppConfig.aiEnabledMcpServers)
         val enabled = AppConfig.aiEnabledToolNames.ifEmpty { defaultEnabledTools }
         return tools
             .distinctBy { it.name }
-            .filter { it.name in enabled }
+            .filter { it.name in enabled || it.name.startsWith("mcp_") }
     }
 }

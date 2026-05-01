@@ -174,27 +174,6 @@ object AiChatService {
                 }
             }
             assistantTurn.toolCalls.forEach { toolCall ->
-                if (AppConfig.aiToolPolicy != "always_allow") {
-                    val denial = JSONObject().apply {
-                        put("ok", false)
-                        put("error", "tool call requires user confirmation")
-                        put("tool", toolCall.name)
-                    }.toString()
-                    conversation += JSONObject().apply {
-                        put("role", "tool")
-                        put("tool_call_id", toolCall.id)
-                        put("content", denial)
-                    }
-                    toolEvents.put(
-                        JSONObject().apply {
-                            put("name", toolCall.name)
-                            put("stage", "result")
-                            put("content", denial)
-                            put("success", false)
-                        }
-                    )
-                    return@forEach
-                }
                 onStatus(
                     JSONObject().apply {
                         put("key", toolCall.id.ifBlank { toolCall.name })
@@ -341,6 +320,13 @@ object AiChatService {
         toolCall: ToolCall,
         toolMap: Map<String, AiResolvedTool>
     ): String {
+        val enabled = AppConfig.aiEnabledToolNames.ifEmpty { AiToolRegistry.defaultEnabledTools }
+        if (toolCall.name !in enabled && !toolCall.name.startsWith("mcp_")) {
+            return JSONObject().apply {
+                put("ok", false)
+                put("error", "Tool is disabled: ${toolCall.name}")
+            }.toString()
+        }
         val resolvedTool = toolMap[toolCall.name]
         if (resolvedTool == null) {
             return JSONObject().apply {

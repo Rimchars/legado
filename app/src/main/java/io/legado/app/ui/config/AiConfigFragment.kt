@@ -68,7 +68,6 @@ class AiConfigFragment : PreferenceFragment(),
             "aiManageModels" -> showManageModelsDialog()
             "aiAddMcpServer" -> showEditMcpServerDialog()
             "aiManageMcpServers" -> showManageMcpServersDialog()
-            "aiToolPolicy" -> showToolPolicyDialog()
             "aiManageNativeTools" -> showManageNativeToolsDialog()
             PreferKey.aiTavilyApiKey -> showTavilyApiKeyDialog()
             PreferKey.aiTavilyBaseUrl -> showTavilyBaseUrlDialog()
@@ -541,37 +540,30 @@ class AiConfigFragment : PreferenceFragment(),
         }
     }
 
-    private fun showToolPolicyDialog() {
-        val labels = arrayListOf(
-            getString(R.string.ai_tool_policy_ask),
-            getString(R.string.ai_tool_policy_always_allow)
-        )
-        val values = listOf("ask", "always_allow")
-        context?.selector(getString(R.string.ai_tool_policy), labels) { _, _, index ->
-            AppConfig.aiToolPolicy = values[index]
-            refreshUi()
-        }
-    }
-
     private fun showManageNativeToolsDialog() {
         lifecycleScope.launch {
-            val tools = runCatching { AiToolRegistry.resolveAvailableTools() }
+            val tools = runCatching { AiToolRegistry.resolveAllToolNamesForManage() }
                 .getOrDefault(emptyList())
-                .map { it.name }
-                .distinct()
-                .sorted()
             if (tools.isEmpty()) {
                 toastOnUi(R.string.not_available)
                 return@launch
             }
             val enabled = AppConfig.aiEnabledToolNames.toMutableSet()
-            val checked = BooleanArray(tools.size) { tools[it] in enabled || enabled.isEmpty() }
+            val checked = BooleanArray(tools.size) {
+                val name = tools[it]
+                if (enabled.isEmpty()) name in AiToolRegistry.defaultEnabledTools else name in enabled
+            }
+            val labels = tools.map(::toolDisplayName).toTypedArray()
             alert(getString(R.string.ai_manage_native_tools)) {
-                multiChoiceItems(tools.toTypedArray(), checked) { _, which, isChecked ->
+                multiChoiceItems(labels, checked) { _, which, isChecked ->
                     if (isChecked) enabled.add(tools[which]) else enabled.remove(tools[which])
                 }
                 okButton {
                     AppConfig.aiEnabledToolNames = enabled
+                    refreshUi()
+                }
+                negativeButton(R.string.select_all) {
+                    AppConfig.aiEnabledToolNames = tools.toSet()
                     refreshUi()
                 }
                 neutralButton(R.string.restore_default) {
@@ -581,6 +573,31 @@ class AiConfigFragment : PreferenceFragment(),
                 cancelButton()
             }
         }
+    }
+
+    private fun toolDisplayName(name: String): String {
+        val group = when {
+            name.startsWith("mcp_") -> "MCP"
+            name.startsWith("query_bookshelf")
+                || name.startsWith("get_bookshelf")
+                || name.startsWith("manage_bookshelf")
+                || name.startsWith("set_bookshelf")
+                || name.startsWith("query_read_records") -> "书架"
+            name.startsWith("list_book_sources")
+                || name.startsWith("search_book_source")
+                || name.startsWith("create_book_source")
+                || name.startsWith("get_book_source")
+                || name.startsWith("update_book_source")
+                || name.startsWith("fetch_source_html")
+                || name.startsWith("debug_book_source") -> "书源"
+            name.startsWith("list_book_chapters")
+                || name.startsWith("read_book_chapter_content") -> "阅读"
+            name.startsWith("search_web_tavily") -> "联网搜索"
+            name.startsWith("get_app_settings")
+                || name.startsWith("set_app_setting") -> "设置"
+            else -> "其他"
+        }
+        return "[$group] $name"
     }
 
     private fun showTavilyApiKeyDialog() {
@@ -925,13 +942,6 @@ class AiConfigFragment : PreferenceFragment(),
             } else {
                 getString(R.string.ai_skill_prompt_summary, enabledSkillCount, skills.size)
             }
-        findPreference<Preference>("aiToolPolicy")?.summary = getString(
-            if (AppConfig.aiToolPolicy == "always_allow") {
-                R.string.ai_tool_policy_summary_always_allow
-            } else {
-                R.string.ai_tool_policy_summary_ask
-            }
-        )
         findPreference<Preference>("aiManageNativeTools")?.summary = run {
             val enabledTools = AppConfig.aiEnabledToolNames
             if (enabledTools.isEmpty()) {

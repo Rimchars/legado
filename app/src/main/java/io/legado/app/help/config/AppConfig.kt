@@ -735,14 +735,6 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
         get() = appCtx.getPrefBoolean(PreferKey.aiEnterToSend, true)
         set(value) = appCtx.putPrefBoolean(PreferKey.aiEnterToSend, value)
 
-    var aiToolPolicy: String
-        get() = appCtx.getPrefString(PreferKey.aiToolPolicy, "ask")?.trim().orEmpty()
-            .ifBlank { "ask" }
-        set(value) = appCtx.putPrefString(
-            PreferKey.aiToolPolicy,
-            value.trim().ifBlank { "ask" }
-        )
-
     var aiEnabledToolNames: Set<String>
         get() = appCtx.getPrefStringSet(PreferKey.aiEnabledToolNames, emptySet())
             ?.filter { it.isNotBlank() }
