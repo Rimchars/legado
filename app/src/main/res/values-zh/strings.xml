@@ -1483,4 +1483,78 @@
     <string name="source_variable_hint">源变量可在 JS 中通过 source.getVariable() 获取</string>
     <string name="book_variable_hint">书籍变量可在 JS 中通过 book.getVariable(&quot;custom&quot;) 获取</string>
     <string name="disable">禁用</string>
+    <string name="delete_success">已删除</string>
+    <string name="theme_manage_title">主题管理</string>
+    <string name="theme_day">日间主题</string>
+    <string name="theme_night">夜间主题</string>
+    <string name="theme_day_short">日间</string>
+    <string name="theme_night_short">夜间</string>
+    <string name="theme_add">添加主题</string>
+    <string name="theme_manual_config">手动配置</string>
+    <string name="theme_import_zip">导入 ZIP</string>
+    <string name="theme_manual_add">手动添加主题</string>
+    <string name="theme_edit">编辑主题</string>
+    <string name="theme_package_summary_default">主题包独立保存，可同步到 WebDAV themes 目录。</string>
+    <string name="theme_package_empty">暂无主题。添加会保存当前%s主题。</string>
+    <string name="theme_package_load_failed">读取失败：%s</string>
+    <string name="theme_package_cloud_load_failed">云端读取失败：%s</string>
+    <string name="theme_package_read_failed">读取主题失败：%s</string>
+    <string name="theme_name_exists">已存在同名主题</string>
+    <string name="theme_saved_local">主题已保存到本地</string>
+    <string name="theme_save_failed">保存主题失败：%s</string>
+    <string name="theme_export_zip">导出 ZIP</string>
+    <string name="theme_download_local">下载到本地</string>
+    <string name="theme_upload_remote">上传到云端</string>
+    <string name="theme_delete_local">删除本地</string>
+    <string name="theme_delete_remote">删除云端</string>
+    <string name="theme_delete_both">同时删除</string>
+    <string name="theme_downloaded">下载完成</string>
+    <string name="theme_sync_queued">已加入云端同步队列</string>
+    <string name="theme_delete_local_confirm">删除本地主题？</string>
+    <string name="theme_delete_remote_confirm">删除云端主题？</string>
+    <string name="theme_delete_both_confirm">同时删除本地和云端主题？</string>
+    <string name="theme_export_failed">导出主题失败：%s</string>
+    <string name="theme_zip_read_failed">无法读取主题 ZIP</string>
+    <string name="theme_imported">主题已导入</string>
+    <string name="theme_import_failed">导入主题失败：%s</string>
+    <string name="theme_apply_failed">应用主题失败：%s</string>
+    <string name="theme_applied">主题已应用</string>
+    <string name="theme_sync_done">云端主题状态已同步</string>
+    <string name="theme_sync_failed_retry">云端主题同步失败，可稍后重试。</string>
+    <string name="theme_sync_failed">云端主题同步失败：%s</string>
+    <string name="theme_sync_pending">有 %d 项云端变更正在后台同步。</string>
+    <string name="theme_delete_applied_forbidden">当前正在应用，不能删除</string>
+    <string name="theme_source_using">使用中</string>
+    <string name="theme_source_local">本地</string>
+    <string name="theme_source_remote">云端</string>
+    <string name="theme_source_both">本地+云端</string>
+    <string name="theme_current_applied">当前应用</string>
+    <string name="theme_time_unknown">未记录时间</string>
+    <string name="theme_apply">应用</string>
+    <string name="theme_applied_state">已应用</string>
+    <string name="theme_zip_exported">主题 ZIP 已导出</string>
+    <string name="theme_color_primary">主色调</string>
+    <string name="theme_color_accent">强调色</string>
+    <string name="theme_color_background">背景色</string>
+    <string name="theme_color_bottom_background">底栏色</string>
+    <string name="theme_color_primary_text">主文字色</string>
+    <string name="theme_color_secondary_text">副文字色</string>
+    <string name="theme_image_main_background">主界面背景</string>
+    <string name="theme_image_book_info_background">详情页背景</string>
+    <string name="theme_image_blur">背景图片模糊</string>
+    <string name="theme_image_select">选择图片</string>
+    <string name="theme_image_delete">删除图片</string>
+    <string name="theme_image_value_unselected">未选择</string>
+    <string name="theme_image_value_unselected_blur">未选择 · 模糊 %d</string>
+    <string name="theme_image_value_file_blur">%1$s · 模糊 %2$d</string>
+    <string name="unknown">未知</string>
+    <string name="ai_read_prompt_template">你是阅读页里的问 AI 助手。请围绕当前书籍和选中文本回答，优先解释原文含义、上下文、人物关系、伏笔或用户提问，不要编造未给出的剧情。
+
+书名：%1$s
+作者：%2$s
+书源：%3$s
+当前章节：%4$s（第 %5$d 章）
+
+用户选中或追问：
+%6$s</string>
 </resources>

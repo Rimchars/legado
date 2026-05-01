@@ -95,7 +95,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
     private val exportThemePackage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let {
-            toastOnUi("主题 ZIP 已导出")
+            toastOnUi(getString(R.string.theme_zip_exported))
         }
     }
     private val dateFormat by lazy {
@@ -134,8 +134,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     private fun updateTabs() = binding.run {
-        btnDay.setBackgroundResource(if (!isNightTheme) R.drawable.bg_bookshelf_tag_item else 0)
-        btnNight.setBackgroundResource(if (isNightTheme) R.drawable.bg_bookshelf_tag_item else 0)
+        btnDay.isSelected = !isNightTheme
+        btnNight.isSelected = isNightTheme
         btnDay.setTextColor(if (!isNightTheme) accentColor else primaryTextColor)
         btnNight.setTextColor(if (isNightTheme) accentColor else primaryTextColor)
     }
@@ -143,7 +143,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private fun loadThemes() {
         val version = ++loadVersion
         val useCloud = AppConfig.syncThemePackages
-        binding.tvSummary.text = if (useCloud) "正在读取主题..." else "正在读取本地主题..."
+        binding.tvSummary.text = appendPendingRemoteSummary(getString(R.string.theme_package_summary_default))
         lifecycleScope.launch {
             kotlin.runCatching {
                 if (useCloud) {
@@ -154,35 +154,38 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             }.onSuccess {
                 if (version != loadVersion) return@launch
                 adapter.items = it
-                val baseSummary = if (it.isEmpty()) {
-                    "暂无主题。添加会保存当前${if (isNightTheme) "夜间" else "日间"}主题。"
-                } else {
-                    if (useCloud) {
-                        "共 ${it.size} 个主题，已合并本地和云端 ZIP 状态。"
+                binding.tvSummary.text = appendPendingRemoteSummary(
+                    if (it.isEmpty()) {
+                        getString(
+                            R.string.theme_package_empty,
+                            getString(if (isNightTheme) R.string.theme_night_short else R.string.theme_day_short)
+                        )
                     } else {
-                        "共 ${it.size} 个本地主题。"
+                        getString(R.string.theme_package_summary_default)
                     }
-                }
-                binding.tvSummary.text = appendPendingRemoteSummary(baseSummary)
+                )
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 if (version != loadVersion) return@launch
                 binding.tvSummary.text = if (useCloud) {
-                    "云端读取失败：${it.localizedMessage}"
+                    getString(R.string.theme_package_cloud_load_failed, it.localizedMessage)
                 } else {
-                    "读取失败：${it.localizedMessage}"
+                    getString(R.string.theme_package_load_failed, it.localizedMessage)
                 }
             }
         }
     }
 
     private fun showAddDialog() {
-        selector("添加主题", listOf("手动配置", "导入 ZIP")) { _, index ->
+        selector(
+            getString(R.string.theme_add),
+            listOf(getString(R.string.theme_manual_config), getString(R.string.theme_import_zip))
+        ) { _, index ->
             when (index) {
                 0 -> showManualAddDialog()
                 1 -> importThemePackage.launch {
                     mode = HandleFileContract.FILE
-                    title = "导入主题 ZIP"
+                    title = getString(R.string.theme_import_zip)
                     allowExtensions = arrayOf("zip")
                 }
             }
@@ -190,7 +193,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     private fun showManualAddDialog() {
-        alert("手动添加主题") {
+        alert(getString(R.string.theme_manual_add)) {
             val dialogBinding = createEditBinding(currentConfig(), null)
             editDialogBinding = dialogBinding
             editingEntry = null
@@ -213,7 +216,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                     entry
                 }
             }.onSuccess { localEntry ->
-                alert("编辑主题") {
+                alert(getString(R.string.theme_edit)) {
                     val dialogBinding = createEditBinding(ThemePackageManager.getConfig(localEntry), localEntry)
                     editDialogBinding = dialogBinding
                     editingEntry = localEntry
@@ -231,7 +234,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 }
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
-                toastOnUi("读取主题失败：${it.localizedMessage}")
+                toastOnUi(getString(R.string.theme_package_read_failed, it.localizedMessage))
             }
         }
     }
@@ -245,25 +248,25 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         pendingBlur = current.backgroundImgBlur
         return DialogThemePackageEditBinding.inflate(layoutInflater).apply {
             etName.setText(current.themeName)
-            setupColorRow(rowPrimary, "主色调", current.primaryColor, colorPrimary)
-            setupColorRow(rowAccent, "强调色", current.accentColor, colorAccent)
-            setupColorRow(rowBackground, "背景色", current.backgroundColor, colorBackground)
-            setupColorRow(rowBottomBackground, "底栏色", current.bottomBackground, colorBottomBackground)
-            setupColorRow(rowPrimaryText, "主文字色", current.primaryTextColor ?: "#${primaryTextColor.hexString}", colorPrimaryText)
-            setupColorRow(rowSecondaryText, "副文字色", current.secondaryTextColor ?: "#${secondaryTextColor.hexString}", colorSecondaryText)
-            setupImageRow(rowMainBackground, "主界面背景", true)
-            setupImageRow(rowBookInfoBackground, "详情页背景", false)
+            setupColorRow(rowPrimary, R.string.theme_color_primary, current.primaryColor, colorPrimary)
+            setupColorRow(rowAccent, R.string.theme_color_accent, current.accentColor, colorAccent)
+            setupColorRow(rowBackground, R.string.theme_color_background, current.backgroundColor, colorBackground)
+            setupColorRow(rowBottomBackground, R.string.theme_color_bottom_background, current.bottomBackground, colorBottomBackground)
+            setupColorRow(rowPrimaryText, R.string.theme_color_primary_text, current.primaryTextColor ?: "#${primaryTextColor.hexString}", colorPrimaryText)
+            setupColorRow(rowSecondaryText, R.string.theme_color_secondary_text, current.secondaryTextColor ?: "#${secondaryTextColor.hexString}", colorSecondaryText)
+            setupImageRow(rowMainBackground, R.string.theme_image_main_background, true)
+            setupImageRow(rowBookInfoBackground, R.string.theme_image_book_info_background, false)
             etName.isEnabled = entry?.source != ThemePackageManager.Source.REMOTE
         }
     }
 
     private fun setupColorRow(
         row: ItemThemePackageOptionBinding,
-        title: String,
+        titleRes: Int,
         colorText: String,
         target: Int
     ) {
-        row.tvTitle.text = title
+        row.tvTitle.text = getString(titleRes)
         row.viewSwatch.visibility = View.VISIBLE
         row.tvValue.text = normalizeColor(colorText).uppercase(Locale.ROOT)
         updateSwatch(row, normalizeColor(colorText).toColorInt())
@@ -286,8 +289,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         }
     }
 
-    private fun setupImageRow(row: ItemThemePackageOptionBinding, title: String, isMain: Boolean) {
-        row.tvTitle.text = title
+    private fun setupImageRow(row: ItemThemePackageOptionBinding, titleRes: Int, isMain: Boolean) {
+        row.tvTitle.text = getString(titleRes)
         row.viewSwatch.visibility = View.INVISIBLE
         updateImageRow(row, isMain)
         row.root.setOnClickListener {
@@ -298,9 +301,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private fun updateImageRow(row: ItemThemePackageOptionBinding, isMain: Boolean) {
         val path = if (isMain) pendingMainBackgroundPath else pendingBookInfoBackgroundPath
         row.tvValue.text = when {
-            path.isNullOrBlank() && isMain -> "未选择 · 模糊 $pendingBlur"
-            path.isNullOrBlank() -> "未选择"
-            isMain -> "${File(path).name} · 模糊 $pendingBlur"
+            path.isNullOrBlank() && isMain -> getString(R.string.theme_image_value_unselected_blur, pendingBlur)
+            path.isNullOrBlank() -> getString(R.string.theme_image_value_unselected)
+            isMain -> getString(R.string.theme_image_value_file_blur, File(path).name, pendingBlur)
             else -> File(path).name
         }
     }
@@ -308,18 +311,21 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private fun showImageActions(isMain: Boolean) {
         val hasImage = if (isMain) !pendingMainBackgroundPath.isNullOrBlank() else !pendingBookInfoBackgroundPath.isNullOrBlank()
         val actions = buildList {
-            if (isMain) add("背景图片模糊")
-            add("选择图片")
-            if (hasImage) add("删除图片")
+            if (isMain) add(ThemeImageAction.BLUR)
+            add(ThemeImageAction.SELECT)
+            if (hasImage) add(ThemeImageAction.DELETE)
         }
-        selector(if (isMain) "主界面背景" else "详情页背景", actions) { _, index ->
+        selector(
+            getString(if (isMain) R.string.theme_image_main_background else R.string.theme_image_book_info_background),
+            actions.map { getString(it.titleRes) }
+        ) { _, index ->
             when (actions[index]) {
-                "背景图片模糊" -> showBlurDialog()
-                "选择图片" -> selectImage.launch {
+                ThemeImageAction.BLUR -> showBlurDialog()
+                ThemeImageAction.SELECT -> selectImage.launch {
                     requestCode = if (isMain) requestMainBackground else requestBookInfoBackground
                     mode = HandleFileContract.IMAGE
                 }
-                "删除图片" -> {
+                ThemeImageAction.DELETE -> {
                     if (isMain) {
                         pendingMainBackgroundPath = null
                         editDialogBinding?.let { updateImageRow(it.rowMainBackground, true) }
@@ -333,7 +339,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     private fun showBlurDialog() {
-        alert("背景图片模糊") {
+        alert(R.string.theme_image_blur) {
             val blurBinding = DialogImageBlurringBinding.inflate(layoutInflater).apply {
                 seekBar.progress = pendingBlur
                 textViewValue.text = pendingBlur.toString()
@@ -358,7 +364,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
 
     private fun saveTheme(dialogBinding: DialogThemePackageEditBinding) {
         val name = dialogBinding.etName.text?.toString()?.trim().orEmpty()
-            .ifBlank { if (isNightTheme) "夜间主题" else "日间主题" }
+            .ifBlank { getString(if (isNightTheme) R.string.theme_night else R.string.theme_day) }
         val config = kotlin.runCatching {
             ThemeConfig.Config(
                 themeName = name,
@@ -391,7 +397,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                     oldEntry?.dirName
                 )
                 if (exists) {
-                    throw IllegalArgumentException("已存在同名主题")
+                    throw IllegalArgumentException(getString(R.string.theme_name_exists))
                 }
                 val entry = ThemePackageManager.addFromConfig(config)
                 if (oldEntry != null && oldEntry.dirName != entry.dirName) {
@@ -407,12 +413,12 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 }
                 entry
             }.onSuccess {
-                toastOnUi("主题已保存到本地")
+                toastOnUi(getString(R.string.theme_saved_local))
                 loadThemes()
                 enqueueUploadIfNeeded(it)
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
-                toastOnUi("保存主题失败：${it.localizedMessage}")
+                toastOnUi(getString(R.string.theme_save_failed, it.localizedMessage))
             }
         }
     }
@@ -431,7 +437,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     }
 
     private fun currentConfig(): ThemeConfig.Config {
-        val name = if (isNightTheme) "夜间主题" else "日间主题"
+        val name = getString(if (isNightTheme) R.string.theme_night else R.string.theme_day)
         val primary = getPrefInt(
             if (isNightTheme) PreferKey.cNPrimary else PreferKey.cPrimary,
             getCompatColor(if (isNightTheme) R.color.md_blue_grey_600 else R.color.md_brown_500)
@@ -495,32 +501,34 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
 
     private fun showActions(entry: ThemePackageManager.Entry) {
         val actions = buildList {
-            add("应用")
-            add("编辑")
-            if (entry.source != ThemePackageManager.Source.REMOTE) add("导出ZIP")
-            if (entry.source != ThemePackageManager.Source.LOCAL) add("下载到本地")
-            if (entry.source != ThemePackageManager.Source.REMOTE) add("上传到云端")
+            add(ThemeAction.APPLY)
+            add(ThemeAction.EDIT)
+            if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.EXPORT)
+            if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DOWNLOAD)
+            if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.UPLOAD)
             if (!isApplied(entry)) {
-                if (entry.source != ThemePackageManager.Source.REMOTE) add("删除本地")
-                if (entry.source != ThemePackageManager.Source.LOCAL) add("删除云端")
-                if (entry.source == ThemePackageManager.Source.BOTH) add("同时删除")
+                if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.DELETE_LOCAL)
+                if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DELETE_REMOTE)
+                if (entry.source == ThemePackageManager.Source.BOTH) add(ThemeAction.DELETE_BOTH)
             }
         }
-        selector(entry.packageInfo.name, actions) { _, index ->
+        selector(entry.packageInfo.name, actions.map { getString(it.titleRes) }) { _, index ->
             when (actions[index]) {
-                "应用" -> applyTheme(entry)
-                "编辑" -> showEditDialog(entry)
-                "导出ZIP" -> exportThemeZip(entry)
-                "下载到本地" -> runAction("下载完成") { ThemePackageManager.download(entry) }
-                "上传到云端" -> {
+                ThemeAction.APPLY -> applyTheme(entry)
+                ThemeAction.EDIT -> showEditDialog(entry)
+                ThemeAction.EXPORT -> exportThemeZip(entry)
+                ThemeAction.DOWNLOAD -> runAction(getString(R.string.theme_downloaded)) { ThemePackageManager.download(entry) }
+                ThemeAction.UPLOAD -> {
                     enqueueUploadIfNeeded(entry)
-                    toastOnUi("已加入云端同步队列")
+                    toastOnUi(getString(R.string.theme_sync_queued))
                 }
-                "删除本地" -> confirmDeleteTheme(entry, "删除本地主题？") { ThemePackageManager.deleteLocal(entry) }
-                "删除云端" -> confirmDeleteTheme(entry, "删除云端主题？") {
+                ThemeAction.DELETE_LOCAL -> confirmDeleteTheme(entry, getString(R.string.theme_delete_local_confirm)) {
+                    ThemePackageManager.deleteLocal(entry)
+                }
+                ThemeAction.DELETE_REMOTE -> confirmDeleteTheme(entry, getString(R.string.theme_delete_remote_confirm)) {
                     enqueueRemoteDelete(entry)
                 }
-                "同时删除" -> confirmDeleteTheme(entry, "同时删除本地和云端主题？") {
+                ThemeAction.DELETE_BOTH -> confirmDeleteTheme(entry, getString(R.string.theme_delete_both_confirm)) {
                     ThemePackageManager.deleteLocal(entry)
                     enqueueRemoteDelete(entry)
                 }
@@ -543,7 +551,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 }
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
-                toastOnUi("导出主题失败：${it.localizedMessage}")
+                toastOnUi(getString(R.string.theme_export_failed, it.localizedMessage))
             }
         }
     }
@@ -555,15 +563,15 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 val file = File(dir, "import_${System.currentTimeMillis()}.zip")
                 contentResolver.openInputStream(uri)?.use { input ->
                     FileOutputStream(file).use { output -> input.copyTo(output) }
-                } ?: throw IllegalArgumentException("无法读取主题 ZIP")
+                } ?: throw IllegalArgumentException(getString(R.string.theme_zip_read_failed))
                 ThemePackageManager.importZip(file)
             }.onSuccess {
-                toastOnUi("主题已导入")
+                toastOnUi(getString(R.string.theme_imported))
                 loadThemes()
                 enqueueUploadIfNeeded(it)
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
-                toastOnUi("导入主题失败：${it.localizedMessage}")
+                toastOnUi(getString(R.string.theme_import_failed, it.localizedMessage))
             }
         }
     }
@@ -579,14 +587,14 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 ThemePackageManager.apply(this@ThemeManageActivity, localEntry, switchNightMode = false)
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
-                toastOnUi("应用主题失败：${it.localizedMessage}")
+                toastOnUi(getString(R.string.theme_apply_failed, it.localizedMessage))
             }.onSuccess {
                 if (entry.packageInfo.isNightTheme) {
                     appliedNightThemeOverride = entry.packageInfo.name
                 } else {
                     appliedDayThemeOverride = entry.packageInfo.name
                 }
-                toastOnUi("主题已应用")
+                toastOnUi(getString(R.string.theme_applied))
                 adapter.notifyDataSetChanged()
                 loadThemes()
             }
@@ -690,11 +698,11 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
             withContext(Dispatchers.Main) {
                 if (isFinishing || isDestroyed) return@withContext
                 if (failed.isEmpty()) {
-                    toastOnUi("云端主题状态已同步")
+                    toastOnUi(getString(R.string.theme_sync_done))
                     loadThemes()
                 } else {
-                    binding.tvSummary.text = appendPendingRemoteSummary("云端主题同步失败，可稍后重试。")
-                    toastOnUi("云端主题同步失败：${failed.values.first().lastError}")
+                    binding.tvSummary.text = appendPendingRemoteSummary(getString(R.string.theme_sync_failed_retry))
+                    toastOnUi(getString(R.string.theme_sync_failed, failed.values.first().lastError))
                 }
             }
             val pendingKeys = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.keys.toSet() }
@@ -707,16 +715,16 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
     private fun appendPendingRemoteSummary(base: String): String {
         val pendingCount = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.size }
         return if (pendingCount > 0) {
-            "$base\n有 $pendingCount 项云端变更正在后台同步。"
+            "$base\n${getString(R.string.theme_sync_pending, pendingCount)}"
         } else {
             base
         }
     }
 
     private fun confirmDelete(message: String, block: suspend () -> Unit) {
-        alert("删除", message) {
+        alert(getString(R.string.delete), message) {
             yesButton {
-                runAction("已删除", block)
+                runAction(getString(R.string.delete_success), block)
             }
             noButton()
         }
@@ -728,7 +736,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         block: suspend () -> Unit
     ) {
         if (isApplied(entry)) {
-            toastOnUi("当前正在应用，不能删除")
+            toastOnUi(getString(R.string.theme_delete_applied_forbidden))
             return
         }
         confirmDelete(message, block)
@@ -793,24 +801,37 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
                 val pkg = entry.packageInfo
                 tvName.text = pkg.name
                 tvSource.text = when (entry.source) {
-                    ThemePackageManager.Source.LOCAL -> if (isApplied(entry)) "使用中" else "本地"
-                    ThemePackageManager.Source.REMOTE -> if (isApplied(entry)) "使用中" else "云端"
-                    ThemePackageManager.Source.BOTH -> if (isApplied(entry)) "使用中" else "本地+云端"
+                    ThemePackageManager.Source.LOCAL -> if (isApplied(entry)) {
+                        getString(R.string.theme_source_using)
+                    } else {
+                        getString(R.string.theme_source_local)
+                    }
+                    ThemePackageManager.Source.REMOTE -> if (isApplied(entry)) {
+                        getString(R.string.theme_source_using)
+                    } else {
+                        getString(R.string.theme_source_remote)
+                    }
+                    ThemePackageManager.Source.BOTH -> if (isApplied(entry)) {
+                        getString(R.string.theme_source_using)
+                    } else {
+                        getString(R.string.theme_source_both)
+                    }
                 }
                 tvInfo.text = buildString {
                     if (isApplied(entry)) {
-                        append("当前应用 · ")
+                        append(getString(R.string.theme_current_applied))
+                        append(" · ")
                     }
-                    append(if (pkg.isNightTheme) "夜间" else "日间")
+                    append(getString(if (pkg.isNightTheme) R.string.theme_night_short else R.string.theme_day_short))
                     append(" · ")
                     val time = maxOf(pkg.updatedAt, entry.remoteUpdatedAt)
-                    append(if (time > 0) dateFormat.format(Date(time)) else "未记录时间")
+                    append(if (time > 0) dateFormat.format(Date(time)) else getString(R.string.theme_time_unknown))
                 }
                 tvName.setTextColor(primaryTextColor)
                 tvInfo.setTextColor(secondaryTextColor)
                 tvSource.setTextColor(accentColor)
                 btnApply.setTextColor(accentColor)
-                btnApply.text = if (isApplied(entry)) "已应用" else "应用"
+                btnApply.text = getString(if (isApplied(entry)) R.string.theme_applied_state else R.string.theme_apply)
                 btnEdit.setTextColor(primaryTextColor)
                 btnMore.setTextColor(primaryTextColor)
                 btnApply.setOnClickListener { applyTheme(entry) }
@@ -853,6 +874,23 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPic
         private const val colorBottomBackground = 404
         private const val colorPrimaryText = 405
         private const val colorSecondaryText = 406
+    }
+
+    private enum class ThemeAction(val titleRes: Int) {
+        APPLY(R.string.theme_apply),
+        EDIT(R.string.edit),
+        EXPORT(R.string.theme_export_zip),
+        DOWNLOAD(R.string.theme_download_local),
+        UPLOAD(R.string.theme_upload_remote),
+        DELETE_LOCAL(R.string.theme_delete_local),
+        DELETE_REMOTE(R.string.theme_delete_remote),
+        DELETE_BOTH(R.string.theme_delete_both)
+    }
+
+    private enum class ThemeImageAction(val titleRes: Int) {
+        BLUR(R.string.theme_image_blur),
+        SELECT(R.string.theme_image_select),
+        DELETE(R.string.theme_image_delete)
     }
 
     private data class RemoteSyncTask(
