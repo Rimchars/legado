@@ -69,6 +69,12 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         val selectedText: String
     )
 
+    data class Anchor(
+        val centerX: Int,
+        val topY: Int,
+        val bottomY: Int
+    )
+
     private val binding = ViewReadAiFloatingPanelBinding.inflate(LayoutInflater.from(context), this, true)
     private val markwon: Markwon by lazy {
         Markwon.builder(context)
@@ -89,6 +95,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private var downRawY = 0f
     private var startX = 0f
     private var startY = 0f
+    private var panelScale = 1f
 
     init {
         orientation = VERTICAL
@@ -97,6 +104,8 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         }
         binding.answerContainer.adapter = messageAdapter
         binding.btnClose.setOnClickListener { close() }
+        binding.btnScaleDown.setOnClickListener { adjustScale(-0.1f) }
+        binding.btnScaleUp.setOnClickListener { adjustScale(0.1f) }
         binding.btnNewChat.setOnClickListener { startNewChat() }
         binding.btnHistory.setOnClickListener { toggleHistory() }
         binding.btnSend.setOnClickListener {
@@ -122,7 +131,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         this.lifecycleOwner = lifecycleOwner
     }
 
-    fun open(readContext: ReadContext) {
+    fun open(readContext: ReadContext, anchor: Anchor? = null) {
         this.readContext = readContext
         currentSessionId = ensureSession(readContext, createNew = false).id
         showingHistory = false
@@ -142,7 +151,12 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             visibility = VISIBLE
         }
         bringToFront()
-        post { ensureInsideParent() }
+        post {
+            if (anchor != null) {
+                placeNearAnchor(anchor)
+            }
+            ensureInsideParent()
+        }
         if (readContext.selectedText.isNotBlank()) {
             ask(readContext.selectedText)
         }
@@ -563,6 +577,36 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         if (width <= 0 || height <= 0 || parentView.width <= 0 || parentView.height <= 0) return
         x = min(max(0f, x), max(0, parentView.width - width).toFloat())
         y = min(max(0f, y), max(0, parentView.height - height).toFloat())
+    }
+
+    private fun placeNearAnchor(anchor: Anchor) {
+        val parentView = parent as? ViewGroup ?: return
+        if (width <= 0 || height <= 0 || parentView.width <= 0 || parentView.height <= 0) return
+        val margin = 10.dpToPx()
+        val preferredX = anchor.centerX - width / 2
+        val maxX = (parentView.width - width - margin).coerceAtLeast(margin)
+        x = preferredX.toFloat().coerceIn(margin.toFloat(), maxX.toFloat())
+        val spaceAbove = anchor.topY - margin
+        val spaceBelow = parentView.height - anchor.bottomY - margin
+        y = if (spaceBelow >= height || spaceBelow >= spaceAbove) {
+            (anchor.bottomY + margin).toFloat()
+                .coerceAtMost((parentView.height - height - margin).toFloat())
+        } else {
+            (anchor.topY - height - margin).toFloat()
+                .coerceAtLeast(margin.toFloat())
+        }
+    }
+
+    private fun adjustScale(delta: Float) {
+        val minScale = 0.8f
+        val maxScale = 1.25f
+        panelScale = (panelScale + delta).coerceIn(minScale, maxScale)
+        animate()
+            .scaleX(panelScale)
+            .scaleY(panelScale)
+            .setDuration(130L)
+            .start()
+        post { ensureInsideParent() }
     }
 
     private fun applyTheme() {

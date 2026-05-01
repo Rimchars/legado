@@ -932,6 +932,14 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
         val book = ReadBook.book
         val chapter = ReadBook.curTextChapter?.chapter
+        val anchor = ReadAiFloatingPanel.Anchor(
+            centerX = ((binding.cursorLeft.x + binding.cursorRight.x + binding.cursorRight.width) / 2f).toInt(),
+            topY = binding.textMenuPosition.y.toInt(),
+            bottomY = maxOf(
+                binding.cursorLeft.y.toInt() + binding.cursorLeft.height,
+                binding.cursorRight.y.toInt() + binding.cursorRight.height
+            )
+        )
         binding.readAiPanel.open(
             ReadAiFloatingPanel.ReadContext(
                 bookUrl = book?.bookUrl.orEmpty().ifBlank { book?.name.orEmpty() },
@@ -941,7 +949,8 @@ class ReadBookActivity : BaseReadBookActivity(),
                 chapterTitle = chapter?.title.orEmpty(),
                 chapterIndex = chapter?.index ?: ReadBook.durChapterIndex,
                 selectedText = prompt
-            )
+            ),
+            anchor = anchor
         )
     }
 
