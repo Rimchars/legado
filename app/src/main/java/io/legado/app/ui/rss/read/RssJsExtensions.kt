@@ -95,6 +95,7 @@ open class RssJsExtensions(
     @JavascriptInterface
     @JvmOverloads
     fun open(name: String, url: String? = null, title: String? = null, origin: String? = null) {
+        if (onOpen(name, url, title, origin)) return
         val activity = activityRef.get() ?: return
         activity.lifecycleScope.launch(IO) {
             val source = getSource() ?: return@launch
@@ -316,3 +317,9 @@ open class RssJsExtensions(
     }
 
 }
+    protected open fun onOpen(
+        name: String,
+        url: String? = null,
+        title: String? = null,
+        origin: String? = null
+    ): Boolean = false
