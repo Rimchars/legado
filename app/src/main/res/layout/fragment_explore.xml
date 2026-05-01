@@ -139,6 +139,13 @@
                     android:layout_height="36dp"
                     android:layout_marginTop="8dp" />
 
+                <io.legado.app.ui.widget.RoundedTagBarView
+                    android:id="@+id/rv_discover_selects"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
                 <FrameLayout
                     android:id="@+id/fl_discover_books"
                     android:layout_width="match_parent"
