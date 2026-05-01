@@ -67,7 +67,9 @@ import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
 import io.legado.app.utils.InfoMap
+import io.legado.app.utils.navigationBarHeight
 import io.legado.app.utils.setEdgeEffectColor
+import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.transaction
@@ -169,6 +171,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.rvFind.applyMainBottomBarPadding()
         binding.rvDiscoverBooks.clipToPadding = false
         binding.rvDiscoverBooks.applyMainBottomBarPadding(withInitialPadding = true)
+        applyDiscoverWebContainerBottomPadding()
         applyDiscoveryMode(loadData = false)
         scheduleDiscoveryWarmup()
     }
@@ -342,6 +345,8 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             created.settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             created.settings.loadWithOverviewMode = true
             created.settings.useWideViewPort = true
+            created.setBackgroundColor(Color.TRANSPARENT)
+            created.isVerticalScrollBarEnabled = false
             created.webViewClient = WebViewClient()
             created.webChromeClient = WebChromeClient()
             binding.discoverWebContainer.addView(created)
@@ -378,6 +383,23 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private fun restoreDiscoverListPage() {
         binding.discoverWebContainer.gone()
         binding.flDiscoverBooks.visible()
+    }
+
+    private fun applyDiscoverWebContainerBottomPadding() {
+        val initialPadding = binding.discoverWebContainer.paddingBottom
+        val webBottomSpace =
+            resources.getDimensionPixelSize(R.dimen.main_bottom_controls_bottom_padding) +
+                resources.getDimensionPixelSize(R.dimen.main_bottom_bar_height) +
+                5.dpToPx()
+        binding.discoverWebContainer.setOnApplyWindowInsetsListenerCompat { view, windowInsets ->
+            view.setPadding(
+                view.paddingLeft,
+                view.paddingTop,
+                view.paddingRight,
+                initialPadding + windowInsets.navigationBarHeight + webBottomSpace
+            )
+            windowInsets
+        }
     }
 
     private fun bindDiscoverSourceSelector() {
