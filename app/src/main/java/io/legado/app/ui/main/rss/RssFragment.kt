@@ -211,6 +211,9 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.swipeRefreshLayout.setOnRefreshListener {
             observeClassicRssSources(searchView.query?.toString())
         }
+        binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
+            currentRssScrollTarget()?.canScrollVertically(-1) == true
+        }
         binding.swipeRefreshLayout.post {
             binding.swipeRefreshLayout.setProgressViewOffset(false, 0, 56.dpToPx())
         }
@@ -220,6 +223,9 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.llRssSourceRow.applyStatusBarPadding(withInitialPadding = true)
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
         binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
+        binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
+            currentRssScrollTarget()?.canScrollVertically(-1) == true
+        }
         val updateSourceNameWidth = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateRssSourceNameWidth()
         }
@@ -271,6 +277,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     }
 
     private fun updateRefreshIndicatorOffset() {
+        if (binding.swipeRefreshLayout.isRefreshing) return
         val swipePos = IntArray(2)
         binding.swipeRefreshLayout.getLocationInWindow(swipePos)
         val anchorView = if (usingModernRss) {
@@ -284,6 +291,17 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         val end = (anchorPos[1] - swipePos[1] + anchorView.height + 8.dpToPx())
             .coerceAtLeast(56.dpToPx())
         binding.swipeRefreshLayout.setProgressViewOffset(false, start, end)
+    }
+
+    private fun currentRssScrollTarget(): View? {
+        return when {
+            usingModernRss && binding.rssWebContainer.isVisible -> rssWebView
+            usingModernRss && binding.rssFragmentContainer.isVisible ->
+                childFragmentManager.findFragmentById(R.id.rss_fragment_container)
+                    ?.view
+                    ?.findViewById<View>(R.id.recycler_view)
+            else -> binding.recyclerView
+        }
     }
 
     private fun initGroupData() {

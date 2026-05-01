@@ -163,6 +163,9 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         discoveryModeLoaded = false
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
         binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
+        binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
+            currentDiscoverScrollTarget()?.canScrollVertically(-1) == true
+        }
         binding.swipeRefreshLayout.setOnRefreshListener {
             if (usingModernDiscovery) {
                 loadDiscoverBooks(reset = true)
@@ -221,6 +224,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun updateRefreshIndicatorOffset() {
+        if (binding.swipeRefreshLayout.isRefreshing) return
         val swipePos = IntArray(2)
         binding.swipeRefreshLayout.getLocationInWindow(swipePos)
         val anchorView = when {
@@ -235,6 +239,14 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         val end = (anchorPos[1] - swipePos[1] + anchorView.height + 8.dpToPx())
             .coerceAtLeast(56.dpToPx())
         binding.swipeRefreshLayout.setProgressViewOffset(false, start, end)
+    }
+
+    private fun currentDiscoverScrollTarget(): View? {
+        return when {
+            usingModernDiscovery && binding.discoverWebContainer.isVisible -> discoverWebView
+            usingModernDiscovery -> binding.rvDiscoverBooks
+            else -> binding.rvFind
+        }
     }
 
     private fun scheduleDiscoveryWarmup() {

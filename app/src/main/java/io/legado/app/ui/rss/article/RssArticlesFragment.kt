@@ -72,6 +72,8 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
     override val isGridLayout: Boolean
         get() = activityViewModel.articleStyle == 2
     private var fullRefresh = true
+    private val embeddedInModernRss: Boolean
+        get() = parentFragment is io.legado.app.ui.main.rss.RssFragment
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         viewModel.init(arguments)
@@ -81,6 +83,9 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
 
     private fun initView() = binding.run {
         refreshLayout.setColorSchemeColors(accentColor)
+        if (embeddedInModernRss) {
+            refreshLayout.isEnabled = false
+        }
         recyclerView.setEdgeEffectColor(primaryColor)
         recyclerView.applyMainBottomBarPadding(withInitialPadding = true)
         loadMoreView.setOnClickListener {
@@ -149,14 +154,14 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
         })
         if (isPreload) {
             refreshLayout.post {
-                refreshLayout.isRefreshing = true
+                refreshLayout.isRefreshing = !embeddedInModernRss
                 loadArticles()
             }
             return@run
         }
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                refreshLayout.isRefreshing = true
+                refreshLayout.isRefreshing = !embeddedInModernRss
                 loadArticles()
                 this@launch.cancel()
             }
