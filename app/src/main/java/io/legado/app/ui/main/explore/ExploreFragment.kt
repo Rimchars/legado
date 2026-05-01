@@ -748,7 +748,13 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 )
             }
         }
-        return result.distinctBy { "${it.group}|${it.kind.type}|${it.kind.title}|${it.kind.url}|${it.kind.action}" }
+        val hasMajorGroup = result.any { !it.group.isNullOrBlank() }
+        val normalized = if (hasMajorGroup) {
+            result
+        } else {
+            result.map { it.copy(group = getString(R.string.discover_group_other)) }
+        }
+        return normalized.distinctBy { "${it.group}|${it.kind.type}|${it.kind.title}|${it.kind.url}|${it.kind.action}" }
     }
 
     private fun isDiscoverMajorGroupKind(kind: ExploreKind): Boolean {

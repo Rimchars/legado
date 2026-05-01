@@ -741,6 +741,7 @@
     <string name="ai_request_error_title">AI request failed</string>
     <string name="ai_request_error_log">AI request log</string>
     <string name="resize">Resize</string>
+    <string name="discover_group_other">Other</string>
     <string name="ai_view_log">View log</string>
     <string name="reading">Read</string>
     <string name="battery_show">%d%%</string>
