@@ -41,6 +41,13 @@
             android:title="@string/ai_show_tool_summary"
             app:iconSpaceReserved="false" />
 
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:key="aiEnterToSend"
+            android:defaultValue="true"
+            android:summary="@string/ai_enter_to_send_summary"
+            android:title="@string/ai_enter_to_send"
+            app:iconSpaceReserved="false" />
+
     </io.legado.app.lib.prefs.PreferenceCategory>
 
     <io.legado.app.lib.prefs.PreferenceCategory

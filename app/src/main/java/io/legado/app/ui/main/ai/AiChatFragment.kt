@@ -1,7 +1,5 @@
 package io.legado.app.ui.main.ai
 
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -22,7 +20,6 @@ import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.config.ConfigActivity
 import io.legado.app.ui.config.ConfigTag
 import io.legado.app.ui.main.MainFragmentInterface
-import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.applyNavigationBarMargin
 import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.dpToPx
@@ -82,7 +79,7 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
         binding.etAiInput.setOnEditorActionListener { _, actionId, event ->
             val isSendAction = actionId == EditorInfo.IME_ACTION_SEND
             val isEnterKey = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
-            if (isSendAction || isEnterKey) {
+            if (AppConfig.aiEnterToSend && (isSendAction || isEnterKey)) {
                 dispatchSend()
                 true
             } else {
@@ -90,16 +87,6 @@ class AiChatFragment() : BaseFragment(R.layout.fragment_ai_chat), MainFragmentIn
             }
         }
         tintSendButton()
-        binding.composerContainer.background = GradientDrawable().apply {
-            cornerRadius = 24.dpToPx().toFloat()
-            setColor(
-                ColorUtils.adjustAlpha(
-                    ColorUtils.blendColors(primaryTextColor, Color.GRAY, 0.72f),
-                    0.16f
-                )
-            )
-            setStroke(1.dpToPx(), ColorUtils.adjustAlpha(primaryTextColor, 0.08f))
-        }
         binding.composerContainer.elevation = 8.dpToPx().toFloat()
         binding.etAiInput.setTextColor(primaryTextColor)
         binding.etAiInput.setHintTextColor(secondaryTextColor)
