@@ -42,8 +42,13 @@ import io.legado.app.data.entities.rule.ExploreKind
 import io.legado.app.databinding.FragmentExploreBinding
 import io.legado.app.help.book.isNotShelf
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.WebCacheManager
 import io.legado.app.help.source.clearExploreKindsCache
 import io.legado.app.help.source.exploreKinds
+import io.legado.app.help.webView.WebJsExtensions.Companion.getInjectionString
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameCache
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameJava
+import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
@@ -147,6 +152,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private var discoveryModeLoaded = false
     private var discoverWebView: WebView? = null
     private var discoverPendingPreloadJs: String? = null
+    private var discoverJsBridge: SourceLoginJsExtensions? = null
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
@@ -285,8 +291,12 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         discoverMajorGroups.clear()
         discoverTagItems.clear()
         discoverWebView?.stopLoading()
+        runCatching { discoverWebView?.removeJavascriptInterface(nameJava) }
+        runCatching { discoverWebView?.removeJavascriptInterface(nameSource) }
+        runCatching { discoverWebView?.removeJavascriptInterface(nameCache) }
         discoverWebView?.destroy()
         discoverWebView = null
+        discoverJsBridge = null
         selectedDiscoverMajorGroup = null
         selectedDiscoverTagIndex = -1
         selectedDiscoverUrlIndex = -1
@@ -348,17 +358,72 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             created.settings.loadWithOverviewMode = true
             created.settings.useWideViewPort = true
             created.setBackgroundColor(Color.TRANSPARENT)
+            created.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             created.isVerticalScrollBarEnabled = false
             created.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String?) {
                     super.onPageFinished(view, url)
-                    val js = discoverPendingPreloadJs ?: return
-                    runCatching { view.evaluateJavascript(js, null) }
+                    val preloadJs = discoverPendingPreloadJs
+                    val script = buildString {
+                        append("(() => {")
+                        append(getInjectionString)
+                        if (!preloadJs.isNullOrBlank()) {
+                            append('\n')
+                            append(preloadJs)
+                        }
+                        append("})();")
+                    }
+                    runCatching { view.evaluateJavascript(script, null) }
                 }
             }
             created.webChromeClient = WebChromeClient()
             binding.discoverWebContainer.addView(created)
             discoverWebView = created
+        }
+        selectedDiscoverSource?.let { source ->
+            val jsBridge = SourceLoginJsExtensions(
+                activity as? AppCompatActivity,
+                source,
+                callback = object : SourceLoginJsExtensions.Callback {
+                    override fun upUiData(data: Map<String, Any?>?) = Unit
+                    override fun reUiView(deltaUp: Boolean) = Unit
+                    override fun showBrowser(
+                        url: String,
+                        html: String?,
+                        preloadJs: String?,
+                        config: String?
+                    ): Boolean {
+                        if (!isAdded) return false
+                        binding.root.post { showDiscoverWebPage(url, html, preloadJs) }
+                        return true
+                    }
+
+                    override fun open(
+                        name: String,
+                        url: String?,
+                        title: String?,
+                        origin: String?
+                    ): Boolean {
+                        if (!isAdded) return false
+                        if (name != "explore") return false
+                        val targetUrl = url?.takeIf { it.isNotBlank() } ?: return true
+                        val targetSourceUrl = origin
+                            ?.takeIf { it.isNotBlank() }
+                            ?: selectedDiscoverSource?.bookSourceUrl
+                            ?: source.bookSourceUrl
+                        val targetTitle = title ?: getString(R.string.discovery)
+                        binding.root.post { openExplore(targetSourceUrl, targetTitle, targetUrl) }
+                        return true
+                    }
+                }
+            )
+            discoverJsBridge = jsBridge
+            runCatching { webView.removeJavascriptInterface(nameJava) }
+            runCatching { webView.removeJavascriptInterface(nameSource) }
+            runCatching { webView.removeJavascriptInterface(nameCache) }
+            webView.addJavascriptInterface(jsBridge, nameJava)
+            webView.addJavascriptInterface(source, nameSource)
+            webView.addJavascriptInterface(WebCacheManager, nameCache)
         }
         binding.flDiscoverBooks.gone()
         binding.discoverWebContainer.visible()
@@ -368,23 +433,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         if (html.isNullOrBlank()) {
             webView.loadUrl(url)
         } else {
-            val patchedHtml = if (preloadJs.isNullOrBlank()) {
-                html
-            } else {
-                val headIndex = html.indexOf("<head", ignoreCase = true)
-                if (headIndex >= 0) {
-                    val closingHeadIndex = html.indexOf('>', startIndex = headIndex)
-                    if (closingHeadIndex >= 0) {
-                        val insertPos = closingHeadIndex + 1
-                        StringBuilder(html).insert(insertPos, "<script>${preloadJs}</script>").toString()
-                    } else {
-                        "<script>${preloadJs}</script>$html"
-                    }
-                } else {
-                    "<script>${preloadJs}</script>$html"
-                }
-            }
-            webView.loadDataWithBaseURL(url, patchedHtml, "text/html", "utf-8", url)
+            webView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
         }
     }
 
