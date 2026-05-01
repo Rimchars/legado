@@ -2,6 +2,7 @@ package io.legado.app.ui.config
 
 import android.annotation.SuppressLint
 import android.content.ComponentName
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -145,11 +146,15 @@ class OtherConfigFragment : PreferenceFragment(),
             PreferKey.contentSelectMenuConfig -> ContentSelectMenuConfigDialog()
                 .show(parentFragmentManager, "contentSelectMenuConfig")
             PreferKey.uploadRule -> showDialogFragment<DirectLinkUploadConfig>()
-            "discoverySettings" -> startActivity<ConfigActivity> {
-                putExtra("configTag", ConfigTag.DISCOVERY_CONFIG)
+            "discoverySettings" -> {
+                startActivity(Intent(requireContext(), ConfigActivity::class.java).apply {
+                    putExtra("configTag", ConfigTag.DISCOVERY_CONFIG)
+                })
             }
-            "subscriptionSettings" -> startActivity<ConfigActivity> {
-                putExtra("configTag", ConfigTag.SUBSCRIPTION_CONFIG)
+            "subscriptionSettings" -> {
+                startActivity(Intent(requireContext(), ConfigActivity::class.java).apply {
+                    putExtra("configTag", ConfigTag.SUBSCRIPTION_CONFIG)
+                })
             }
             PreferKey.checkSource -> showDialogFragment<CheckSourceConfig>()
             PreferKey.bitmapCacheSize -> {
