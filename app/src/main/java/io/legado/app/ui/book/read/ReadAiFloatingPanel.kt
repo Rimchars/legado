@@ -235,7 +235,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             lp.setMargins(0, 0, 0, 8.dpToPx())
             layoutParams = lp
         }
-        val text = TextView(context).apply {
+        val titleView = TextView(context).apply {
             text = buildString {
                 append(record.question.lineSequence().firstOrNull().orEmpty())
                 if (record.chapterTitle.isNotBlank()) append("\n").append(record.chapterTitle)
@@ -246,8 +246,8 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             maxLines = 3
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        row.addView(text, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        val delete = TextView(context).apply {
+        row.addView(titleView, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        val deleteView = TextView(context).apply {
             text = resources.getString(R.string.delete)
             setTextColor(context.accentColor)
             textSize = 13f
@@ -255,7 +255,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             setPadding(10.dpToPx(), 0, 4.dpToPx(), 0)
             setOnClickListener { deleteHistoryRecord(record.id) }
         }
-        row.addView(delete, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
+        row.addView(deleteView, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         row.setOnClickListener {
             showingHistory = false
             binding.historyContainer.isGone = true
