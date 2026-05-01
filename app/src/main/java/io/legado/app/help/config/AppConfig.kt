@@ -736,13 +736,13 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
         set(value) = appCtx.putPrefBoolean(PreferKey.aiEnterToSend, value)
 
     var aiEnabledToolNames: Set<String>
-        get() = appCtx.getPrefStringSet(PreferKey.aiEnabledToolNames, emptySet())
+        get() = appCtx.getPrefStringSet(PreferKey.aiEnabledToolNames, mutableSetOf())
             ?.filter { it.isNotBlank() }
             ?.toSet()
-            ?: emptySet()
+            ?: emptySet<String>()
         set(value) = appCtx.putPrefStringSet(
             PreferKey.aiEnabledToolNames,
-            value.filter { it.isNotBlank() }.toSet()
+            value.filter { it.isNotBlank() }.toMutableSet()
         )
 
     var aiTavilyApiKey: String
