@@ -887,16 +887,11 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             binding.rvDiscoverSelects.submitItems(emptyList(), -1)
             return
         }
-        val size = if (items.size > 4) 0.25f else (1f / items.size.coerceAtLeast(1))
         binding.rvDiscoverSelects.visible()
         binding.rvDiscoverSelects.submitItems(
             items.map {
                 val value = currentDiscoverSelectValue(it)
-                RoundedTagBarView.Item(
-                    text = "${it.text}:${value}",
-                    alpha = 1f,
-                    widthFraction = size
-                )
+                RoundedTagBarView.Item("${it.text}:${value}", 1f)
             },
             -1
         )
