@@ -43,6 +43,16 @@
         android:layout_height="match_parent"
         android:visibility="gone" />
 
+    <io.legado.app.ui.book.read.ReadAiFloatingPanel
+        android:id="@+id/read_ai_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="28dp"
+        android:visibility="gone" />
+
     <View
         android:id="@+id/navigation_bar"
         android:layout_width="match_parent"

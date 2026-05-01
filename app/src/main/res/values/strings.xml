@@ -705,6 +705,10 @@
     <string name="ai_chat_send">Send</string>
     <string name="ai_chat_stop">Stop</string>
     <string name="ai_chat_thinking">Thinking…</string>
+    <string name="ai_read_clear_history">Clear current book history</string>
+    <string name="ai_read_history_empty">No reading AI history for this book yet.</string>
+    <string name="ai_read_delete_history">Delete this record</string>
+    <string name="ai_read_clear_history_confirm">Clear all Ask AI history for this book?</string>
     <string name="ai_chat_thinking_collapsed">Thinking, tap to expand</string>
     <string name="ai_chat_thinking_done">Thinking completed, tap to expand</string>
     <string name="expand">Expand</string>

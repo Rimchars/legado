@@ -17,6 +17,7 @@ import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.get
+import androidx.core.view.isVisible
 import androidx.core.view.size
 import androidx.lifecycle.lifecycleScope
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
@@ -274,10 +275,15 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.cursorRight.setColorFilter(accentColor)
         binding.cursorLeft.setOnTouchListener(this)
         binding.cursorRight.setOnTouchListener(this)
+        binding.readAiPanel.attach(this)
         window.setBackgroundDrawable(null)
         upScreenTimeOut()
         ReadBook.register(this)
         onBackPressedDispatcher.addCallback(this) {
+            if (binding.readAiPanel.isVisible) {
+                binding.readAiPanel.close()
+                return@addCallback
+            }
             if (isShowingSearchResult) {
                 exitSearchMenu()
                 restoreLastBookProcess()
@@ -928,7 +934,19 @@ class ReadBookActivity : BaseReadBookActivity(),
             toastOnUi(R.string.ai_not_enabled)
             return
         }
-        showDialogFragment(AiSelectionDialog(prompt))
+        val book = ReadBook.book
+        val chapter = ReadBook.curTextChapter?.chapter
+        binding.readAiPanel.open(
+            ReadAiFloatingPanel.ReadContext(
+                bookUrl = book?.bookUrl.orEmpty().ifBlank { book?.name.orEmpty() },
+                bookName = book?.name.orEmpty(),
+                author = book?.author.orEmpty(),
+                sourceName = ReadBook.bookSource?.bookSourceName.orEmpty(),
+                chapterTitle = chapter?.title.orEmpty(),
+                chapterIndex = chapter?.index ?: ReadBook.durChapterIndex,
+                selectedText = prompt
+            )
+        )
     }
 
     /**
