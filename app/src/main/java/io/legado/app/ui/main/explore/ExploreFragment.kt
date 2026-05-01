@@ -919,6 +919,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         context?.selector(item.text, options) { _, value, _ ->
             infoMap[key] = value
             viewLifecycleOwner.lifecycleScope.launch(IO) {
+                source.clearExploreKindsCache()
                 val action = item.kind.action?.takeIf { it.isNotBlank() }
                 if (!action.isNullOrBlank()) {
                     runScriptWithContext {
