@@ -3,6 +3,7 @@ package io.legado.app.ui.book.info
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -602,6 +603,17 @@ class BookInfoActivity :
                 pooledWebView
             }
             val webView = pooledWebView.realWebView
+            webView.setBackgroundColor(Color.TRANSPARENT)
+            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+            webView.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN,
+                    MotionEvent.ACTION_MOVE -> binding.scrollView?.requestDisallowInterceptTouchEvent(true)
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> binding.scrollView?.requestDisallowInterceptTouchEvent(false)
+                }
+                false
+            }
             if (initIntroView || this.pooledWebView == null) {
                 initIntroView = false
                 this.pooledWebView = pooledWebView
@@ -611,7 +623,18 @@ class BookInfoActivity :
             val bookUrl = viewModel.getBook()?.bookUrl
                 ?.takeIf { it.startsWith("http", true) }
                 ?.substringBefore(",")
-            webView.loadDataWithBaseURL(bookUrl, html, "text/html", "utf-8", bookUrl)
+            val transparentHtml = """
+                <html>
+                <head>
+                  <meta name="viewport" content="width=device-width, initial-scale=1">
+                  <style>
+                    html, body { background: transparent !important; }
+                  </style>
+                </head>
+                <body>$html</body>
+                </html>
+            """.trimIndent()
+            webView.loadDataWithBaseURL(bookUrl, transparentHtml, "text/html", "utf-8", bookUrl)
             return
         }
         if (!initIntroView || pooledWebView != null) {
