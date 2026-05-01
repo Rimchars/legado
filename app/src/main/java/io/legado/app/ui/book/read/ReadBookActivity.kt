@@ -215,6 +215,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 ReadBook.loadOrUpContent()
             }
         }
+    private var lastTextMenuAnchor: ReadAiFloatingPanel.Anchor? = null
     private val selectImageDir = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
             ACache.get().put(AppConst.imagePathKey, uri.toString())
@@ -843,6 +844,17 @@ class ReadBookActivity : BaseReadBookActivity(),
         val navigationBarHeight =
             if (!ReadBookConfig.hideNavigationBar && navigationBarGravity == Gravity.BOTTOM)
                 binding.navigationBar.height else 0
+        val centerX = ((binding.textMenuPosition.x + binding.cursorRight.x + binding.cursorRight.width) / 2f).toInt()
+        val topY = binding.textMenuPosition.y.toInt()
+        val bottomY = maxOf(
+            binding.cursorLeft.y.toInt() + binding.cursorLeft.height,
+            binding.cursorRight.y.toInt() + binding.cursorRight.height
+        )
+        lastTextMenuAnchor = ReadAiFloatingPanel.Anchor(
+            centerX = centerX,
+            topY = topY,
+            bottomY = bottomY
+        )
         textActionMenu.show(
             binding.root,
             binding.root.height + navigationBarHeight,
@@ -932,25 +944,12 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
         val book = ReadBook.book
         val chapter = ReadBook.curTextChapter?.chapter
-        val rootLoc = IntArray(2)
-        val leftLoc = IntArray(2)
-        val rightLoc = IntArray(2)
-        val topLoc = IntArray(2)
-        binding.root.getLocationOnScreen(rootLoc)
-        binding.cursorLeft.getLocationOnScreen(leftLoc)
-        binding.cursorRight.getLocationOnScreen(rightLoc)
-        binding.textMenuPosition.getLocationOnScreen(topLoc)
-        val centerX = ((leftLoc[0] + rightLoc[0] + binding.cursorRight.width) / 2f - rootLoc[0]).toInt()
-        val topY = (topLoc[1] - rootLoc[1]).toInt()
-        val bottomY = maxOf(
-            (leftLoc[1] - rootLoc[1]).toInt() + binding.cursorLeft.height,
-            (rightLoc[1] - rootLoc[1]).toInt() + binding.cursorRight.height
-        )
-        val anchor = ReadAiFloatingPanel.Anchor(
-            centerX = centerX,
-            topY = topY,
-            bottomY = bottomY
-        )
+        val anchor = lastTextMenuAnchor
+            ?: ReadAiFloatingPanel.Anchor(
+                centerX = binding.root.width / 2,
+                topY = binding.root.height / 3,
+                bottomY = binding.root.height / 2
+            )
         binding.readAiPanel.open(
             ReadAiFloatingPanel.ReadContext(
                 bookUrl = book?.bookUrl.orEmpty().ifBlank { book?.name.orEmpty() },
