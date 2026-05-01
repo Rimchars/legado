@@ -129,7 +129,18 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         showMessages()
         binding.tvContext.text = buildContextLabel(readContext)
         binding.etQuestion.setText("")
-        visibility = VISIBLE
+        if (visibility != VISIBLE) {
+            alpha = 0f
+            translationY = 14f.dpToPx().toFloat()
+            visibility = VISIBLE
+            animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(180L)
+                .start()
+        } else {
+            visibility = VISIBLE
+        }
         bringToFront()
         post { ensureInsideParent() }
         if (readContext.selectedText.isNotBlank()) {
