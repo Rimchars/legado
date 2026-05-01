@@ -598,7 +598,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     private fun adjustScale(delta: Float) {
-        val minScale = 0.8f
+        val minScale = 0.6f
         val maxScale = 1.25f
         panelScale = (panelScale + delta).coerceIn(minScale, maxScale)
         animate()
