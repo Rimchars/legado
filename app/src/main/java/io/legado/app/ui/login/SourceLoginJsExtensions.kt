@@ -30,6 +30,12 @@ class SourceLoginJsExtensions(
     interface Callback {
         fun upUiData(data: Map<String, Any?>?)
         fun reUiView(deltaUp: Boolean = false)
+        fun showBrowser(
+            url: String,
+            html: String? = null,
+            preloadJs: String? = null,
+            config: String? = null
+        ): Boolean = false
     }
 
     fun upLoginData(data: Map<String, Any?>?) {
@@ -78,6 +84,9 @@ class SourceLoginJsExtensions(
     fun showBrowser(url: String, html: String? = null, preloadJs: String? = null, config: String? = null) {
         val activity = activityRef.get() ?: return
         val source = getSource() ?: return
+        if (callbackRef.get()?.showBrowser(url, html, preloadJs, config) == true) {
+            return
+        }
         activity.showDialogFragment(
             BottomWebViewDialog(
                 source.getKey(),
