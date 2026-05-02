@@ -26,6 +26,15 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
+      - name: Release Apk Sign
+        run: |
+          echo -e "\n" >> gradle.properties
+          echo RELEASE_KEY_ALIAS='${{ secrets.CI_DEBUG_KEY_ALIAS }}' >> gradle.properties
+          echo RELEASE_KEY_PASSWORD='${{ secrets.CI_DEBUG_KEY_PASSWORD }}' >> gradle.properties
+          echo RELEASE_STORE_PASSWORD='${{ secrets.CI_DEBUG_STORE_PASSWORD }}' >> gradle.properties
+          echo RELEASE_STORE_FILE='./key.jks' >> gradle.properties
+          echo ${{ secrets.CI_DEBUG_KEY_STORE_B64 }} | base64 --decode > $GITHUB_WORKSPACE/app/key.jks
+
       - name: Prepare release version
         id: version
         run: |
@@ -57,10 +66,6 @@ jobs:
           ./gradlew :app:assembleAppRelease \
             -PVERSION_NAME="${{ steps.version.outputs.name }}" \
             -PVERSION_CODE="${{ steps.version.outputs.code }}" \
-            -PRELEASE_STORE_FILE=ci-debug.keystore \
-            -PRELEASE_STORE_PASSWORD=legado-ci-debug \
-            -PRELEASE_KEY_ALIAS=legado-ci-debug \
-            -PRELEASE_KEY_PASSWORD=legado-ci-debug \
             --stacktrace
 
       - name: Resolve APK
