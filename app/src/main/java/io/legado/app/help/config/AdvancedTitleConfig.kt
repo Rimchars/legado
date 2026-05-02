@@ -86,11 +86,17 @@ object AdvancedTitleConfig {
         )
         val html = variables.entries.fold(tpl.html) { value, entry ->
             value.replace("\${${entry.key}}", TextUtils.htmlEncode(entry.value))
-        }
+        }.replace(
+            "章节名",
+            TextUtils.htmlEncode(parts.s2.ifBlank { parts.title })
+        ).replace(
+            "章节数",
+            TextUtils.htmlEncode(parts.s1)
+        )
         return """
             <!doctype html>
             <html>
-            <head><meta charset="utf-8"><style>${tpl.css}</style></head>
+            <head><meta charset="utf-8"><style>html,body{background:transparent;margin:0;padding:0;}${tpl.css}</style></head>
             <body>$html</body>
             </html>
         """.trimIndent()

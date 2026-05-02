@@ -73,6 +73,7 @@ import io.legado.app.model.localBook.EpubCss
 import io.legado.app.model.localBook.EpubFile
 import io.legado.app.model.localBook.EpubImageBox
 import io.legado.app.model.localBook.EpubLayoutDocument
+import io.legado.app.model.localBook.EpubMiniLayout
 import io.legado.app.model.localBook.EpubPageColor
 import io.legado.app.ui.book.read.page.entities.column.BaseColumn
 import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
@@ -180,8 +181,7 @@ class TextChapterLayout(
     private fun onPageCompleted() {
         val textPage = pendingTextPage
         if (textPage.lines.isEmpty() &&
-            textPage.epubNativeCommands.isEmpty() &&
-            !textPage.hasEpubBackground() &&
+            !textPage.hasEpubContent() &&
             stringBuilder.isBlank()
         ) {
             return
@@ -742,42 +742,51 @@ class TextChapterLayout(
         if (title.isBlank()) return false
         return runCatching {
             currentCoroutineContext().ensureActive()
-            val parts = AdvancedTitleConfig.split(title, book)
-            val titleName = parts.s2.ifBlank { title }
-            val titleIndex = parts.s1
-            setTypeText(
-                book = book,
-                text = titleName,
-                textPaint = titlePaint,
-                textHeight = titlePaintTextHeight,
-                fontMetrics = titlePaintFontMetrics,
-                imageStyle = Book.imgStyleDefault,
-                clickList = null,
-                isTitle = true,
-                emptyContent = true
+            val maxTitleHeight = (visibleHeight * 0.42f)
+                .coerceAtLeast(titlePaintTextHeight * 6f)
+                .coerceAtMost(visibleHeight * 0.65f)
+                .roundToInt()
+                .coerceAtLeast(1)
+            val layout = EpubMiniLayout.layoutTitle(
+                html = AdvancedTitleConfig.renderHtml(book, title),
+                viewportWidth = visibleWidth,
+                viewportHeight = maxTitleHeight,
+                basePaint = contentPaint
             )
-            pendingTextPage.lines.lastOrNull()?.isParagraphEnd = true
-            stringBuilder.append("\n")
-            if (titleIndex.isNotBlank()) {
-                setTypeText(
-                    book = book,
-                    text = titleIndex,
-                    textPaint = titlePaint,
-                    textHeight = titlePaintTextHeight,
-                    fontMetrics = titlePaintFontMetrics,
-                    imageStyle = Book.imgStyleDefault,
-                    clickList = null,
-                    isTitle = true,
-                    emptyContent = true
-                )
-                pendingTextPage.lines.lastOrNull()?.isParagraphEnd = true
-                stringBuilder.append("\n")
+            val layoutPage = layout.pages.firstOrNull()
+                ?: error("高级标题 EPUB 布局没有生成页面")
+            val commands = layoutPage.commands
+            if (commands.isEmpty()) {
+                error("高级标题 EPUB 布局没有生成绘制命令")
             }
-            durY += titleBottomSpacing
+            commands.filterIsInstance<EpubImageBox>().forEach { command ->
+                ImageProvider.cacheImage(book, command.src, ReadBook.bookSource)
+            }
+            val blockHeight = EpubMiniLayout.contentHeight(
+                commands = commands,
+                minHeight = titlePaintTextHeight * 4f,
+                maxHeight = maxTitleHeight.toFloat()
+            )
+            prepareNextPageIfNeed(durY + blockHeight)
+            pendingTextPage.epubEmbeddedBlocks.add(
+                TextPage.EpubEmbeddedBlock(
+                    offsetX = paddingLeft.toFloat(),
+                    offsetY = paddingTop + durY,
+                    width = visibleWidth.toFloat(),
+                    height = blockHeight,
+                    commands = commands
+                )
+            )
+            durY += blockHeight + titleBottomSpacing
+            if (pendingTextPage.height < durY) {
+                pendingTextPage.height = durY
+            }
+            stringBuilder.append(title).append('\n')
             true
         }.getOrElse {
             AppLog.put("高级标题渲染失败: ${it.localizedMessage}", it)
-            false
+            setTypeEpubDiagnosticPage("高级标题 EPUB 渲染失败", it.localizedMessage.orEmpty())
+            true
         }
     }
 

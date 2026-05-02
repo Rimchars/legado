@@ -92,6 +92,7 @@ data class TextPage(
     var epubDrawOffsetY: Float = ChapterProvider.paddingTop.toFloat()
     var fallbackChapterPosition: Int = 0
     val epubDecorations = arrayListOf<EpubDecoration>()
+    internal val epubEmbeddedBlocks = arrayListOf<EpubEmbeddedBlock>()
     internal val epubNativeCommands = arrayListOf<EpubDrawCommand>()
 
     @JvmField
@@ -132,7 +133,7 @@ data class TextPage(
      * 底部对齐更新行位置
      */
     fun upLinesPosition() {
-        if (hasEpubBackground()) return
+        if (hasEpubBackground() || epubEmbeddedBlocks.isNotEmpty()) return
         if (!ReadBookConfig.textBottomJustify) return
         if (textLines.size <= 1) return
         if (leftLineSize == 0) {
@@ -343,8 +344,12 @@ data class TextPage(
         return epubBackgroundSrc != null || epubBackgroundColor != null
     }
 
+    fun hasEpubContent(): Boolean {
+        return hasEpubBackground() || epubNativeCommands.isNotEmpty() || epubEmbeddedBlocks.isNotEmpty()
+    }
+
     fun isNativeEpubPage(): Boolean {
-        return hasEpubBackground() || epubNativeCommands.isNotEmpty()
+        return hasEpubContent()
     }
 
     fun findEpubLinkAt(x: Float, y: Float): String? {
@@ -542,6 +547,7 @@ data class TextPage(
 
     private fun drawPage(view: ContentTextView, canvas: Canvas) {
         drawEpubBackground(view, canvas)
+        drawEpubEmbeddedBlocks(view, canvas)
         drawEpubNativeCommands(view, canvas)
         drawEpubDecorations(canvas)
         for (i in lines.indices) {
@@ -618,9 +624,10 @@ data class TextPage(
         sourceWidth: Float,
         sourceHeight: Float,
         targetWidth: Float,
-        targetHeight: Float
+        targetHeight: Float,
+        backgroundSize: String? = epubBackgroundSize
     ): Pair<Float, Float> {
-        val size = epubBackgroundSize?.trim()?.lowercase().orEmpty()
+        val size = backgroundSize?.trim()?.lowercase().orEmpty()
         if (sourceWidth <= 0f || sourceHeight <= 0f) return targetWidth to targetHeight
         return when (size) {
             "contain" -> {
@@ -652,9 +659,10 @@ data class TextPage(
         drawWidth: Float,
         drawHeight: Float,
         targetWidth: Float,
-        targetHeight: Float
+        targetHeight: Float,
+        backgroundPosition: String? = epubBackgroundPosition
     ): Pair<Float, Float> {
-        val tokens = epubBackgroundPosition
+        val tokens = backgroundPosition
             ?.lowercase()
             ?.split(' ', '\t')
             ?.filter { it.isNotBlank() }
@@ -743,6 +751,97 @@ data class TextPage(
             }
         }
         PaintPool.recycle(paint)
+    }
+
+    private fun drawEpubEmbeddedBlocks(view: ContentTextView, canvas: Canvas) {
+        if (epubEmbeddedBlocks.isEmpty()) return
+        val paint = PaintPool.obtain()
+        val textPaint = TextPaint(ChapterProvider.contentPaint)
+        epubEmbeddedBlocks.forEach { block ->
+            canvas.save()
+            canvas.clipRect(
+                block.offsetX,
+                block.offsetY,
+                block.offsetX + block.width,
+                block.offsetY + block.height
+            )
+            canvas.withTranslation(block.offsetX, block.offsetY) {
+                block.commands.forEach { command ->
+                    when (command) {
+                        is EpubBlockBox -> drawEpubNativeBlock(this, paint, command)
+                        is EpubBullet -> drawEpubNativeBullet(this, textPaint, command)
+                        is EpubImageBox -> {
+                            if (command.isBackground) {
+                                drawEpubEmbeddedBackgroundImage(view, this, command, block.width, block.height)
+                            } else {
+                                drawEpubNativeImage(view, this, command)
+                            }
+                        }
+                        is EpubLinkArea -> Unit
+                        is EpubPageColor -> Unit
+                        is EpubRuleLine -> drawEpubNativeRuleLine(this, paint, command)
+                        is EpubTextRun -> drawEpubNativeText(this, textPaint, command)
+                    }
+                }
+            }
+            canvas.restore()
+        }
+        PaintPool.recycle(paint)
+    }
+
+    private fun drawEpubEmbeddedBackgroundImage(
+        view: ContentTextView,
+        canvas: Canvas,
+        image: EpubImageBox,
+        targetWidth: Float,
+        targetHeight: Float
+    ) {
+        val book = ReadBook.book ?: return
+        if (targetWidth <= 0f || targetHeight <= 0f) return
+        val bitmap = ImageProvider.getImage(
+            book = book,
+            src = image.src,
+            width = targetWidth.toInt().coerceAtLeast(1),
+            height = targetHeight.toInt().coerceAtLeast(1),
+            cacheKeySuffix = "epub-title-bg-${targetWidth.toInt()}x${targetHeight.toInt()}"
+        )
+        val (drawWidth, drawHeight) = resolveEpubBackgroundSize(
+            sourceWidth = bitmap.width.toFloat(),
+            sourceHeight = bitmap.height.toFloat(),
+            targetWidth = targetWidth,
+            targetHeight = targetHeight,
+            backgroundSize = image.backgroundSize
+        )
+        val origin = resolveEpubBackgroundOrigin(
+            drawWidth = drawWidth,
+            drawHeight = drawHeight,
+            targetWidth = targetWidth,
+            targetHeight = targetHeight,
+            backgroundPosition = image.backgroundPosition
+        )
+        val repeat = image.backgroundRepeat?.lowercase().orEmpty()
+        if (repeat == "repeat" || repeat == "repeat-x" || repeat == "repeat-y") {
+            val startX = if (repeat == "repeat-y") origin.first else origin.first.modTile(drawWidth)
+            val startY = if (repeat == "repeat-x") origin.second else origin.second.modTile(drawHeight)
+            var y = startY
+            while (y < targetHeight) {
+                var x = startX
+                while (x < targetWidth) {
+                    canvas.drawBitmap(bitmap, null, RectF(x, y, x + drawWidth, y + drawHeight), view.imagePaint)
+                    if (repeat == "repeat-y") break
+                    x += drawWidth
+                }
+                if (repeat == "repeat-x") break
+                y += drawHeight
+            }
+        } else {
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                RectF(origin.first, origin.second, origin.first + drawWidth, origin.second + drawHeight),
+                view.imagePaint
+            )
+        }
     }
 
     private fun drawEpubNativeCommands(view: ContentTextView, canvas: Canvas) {
@@ -1008,10 +1107,10 @@ data class TextPage(
 
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
-        if ((epubNativeCommands.isNotEmpty() || hasEpubBackground()) && !canvasRecorder.needRecord()) {
+        if (hasEpubContent() && !canvasRecorder.needRecord()) {
             return false
         }
-        val pageHeight = if (epubNativeCommands.isNotEmpty() || hasEpubBackground()) {
+        val pageHeight = if (hasEpubContent()) {
             height.toInt().coerceAtLeast(renderHeight).coerceAtLeast(1)
         } else {
             ChapterProvider.viewHeight
@@ -1050,9 +1149,14 @@ data class TextPage(
 
     fun upRenderHeight() {
         renderHeight = if (lines.isEmpty()) {
-            if (hasEpubBackground() || epubNativeCommands.isNotEmpty()) ChapterProvider.viewHeight else 0
+            if (hasEpubContent()) ChapterProvider.viewHeight else 0
         } else {
             ceil(lines.last().lineBottom).toInt()
+        }
+        epubEmbeddedBlocks.maxOfOrNull { block ->
+            block.offsetY + block.height
+        }?.let { nativeBottom ->
+            renderHeight = max(renderHeight, ceil(nativeBottom).toInt())
         }
         epubNativeCommands.maxOfOrNull { command ->
             when (command) {
@@ -1085,5 +1189,13 @@ data class TextPage(
         val borderColor: Int?,
         val borderWidth: Float,
         val radius: Float
+    )
+
+    internal data class EpubEmbeddedBlock(
+        val offsetX: Float,
+        val offsetY: Float,
+        val width: Float,
+        val height: Float,
+        val commands: List<EpubDrawCommand>
     )
 }
