@@ -171,6 +171,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private val mangaHorizontalScroll: Boolean
         get() = when (mangaPageAnim) {
             PageAnim.coverPageAnim,
+            PageAnim.linkedCoverPageAnim,
             PageAnim.slidePageAnim,
             PageAnim.simulationPageAnim,
             PageAnim.noAnim -> true
@@ -181,6 +182,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private val mangaDisablePageAnim: Boolean
         get() = when (mangaPageAnim) {
             PageAnim.coverPageAnim,
+            PageAnim.linkedCoverPageAnim,
             PageAnim.slidePageAnim,
             PageAnim.simulationPageAnim,
             PageAnim.scrollPageAnim -> false
@@ -191,6 +193,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private val mangaDisableHorizontalPageSnap: Boolean
         get() = when (mangaPageAnim) {
             PageAnim.coverPageAnim,
+            PageAnim.linkedCoverPageAnim,
             PageAnim.slidePageAnim,
             PageAnim.simulationPageAnim -> false
 

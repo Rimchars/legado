@@ -3,6 +3,7 @@ package io.legado.app.ui.book.read.page.delegate
 import android.content.Context
 import android.graphics.Canvas
 import android.view.MotionEvent
+import android.view.animation.Interpolator
 import android.view.animation.LinearInterpolator
 import android.widget.Scroller
 import androidx.annotation.CallSuper
@@ -38,8 +39,10 @@ abstract class PageDelegate(protected val readView: ReadView) {
     protected var viewWidth: Int = readView.width
     protected var viewHeight: Int = readView.height
 
+    protected open fun scrollInterpolator(): Interpolator = LinearInterpolator()
+
     protected val scroller: Scroller by lazy {
-        Scroller(readView.context, LinearInterpolator())
+        Scroller(readView.context, scrollInterpolator())
     }
 
     private val snackBar: Snackbar by lazy {

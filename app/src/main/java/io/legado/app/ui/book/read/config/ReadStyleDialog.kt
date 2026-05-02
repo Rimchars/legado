@@ -13,6 +13,7 @@ import io.legado.app.base.BaseDialogFragment
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.base.adapter.RecyclerAdapter
 import io.legado.app.constant.EventBus
+import io.legado.app.constant.PageAnim
 import io.legado.app.databinding.DialogReadBookStyleBinding
 import io.legado.app.databinding.ItemReadStyleBinding
 import io.legado.app.help.config.AppConfig
@@ -27,7 +28,6 @@ import io.legado.app.ui.font.FontSelectDialog
 import io.legado.app.utils.ChineseUtils
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
-import io.legado.app.utils.getIndexById
 import io.legado.app.utils.postEvent
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -139,7 +139,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
         }
         rgPageAnim.setOnCheckedChangeListener { _, checkedId ->
             ReadBook.book?.setPageAnim(-1)
-            ReadBookConfig.pageAnim = binding.rgPageAnim.getIndexById(checkedId)
+            ReadBookConfig.pageAnim = pageAnimById(checkedId)
             callBack?.upPageAnim()
             ReadBook.loadContent(false)
         }
@@ -190,9 +190,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
     private fun upView() = binding.run {
         textFontWeightConverter.upUi(ReadBookConfig.textBold)
         ReadBook.pageAnim().let {
-            if (it >= 0 && it < rgPageAnim.childCount) {
-                rgPageAnim.check(rgPageAnim[it].id)
-            }
+            rgPageAnim.check(pageAnimIdByValue(it))
         }
         ReadBookConfig.let {
             dsbTextSize.progress = it.textSize - 5
@@ -209,6 +207,30 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
         if (path != ReadBookConfig.textFont || path.isEmpty()) {
             ReadBookConfig.textFont = path
             postEvent(EventBus.UP_CONFIG, arrayListOf(2, 5))
+        }
+    }
+
+    private fun pageAnimById(checkedId: Int): Int {
+        return when (checkedId) {
+            R.id.rb_anim0 -> PageAnim.coverPageAnim
+            R.id.rb_anim_linked_cover -> PageAnim.linkedCoverPageAnim
+            R.id.rb_anim1 -> PageAnim.slidePageAnim
+            R.id.rb_simulation_anim -> PageAnim.simulationPageAnim
+            R.id.rb_scroll_anim -> PageAnim.scrollPageAnim
+            R.id.rb_no_anim -> PageAnim.noAnim
+            else -> PageAnim.coverPageAnim
+        }
+    }
+
+    private fun pageAnimIdByValue(pageAnim: Int): Int {
+        return when (pageAnim) {
+            PageAnim.coverPageAnim -> R.id.rb_anim0
+            PageAnim.linkedCoverPageAnim -> R.id.rb_anim_linked_cover
+            PageAnim.slidePageAnim -> R.id.rb_anim1
+            PageAnim.simulationPageAnim -> R.id.rb_simulation_anim
+            PageAnim.scrollPageAnim -> R.id.rb_scroll_anim
+            PageAnim.noAnim -> R.id.rb_no_anim
+            else -> R.id.rb_anim0
         }
     }
 

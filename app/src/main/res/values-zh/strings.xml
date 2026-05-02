@@ -401,6 +401,7 @@
     <string name="continue_read">继续阅读</string>
     <string name="cover_path">封面地址</string>
     <string name="page_anim_cover">覆盖</string>
+    <string name="page_anim_linked_cover">覆盖+</string>
     <string name="page_anim_slide">滑动</string>
     <string name="page_anim_simulation">仿真</string>
     <string name="page_anim_scroll">滚动</string>

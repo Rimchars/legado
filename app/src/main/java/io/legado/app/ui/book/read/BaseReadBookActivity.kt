@@ -16,6 +16,7 @@ import androidx.core.view.updateLayoutParams
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.AppConst.charsets
+import io.legado.app.constant.PageAnim
 import io.legado.app.constant.PreferKey
 import io.legado.app.databinding.ActivityBookReadBinding
 import io.legado.app.databinding.DialogDownloadChoiceBinding
@@ -362,15 +363,17 @@ abstract class BaseReadBookActivity :
     }
 
     fun showPageAnimConfig(success: () -> Unit) {
-        val items = arrayListOf<String>()
-        items.add(getString(R.string.btn_default_s))
-        items.add(getString(R.string.page_anim_cover))
-        items.add(getString(R.string.page_anim_slide))
-        items.add(getString(R.string.page_anim_simulation))
-        items.add(getString(R.string.page_anim_scroll))
-        items.add(getString(R.string.page_anim_none))
-        selector(R.string.page_anim, items) { _, i ->
-            ReadBook.book?.setPageAnim(i - 1)
+        val items = listOf(
+            getString(R.string.btn_default_s) to null,
+            getString(R.string.page_anim_cover) to PageAnim.coverPageAnim,
+            getString(R.string.page_anim_linked_cover) to PageAnim.linkedCoverPageAnim,
+            getString(R.string.page_anim_slide) to PageAnim.slidePageAnim,
+            getString(R.string.page_anim_simulation) to PageAnim.simulationPageAnim,
+            getString(R.string.page_anim_scroll) to PageAnim.scrollPageAnim,
+            getString(R.string.page_anim_none) to PageAnim.noAnim
+        )
+        selector(R.string.page_anim, items.map { it.first }) { _, i ->
+            ReadBook.book?.setPageAnim(items.getOrNull(i)?.second ?: -1)
             success()
         }
     }

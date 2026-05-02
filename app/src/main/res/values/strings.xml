@@ -403,6 +403,7 @@
     <string name="continue_read">Continue reading</string>
     <string name="cover_path">Cover path</string>
     <string name="page_anim_cover">Cover</string>
+    <string name="page_anim_linked_cover">Cover+</string>
     <string name="page_anim_slide">Slide</string>
     <string name="page_anim_simulation">Simulation</string>
     <string name="page_anim_scroll">Scroll</string>

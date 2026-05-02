@@ -198,80 +198,96 @@
 
         </LinearLayout>
 
-        <RadioGroup
-            android:id="@+id/rg_page_anim"
+        <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="11dp"
-            android:gravity="center"
-            android:orientation="horizontal">
+            android:fillViewport="false"
+            android:overScrollMode="never"
+            android:scrollbars="none">
 
-            <io.legado.app.lib.theme.view.ThemeRadioNoButton
-                android:id="@+id/rb_anim0"
-                android:layout_width="0dp"
+            <RadioGroup
+                android:id="@+id/rg_page_anim"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_margin="4dp"
-                android:layout_weight="1"
-                android:button="@null"
                 android:gravity="center"
-                android:padding="5dp"
-                android:singleLine="true"
-                android:text="@string/page_anim_cover"
-                app:isBottomBackground="true" />
+                android:orientation="horizontal">
 
-            <io.legado.app.lib.theme.view.ThemeRadioNoButton
-                android:id="@+id/rb_anim1"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_margin="4dp"
-                android:layout_weight="1"
-                android:button="@null"
-                android:gravity="center"
-                android:padding="5dp"
-                android:singleLine="true"
-                android:text="@string/page_anim_slide"
-                app:isBottomBackground="true" />
+                <io.legado.app.lib.theme.view.ThemeRadioNoButton
+                    android:id="@+id/rb_anim0"
+                    android:layout_width="76dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:padding="5dp"
+                    android:singleLine="true"
+                    android:text="@string/page_anim_cover"
+                    app:isBottomBackground="true" />
 
-            <io.legado.app.lib.theme.view.ThemeRadioNoButton
-                android:id="@+id/rb_simulation_anim"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_margin="4dp"
-                android:layout_weight="1"
-                android:button="@null"
-                android:gravity="center"
-                android:padding="5dp"
-                android:singleLine="true"
-                android:text="@string/page_anim_simulation"
-                app:isBottomBackground="true" />
+                <io.legado.app.lib.theme.view.ThemeRadioNoButton
+                    android:id="@+id/rb_anim_linked_cover"
+                    android:layout_width="76dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:padding="5dp"
+                    android:singleLine="true"
+                    android:text="@string/page_anim_linked_cover"
+                    app:isBottomBackground="true" />
 
-            <io.legado.app.lib.theme.view.ThemeRadioNoButton
-                android:id="@+id/rb_scroll_anim"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_margin="4dp"
-                android:layout_weight="1"
-                android:button="@null"
-                android:gravity="center"
-                android:padding="5dp"
-                android:singleLine="true"
-                android:text="@string/page_anim_scroll"
-                app:isBottomBackground="true" />
+                <io.legado.app.lib.theme.view.ThemeRadioNoButton
+                    android:id="@+id/rb_anim1"
+                    android:layout_width="76dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:padding="5dp"
+                    android:singleLine="true"
+                    android:text="@string/page_anim_slide"
+                    app:isBottomBackground="true" />
 
-            <io.legado.app.lib.theme.view.ThemeRadioNoButton
-                android:id="@+id/rb_no_anim"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_margin="4dp"
-                android:layout_weight="1"
-                android:button="@null"
-                android:gravity="center"
-                android:padding="5dp"
-                android:singleLine="true"
-                android:text="@string/page_anim_none"
-                app:isBottomBackground="true" />
+                <io.legado.app.lib.theme.view.ThemeRadioNoButton
+                    android:id="@+id/rb_simulation_anim"
+                    android:layout_width="76dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:padding="5dp"
+                    android:singleLine="true"
+                    android:text="@string/page_anim_simulation"
+                    app:isBottomBackground="true" />
 
-        </RadioGroup>
+                <io.legado.app.lib.theme.view.ThemeRadioNoButton
+                    android:id="@+id/rb_scroll_anim"
+                    android:layout_width="76dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:padding="5dp"
+                    android:singleLine="true"
+                    android:text="@string/page_anim_scroll"
+                    app:isBottomBackground="true" />
+
+                <io.legado.app.lib.theme.view.ThemeRadioNoButton
+                    android:id="@+id/rb_no_anim"
+                    android:layout_width="76dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:padding="5dp"
+                    android:singleLine="true"
+                    android:text="@string/page_anim_none"
+                    app:isBottomBackground="true" />
+
+            </RadioGroup>
+
+        </HorizontalScrollView>
 
     </LinearLayout>
 
