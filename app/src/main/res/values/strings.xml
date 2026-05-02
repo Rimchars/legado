@@ -1045,6 +1045,12 @@
     <string name="background_image">Background image</string>
     <string name="read_scroll_follow_background">Scroll Follow Background</string>
     <string name="read_scroll_follow_background_summary">In vertical scrolling reading mode, the background image scrolls with the content and repeats downward.</string>
+    <string name="read_scroll_follow_background_day">Scroll Follow Background (Day)</string>
+    <string name="read_scroll_follow_background_day_summary">Enable in day theme.</string>
+    <string name="read_scroll_follow_background_night">Scroll Follow Background (Night)</string>
+    <string name="read_scroll_follow_background_night_summary">Enable in night theme.</string>
+    <string name="read_scroll_follow_background_eink">Scroll Follow Background (E-Ink)</string>
+    <string name="read_scroll_follow_background_eink_summary">Enable in e-ink mode.</string>
     <string name="background_image_blurring">Background image blurring</string>
     <string name="background_image_blurring_radius">Blurring radius</string>
     <string name="background_image_hint">Disabled when 0, enable range from 1 to 25\nThe greater the radius, the stronger the effect of blurring</string>
