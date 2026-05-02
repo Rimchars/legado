@@ -124,10 +124,9 @@ internal class EpubBoxBuilder {
 
     private fun EpubDomElement.shouldPromoteBackgroundImage(): Boolean {
         if (tagName == "body" || tagName == "html") return true
-        val size = (style["background-size"] ?: style["background"]?.extractBackgroundSize())?.lowercase(Locale.ROOT)
         val attachment = style["background-attachment"]?.lowercase(Locale.ROOT)
-        val repeat = (style["background-repeat"] ?: style["background"]?.extractBackgroundRepeat())?.lowercase(Locale.ROOT)
-        return size == "cover" || attachment == "fixed" || repeat == "no-repeat"
+        // 元素级背景（尤其标题模板）需要和文本同容器排版，不能因 no-repeat/cover 被提升成整页背景
+        return attachment == "fixed"
     }
 
     private fun EpubComputedStyle.backgroundImageSrc(): String? {

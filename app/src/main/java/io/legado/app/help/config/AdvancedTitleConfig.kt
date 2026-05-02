@@ -85,7 +85,9 @@ object AdvancedTitleConfig {
             "author" to book.author
         )
         val html = variables.entries.fold(tpl.html) { value, entry ->
-            value.replace("\${${entry.key}}", TextUtils.htmlEncode(entry.value))
+            value
+                .replace("\${${entry.key}}", TextUtils.htmlEncode(entry.value))
+                .replace("{{${entry.key}}}", TextUtils.htmlEncode(entry.value))
         }.replace(
             "章节名",
             TextUtils.htmlEncode(parts.s2.ifBlank { parts.title })
