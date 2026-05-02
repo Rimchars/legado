@@ -78,6 +78,20 @@
         app:layout_constraintBottom_toTopOf="@id/vw_bottom_divider"
         app:layout_constraintTop_toBottomOf="@id/vw_top_divider" />
 
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/advanced_title_lottie"
+        android:layout_width="220dp"
+        android:layout_height="48dp"
+        android:visibility="gone"
+        android:clickable="false"
+        android:focusable="false"
+        app:layout_constraintTop_toTopOf="@id/content_text_view"
+        app:layout_constraintStart_toStartOf="@id/content_text_view"
+        app:layout_constraintEnd_toEndOf="@id/content_text_view"
+        app:lottie_autoPlay="false"
+        app:lottie_loop="true"
+        app:lottie_renderMode="hardware" />
+
     <View
         android:id="@+id/vw_bottom_divider"
         android:layout_width="match_parent"

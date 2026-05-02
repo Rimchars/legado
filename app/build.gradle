@@ -223,6 +223,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.flexbox)
     implementation(libs.gson)
+    implementation(libs.lottie)
 
     //lifecycle
     implementation(libs.lifecycle.common.java8)

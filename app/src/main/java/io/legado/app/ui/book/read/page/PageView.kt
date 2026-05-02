@@ -5,7 +5,9 @@ import android.content.Context
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.LayerDrawable
 import android.view.LayoutInflater
+import android.view.ViewGroup
 import android.widget.FrameLayout
+import com.airbnb.lottie.LottieDrawable
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.ViewCompat
@@ -17,10 +19,12 @@ import io.legado.app.constant.AppConst.timeFormat
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.databinding.ViewBookPageBinding
 import io.legado.app.help.book.isEpub
+import io.legado.app.help.config.AdvancedTitleConfig
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
 import io.legado.app.model.ReadBook
+import io.legado.app.model.localBook.EpubImageBox
 import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.book.read.page.entities.TextLine
 import io.legado.app.ui.book.read.page.entities.TextPage
@@ -82,6 +86,11 @@ class PageView(context: Context) : FrameLayout(context) {
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         upBg()
+    }
+
+    override fun onDetachedFromWindow() {
+        binding.advancedTitleLottie.cancelAnimation()
+        super.onDetachedFromWindow()
     }
 
     fun upStyle() = binding.run {
@@ -362,6 +371,7 @@ class PageView(context: Context) : FrameLayout(context) {
     fun setContent(textPage: TextPage, resetPageOffset: Boolean = true) {
         currentTextPage = textPage
         upTipStyle(textPage)
+        upAdvancedTitleLottie(textPage)
         if (isMainView && !isScroll) {
             setProgress(textPage)
         } else {
@@ -426,6 +436,11 @@ class PageView(context: Context) : FrameLayout(context) {
         val changed = isScroll != value
         isScroll = value
         binding.contentTextView.setIsScroll(value)
+        if (value) {
+            binding.advancedTitleLottie.pauseAnimation()
+        } else if (binding.advancedTitleLottie.visibility == VISIBLE) {
+            binding.advancedTitleLottie.playAnimation()
+        }
         if (changed && AppConfig.readScrollFollowBackground) {
             upBg()
         }
@@ -543,6 +558,40 @@ class PageView(context: Context) : FrameLayout(context) {
 
     fun relativePage(relativePagePos: Int): TextPage {
         return binding.contentTextView.relativePage(relativePagePos)
+    }
+
+    private fun upAdvancedTitleLottie(textPage: TextPage) {
+        val lottieView = binding.advancedTitleLottie
+        if (ReadBookConfig.titleMode != AdvancedTitleConfig.TITLE_MODE_ADVANCED || isScroll) {
+            lottieView.cancelAnimation()
+            lottieView.visibility = GONE
+            return
+        }
+        val block = textPage.epubEmbeddedBlocks.firstOrNull() ?: run {
+            lottieView.cancelAnimation()
+            lottieView.visibility = GONE
+            return
+        }
+        if (block.commands.none { it is EpubImageBox }) {
+            lottieView.cancelAnimation()
+            lottieView.visibility = GONE
+            return
+        }
+        val targetWidth = (block.width * 0.78f).toInt().coerceAtLeast(120)
+        val targetHeight = (targetWidth * 112f / 720f).toInt().coerceAtLeast(24)
+        val params = lottieView.layoutParams as ViewGroup.LayoutParams
+        if (params.width != targetWidth || params.height != targetHeight) {
+            params.width = targetWidth
+            params.height = targetHeight
+            lottieView.layoutParams = params
+        }
+        lottieView.translationY = block.offsetY + block.height * 0.16f
+        lottieView.repeatCount = LottieDrawable.INFINITE
+        lottieView.setAnimation(R.raw.advanced_title_lottie)
+        lottieView.visibility = VISIBLE
+        if (!lottieView.isAnimating) {
+            lottieView.playAnimation()
+        }
     }
 
     val textPage get() = binding.contentTextView.textPage
