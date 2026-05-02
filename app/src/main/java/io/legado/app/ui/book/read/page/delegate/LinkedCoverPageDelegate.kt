@@ -3,6 +3,7 @@ package io.legado.app.ui.book.read.page.delegate
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.drawable.GradientDrawable
+import android.view.animation.PathInterpolator
 import android.view.animation.Interpolator
 import androidx.core.graphics.withClip
 import androidx.core.graphics.withTranslation
@@ -21,10 +22,9 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
     private val linkedOffset get() = viewWidth * 0.2f
     private val maxMaskAlpha = 92
     private val maxCurrentMaskAlpha = 68
+    private val animationSpeedMultiplier = 1.6f
 
-    override fun scrollInterpolator(): Interpolator = Interpolator { input ->
-        1f - (1f - input) * (1f - input) * (1f - input)
-    }
+    override fun scrollInterpolator(): Interpolator = PathInterpolator(0.4f, 0f, 0.2f, 1f)
 
     override fun onDraw(canvas: Canvas) {
         if (!isRunning) return
@@ -135,7 +135,13 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
                 }
             }
         }
-        startScroll(touchX.toInt(), 0, distanceX.toInt(), 0, animationSpeed)
+        startScroll(
+            touchX.toInt(),
+            0,
+            distanceX.toInt(),
+            0,
+            (animationSpeed * animationSpeedMultiplier).toInt()
+        )
     }
 
 }
