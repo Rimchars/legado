@@ -894,12 +894,6 @@
     <string name="background_image">背景图片</string>
     <string name="read_scroll_follow_background">背景滚动跟随</string>
     <string name="read_scroll_follow_background_summary">上下滚动阅读时，背景图按相同速率随正文滚动，并沿纵向连续平铺。</string>
-    <string name="read_scroll_follow_background_day">背景滚动跟随（日间）</string>
-    <string name="read_scroll_follow_background_day_summary">日间主题启用背景滚动跟随。</string>
-    <string name="read_scroll_follow_background_night">背景滚动跟随（夜间）</string>
-    <string name="read_scroll_follow_background_night_summary">夜间主题启用背景滚动跟随。</string>
-    <string name="read_scroll_follow_background_eink">背景滚动跟随（墨水）</string>
-    <string name="read_scroll_follow_background_eink_summary">墨水模式启用背景滚动跟随。</string>
     <string name="background_image_blurring">背景图片虚化</string>
     <string name="background_image_blurring_radius">虚化半径</string>
     <string name="background_image_hint">0 为停用，启用范围 1~25\n半径数值越大，虚化效果越高\n.9.png背景图时此设置无效</string>

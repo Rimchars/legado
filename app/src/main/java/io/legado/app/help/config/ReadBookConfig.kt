@@ -554,6 +554,9 @@ object ReadBookConfig {
         private var textAccentColor: String = "#E53935",//白天强调文字颜色
         private var textAccentColorNight: String = "#FE4D55",//夜间强调文字颜色
         private var textAccentColorEInk: String = "#000000",
+        private var readScrollFollowBackground: Boolean = false,
+        private var readScrollFollowBackgroundNight: Boolean = false,
+        private var readScrollFollowBackgroundEInk: Boolean = false,
         private var pageAnim: Int = 0,//翻页动画
         private var pageAnimEInk: Int = 4,
         var textFont: String = "",//字体
@@ -757,6 +760,22 @@ object ReadBookConfig {
             }
         }
 
+        fun curReadScrollFollowBackground(): Boolean {
+            return when {
+                AppConfig.isEInkMode -> readScrollFollowBackgroundEInk
+                AppConfig.isNightTheme -> readScrollFollowBackgroundNight
+                else -> readScrollFollowBackground
+            }
+        }
+
+        fun setCurReadScrollFollowBackground(value: Boolean) {
+            when {
+                AppConfig.isEInkMode -> readScrollFollowBackgroundEInk = value
+                AppConfig.isNightTheme -> readScrollFollowBackgroundNight = value
+                else -> readScrollFollowBackground = value
+            }
+        }
+
         fun curBgDrawable(width: Int, height: Int): Drawable {
             val curBgStr = curBgStr()
             isNineBgImg = curBgStr.endsWith(".9.png")
@@ -840,6 +859,9 @@ object ReadBookConfig {
             "textAccentColor" to textAccentColor,
             "textAccentColorNight" to textAccentColorNight,
             "textAccentColorEInk" to textAccentColorEInk,
+            "readScrollFollowBackground" to readScrollFollowBackground,
+            "readScrollFollowBackgroundNight" to readScrollFollowBackgroundNight,
+            "readScrollFollowBackgroundEInk" to readScrollFollowBackgroundEInk,
             "textAccentColorInt" to textAccentColorInt,
             "textAccentColorIntNight" to textAccentColorIntNight,
             "textAccentColorIntEInk" to textAccentColorIntEInk,
