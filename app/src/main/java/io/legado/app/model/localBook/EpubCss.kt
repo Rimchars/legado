@@ -27,6 +27,7 @@ internal object EpubCss {
         "line-height",
         "text-shadow",
         "box-shadow",
+        "filter",
         "opacity",
         "letter-spacing",
         "word-spacing",

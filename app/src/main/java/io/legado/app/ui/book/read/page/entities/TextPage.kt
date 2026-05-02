@@ -2,6 +2,8 @@ package io.legado.app.ui.book.read.page.entities
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Rect
@@ -718,10 +720,12 @@ data class TextPage(
     private fun String.cssBackgroundLength(relativeTo: Float): Float? {
         val clean = trim().lowercase()
         if (clean == "auto") return null
+        val fontSize = ChapterProvider.contentPaint.textSize
         return when {
             clean.endsWith("%") -> clean.dropLast(1).toFloatOrNull()?.let { relativeTo * it / 100f }
             clean.endsWith("px") -> clean.dropLast(2).toFloatOrNull()
-            clean.endsWith("em") -> clean.dropLast(2).toFloatOrNull()
+            clean.endsWith("em") -> clean.dropLast(2).toFloatOrNull()?.let { fontSize * it }
+            clean.endsWith("rem") -> clean.dropLast(3).toFloatOrNull()?.let { fontSize * it }
             else -> clean.toFloatOrNull()
         }
     }
@@ -820,6 +824,9 @@ data class TextPage(
             backgroundPosition = image.backgroundPosition
         )
         val repeat = image.backgroundRepeat?.lowercase().orEmpty()
+        val drawPaint = image.filterBrightness
+            ?.let { brightness -> view.imagePaint.withBrightness(brightness) }
+            ?: view.imagePaint
         if (repeat == "repeat" || repeat == "repeat-x" || repeat == "repeat-y") {
             val startX = if (repeat == "repeat-y") origin.first else origin.first.modTile(drawWidth)
             val startY = if (repeat == "repeat-x") origin.second else origin.second.modTile(drawHeight)
@@ -827,7 +834,7 @@ data class TextPage(
             while (y < targetHeight) {
                 var x = startX
                 while (x < targetWidth) {
-                    canvas.drawBitmap(bitmap, null, RectF(x, y, x + drawWidth, y + drawHeight), view.imagePaint)
+                    canvas.drawBitmap(bitmap, null, RectF(x, y, x + drawWidth, y + drawHeight), drawPaint)
                     if (repeat == "repeat-y") break
                     x += drawWidth
                 }
@@ -839,7 +846,7 @@ data class TextPage(
                 bitmap,
                 null,
                 RectF(origin.first, origin.second, origin.first + drawWidth, origin.second + drawHeight),
-                view.imagePaint
+                drawPaint
             )
         }
     }
@@ -941,10 +948,28 @@ data class TextPage(
         )
         val rect = RectF(image.x, image.y, image.x + image.width, image.y + image.height)
         val (sourceRect, destRect) = resolveEpubImageDrawRects(bitmap.width, bitmap.height, image, rect)
+        val drawPaint = image.filterBrightness
+            ?.let { brightness -> view.imagePaint.withBrightness(brightness) }
+            ?: view.imagePaint
         canvas.save()
         canvas.clipRect(rect)
-        canvas.drawBitmap(bitmap, sourceRect, destRect, view.imagePaint)
+        canvas.drawBitmap(bitmap, sourceRect, destRect, drawPaint)
         canvas.restore()
+    }
+
+    private fun Paint.withBrightness(brightness: Float): Paint {
+        val safe = brightness.coerceIn(0f, 4f)
+        val matrix = ColorMatrix(
+            floatArrayOf(
+                safe, 0f, 0f, 0f, 0f,
+                0f, safe, 0f, 0f, 0f,
+                0f, 0f, safe, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f
+            )
+        )
+        return Paint(this).apply {
+            colorFilter = ColorMatrixColorFilter(matrix)
+        }
     }
 
     private fun resolveEpubImageDrawRects(

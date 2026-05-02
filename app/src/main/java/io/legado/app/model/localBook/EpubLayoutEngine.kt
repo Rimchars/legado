@@ -796,6 +796,7 @@ internal class EpubLayoutEngine(
                     backgroundSize = node.style.backgroundSizeValue(),
                     backgroundPosition = node.style.backgroundPositionValue(),
                     backgroundRepeat = node.style.backgroundRepeatValue(),
+                    filterBrightness = node.style.filterBrightnessValue(),
                     objectFit = null,
                     objectPosition = null,
                     sourcePath = node.sourcePath,
@@ -843,6 +844,7 @@ internal class EpubLayoutEngine(
                 width = imageWidth.coerceAtLeast(1f),
                 height = imageHeight.coerceAtLeast(1f),
                 isBackground = false,
+                filterBrightness = node.style.filterBrightnessValue(),
                 objectFit = node.style["object-fit"],
                 objectPosition = node.style["object-position"],
                 sourcePath = node.sourcePath,
@@ -1925,6 +1927,20 @@ internal class EpubLayoutEngine(
     private fun EpubComputedStyle.backgroundRepeatValue(): String? {
         return this["background-repeat"]
             ?: this["background"]?.extractBackgroundRepeat()
+    }
+
+    private fun EpubComputedStyle.filterBrightnessValue(): Float? {
+        val filter = this["filter"]?.trim()?.lowercase(Locale.ROOT) ?: return null
+        val start = filter.indexOf("brightness(")
+        if (start < 0) return null
+        val body = filter.substring(start + "brightness(".length)
+        val end = body.indexOf(')')
+        if (end <= 0) return null
+        val token = body.substring(0, end).trim()
+        return when {
+            token.endsWith("%") -> token.dropLast(1).toFloatOrNull()?.div(100f)
+            else -> token.toFloatOrNull()
+        }?.coerceIn(0f, 4f)
     }
 
     private fun String.extractBackgroundRepeat(): String? {
