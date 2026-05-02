@@ -93,13 +93,15 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     /**
      * 设置内容
      */
-    fun setContent(textPage: TextPage) {
+    fun setContent(textPage: TextPage, resetBackgroundOffset: Boolean = true) {
         if (this.textPage !== textPage) {
             nativeSelectedText = null
             nativeSelectionRect = null
         }
         this.textPage = textPage
-        syncBackgroundOffset()
+        if (resetBackgroundOffset) {
+            backgroundScrollOffset = 0
+        }
         // 非滑动翻页动画需要同步重绘，不然翻页可能会出现闪烁
         if (isScroll) {
             postInvalidate()
@@ -172,12 +174,15 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
      * pageOffset + textPage.height 为 textPage 下方的高度
      */
     fun scroll(mOffset: Int) {
+        val startPageOffset = pageOffset
+        var backgroundDelta = mOffset
         pageOffset += mOffset
         if (longScreenshot) {
             scrollY += -mOffset
         }
         if (!pageFactory.hasPrev() && pageOffset > 0) {
             pageOffset = 0
+            backgroundDelta = pageOffset - startPageOffset
             pageDelegate?.abortAnim()
         } else if (!pageFactory.hasNext()
             && pageOffset < 0
@@ -185,12 +190,14 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         ) {
             val offset = (ChapterProvider.visibleHeight - textPage.height).toInt()
             pageOffset = min(0, offset)
+            backgroundDelta = pageOffset - startPageOffset
             pageDelegate?.abortAnim()
         } else if (pageOffset > 0) {
             if (pageFactory.moveToPrev(true)) {
                 pageOffset -= textPage.height.toInt()
             } else {
                 pageOffset = 0
+                backgroundDelta = pageOffset - startPageOffset
                 pageDelegate?.abortAnim()
             }
         } else if (pageOffset < -textPage.height) {
@@ -199,10 +206,11 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 pageOffset += height.toInt()
             } else {
                 pageOffset = -height.toInt()
+                backgroundDelta = pageOffset - startPageOffset
                 pageDelegate?.abortAnim()
             }
         }
-        syncBackgroundOffset()
+        backgroundScrollOffset += backgroundDelta
         postInvalidate()
     }
 
@@ -240,7 +248,8 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
      */
     fun resetPageOffset() {
         pageOffset = 0
-        syncBackgroundOffset()
+        backgroundScrollOffset = 0
+        invalidateBackgroundHost()
     }
 
     fun getBackgroundOffset(): Int {
@@ -249,25 +258,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
 
     private fun invalidateBackgroundHost() {
         (parent as? View)?.postInvalidateOnAnimation()
-    }
-
-    private fun syncBackgroundOffset() {
-        backgroundScrollOffset = if (isScroll) {
-            calculateBackgroundOffset()
-        } else {
-            0
-        }
-        invalidateBackgroundHost()
-    }
-
-    private fun calculateBackgroundOffset(): Int {
-        val chapter = textPage.getTextChapter()
-        val currentIndex = textPage.index.coerceIn(0, chapter.lastIndex.coerceAtLeast(0))
-        var offset = pageOffset
-        for (i in 0 until currentIndex) {
-            offset -= chapter.pages[i].height.toInt()
-        }
-        return offset
     }
 
     /**
@@ -911,8 +901,12 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     fun setIsScroll(value: Boolean) {
+        val changed = isScroll != value
         isScroll = value
-        syncBackgroundOffset()
+        if (changed) {
+            backgroundScrollOffset = 0
+            invalidateBackgroundHost()
+        }
     }
 
     override fun canScrollVertically(direction: Int): Boolean {

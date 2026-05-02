@@ -368,7 +368,7 @@ class PageView(context: Context) : FrameLayout(context) {
         if (resetPageOffset) {
             resetPageOffset()
         }
-        binding.contentTextView.setContent(textPage)
+        binding.contentTextView.setContent(textPage, resetPageOffset)
     }
 
     fun invalidateContentView() {
