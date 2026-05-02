@@ -293,19 +293,22 @@ class PageView(context: Context) : FrameLayout(context) {
                 isScroll &&
                 !ReadBookConfig.isNineBgImg &&
                 bgDrawable is BitmapDrawable
+        val bgAlpha = (ReadBookConfig.bgAlpha / 100f * 255).toInt()
         val foregroundDrawable = if (followScrollBackground) {
-            ScrollFollowBackgroundDrawable(bgDrawable.bitmap) {
-                binding.contentTextView.getBackgroundOffset()
-            }
+            binding.contentTextView.setScrollFollowBackground(bgDrawable.bitmap, bgAlpha)
+            null
         } else {
+            binding.contentTextView.setScrollFollowBackground(null, bgAlpha)
             bgDrawable
         }
-        binding.vwRoot.background = LayerDrawable(
-            arrayOf(
-                ReadBookConfig.bgMeanColor.toDrawable(),
-                foregroundDrawable
+        binding.vwRoot.background = foregroundDrawable?.let {
+            LayerDrawable(
+                arrayOf(
+                    ReadBookConfig.bgMeanColor.toDrawable(),
+                    it
+                )
             )
-        )
+        } ?: ReadBookConfig.bgMeanColor.toDrawable()
         upBgAlpha()
     }
 
@@ -314,6 +317,7 @@ class PageView(context: Context) : FrameLayout(context) {
      */
     fun upBgAlpha() {
         val bgAlpha = (ReadBookConfig.bgAlpha / 100f * 255).toInt()
+        binding.contentTextView.setScrollFollowBackgroundAlpha(bgAlpha)
         val background = binding.vwRoot.background
         if (background is LayerDrawable && background.numberOfLayers > 1) {
             background.getDrawable(1).alpha = bgAlpha
@@ -432,9 +436,6 @@ class PageView(context: Context) : FrameLayout(context) {
      */
     fun scroll(offset: Int) {
         binding.contentTextView.scroll(offset)
-        if (AppConfig.readScrollFollowBackground && isScroll) {
-            binding.vwRoot.invalidate()
-        }
     }
 
     /**

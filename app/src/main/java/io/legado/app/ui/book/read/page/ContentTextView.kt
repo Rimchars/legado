@@ -1,6 +1,7 @@
 package io.legado.app.ui.book.read.page
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
@@ -71,6 +72,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     private val pageDelegate get() = callBack.pageDelegate
     private var pageOffset = 0
     private var backgroundScrollOffset = 0
+    private var scrollFollowBackgroundDrawable: ScrollFollowBackgroundDrawable? = null
     private var autoPager: AutoPager? = null
     private var isScroll = false
     private val renderRunnable by lazy { Runnable { preRenderPage() } }
@@ -125,6 +127,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         if (longScreenshot) {
             canvas.translate(0f, scrollY.toFloat())
         }
+        drawScrollFollowBackground(canvas)
         check(!visibleRect.isEmpty) { "visibleRect 为空" }
         if (!textPage.hasEpubBackground()) {
             canvas.clipRect(visibleRect)
@@ -256,8 +259,29 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         return backgroundScrollOffset
     }
 
+    fun setScrollFollowBackground(bitmap: Bitmap?, alpha: Int) {
+        scrollFollowBackgroundDrawable = bitmap?.let {
+            ScrollFollowBackgroundDrawable(it) { getBackgroundOffset() }.apply {
+                setAlpha(alpha)
+            }
+        }
+        postInvalidate()
+    }
+
+    fun setScrollFollowBackgroundAlpha(alpha: Int) {
+        scrollFollowBackgroundDrawable?.setAlpha(alpha)
+        postInvalidate()
+    }
+
     private fun invalidateBackgroundHost() {
-        (parent as? View)?.postInvalidateOnAnimation()
+        postInvalidateOnAnimation()
+    }
+
+    private fun drawScrollFollowBackground(canvas: Canvas) {
+        scrollFollowBackgroundDrawable?.let {
+            it.setBounds(0, 0, width, height)
+            it.draw(canvas)
+        }
     }
 
     /**
