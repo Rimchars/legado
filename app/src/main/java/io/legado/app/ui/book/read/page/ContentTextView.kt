@@ -116,7 +116,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         super.onSizeChanged(w, h, oldw, oldh)
         if (!isMainView) return
         ChapterProvider.upViewSize(w, h)
-        if (!textPage.isNativeEpubPage()) {
+        if (!textPage.isNativeEpubPage() && !textPage.hasAdvancedTitleWeb()) {
             textPage.format()
         }
     }

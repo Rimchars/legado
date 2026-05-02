@@ -179,10 +179,7 @@ class TextChapterLayout(
 
     private fun onPageCompleted() {
         val textPage = pendingTextPage
-        if (textPage.lines.isEmpty() &&
-            !textPage.hasEpubContent() &&
-            stringBuilder.isBlank()
-        ) {
+        if (!textPage.hasRenderableContent() && stringBuilder.isBlank()) {
             return
         }
         textPage.index = textPages.size

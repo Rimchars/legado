@@ -184,7 +184,7 @@ data class TextPage(
      */
     @Suppress("DEPRECATION")
     fun format(): TextPage {
-        if (isNativeEpubPage()) {
+        if (isNativeEpubPage() || hasAdvancedTitleWeb()) {
             return this
         }
         if (textLines.isEmpty()) isMsgPage = true
@@ -353,6 +353,10 @@ data class TextPage(
 
     fun hasAdvancedTitleWeb(): Boolean {
         return !advancedTitleHtml.isNullOrBlank() && advancedTitleHeight > 0f
+    }
+
+    fun hasRenderableContent(): Boolean {
+        return textLines.isNotEmpty() || hasEpubContent() || hasAdvancedTitleWeb()
     }
 
     fun isNativeEpubPage(): Boolean {
