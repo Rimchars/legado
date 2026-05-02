@@ -70,6 +70,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     private val pageFactory get() = callBack.pageFactory
     private val pageDelegate get() = callBack.pageDelegate
     private var pageOffset = 0
+    private var backgroundScrollOffset = 0
     private var autoPager: AutoPager? = null
     private var isScroll = false
     private val renderRunnable by lazy { Runnable { preRenderPage() } }
@@ -98,6 +99,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             nativeSelectionRect = null
         }
         this.textPage = textPage
+        syncBackgroundOffset()
         // 非滑动翻页动画需要同步重绘，不然翻页可能会出现闪烁
         if (isScroll) {
             postInvalidate()
@@ -200,8 +202,8 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 pageDelegate?.abortAnim()
             }
         }
+        syncBackgroundOffset()
         postInvalidate()
-        invalidateBackgroundHost()
     }
 
     fun submitRenderTask() {
@@ -238,11 +240,27 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
      */
     fun resetPageOffset() {
         pageOffset = 0
-        invalidateBackgroundHost()
+        syncBackgroundOffset()
     }
 
     fun getBackgroundOffset(): Int {
-        if (!isScroll) return 0
+        return backgroundScrollOffset
+    }
+
+    private fun invalidateBackgroundHost() {
+        (parent as? View)?.postInvalidateOnAnimation()
+    }
+
+    private fun syncBackgroundOffset() {
+        backgroundScrollOffset = if (isScroll) {
+            calculateBackgroundOffset()
+        } else {
+            0
+        }
+        invalidateBackgroundHost()
+    }
+
+    private fun calculateBackgroundOffset(): Int {
         val chapter = textPage.getTextChapter()
         val currentIndex = textPage.index.coerceIn(0, chapter.lastIndex.coerceAtLeast(0))
         var offset = pageOffset
@@ -250,24 +268,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             offset -= chapter.pages[i].height.toInt()
         }
         return offset
-    }
-
-    /**
-     * 按“页”锚定背景偏移，避免滚动过程中的细粒度抖动。
-     */
-    fun getBackgroundOffsetByPage(): Int {
-        if (!isScroll) return 0
-        val chapter = textPage.getTextChapter()
-        val currentIndex = textPage.index.coerceIn(0, chapter.lastIndex.coerceAtLeast(0))
-        var offset = 0
-        for (i in 0 until currentIndex) {
-            offset -= chapter.pages[i].height.toInt()
-        }
-        return offset
-    }
-
-    private fun invalidateBackgroundHost() {
-        (parent as? View)?.postInvalidateOnAnimation()
     }
 
     /**
@@ -912,6 +912,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
 
     fun setIsScroll(value: Boolean) {
         isScroll = value
+        syncBackgroundOffset()
     }
 
     override fun canScrollVertically(direction: Int): Boolean {

@@ -295,7 +295,7 @@ class PageView(context: Context) : FrameLayout(context) {
                 bgDrawable is BitmapDrawable
         val foregroundDrawable = if (followScrollBackground) {
             ScrollFollowBackgroundDrawable(bgDrawable.bitmap) {
-                binding.contentTextView.getBackgroundOffsetByPage()
+                binding.contentTextView.getBackgroundOffset()
             }
         } else {
             bgDrawable
