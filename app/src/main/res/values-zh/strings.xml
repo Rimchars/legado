@@ -768,6 +768,9 @@
     <string name="text_full_justify">文字两端对齐</string>
     <string name="text_bottom_justify">文字底部对齐</string>
     <string name="auto_page_speed">自动翻页速度</string>
+    <string name="auto_page_interval">翻页间隔</string>
+    <string name="auto_read_mode_scroll">连续滚动</string>
+    <string name="auto_read_mode_timed">定时翻页</string>
     <string name="sort_by_url">地址排序</string>
     <string name="backup_summary">本地和 WebDav 一起备份</string>
     <string name="restore_summary">优先从 WebDav 恢复，长按从本地恢复</string>

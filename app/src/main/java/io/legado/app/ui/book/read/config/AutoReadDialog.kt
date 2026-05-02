@@ -60,6 +60,8 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
         val textColor = requireContext().getPrimaryTextColor(isLight)
         val palette = ReaderSheetStyle.resolve(requireContext(), bg)
         root.background = ReaderSheetStyle.topSheetDrawable(palette)
+        rbAutoReadModeScroll.setTextColor(textColor)
+        rbAutoReadModeTimed.setTextColor(textColor)
         tvReadSpeedTitle.setTextColor(textColor)
         tvReadSpeed.setTextColor(textColor)
         ivCatalog.setColorFilter(textColor, PorterDuff.Mode.SRC_IN)
@@ -76,6 +78,12 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
     }
 
     private fun initData() {
+        if (ReadBookConfig.autoReadMode == ReadBookConfig.AUTO_READ_MODE_TIMED) {
+            binding.rbAutoReadModeTimed.isChecked = true
+        } else {
+            binding.rbAutoReadModeScroll.isChecked = true
+        }
+        updateSpeedTitleByMode()
         val speed = if (ReadBookConfig.autoReadSpeed < 1) 1 else ReadBookConfig.autoReadSpeed
         binding.tvReadSpeed.text = String.format(Locale.ROOT, "%ds", speed)
         binding.seekAutoRead.progress = speed
@@ -97,6 +105,15 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
     }
 
     private fun initEvent() {
+        binding.rgAutoReadMode.setOnCheckedChangeListener { _, checkedId ->
+            ReadBookConfig.autoReadMode =
+                if (checkedId == R.id.rb_auto_read_mode_timed) {
+                    ReadBookConfig.AUTO_READ_MODE_TIMED
+                } else {
+                    ReadBookConfig.AUTO_READ_MODE_SCROLL
+                }
+            updateSpeedTitleByMode()
+        }
         binding.llMainMenu.setOnClickListener {
             callBack?.showMenuBar()
             dismissAllowingStateLoss()
@@ -122,6 +139,16 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
             ReadAloud.pause(requireContext())
             ReadAloud.resume(requireContext())
         }
+    }
+
+    private fun updateSpeedTitleByMode() {
+        binding.tvReadSpeedTitle.setText(
+            if (ReadBookConfig.autoReadMode == ReadBookConfig.AUTO_READ_MODE_TIMED) {
+                R.string.auto_page_interval
+            } else {
+                R.string.auto_page_speed
+            }
+        )
     }
 
     interface CallBack {

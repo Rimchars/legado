@@ -202,6 +202,11 @@ object ReadBookConfig {
             field = value
             appCtx.putPrefInt(PreferKey.autoReadSpeed, value)
         }
+    var autoReadMode = appCtx.getPrefInt(PreferKey.autoReadMode, AUTO_READ_MODE_SCROLL)
+        set(value) {
+            field = value
+            appCtx.putPrefInt(PreferKey.autoReadMode, value)
+        }
     var styleSelect: Int
         get() = if (isComic) comicStyleSelect else readStyleSelect
         set(value) {
@@ -260,6 +265,9 @@ object ReadBookConfig {
         set(@PageAnim.Anim value) {
             config.setCurPageAnim(value)
         }
+
+    const val AUTO_READ_MODE_SCROLL = 0
+    const val AUTO_READ_MODE_TIMED = 1
 
     var textFont: String
         get() = config.textFont

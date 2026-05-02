@@ -78,7 +78,8 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
     }
 
     private fun smoothProgress(progress: Float): Float {
-        return progress * progress * (3f - 2f * progress)
+        val eased = progress * progress * (3f - 2f * progress)
+        return (0.3f * progress + 0.7f * eased).coerceIn(0f, 1f)
     }
 
     private fun drawNextMask(canvas: Canvas, left: Float, right: Float, progress: Float) {

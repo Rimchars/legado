@@ -121,6 +121,7 @@ object PreferKey {
     const val textBottomJustify = "textBottomJustify"
     const val adaptSpecialStyle = "adaptSpecialStyle"
     const val autoReadSpeed = "autoReadSpeed"
+    const val autoReadMode = "autoReadMode"
     const val barElevation = "barElevation"
     const val bottomBarEffectMode = "bottomBarEffectMode"
     const val liquidGlassLevel = "liquidGlassLevel"

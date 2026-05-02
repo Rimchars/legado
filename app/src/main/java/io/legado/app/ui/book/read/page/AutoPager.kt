@@ -25,13 +25,15 @@ class AutoPager(private val readView: ReadView) : Runnable {
     private var lastTimeMillis = 0L
     private var canvasRecorder = CanvasRecorderFactory.create()
     private val paint by lazy { Paint() }
+    private val isTimedMode: Boolean
+        get() = ReadBookConfig.autoReadMode == ReadBookConfig.AUTO_READ_MODE_TIMED
 
 
     fun start() {
         isRunning = true
         isEInkMode = AppConfig.isEInkMode
         readView.curPage.upSelectAble(false)
-        if (isEInkMode) {
+        if (isTimedMode || isEInkMode) {
             readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
         } else {
             paint.color = ThemeStore.accentColor
@@ -67,7 +69,7 @@ class AutoPager(private val readView: ReadView) : Runnable {
             return
         }
         isPausing = false
-        if (isEInkMode) {
+        if (isTimedMode || isEInkMode) {
             readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
         } else {
             lastTimeMillis = SystemClock.uptimeMillis()
@@ -76,7 +78,7 @@ class AutoPager(private val readView: ReadView) : Runnable {
     }
 
     fun reset() {
-        if (isEInkMode) {
+        if (isTimedMode || isEInkMode) {
             readView.removeCallbacks(this)
             readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
         } else {
@@ -93,7 +95,7 @@ class AutoPager(private val readView: ReadView) : Runnable {
     }
 
     fun onDraw(canvas: Canvas) {
-        if (!isRunning || isEInkMode) {
+        if (!isRunning || isEInkMode || isTimedMode) {
             return
         }
 
@@ -124,7 +126,7 @@ class AutoPager(private val readView: ReadView) : Runnable {
     }
 
     fun computeOffset() {
-        if (!isRunning || isPausing || isEInkMode) {
+        if (!isRunning || isPausing || isEInkMode || isTimedMode) {
             return
         }
 

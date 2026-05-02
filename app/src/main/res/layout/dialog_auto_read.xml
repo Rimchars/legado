@@ -16,6 +16,34 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <RadioGroup
+            android:id="@+id/rg_auto_read_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <RadioButton
+                android:id="@+id/rb_auto_read_mode_scroll"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:text="@string/auto_read_mode_scroll"
+                android:textSize="13sp" />
+
+            <RadioButton
+                android:id="@+id/rb_auto_read_mode_timed"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:text="@string/auto_read_mode_timed"
+                android:textSize="13sp" />
+        </RadioGroup>
+
         <LinearLayout
             android:id="@+id/ll_tts_SpeechRate"
             android:layout_width="match_parent"
