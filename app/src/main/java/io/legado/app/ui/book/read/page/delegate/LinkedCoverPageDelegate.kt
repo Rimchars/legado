@@ -20,9 +20,9 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
     }
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val linkedOffset get() = viewWidth * 0.2f
-    private val maxMaskAlpha = 92
-    private val maxCurrentMaskAlpha = 68
-    private val animationSpeedMultiplier = 1.6f
+    private val maxMaskAlpha = 102
+    private val maxCurrentMaskAlpha = 76
+    private val animationSpeedMultiplier = 1.5f
 
     override fun scrollInterpolator(): Interpolator = PathInterpolator(0.4f, 0f, 0.2f, 1f)
 
