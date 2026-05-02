@@ -153,10 +153,6 @@ class MoreConfigDialog : BasePrefDialogFragment() {
                     postEvent(PreferKey.showBrightnessView, "")
                 }
 
-                PreferKey.readScrollFollowBackground -> {
-                    postEvent(EventBus.UP_CONFIG, arrayListOf(1))
-                }
-
                 PreferKey.expandTextMenu -> {
                     (activity as? ReadBookActivity)?.textActionMenu?.upMenu()
                 }

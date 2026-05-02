@@ -1404,9 +1404,22 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefBoolean(PreferKey.readBarStyleFollowPage, value)
         }
     var readScrollFollowBackground: Boolean
-        get() = appCtx.getPrefBoolean(PreferKey.readScrollFollowBackground, false)
+        get() {
+            val key = when {
+                isEInkMode -> PreferKey.readScrollFollowBackgroundEInk
+                isNightTheme -> PreferKey.readScrollFollowBackgroundNight
+                else -> PreferKey.readScrollFollowBackgroundDay
+            }
+            val legacy = appCtx.getPrefBoolean(PreferKey.readScrollFollowBackground, false)
+            return appCtx.getPrefBoolean(key, legacy)
+        }
         set(value) {
-            appCtx.putPrefBoolean(PreferKey.readScrollFollowBackground, value)
+            val key = when {
+                isEInkMode -> PreferKey.readScrollFollowBackgroundEInk
+                isNightTheme -> PreferKey.readScrollFollowBackgroundNight
+                else -> PreferKey.readScrollFollowBackgroundDay
+            }
+            appCtx.putPrefBoolean(key, value)
         }
     var readMenuAlpha: Int
         get() = appCtx.getPrefInt(PreferKey.readMenuAlpha, 75).coerceIn(35, 100)

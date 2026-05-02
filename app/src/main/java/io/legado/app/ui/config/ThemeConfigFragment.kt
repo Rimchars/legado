@@ -166,7 +166,9 @@ class ThemeConfigFragment : PreferenceFragment(),
             PreferKey.transparentStatusBar -> recreateActivities()
             PreferKey.mainTransparentStatusBar -> recreateActivities()
             PreferKey.immNavigationBar -> recreateActivities()
-            PreferKey.readScrollFollowBackground -> recreateActivities()
+            PreferKey.readScrollFollowBackgroundDay,
+            PreferKey.readScrollFollowBackgroundNight,
+            PreferKey.readScrollFollowBackgroundEInk -> recreateActivities()
             PreferKey.cPrimary,
             PreferKey.cAccent,
             PreferKey.cBackground,

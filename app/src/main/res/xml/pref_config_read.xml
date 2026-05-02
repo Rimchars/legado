@@ -159,14 +159,6 @@
 
     <io.legado.app.lib.prefs.SwitchPreference
         android:defaultValue="false"
-        android:key="readScrollFollowBackground"
-        android:summary="@string/read_scroll_follow_background_summary"
-        android:title="@string/read_scroll_follow_background"
-        app:iconSpaceReserved="false"
-        app:isBottomBackground="true" />
-
-    <io.legado.app.lib.prefs.SwitchPreference
-        android:defaultValue="false"
         android:key="noAnimScrollPage"
         android:title="@string/no_anim_scroll_page"
         app:iconSpaceReserved="false"
