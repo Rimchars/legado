@@ -78,6 +78,17 @@
         app:layout_constraintBottom_toTopOf="@id/vw_bottom_divider"
         app:layout_constraintTop_toBottomOf="@id/vw_top_divider" />
 
+    <FrameLayout
+        android:id="@+id/advanced_title_web_container"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone"
+        app:layout_constraintLeft_toLeftOf="@id/content_text_view"
+        app:layout_constraintRight_toRightOf="@id/content_text_view"
+        app:layout_constraintTop_toTopOf="@id/content_text_view" />
+
     <View
         android:id="@+id/vw_bottom_divider"
         android:layout_width="match_parent"

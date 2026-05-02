@@ -91,6 +91,9 @@ data class TextPage(
     var epubDrawOffsetX: Float = ChapterProvider.paddingLeft.toFloat()
     var epubDrawOffsetY: Float = ChapterProvider.paddingTop.toFloat()
     var fallbackChapterPosition: Int = 0
+    var advancedTitleHtml: String? = null
+    var advancedTitleTop: Float = 0f
+    var advancedTitleHeight: Float = 0f
     val epubDecorations = arrayListOf<EpubDecoration>()
     internal val epubEmbeddedBlocks = arrayListOf<EpubEmbeddedBlock>()
     internal val epubNativeCommands = arrayListOf<EpubDrawCommand>()
@@ -346,6 +349,10 @@ data class TextPage(
 
     fun hasEpubContent(): Boolean {
         return hasEpubBackground() || epubNativeCommands.isNotEmpty() || epubEmbeddedBlocks.isNotEmpty()
+    }
+
+    fun hasAdvancedTitleWeb(): Boolean {
+        return !advancedTitleHtml.isNullOrBlank() && advancedTitleHeight > 0f
     }
 
     fun isNativeEpubPage(): Boolean {
@@ -1157,6 +1164,9 @@ data class TextPage(
             block.offsetY + block.height
         }?.let { nativeBottom ->
             renderHeight = max(renderHeight, ceil(nativeBottom).toInt())
+        }
+        if (hasAdvancedTitleWeb()) {
+            renderHeight = max(renderHeight, ceil(advancedTitleTop + advancedTitleHeight).toInt())
         }
         epubNativeCommands.maxOfOrNull { command ->
             when (command) {

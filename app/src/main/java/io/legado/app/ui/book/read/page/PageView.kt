@@ -2,10 +2,15 @@ package io.legado.app.ui.book.read.page
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.LayerDrawable
 import android.view.LayoutInflater
+import android.view.ViewGroup
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.ViewCompat
@@ -17,6 +22,8 @@ import io.legado.app.constant.AppConst.timeFormat
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.databinding.ViewBookPageBinding
 import io.legado.app.help.book.isEpub
+import io.legado.app.help.webView.PooledWebView
+import io.legado.app.help.webView.WebViewPool
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
@@ -58,6 +65,8 @@ class PageView(context: Context) : FrameLayout(context) {
     private var tvTimeBatteryP: BatteryView? = null
     private var isMainView = false
     private var currentTextPage: TextPage? = null
+    private var advancedTitleWebView: PooledWebView? = null
+    private var advancedTitleKey: String? = null
     var isScroll = false
 
     val headerHeight: Int
@@ -373,6 +382,86 @@ class PageView(context: Context) : FrameLayout(context) {
             resetPageOffset()
         }
         binding.contentTextView.setContent(textPage, resetPageOffset)
+        upAdvancedTitleWeb(textPage)
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private fun upAdvancedTitleWeb(textPage: TextPage) = binding.run {
+        val html = textPage.advancedTitleHtml
+        if (html.isNullOrBlank() || textPage.advancedTitleHeight <= 0f) {
+            releaseAdvancedTitleWeb()
+            return@run
+        }
+        val titleHeight = textPage.advancedTitleHeight.toInt().coerceAtLeast(1)
+        val titleTop = textPage.advancedTitleTop.toInt().coerceAtLeast(0)
+        val containerParams = advancedTitleWebContainer.layoutParams as ConstraintLayout.LayoutParams
+        if (containerParams.height != titleHeight || containerParams.topMargin != titleTop) {
+            containerParams.height = titleHeight
+            containerParams.topMargin = titleTop
+            advancedTitleWebContainer.layoutParams = containerParams
+        }
+        advancedTitleWebContainer.isGone = false
+        val pooledWebView = advancedTitleWebView ?: WebViewPool.acquire(context).also {
+            advancedTitleWebView = it
+        }
+        val webView = pooledWebView.realWebView
+        if (webView.parent !== advancedTitleWebContainer) {
+            (webView.parent as? ViewGroup)?.removeView(webView)
+            advancedTitleWebContainer.removeAllViews()
+            advancedTitleWebContainer.addView(
+                webView,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+        webView.configureAdvancedTitleWebView()
+        val key = "${html.hashCode()}|$titleHeight|${AppConfig.isNightTheme}"
+        if (advancedTitleKey != key) {
+            advancedTitleKey = key
+            webView.loadDataWithBaseURL(
+                "https://advanced-title.local/",
+                html,
+                "text/html",
+                "utf-8",
+                null
+            )
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private fun WebView.configureAdvancedTitleWebView() {
+        setBackgroundColor(Color.TRANSPARENT)
+        background = null
+        isClickable = false
+        isFocusable = false
+        isFocusableInTouchMode = false
+        setOnLongClickListener { true }
+        setOnTouchListener { _, _ -> false }
+        webViewClient = object : WebViewClient() {}
+        settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            useWideViewPort = false
+            loadWithOverviewMode = false
+            builtInZoomControls = false
+            displayZoomControls = false
+            textZoom = 100
+        }
+    }
+
+    private fun releaseAdvancedTitleWeb() {
+        advancedTitleKey = null
+        binding.advancedTitleWebContainer.isGone = true
+        advancedTitleWebView?.let { WebViewPool.release(it) }
+        advancedTitleWebView = null
+        binding.advancedTitleWebContainer.removeAllViews()
+    }
+
+    override fun onDetachedFromWindow() {
+        releaseAdvancedTitleWeb()
+        super.onDetachedFromWindow()
     }
 
     fun invalidateContentView() {
