@@ -750,7 +750,6 @@ class TextChapterLayout(
             if (pendingTextPage.height < durY) {
                 pendingTextPage.height = durY
             }
-            stringBuilder.append(title).append('\n')
             true
         }.getOrElse {
             AppLog.put("高级标题渲染失败: ${it.localizedMessage}", it)
