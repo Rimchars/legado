@@ -52,7 +52,6 @@ import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
-import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.model.webBook.WebBook
@@ -74,7 +73,6 @@ import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
 import io.legado.app.utils.InfoMap
-import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.navigationBarHeight
 import io.legado.app.utils.setDarkeningAllowed
 import io.legado.app.utils.setEdgeEffectColor
@@ -163,8 +161,8 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         setSupportToolbar(binding.titleBar.toolbar)
         usingModernDiscovery = AppConfig.modernDiscoveryPage
         discoveryModeLoaded = false
-        applyRefreshIndicatorColors()
-        binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
+        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        binding.swipeRefreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
             currentDiscoverScrollTarget()?.canScrollVertically(-1) == true
         }
@@ -175,12 +173,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 upExploreData(searchView?.query?.toString())
             }
         }
-        val refreshAnchorListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateRefreshIndicatorOffset()
-        }
-        binding.llDiscoverSourceRow.addOnLayoutChangeListener(refreshAnchorListener)
-        binding.rvDiscoverTags.addOnLayoutChangeListener(refreshAnchorListener)
-        binding.titleBar.addOnLayoutChangeListener(refreshAnchorListener)
         binding.llDiscoverSourceRow.applyStatusBarPadding(withInitialPadding = true)
         binding.rvFind.clipToPadding = false
         binding.rvFind.applyMainBottomBarPadding()
@@ -210,7 +202,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.rvFind.isGone = modern
         binding.tvEmptyMsg.isGone = modern
         searchView?.isGone = modern
-        binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
         if (!loadData) {
             activity?.invalidateOptionsMenu()
             return
@@ -223,37 +214,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             initClassicMode()
         }
         activity?.invalidateOptionsMenu()
-    }
-
-    private fun updateRefreshIndicatorOffset() {
-        if (binding.swipeRefreshLayout.isRefreshing) return
-        val swipePos = IntArray(2)
-        binding.swipeRefreshLayout.getLocationInWindow(swipePos)
-        val start = if (usingModernDiscovery) {
-            val rowPos = IntArray(2)
-            binding.llDiscoverSourceRow.getLocationInWindow(rowPos)
-            (rowPos[1] - swipePos[1] +
-                binding.llDiscoverSourceRow.height +
-                8.dpToPx()).coerceAtLeast(0)
-        } else {
-            0
-        }
-        val end = if (usingModernDiscovery) {
-            start + 44.dpToPx()
-        } else {
-            56.dpToPx()
-        }
-        binding.swipeRefreshLayout.setProgressViewOffset(false, start, end)
-    }
-
-    private fun applyRefreshIndicatorColors() {
-        val arrowColor = if (ColorUtils.isColorLight(accentColor) == ColorUtils.isColorLight(backgroundColor)) {
-            primaryTextColor
-        } else {
-            accentColor
-        }
-        binding.swipeRefreshLayout.setProgressBackgroundColorSchemeColor(backgroundColor)
-        binding.swipeRefreshLayout.setColorSchemeColors(arrowColor)
     }
 
     private fun currentDiscoverScrollTarget(): View? {

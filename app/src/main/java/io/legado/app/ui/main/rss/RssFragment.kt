@@ -28,7 +28,6 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.source.sortUrls
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
-import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
@@ -45,7 +44,6 @@ import io.legado.app.ui.rss.source.manage.RssSourceActivity
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.applyTint
-import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
@@ -209,22 +207,20 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         if (binding.recyclerView.adapter !== adapter) {
             binding.recyclerView.adapter = adapter
         }
-        applyRefreshIndicatorColors()
+        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        binding.swipeRefreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.swipeRefreshLayout.setOnRefreshListener {
             observeClassicRssSources(searchView.query?.toString())
         }
         binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
             currentRssScrollTarget()?.canScrollVertically(-1) == true
         }
-        binding.swipeRefreshLayout.post {
-            binding.swipeRefreshLayout.setProgressViewOffset(false, 0, 56.dpToPx())
-        }
     }
 
     private fun initModernRssView() {
         binding.llRssSourceRow.applyStatusBarPadding(withInitialPadding = true)
-        applyRefreshIndicatorColors()
-        binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
+        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        binding.swipeRefreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
             currentRssScrollTarget()?.canScrollVertically(-1) == true
         }
@@ -236,11 +232,6 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.swipeRefreshLayout.setOnRefreshListener {
             refreshCurrentRssContent()
         }
-        val refreshAnchorListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateRefreshIndicatorOffset()
-        }
-        binding.llRssSourceRow.addOnLayoutChangeListener(refreshAnchorListener)
-        binding.rvRssTags.addOnLayoutChangeListener(refreshAnchorListener)
         binding.llRssSourceSelect.setOnClickListener {
             showSourceSelector()
         }
@@ -276,37 +267,6 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         val spacing = 36.dpToPx()
         val maxWidth = (rowWidth - actionsWidth - spacing).coerceIn(96.dpToPx(), 190.dpToPx())
         binding.tvRssSourceSelect.maxWidth = maxWidth
-    }
-
-    private fun updateRefreshIndicatorOffset() {
-        if (binding.swipeRefreshLayout.isRefreshing) return
-        val swipePos = IntArray(2)
-        binding.swipeRefreshLayout.getLocationInWindow(swipePos)
-        val start = if (usingModernRss) {
-            val rowPos = IntArray(2)
-            binding.llRssSourceRow.getLocationInWindow(rowPos)
-            (rowPos[1] - swipePos[1] +
-                binding.llRssSourceRow.height +
-                8.dpToPx()).coerceAtLeast(0)
-        } else {
-            0
-        }
-        val end = if (usingModernRss) {
-            start + 44.dpToPx()
-        } else {
-            56.dpToPx()
-        }
-        binding.swipeRefreshLayout.setProgressViewOffset(false, start, end)
-    }
-
-    private fun applyRefreshIndicatorColors() {
-        val arrowColor = if (ColorUtils.isColorLight(accentColor) == ColorUtils.isColorLight(backgroundColor)) {
-            primaryTextColor
-        } else {
-            accentColor
-        }
-        binding.swipeRefreshLayout.setProgressBackgroundColorSchemeColor(backgroundColor)
-        binding.swipeRefreshLayout.setColorSchemeColors(arrowColor)
     }
 
     private fun currentRssScrollTarget(): View? {
