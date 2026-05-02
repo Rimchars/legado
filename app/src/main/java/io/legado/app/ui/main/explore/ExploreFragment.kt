@@ -52,6 +52,7 @@ import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.model.webBook.WebBook
@@ -73,6 +74,7 @@ import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
 import io.legado.app.utils.InfoMap
+import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.navigationBarHeight
 import io.legado.app.utils.setDarkeningAllowed
 import io.legado.app.utils.setEdgeEffectColor
@@ -161,7 +163,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         setSupportToolbar(binding.titleBar.toolbar)
         usingModernDiscovery = AppConfig.modernDiscoveryPage
         discoveryModeLoaded = false
-        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        applyRefreshIndicatorColors()
         binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
         binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
             currentDiscoverScrollTarget()?.canScrollVertically(-1) == true
@@ -227,18 +229,31 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         if (binding.swipeRefreshLayout.isRefreshing) return
         val swipePos = IntArray(2)
         binding.swipeRefreshLayout.getLocationInWindow(swipePos)
-        val anchorView = when {
-            usingModernDiscovery && binding.rvDiscoverTags.isVisible -> binding.rvDiscoverTags
-            usingModernDiscovery -> binding.llDiscoverSourceRow
-            binding.titleBar.isVisible -> binding.titleBar
-            else -> binding.swipeRefreshLayout
+        val start = if (usingModernDiscovery) {
+            val rowPos = IntArray(2)
+            binding.llDiscoverSourceRow.getLocationInWindow(rowPos)
+            (rowPos[1] - swipePos[1] +
+                binding.llDiscoverSourceRow.height +
+                8.dpToPx()).coerceAtLeast(0)
+        } else {
+            0
         }
-        val anchorPos = IntArray(2)
-        anchorView.getLocationInWindow(anchorPos)
-        val start = (anchorPos[1] - swipePos[1]).coerceAtLeast(0)
-        val end = (anchorPos[1] - swipePos[1] + anchorView.height + 8.dpToPx())
-            .coerceAtLeast(56.dpToPx())
+        val end = if (usingModernDiscovery) {
+            start + 44.dpToPx()
+        } else {
+            56.dpToPx()
+        }
         binding.swipeRefreshLayout.setProgressViewOffset(false, start, end)
+    }
+
+    private fun applyRefreshIndicatorColors() {
+        val arrowColor = if (ColorUtils.isColorLight(accentColor) == ColorUtils.isColorLight(backgroundColor)) {
+            primaryTextColor
+        } else {
+            accentColor
+        }
+        binding.swipeRefreshLayout.setProgressBackgroundColorSchemeColor(backgroundColor)
+        binding.swipeRefreshLayout.setColorSchemeColors(arrowColor)
     }
 
     private fun currentDiscoverScrollTarget(): View? {
