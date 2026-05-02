@@ -953,8 +953,8 @@ class BookInfoActivity :
     }
 
     private fun updateDetailContentPanelHeight() = binding.run {
-        val panel = llDetailContentPanel ?: return
-        val action = flAction ?: return
+        val panel = llDetailContentPanel ?: return@run
+        val action = flAction ?: return@run
         val panelLoc = IntArray(2)
         val actionLoc = IntArray(2)
         panel.getLocationOnScreen(panelLoc)
@@ -962,7 +962,7 @@ class BookInfoActivity :
         val bottomGap = 8.dpToPx()
         val minHeight = 220.dpToPx()
         val targetHeight = (actionLoc[1] - panelLoc[1] - bottomGap).coerceAtLeast(minHeight)
-        if (targetHeight == detailPanelLastHeight) return
+        if (targetHeight == detailPanelLastHeight) return@run
         detailPanelLastHeight = targetHeight
         panel.updateLayoutParams<LinearLayout.LayoutParams> {
             height = targetHeight
