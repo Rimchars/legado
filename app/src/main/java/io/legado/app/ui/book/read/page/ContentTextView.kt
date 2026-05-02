@@ -252,6 +252,20 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         return offset
     }
 
+    /**
+     * 按“页”锚定背景偏移，避免滚动过程中的细粒度抖动。
+     */
+    fun getBackgroundOffsetByPage(): Int {
+        if (!isScroll) return 0
+        val chapter = textPage.getTextChapter()
+        val currentIndex = textPage.index.coerceIn(0, chapter.lastIndex.coerceAtLeast(0))
+        var offset = 0
+        for (i in 0 until currentIndex) {
+            offset -= chapter.pages[i].height.toInt()
+        }
+        return offset
+    }
+
     private fun invalidateBackgroundHost() {
         (parent as? View)?.postInvalidateOnAnimation()
     }
