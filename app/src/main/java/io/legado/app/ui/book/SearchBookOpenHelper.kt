@@ -6,16 +6,12 @@ import io.legado.app.constant.BookSourceType
 import io.legado.app.constant.BookType
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.SearchBook
-import io.legado.app.model.VideoPlay
 import io.legado.app.ui.book.info.BookInfoActivity
 import io.legado.app.ui.video.VideoPlayerActivity
 
 object SearchBookOpenHelper {
 
     fun open(context: Context, book: SearchBook, isVideo: Boolean) {
-        if (isVideo) {
-            VideoPlay.preWarmFromSearchBook(book)
-        }
         val target = if (isVideo) VideoPlayerActivity::class.java else BookInfoActivity::class.java
         context.startActivity(Intent(context, target).apply {
             putExtra("name", book.name)

@@ -48,10 +48,8 @@ import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import splitties.init.appCtx
 import java.io.File
@@ -63,7 +61,6 @@ object VideoPlay : CoroutineScope by MainScope(){
     private var needClearTemp = true //需要清理缓存
     private const val VIDEO_TEMP_PATH = "video_temp"
     private const val CHAPTER_LINK_CACHE_TTL = 30 * 60 * 1000L
-    private const val FIRST_PARSE_TIMEOUT_MS = 4500L
     private val videoTempFile by lazy { File(FileUtils.getCachePath(), VIDEO_TEMP_PATH) }
     private data class CachedPlayLink(
         val playUrl: String,
@@ -373,62 +370,6 @@ object VideoPlay : CoroutineScope by MainScope(){
                 } finally {
                     preloadingKeys.remove(nextKey)
                 }
-            }
-        }
-    }
-
-    /**
-     * 视频入口点击后立即预热：
-     * - 预拿目录
-     * - 预解析首个可播放章节直链
-     * 仅用于视频，不影响普通阅读链路
-     */
-    fun preWarmFromSearchBook(searchBook: io.legado.app.data.entities.SearchBook) {
-        loadScope.launch {
-            try {
-                val source = appDb.bookSourceDao.getBookSource(searchBook.origin) ?: return@launch
-                val book = searchBook.toBook()
-                if (book.tocUrl.isBlank()) {
-                    book.tocUrl = book.bookUrl
-                }
-                val toc = withTimeoutOrNull(FIRST_PARSE_TIMEOUT_MS) {
-                    WebBook.getChapterListAwait(source, book).getOrNull()
-                } ?: return@launch
-                val firstChapter = toc.firstOrNull { !it.isVolume } ?: return@launch
-                val cacheKey = buildChapterCacheKey(source, book, firstChapter)
-                val valid = chapterLinkCache[cacheKey]?.let {
-                    System.currentTimeMillis() - it.createdAt <= CHAPTER_LINK_CACHE_TTL
-                } == true
-                if (valid) return@launch
-                val content = withTimeoutOrNull(FIRST_PARSE_TIMEOUT_MS) {
-                    WebBook.getContentAwait(source, book, firstChapter)
-                }?.trim().orEmpty()
-                if (content.isBlank()) return@launch
-                val mUrl = if (content.startsWith("<")) {
-                    val name = MD5Utils.md5Encode(content) + ".mpd"
-                    val file = FileUtils.createFileIfNotExist(videoTempFile, name)
-                    file.writeText(content)
-                    Uri.fromFile(file).toString()
-                } else {
-                    content
-                }
-                val analyzeUrl = withTimeoutOrNull(FIRST_PARSE_TIMEOUT_MS) {
-                    AnalyzeUrl(
-                        mUrl = mUrl,
-                        source = source,
-                        ruleData = book,
-                        chapter = firstChapter,
-                        readTimeout = 8L,
-                        callTimeout = 8L
-                    )
-                } ?: return@launch
-                chapterLinkCache[cacheKey] = CachedPlayLink(
-                    playUrl = analyzeUrl.url,
-                    headers = analyzeUrl.headerMap.toMap(),
-                    mediaUrl = mUrl,
-                    createdAt = System.currentTimeMillis()
-                )
-            } catch (_: Throwable) {
             }
         }
     }
