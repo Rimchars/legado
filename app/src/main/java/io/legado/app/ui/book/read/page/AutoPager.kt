@@ -167,7 +167,7 @@ class AutoPager(private val readView: ReadView) : Runnable {
             }
             if (delegate != null) {
                 delegate.isCancel = false
-                delegate.keyTurnPage(PageDirection.NEXT)
+                delegate.nextPageByAnim(readView.defaultAnimationSpeed)
                 return
             }
             if (!readView.fillPage(PageDirection.NEXT)) {

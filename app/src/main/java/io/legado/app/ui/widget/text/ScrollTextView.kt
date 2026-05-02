@@ -88,6 +88,13 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
         initOffsetHeight()
     }
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (h != oldh || w != oldw) {
+            initOffsetHeight()
+        }
+    }
+
     override fun onTextChanged(
         text: CharSequence,
         start: Int,
@@ -186,6 +193,10 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
 
     private fun canScroll(): Boolean {
         return mOffsetHeight > 0
+    }
+
+    fun refreshScrollBounds() {
+        initOffsetHeight()
     }
 
     private fun resetTouch() {
