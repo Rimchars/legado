@@ -76,17 +76,15 @@ internal class EpubBoxBuilder {
                     }
                 }
                 element.style.backgroundImageSrc()?.let { src ->
-                    if (element.shouldPromoteBackgroundImage()) {
-                        children.add(
-                            EpubImageNode(
-                                src = src,
-                                attributes = element.attributes,
-                                style = element.style,
-                                isBackground = true,
-                                sourcePath = element.sourcePath
-                            )
+                    children.add(
+                        EpubImageNode(
+                            src = src,
+                            attributes = element.attributes,
+                            style = element.style,
+                            isBackground = element.shouldPromoteBackgroundImage(),
+                            sourcePath = element.sourcePath
                         )
-                    }
+                    )
                 }
                 children.addAll(element.children.mapNotNull { child ->
                     buildNode(child, childParentStyle)
