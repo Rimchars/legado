@@ -49,12 +49,6 @@ import kotlin.math.min
  * 阅读内容视图
  */
 class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
-    data class AdvancedTitleOverlayInfo(
-        val html: String,
-        val top: Float,
-        val height: Float
-    )
-
     var selectAble = AppConfig.textSelectAble
     val selectedPaint by lazy {
         Paint().apply {
@@ -221,7 +215,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         }
         backgroundScrollOffset += backgroundDelta
         postInvalidate()
-        (parent as? View)?.postInvalidateOnAnimation()
     }
 
     fun submitRenderTask() {
@@ -266,25 +259,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         return backgroundScrollOffset
     }
 
-    fun getAdvancedTitleOverlayInfo(): AdvancedTitleOverlayInfo? {
-        for (relativePos in 0..2) {
-            val relativeOffset = relativeOffset(relativePos)
-            if (relativePos > 0) {
-                if (!callBack.isScroll) break
-                if (relativeOffset >= ChapterProvider.visibleHeight) break
-            }
-            val page = relativePage(relativePos)
-            val html = page.advancedTitleHtml
-            if (html.isNullOrBlank() || page.advancedTitleHeight <= 0f) continue
-            val top = relativeOffset + page.advancedTitleTop
-            val bottom = top + page.advancedTitleHeight
-            if (bottom > 0f && top < ChapterProvider.visibleHeight) {
-                return AdvancedTitleOverlayInfo(html, top, page.advancedTitleHeight)
-            }
-        }
-        return null
-    }
-
     fun setScrollFollowBackground(bitmap: Bitmap?, alpha: Int) {
         scrollFollowBackgroundDrawable = bitmap?.let {
             ScrollFollowBackgroundDrawable(it) { getBackgroundOffset() }.apply {
@@ -301,7 +275,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
 
     private fun invalidateBackgroundHost() {
         postInvalidateOnAnimation()
-        (parent as? View)?.postInvalidateOnAnimation()
     }
 
     private fun drawScrollFollowBackground(canvas: Canvas) {

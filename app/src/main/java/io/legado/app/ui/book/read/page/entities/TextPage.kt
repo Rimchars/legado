@@ -1,6 +1,7 @@
 package io.legado.app.ui.book.read.page.entities
 
 import android.graphics.Canvas
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
@@ -28,6 +29,7 @@ import io.legado.app.model.localBook.EpubLinkArea
 import io.legado.app.model.localBook.EpubPageColor
 import io.legado.app.model.localBook.EpubRuleLine
 import io.legado.app.model.localBook.EpubTextRun
+import io.legado.app.ui.book.read.page.AdvancedTitleBitmapRenderer
 import io.legado.app.ui.book.read.page.ContentTextView
 import io.legado.app.ui.book.read.page.entities.TextChapter.Companion.emptyTextChapter
 import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
@@ -94,6 +96,8 @@ data class TextPage(
     var advancedTitleHtml: String? = null
     var advancedTitleTop: Float = 0f
     var advancedTitleHeight: Float = 0f
+    var advancedTitleBitmap: Bitmap? = null
+    var advancedTitleBitmapKey: String? = null
     val epubDecorations = arrayListOf<EpubDecoration>()
     internal val epubEmbeddedBlocks = arrayListOf<EpubEmbeddedBlock>()
     internal val epubNativeCommands = arrayListOf<EpubDrawCommand>()
@@ -560,11 +564,47 @@ data class TextPage(
         drawEpubBackground(view, canvas)
         drawEpubEmbeddedBlocks(view, canvas)
         drawEpubNativeCommands(view, canvas)
+        drawAdvancedTitleBitmap(view, canvas)
         drawEpubDecorations(canvas)
         for (i in lines.indices) {
             val line = lines[i]
             canvas.withTranslation(0f, line.lineTop) {
                 line.draw(view, this)
+            }
+        }
+    }
+
+    private fun drawAdvancedTitleBitmap(view: ContentTextView, canvas: Canvas) {
+        val html = advancedTitleHtml
+        if (html.isNullOrBlank() || advancedTitleHeight <= 0f) return
+        val width = view.width
+        val bitmapHeight = advancedTitleHeight.toInt().coerceAtLeast(1)
+        if (width <= 0 || bitmapHeight <= 0) return
+        val key = AdvancedTitleBitmapRenderer.key(html, width, bitmapHeight)
+        val bitmap = when {
+            advancedTitleBitmapKey == key && advancedTitleBitmap != null -> advancedTitleBitmap
+            else -> AdvancedTitleBitmapRenderer.cached(key)?.also {
+                advancedTitleBitmap = it
+                advancedTitleBitmapKey = key
+            }
+        }
+        if (bitmap != null && !bitmap.isRecycled) {
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                RectF(0f, advancedTitleTop, width.toFloat(), advancedTitleTop + advancedTitleHeight),
+                null
+            )
+        } else {
+            AdvancedTitleBitmapRenderer.request(
+                context = view.context,
+                page = this,
+                key = key,
+                html = html,
+                width = width,
+                height = bitmapHeight
+            ) {
+                view.postInvalidateOnAnimation()
             }
         }
     }

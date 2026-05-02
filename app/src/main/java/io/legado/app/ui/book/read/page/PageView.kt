@@ -385,12 +385,6 @@ class PageView(context: Context) : FrameLayout(context) {
         releaseAdvancedTitleWeb()
     }
 
-    fun getAdvancedTitleOverlayInfo(): ContentTextView.AdvancedTitleOverlayInfo? {
-        return binding.contentTextView.getAdvancedTitleOverlayInfo()?.let {
-            it.copy(top = binding.contentTextView.top + it.top)
-        }
-    }
-
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     private fun upAdvancedTitleWeb(textPage: TextPage) = binding.run {
         val html = textPage.advancedTitleHtml

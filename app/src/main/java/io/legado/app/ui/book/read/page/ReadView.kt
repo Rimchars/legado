@@ -2,17 +2,13 @@ package io.legado.app.ui.book.read.page
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.RectF
 import android.os.Build
 import android.util.AttributeSet
 import android.view.MotionEvent
-import android.view.ViewGroup
 import android.view.ViewConfiguration
 import android.view.WindowInsets
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.Magnifier
 import io.legado.app.R
@@ -20,8 +16,6 @@ import io.legado.app.constant.PageAnim
 import io.legado.app.data.entities.BookProgress
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
-import io.legado.app.help.webView.PooledWebView
-import io.legado.app.help.webView.WebViewPool
 import io.legado.app.model.ReadAloud
 import io.legado.app.model.ReadBook
 import io.legado.app.service.BaseReadAloudService
@@ -73,15 +67,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
     val prevPage by lazy { PageView(context) }
     val curPage by lazy { PageView(context) }
     val nextPage by lazy { PageView(context) }
-    private val advancedTitleOverlay by lazy {
-        FrameLayout(context).apply {
-            visibility = android.view.View.GONE
-            isClickable = false
-            isFocusable = false
-        }
-    }
-    private var advancedTitleWebView: PooledWebView? = null
-    private var advancedTitleKey: String? = null
     val defaultAnimationSpeed = 300
     private var pressDown = false
     private var isMove = false
@@ -141,7 +126,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
         addView(nextPage)
         addView(curPage)
         addView(prevPage)
-        addView(advancedTitleOverlay)
         prevPage.invisible()
         nextPage.invisible()
         curPage.markAsMainView()
@@ -172,81 +156,9 @@ class ReadView(context: Context, attrs: AttributeSet) :
     }
 
     override fun dispatchDraw(canvas: Canvas) {
-        syncAdvancedTitleOverlay()
         super.dispatchDraw(canvas)
         pageDelegate?.onDraw(canvas)
         autoPager.onDraw(canvas)
-    }
-
-    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
-    private fun syncAdvancedTitleOverlay() {
-        val info = curPage.getAdvancedTitleOverlayInfo()
-        if (info == null || info.height <= 0f || width <= 0) {
-            advancedTitleOverlay.visibility = android.view.View.GONE
-            return
-        }
-        val height = info.height.toInt().coerceAtLeast(1)
-        val params = advancedTitleOverlay.layoutParams as? LayoutParams
-        if (params == null || params.width != LayoutParams.MATCH_PARENT || params.height != height) {
-            advancedTitleOverlay.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, height)
-        }
-        advancedTitleOverlay.translationX = curPage.x
-        advancedTitleOverlay.translationY = curPage.y + info.top
-        advancedTitleOverlay.visibility = android.view.View.VISIBLE
-
-        val pooledWebView = advancedTitleWebView ?: WebViewPool.acquire(context).also {
-            advancedTitleWebView = it
-        }
-        val webView = pooledWebView.realWebView
-        if (webView.parent !== advancedTitleOverlay) {
-            (webView.parent as? ViewGroup)?.removeView(webView)
-            advancedTitleOverlay.removeAllViews()
-            advancedTitleOverlay.addView(
-                webView,
-                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-            )
-        }
-        webView.configureAdvancedTitleOverlayWebView()
-        val key = "${info.html.hashCode()}|$height|${AppConfig.isNightTheme}"
-        if (advancedTitleKey != key) {
-            advancedTitleKey = key
-            webView.loadDataWithBaseURL(
-                "https://advanced-title.local/",
-                info.html,
-                "text/html",
-                "utf-8",
-                null
-            )
-        }
-    }
-
-    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
-    private fun WebView.configureAdvancedTitleOverlayWebView() {
-        setBackgroundColor(Color.TRANSPARENT)
-        background = null
-        isClickable = false
-        isFocusable = false
-        isFocusableInTouchMode = false
-        setOnLongClickListener { true }
-        setOnTouchListener { _, _ -> false }
-        webViewClient = object : WebViewClient() {}
-        settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            useWideViewPort = false
-            loadWithOverviewMode = false
-            builtInZoomControls = false
-            displayZoomControls = false
-            textZoom = 100
-        }
-    }
-
-    private fun releaseAdvancedTitleOverlay() {
-        advancedTitleKey = null
-        advancedTitleOverlay.visibility = android.view.View.GONE
-        advancedTitleWebView?.let { WebViewPool.release(it) }
-        advancedTitleWebView = null
-        advancedTitleOverlay.removeAllViews()
     }
 
     override fun computeScroll() {
@@ -608,7 +520,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
      * 销毁事件
      */
     fun onDestroy() {
-        releaseAdvancedTitleOverlay()
         dismissSelectionMagnifier()
         pageDelegate?.onDestroy()
         curPage.cancelSelect()
