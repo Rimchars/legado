@@ -159,10 +159,28 @@ class AutoPager(private val readView: ReadView) : Runnable {
             return
         }
 
-        if (!readView.fillPage(PageDirection.NEXT)) {
-            stop()
+        if (isTimedMode && !isEInkMode) {
+            val delegate = readView.pageDelegate
+            if (delegate?.isRunning == true) {
+                readView.postDelayed(this, 250L)
+                return
+            }
+            if (delegate != null) {
+                delegate.isCancel = false
+                delegate.keyTurnPage(PageDirection.NEXT)
+                return
+            }
+            if (!readView.fillPage(PageDirection.NEXT)) {
+                stop()
+            } else {
+                readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
+            }
         } else {
-            readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
+            if (!readView.fillPage(PageDirection.NEXT)) {
+                stop()
+            } else {
+                readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
+            }
         }
     }
 
