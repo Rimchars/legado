@@ -968,6 +968,9 @@ class BookInfoActivity :
             height = targetHeight
             weight = 0f
         }
+        tvIntroContainer.post {
+            (tvIntroContainer.getChildAt(0) as? ScrollTextView)?.refreshScrollBounds()
+        }
     }
 
     private fun tocPreviewText(text: CharSequence, selected: Boolean): TextView {
