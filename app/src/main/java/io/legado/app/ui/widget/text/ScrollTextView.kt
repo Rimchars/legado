@@ -99,7 +99,7 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (lineCount > maxLines) {
+        if (canScroll()) {
             gestureDetector.onTouchEvent(event)
         }
         velocityTracker.addMovement(event)
@@ -151,7 +151,7 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val result = super.onTouchEvent(event)
         //如果是需要拦截，则再拦截，这个方法会在onScrollChanged方法之后再调用一次
-        if (disallowIntercept && lineCount > maxLines) {
+        if (disallowIntercept && canScroll()) {
             parent.requestDisallowInterceptTouchEvent(true)
         }
 
@@ -182,6 +182,10 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
         if (mOffsetHeight <= 0) {
             scrollTo(0, 0)
         }
+    }
+
+    private fun canScroll(): Boolean {
+        return mOffsetHeight > 0
     }
 
     private fun resetTouch() {
