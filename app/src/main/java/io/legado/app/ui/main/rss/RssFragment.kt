@@ -28,6 +28,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.source.sortUrls
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
@@ -44,6 +45,7 @@ import io.legado.app.ui.rss.source.manage.RssSourceActivity
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.applyTint
+import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChange
 import io.legado.app.utils.gone
@@ -207,7 +209,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         if (binding.recyclerView.adapter !== adapter) {
             binding.recyclerView.adapter = adapter
         }
-        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        applyRefreshIndicatorColors()
         binding.swipeRefreshLayout.setOnRefreshListener {
             observeClassicRssSources(searchView.query?.toString())
         }
@@ -221,7 +223,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     private fun initModernRssView() {
         binding.llRssSourceRow.applyStatusBarPadding(withInitialPadding = true)
-        binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
+        applyRefreshIndicatorColors()
         binding.swipeRefreshLayout.post(::updateRefreshIndicatorOffset)
         binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
             currentRssScrollTarget()?.canScrollVertically(-1) == true
@@ -280,17 +282,31 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         if (binding.swipeRefreshLayout.isRefreshing) return
         val swipePos = IntArray(2)
         binding.swipeRefreshLayout.getLocationInWindow(swipePos)
-        val anchorView = if (usingModernRss) {
-            if (binding.rvRssTags.isVisible) binding.rvRssTags else binding.llRssSourceRow
+        val start = if (usingModernRss) {
+            val rowPos = IntArray(2)
+            binding.llRssSourceRow.getLocationInWindow(rowPos)
+            (rowPos[1] - swipePos[1] +
+                binding.llRssSourceRow.height +
+                8.dpToPx()).coerceAtLeast(0)
         } else {
-            binding.titleBar
+            0
         }
-        val anchorPos = IntArray(2)
-        anchorView.getLocationInWindow(anchorPos)
-        val start = (anchorPos[1] - swipePos[1]).coerceAtLeast(0)
-        val end = (anchorPos[1] - swipePos[1] + anchorView.height + 8.dpToPx())
-            .coerceAtLeast(56.dpToPx())
+        val end = if (usingModernRss) {
+            start + 44.dpToPx()
+        } else {
+            56.dpToPx()
+        }
         binding.swipeRefreshLayout.setProgressViewOffset(false, start, end)
+    }
+
+    private fun applyRefreshIndicatorColors() {
+        val arrowColor = if (ColorUtils.isColorLight(accentColor) == ColorUtils.isColorLight(backgroundColor)) {
+            primaryTextColor
+        } else {
+            accentColor
+        }
+        binding.swipeRefreshLayout.setProgressBackgroundColorSchemeColor(backgroundColor)
+        binding.swipeRefreshLayout.setColorSchemeColors(arrowColor)
     }
 
     private fun currentRssScrollTarget(): View? {
