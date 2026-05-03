@@ -343,11 +343,15 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             if (AppConfig.isEInkMode) {
                 bottomNavigationGlassView.visibility = android.view.View.GONE
                 bottomNavigationIndicatorContainer.visibility = android.view.View.GONE
+                bottomNavigationIndicatorGlassView.visibility = android.view.View.GONE
                 searchButtonGlassView.visibility = android.view.View.GONE
-                bottomNavigationShellOverlay.visibility = android.view.View.GONE
-                searchButtonShellOverlay.visibility = android.view.View.GONE
-                bottomNavigationView.setBackgroundResource(R.drawable.bg_eink_border_top)
-                searchButton.setBackgroundResource(R.drawable.bg_eink_circle_button)
+                bottomNavigationShellOverlay.visibility = android.view.View.VISIBLE
+                searchButtonShellOverlay.visibility = android.view.View.VISIBLE
+                bottomNavigationShellOverlay.setBackgroundResource(R.drawable.bg_eink_border_top)
+                searchButtonShellOverlay.setBackgroundResource(R.drawable.bg_eink_circle_button)
+                bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
+                searchButton.setBackgroundColor(Color.TRANSPARENT)
+                searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
                 return
             }
             val effectMode = AppConfig.bottomBarEffectMode
