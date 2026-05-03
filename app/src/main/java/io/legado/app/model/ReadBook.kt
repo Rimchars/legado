@@ -97,6 +97,7 @@ object ReadBook : CoroutineScope by MainScope() {
     val downloadScope = CoroutineScope(SupervisorJob() + IO)
     val preDownloadSemaphore = Semaphore(2)
     val executor = globalExecutor
+    private fun useWebViewReadCore(book: Book? = this.book): Boolean = book?.isEpub == true
 
     fun resetData(book: Book) {
         releaseAndCancel()
@@ -544,6 +545,9 @@ object ReadBook : CoroutineScope by MainScope() {
         loadContent(durChapterIndex, resetPageOffset = resetPageOffset) {
             success?.invoke()
         }
+        if (useWebViewReadCore()) {
+            return
+        }
         loadContent(durChapterIndex + 1, resetPageOffset = resetPageOffset)
         loadContent(durChapterIndex - 1, resetPageOffset = resetPageOffset)
     }
@@ -555,6 +559,9 @@ object ReadBook : CoroutineScope by MainScope() {
             }
         } else {
             callBack?.upContent()
+        }
+        if (useWebViewReadCore()) {
+            return
         }
         if (nextTextChapter == null) {
             loadContent(durChapterIndex + 1)
@@ -709,6 +716,21 @@ object ReadBook : CoroutineScope by MainScope() {
         if (canceled || chapter.index !in durChapterIndex - 1..durChapterIndex + 1) {
             return
         }
+        if (useWebViewReadCore(book)) {
+            when (chapter.index - durChapterIndex) {
+                0 -> {
+                    callBack?.upMenuView()
+                    if (upContent) {
+                        callBack?.upContent(0, resetPageOffset, success)
+                    } else {
+                        success?.invoke()
+                    }
+                    curPageChanged()
+                    callBack?.contentLoadFinish()
+                }
+            }
+            return
+        }
         chapterLoadingJobs[chapter.index]?.cancel()
         val job = Coroutine.async(this, start = CoroutineStart.LAZY) {
             val contentProcessor = ContentProcessor.get(book.name, book.origin)
@@ -797,6 +819,17 @@ object ReadBook : CoroutineScope by MainScope() {
     ) {
         removeLoading(chapter.index)
         if (chapter.index !in durChapterIndex - 1..durChapterIndex + 1) {
+            return
+        }
+        if (useWebViewReadCore(book)) {
+            if (chapter.index - durChapterIndex == 0) {
+                callBack?.upMenuView()
+                if (upContent) {
+                    callBack?.upContentAwait(0, resetPageOffset)
+                }
+                curPageChanged()
+                callBack?.contentLoadFinish()
+            }
             return
         }
         kotlin.runCatching {

@@ -61,6 +61,11 @@ class EpubFile(var book: Book) {
         val html: String
     )
 
+    internal data class EpubWebChapterPage(
+        val baseUrl: String,
+        val html: String
+    )
+
     internal data class EpubWebResource(
         val mimeType: String,
         val encoding: String?,
@@ -122,6 +127,11 @@ class EpubFile(var book: Book) {
         @Synchronized
         internal fun getSpecialPage(book: Book, href: String): EpubSpecialPage? {
             return getEFile(book).getSpecialPage(href)
+        }
+
+        @Synchronized
+        internal fun getWebChapterPage(book: Book, chapter: BookChapter): EpubWebChapterPage? {
+            return getEFile(book).getWebChapterPage(chapter)
         }
 
         @Synchronized
@@ -398,7 +408,12 @@ class EpubFile(var book: Book) {
         return map
     }
 
-    private fun getBody(res: Resource, startFragmentId: String?, endFragmentId: String?): Element {
+    private fun getBody(
+        res: Resource,
+        startFragmentId: String?,
+        endFragmentId: String?,
+        cacheNativeDom: Boolean = true
+    ): Element {
         /**
          * <image width="1038" height="670" xlink:href="..."/>
          * ...titlepage.xhtml
@@ -494,7 +509,9 @@ class EpubFile(var book: Book) {
                 it.attr("href", resolvedHref)
             }
         }
-        buildNativeDom(doc, bodyElement, res)
+        if (cacheNativeDom) {
+            buildNativeDom(doc, bodyElement, res)
+        }
         return bodyElement
     }
 
@@ -1073,6 +1090,75 @@ class EpubFile(var book: Book) {
         }
         val baseUrl = "https://legado-epub.local/"
         return EpubSpecialPage(baseUrl = baseUrl, html = html)
+    }
+
+    private fun getWebChapterPage(chapter: BookChapter): EpubWebChapterPage? {
+        if (chapter.isVolume && chapter.url.startsWith("skip:")) {
+            return EpubWebChapterPage(
+                baseUrl = "https://legado-epub.local/",
+                html = """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"/></head><body></body></html>"""
+            )
+        }
+        val contents = epubSpineContents ?: epubBookContents ?: return null
+        val nextChapterFirstResourceHref = chapter.getVariable("nextUrl").substringBeforeLast("#")
+        val currentChapterFirstResourceHref = chapter.url.substringBeforeLast("#")
+        findEpubResource(currentChapterFirstResourceHref)?.takeIf { it.isEpubBookInfoResource() }?.let {
+            return EpubWebChapterPage(
+                baseUrl = "https://legado-epub.local/",
+                html = """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"/></head><body></body></html>"""
+            )
+        }
+        val isLastChapter = nextChapterFirstResourceHref.isBlank()
+        val startFragmentId = chapter.startFragmentId
+        val endFragmentId = chapter.endFragmentId
+        val includeNextChapterResource = !endFragmentId.isNullOrBlank()
+        val chapterResources = collectChapterResources(
+            contents = contents,
+            currentHref = currentChapterFirstResourceHref,
+            nextHref = nextChapterFirstResourceHref,
+            includeNextResource = includeNextChapterResource,
+            isLastChapter = isLastChapter
+        )
+        if (chapterResources.isEmpty()) return null
+        val bodies = arrayListOf<Element>()
+        chapterResources.forEachIndexed { index, res ->
+            val body = when {
+                index == 0 -> getBody(res, startFragmentId, endFragmentId, cacheNativeDom = false)
+                index == chapterResources.lastIndex && includeNextChapterResource && !isLastChapter &&
+                    res.href == nextChapterFirstResourceHref -> getBody(res, null, endFragmentId, cacheNativeDom = false)
+                else -> getBody(res, null, null, cacheNativeDom = false)
+            }
+            bodies.add(body)
+        }
+        val firstBody = bodies.firstOrNull()
+        val bodyClass = firstBody?.className().orEmpty().trim()
+        val bodyStyle = firstBody?.attr("style").orEmpty().trim()
+        val html = buildString {
+            append("<!DOCTYPE html><html><head>")
+            append("""<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>""")
+            append(
+                """<style>
+                    html,body{margin:0;padding:0;background:transparent;-webkit-text-size-adjust:none;}
+                    body{overflow-wrap:break-word;word-break:break-word;}
+                    img,svg,video,canvas{max-width:100%;height:auto;}
+                    a{color:inherit;}
+                </style>""".trimIndent()
+            )
+            append("</head><body")
+            if (bodyClass.isNotBlank()) {
+                append(" class=\"${bodyClass.escapeXmlAttr()}\"")
+            }
+            if (bodyStyle.isNotBlank()) {
+                append(" style=\"${bodyStyle.escapeXmlAttr()}\"")
+            }
+            append(">")
+            append(bodies.joinToString("\n") { it.html() })
+            append("</body></html>")
+        }
+        return EpubWebChapterPage(
+            baseUrl = "https://legado-epub.local/",
+            html = html
+        )
     }
 
     private fun String.shouldUseSpecialPageWebView(): Boolean {

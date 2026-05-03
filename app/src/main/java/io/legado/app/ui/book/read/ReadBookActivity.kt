@@ -13,6 +13,10 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.widget.PopupWindow
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -111,6 +115,7 @@ import io.legado.app.utils.Debounce
 import io.legado.app.utils.LogUtils
 import io.legado.app.utils.NetworkUtils
 import io.legado.app.utils.StartActivityContract
+import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.buildMainHandler
 import io.legado.app.utils.dismissDialogFragment
 import io.legado.app.utils.getPrefBoolean
@@ -133,6 +138,7 @@ import io.legado.app.utils.sysScreenOffTime
 import io.legado.app.utils.throttle
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.visible
+import io.legado.app.utils.setDarkeningAllowed
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.Job
@@ -145,6 +151,8 @@ import androidx.lifecycle.Lifecycle
 import com.script.rhino.runScriptWithContext
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
 import io.legado.app.ui.login.SourceLoginJsExtensions
+import java.io.ByteArrayInputStream
+import kotlin.math.roundToInt
 
 /**
  * 阅读界面
@@ -165,6 +173,11 @@ class ReadBookActivity : BaseReadBookActivity(),
     TxtTocRuleDialog.CallBack,
     ColorPickerDialogListener,
     LayoutProgressListener {
+
+    companion object {
+        private const val EPUB_WEB_HOST = "legado-epub.local"
+        private const val WEB_SCROLL_PROGRESS_MAX = 100000
+    }
 
     private val tocActivity =
         registerForActivityResult(TocActivityResult()) {
@@ -233,8 +246,8 @@ class ReadBookActivity : BaseReadBookActivity(),
         PopupAction(this)
     }
     override val isInitFinish: Boolean get() = viewModel.isInitFinish
-    override val isScroll: Boolean get() = binding.readView.isScroll
-    private val isAutoPage get() = binding.readView.isAutoPage
+    override val isScroll: Boolean get() = if (useWebViewReadCore) true else binding.readView.isScroll
+    private val isAutoPage get() = !useWebViewReadCore && binding.readView.isAutoPage
     override var isShowingSearchResult = false
     override var isSelectingSearchResult = false
         set(value) {
@@ -245,8 +258,8 @@ class ReadBookActivity : BaseReadBookActivity(),
     private var loadStates: Boolean = false
     override val pageFactory get() = binding.readView.pageFactory
     override val pageDelegate get() = binding.readView.pageDelegate
-    override val headerHeight: Int get() = binding.readView.curPage.headerHeight
-    override val imgBgPaddingStart: Int get() = binding.readView.curPage.imgBgPaddingStart
+    override val headerHeight: Int get() = if (useWebViewReadCore) 0 else binding.readView.curPage.headerHeight
+    override val imgBgPaddingStart: Int get() = if (useWebViewReadCore) 0 else binding.readView.curPage.imgBgPaddingStart
     private val nextPageDebounce by lazy { Debounce { keyPage(PageDirection.NEXT) } }
     private val prevPageDebounce by lazy { Debounce { keyPage(PageDirection.PREV) } }
     private var bookChanged = false
@@ -268,6 +281,19 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
     private var justInitData: Boolean = false
     private var syncDialog: AlertDialog? = null
+    private var webChapterLoadJob: Job? = null
+    private var webReadChapterKey: String? = null
+    private var pendingWebScrollRatio: Float? = null
+    private val saveWebReadProgress = throttle(250) {
+        ReadBook.saveRead(true)
+        upSeekBarProgress()
+    }
+    private val useWebViewReadCore: Boolean
+        get() = ReadBook.book?.isEpub == true
+    private val webReadPaddingCss: String
+        get() = "padding:${ChapterProvider.paddingTop}px ${ChapterProvider.paddingRight}px ${ChapterProvider.paddingBottom}px ${ChapterProvider.paddingLeft}px;"
+    private val webReadTextColorCss: String
+        get() = ColorUtils.intToString(ReadBookConfig.textColor)
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -277,6 +303,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.cursorLeft.setOnTouchListener(this)
         binding.cursorRight.setOnTouchListener(this)
         binding.readAiPanel.attach(this)
+        initWebReadView()
         window.setBackgroundDrawable(null)
         upScreenTimeOut()
         ReadBook.register(this)
@@ -340,6 +367,170 @@ class ReadBookActivity : BaseReadBookActivity(),
         super.onConfigurationChanged(newConfig)
         upSystemUiVisibility()
         binding.readView.upStatusBar()
+        if (useWebViewReadCore) {
+            renderCurrentWebChapter(resetScroll = false)
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun initWebReadView() {
+        binding.webReadView.apply {
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = WebView.OVER_SCROLL_NEVER
+            settings.javaScriptEnabled = false
+            settings.loadsImagesAutomatically = true
+            settings.blockNetworkImage = false
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.domStorageEnabled = false
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            settings.builtInZoomControls = false
+            settings.displayZoomControls = false
+            settings.textZoom = 100
+            settings.setDarkeningAllowed(AppConfig.isNightTheme)
+            onSingleTap = { showActionMenu() }
+            onScrollMetricsChanged = fun(offset: Int, range: Int) {
+                if (!useWebViewReadCore) return
+                if (range <= 0) {
+                    ReadBook.durChapterPos = 0
+                } else {
+                    ReadBook.durChapterPos = ((offset.toFloat() / range.toFloat()) * WEB_SCROLL_PROGRESS_MAX)
+                        .roundToInt()
+                        .coerceIn(0, WEB_SCROLL_PROGRESS_MAX)
+                }
+                saveWebReadProgress.invoke()
+            }
+            webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): WebResourceResponse? {
+                    val book = ReadBook.book ?: return super.shouldInterceptRequest(view, request)
+                    if (!book.isEpub) return super.shouldInterceptRequest(view, request)
+                    val url = request.url
+                    if (url.host != EPUB_WEB_HOST) {
+                        return super.shouldInterceptRequest(view, request)
+                    }
+                    val href = url.encodedPath?.trimStart('/').orEmpty()
+                    val resource = EpubFile.getWebResource(book, href) ?: return emptyWebResource()
+                    return WebResourceResponse(
+                        resource.mimeType,
+                        resource.encoding,
+                        ByteArrayInputStream(resource.data)
+                    )
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    return true
+                }
+
+                override fun onPageFinished(view: WebView, url: String?) {
+                    super.onPageFinished(view, url)
+                    applyPendingWebScroll()
+                }
+            }
+        }
+    }
+
+    private fun emptyWebResource(): WebResourceResponse {
+        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+    }
+
+    private fun applyPendingWebScroll() {
+        val ratio = pendingWebScrollRatio ?: return
+        binding.webReadView.post {
+            val range = (binding.webReadView.computeVerticalScrollRange()
+                - binding.webReadView.computeVerticalScrollExtent()).coerceAtLeast(0)
+            val targetY = (range * ratio).roundToInt().coerceAtLeast(0)
+            binding.webReadView.scrollTo(0, targetY)
+            pendingWebScrollRatio = null
+        }
+    }
+
+    private fun wrapWebReadHtml(bodyHtml: String, title: String): String {
+        val textSizePx = resources.displayMetrics.scaledDensity * ReadBookConfig.textSize
+        val lineHeight = textSizePx * 1.75f
+        val titleCss = if (title.isBlank()) "" else "data-title=\"${title.replace("\"", "&quot;")}\""
+        return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+              <style>
+                html,body{margin:0;padding:0;background:transparent;-webkit-text-size-adjust:none;}
+                body{$webReadPaddingCss color:$webReadTextColorCss;font-size:${textSizePx}px;line-height:${lineHeight}px;word-break:break-word;overflow-wrap:break-word;}
+                img,svg,video,canvas{max-width:100%;height:auto;}
+                a{color:inherit;text-decoration:none;}
+              </style>
+            </head>
+            <body $titleCss>
+            $bodyHtml
+            </body>
+            </html>
+        """.trimIndent()
+    }
+
+    private fun injectWebReadThemeCss(html: String): String {
+        val textSizePx = resources.displayMetrics.scaledDensity * ReadBookConfig.textSize
+        val lineHeight = textSizePx * 1.75f
+        val css = """
+            <style id="legado-web-read-theme">
+                html,body{background:transparent !important;-webkit-text-size-adjust:none;}
+                body{$webReadPaddingCss color:$webReadTextColorCss !important;font-size:${textSizePx}px;line-height:${lineHeight}px;overflow-wrap:break-word;word-break:break-word;}
+                img,svg,video,canvas{max-width:100%;height:auto;}
+                a{color:inherit;}
+            </style>
+        """.trimIndent()
+        return if (html.contains("</head>", ignoreCase = true)) {
+            html.replace("</head>", "$css</head>", ignoreCase = true)
+        } else {
+            """<!DOCTYPE html><html><head>$css</head><body>$html</body></html>"""
+        }
+    }
+
+    private fun renderCurrentWebChapter(resetScroll: Boolean = true) {
+        val book = ReadBook.book ?: return
+        if (!useWebViewReadCore) {
+            binding.webReadView.visibility = View.GONE
+            binding.readView.visibility = View.VISIBLE
+            return
+        }
+        binding.readView.visibility = View.GONE
+        binding.webReadView.visibility = View.VISIBLE
+        webChapterLoadJob?.cancel()
+        val chapterIndex = ReadBook.durChapterIndex
+        val chapterPosRatio = if (resetScroll) {
+            (ReadBook.durChapterPos.toFloat() / WEB_SCROLL_PROGRESS_MAX).coerceIn(0f, 1f)
+        } else {
+            null
+        }
+        webChapterLoadJob = lifecycleScope.launch(IO) {
+            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, chapterIndex) ?: return@launch
+            val page = EpubFile.getWebChapterPage(book, chapter)
+            val styledHtml = page?.html?.let(::injectWebReadThemeCss) ?: wrapWebReadHtml("", chapter.title)
+            val key = "${book.bookUrl}|${chapter.index}|${styledHtml.hashCode()}"
+            withContext(Main) {
+                binding.webReadView.settings.setDarkeningAllowed(AppConfig.isNightTheme)
+                pendingWebScrollRatio = chapterPosRatio
+                if (webReadChapterKey == key) {
+                    applyPendingWebScroll()
+                    upSeekBarProgress()
+                    return@withContext
+                }
+                webReadChapterKey = key
+                binding.webReadView.loadDataWithBaseURL(
+                    page?.baseUrl ?: "about:blank",
+                    styledHtml,
+                    "text/html",
+                    "utf-8",
+                    page?.baseUrl ?: "about:blank"
+                )
+                upSeekBarProgress()
+            }
+        }
     }
 
     override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
@@ -1080,7 +1271,11 @@ class ReadBookActivity : BaseReadBookActivity(),
         success: (() -> Unit)?
     ) {
         lifecycleScope.launch {
-            binding.readView.upContent(relativePosition, resetPageOffset)
+            if (useWebViewReadCore) {
+                renderCurrentWebChapter(resetScroll = resetPageOffset)
+            } else {
+                binding.readView.upContent(relativePosition, resetPageOffset)
+            }
             if (relativePosition == 0) {
                 upSeekBarProgress()
             }
@@ -1094,7 +1289,11 @@ class ReadBookActivity : BaseReadBookActivity(),
         resetPageOffset: Boolean,
         success: (() -> Unit)?
     ) = withContext(Main.immediate) {
-        binding.readView.upContent(relativePosition, resetPageOffset)
+        if (useWebViewReadCore) {
+            renderCurrentWebChapter(resetScroll = resetPageOffset)
+        } else {
+            binding.readView.upContent(relativePosition, resetPageOffset)
+        }
         if (relativePosition == 0) {
             upSeekBarProgress()
         }
@@ -1103,7 +1302,9 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     override fun upPageAnim(upRecorder: Boolean) {
         lifecycleScope.launch {
-            binding.readView.upPageAnim(upRecorder)
+            if (!useWebViewReadCore) {
+                binding.readView.upPageAnim(upRecorder)
+            }
         }
     }
 
@@ -1125,7 +1326,9 @@ class ReadBookActivity : BaseReadBookActivity(),
      */
     override fun pageChanged() {
         pageChanged = true
-        binding.readView.onPageChange()
+        if (!useWebViewReadCore) {
+            binding.readView.onPageChange()
+        }
         handler.post {
             upSeekBarProgress()
         }
@@ -1139,7 +1342,7 @@ class ReadBookActivity : BaseReadBookActivity(),
      */
     private fun upSeekBarProgress() {
         val progress = when (AppConfig.progressBarBehavior) {
-            "page" -> ReadBook.durPageIndex
+            "page" -> if (useWebViewReadCore) ReadBook.durChapterIndex else ReadBook.durPageIndex
             else /* chapter */ -> ReadBook.durChapterIndex
         }
         binding.readMenu.setSeekPage(progress)
@@ -1782,6 +1985,10 @@ class ReadBookActivity : BaseReadBookActivity(),
         tts?.clearTts()
         textActionMenu.dismiss()
         popupAction.dismiss()
+        webChapterLoadJob?.cancel()
+        binding.webReadView.stopLoading()
+        binding.webReadView.loadUrl("about:blank")
+        binding.webReadView.destroy()
         binding.readView.onDestroy()
         ReadBook.unregister(this)
         handler.removeCallbacksAndMessages(null) // 清理Handler消息
@@ -1807,16 +2014,16 @@ class ReadBookActivity : BaseReadBookActivity(),
             it.forEach { value ->
                 when (value) {
                     0 -> upSystemUiVisibility()
-                    1 -> readView.upBg()
-                    2 -> readView.upStyle()
-                    3 -> readView.upBgAlpha()
+                    1 -> if (useWebViewReadCore) renderCurrentWebChapter(resetScroll = false) else readView.upBg()
+                    2 -> if (useWebViewReadCore) renderCurrentWebChapter(resetScroll = false) else readView.upStyle()
+                    3 -> if (useWebViewReadCore) renderCurrentWebChapter(resetScroll = false) else readView.upBgAlpha()
                     4 -> readView.upPageSlopSquare()
                     5 -> if (isInitFinish) ReadBook.loadContent(resetPageOffset = false)
-                    6 -> readView.upContent(resetPageOffset = false)
+                    6 -> if (useWebViewReadCore) renderCurrentWebChapter(resetScroll = false) else readView.upContent(resetPageOffset = false)
                     8 -> ChapterProvider.upStyle()
-                    9 -> readView.invalidateTextPage()
+                    9 -> if (!useWebViewReadCore) readView.invalidateTextPage()
                     10 -> ChapterProvider.upLayout()
-                    11 -> readView.submitRenderTask()
+                    11 -> if (!useWebViewReadCore) readView.submitRenderTask()
                     12 -> readView.upPageTouchClick()
                 }
             }
