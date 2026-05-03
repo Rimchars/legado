@@ -666,17 +666,6 @@ class TextChapterLayout(
             ?.filter { it.isNotBlank() }
             ?.distinct()
             ?: listOf(wrapper.attr("data-href").trim()).filter { it.isNotBlank() }
-        if (hrefs.size == 1) {
-            EpubFile.getSpecialPage(book, hrefs.first())?.let { specialPage ->
-                pendingTextPage.epubSpecialPageBaseUrl = specialPage.baseUrl
-                pendingTextPage.epubSpecialPageHtml = specialPage.html
-                pendingTextPage.height = viewHeight.toFloat()
-                durY = pendingTextPage.height
-                stringBuilder.append(' ')
-                prepareNextPageIfNeed()
-                return true
-            }
-        }
         if (hrefs.isEmpty()) {
             val reason = "data-href 为空"
             AppLog.put(

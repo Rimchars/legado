@@ -104,9 +104,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         if (resetBackgroundOffset) {
             backgroundScrollOffset = 0
         }
-        if (textPage.hasEpubSpecialPage()) {
-            return
-        }
         // 非滑动翻页动画需要同步重绘，不然翻页可能会出现闪烁
         if (isScroll) {
             postInvalidate()
@@ -126,9 +123,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        if (textPage.hasEpubSpecialPage()) {
-            return
-        }
         autoPager?.onDraw(canvas)
         if (longScreenshot) {
             canvas.translate(0f, scrollY.toFloat())
@@ -231,16 +225,16 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         val view = this
         var invalidate = false
         pageFactory.run {
-            if (hasPrev() && !prevPage.hasEpubSpecialPage() && prevPage.render(view)) {
+            if (hasPrev() && prevPage.render(view)) {
                 invalidate = true
             }
-            if (!curPage.hasEpubSpecialPage() && curPage.render(view)) {
+            if (curPage.render(view)) {
                 invalidate = true
             }
-            if (hasNext() && !nextPage.hasEpubSpecialPage() && nextPage.render(view) && callBack.isScroll) {
+            if (hasNext() && nextPage.render(view) && callBack.isScroll) {
                 invalidate = true
             }
-            if (hasNextPlus() && !nextPlusPage.hasEpubSpecialPage() && nextPlusPage.render(view) && callBack.isScroll
+            if (hasNextPlus() && nextPlusPage.render(view) && callBack.isScroll
                 && relativeOffset(2) < ChapterProvider.visibleHeight
             ) {
                 invalidate = true
