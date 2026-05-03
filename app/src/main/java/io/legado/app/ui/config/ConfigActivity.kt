@@ -26,6 +26,8 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
             ConfigTag.AI_CONFIG -> replaceFragment(configTag, AiConfigFragment::class.java)
             ConfigTag.COVER_CONFIG -> replaceFragment(configTag, CoverConfigFragment::class.java)
             ConfigTag.WELCOME_CONFIG -> replaceFragment(configTag, WelcomeConfigFragment::class.java)
+            ConfigTag.DISCOVERY_SUBSCRIPTION_CONFIG ->
+                replaceFragment(configTag, DiscoverySubscriptionConfigFragment::class.java)
             ConfigTag.DISCOVERY_CONFIG -> replaceFragment(configTag, DiscoveryConfigFragment::class.java)
             ConfigTag.SUBSCRIPTION_CONFIG -> replaceFragment(configTag, SubscriptionConfigFragment::class.java)
             else -> finish()

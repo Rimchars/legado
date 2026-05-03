@@ -257,8 +257,11 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                 Triple("ai_setting", R.xml.pref_config_ai, ConfigTag.AI_CONFIG),
                 Triple("setting", R.xml.pref_config_other, ConfigTag.OTHER_CONFIG),
                 Triple("setting", R.xml.pref_config_read, ConfigTag.OTHER_CONFIG),
-                Triple("setting", R.xml.pref_config_discovery, ConfigTag.DISCOVERY_CONFIG),
-                Triple("setting", R.xml.pref_config_subscription, ConfigTag.SUBSCRIPTION_CONFIG)
+                Triple(
+                    "setting",
+                    R.xml.pref_config_discovery_subscription,
+                    ConfigTag.DISCOVERY_SUBSCRIPTION_CONFIG
+                )
             ).flatMap { (ownerKey, xmlRes, ownerConfigTag) ->
                 buildPreferenceXmlSearchItems(ownerKey, xmlRes, ownerConfigTag)
             }

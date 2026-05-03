@@ -14,35 +14,32 @@ import io.legado.app.lib.theme.primaryColor
 import io.legado.app.utils.postEvent
 import io.legado.app.utils.setEdgeEffectColor
 
-class SubscriptionConfigFragment : PreferenceFragment(),
+class DiscoverySubscriptionConfigFragment : PreferenceFragment(),
     SharedPreferences.OnSharedPreferenceChangeListener {
 
     private var targetKeyHandled = false
+    private var discoveryModePref: NameListPreference? = null
     private var rssModePref: NameListPreference? = null
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-        addPreferencesFromResource(R.xml.pref_config_subscription)
+        addPreferencesFromResource(R.xml.pref_config_discovery_subscription)
+        discoveryModePref = findPreference(KEY_DISCOVERY_MODE)
         rssModePref = findPreference(KEY_RSS_MODE)
-        val useModern = preferenceManager.sharedPreferences
-            ?.getBoolean(PreferKey.modernRssPage, true) ?: true
-        rssModePref?.value = if (useModern) PAGE_MODE_MODERN else PAGE_MODE_LEGACY
-        updateModeSummary(rssModePref)
-        rssModePref?.setOnPreferenceChangeListener { _, newValue ->
-            val nextValue = newValue?.toString().orEmpty()
-            val useModernMode = nextValue == PAGE_MODE_MODERN
-            rssModePref?.value = nextValue
-            preferenceManager.sharedPreferences?.edit()
-                ?.putBoolean(PreferKey.modernRssPage, useModernMode)
-                ?.apply()
-            updateModeSummary(rssModePref)
-            postEvent(EventBus.NOTIFY_MAIN, false)
-            true
-        }
+        bindModePreference(
+            preference = discoveryModePref,
+            booleanKey = PreferKey.modernDiscoveryPage,
+            defaultValue = true
+        )
+        bindModePreference(
+            preference = rssModePref,
+            booleanKey = PreferKey.modernRssPage,
+            defaultValue = true
+        )
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        activity?.setTitle(R.string.subscription_settings_title)
+        activity?.setTitle(R.string.discovery_subscription_settings_title)
         listView.setEdgeEffectColor(primaryColor)
     }
 
@@ -59,22 +56,55 @@ class SubscriptionConfigFragment : PreferenceFragment(),
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
+            PreferKey.showDiscovery,
             PreferKey.showRss -> postEvent(EventBus.NOTIFY_MAIN, true)
+
+            PreferKey.modernDiscoveryPage,
             PreferKey.modernRssPage,
             PreferKey.mergeDiscoveryRss -> postEvent(EventBus.NOTIFY_MAIN, false)
         }
     }
 
+    private fun bindModePreference(
+        preference: NameListPreference?,
+        booleanKey: String,
+        defaultValue: Boolean
+    ) {
+        preference ?: return
+        val useModern = preferenceManager.sharedPreferences
+            ?.getBoolean(booleanKey, defaultValue) ?: defaultValue
+        preference.value = if (useModern) PAGE_MODE_MODERN else PAGE_MODE_LEGACY
+        updateModeSummary(preference)
+        preference.setOnPreferenceChangeListener { _, newValue ->
+            val nextValue = newValue?.toString().orEmpty()
+            val useModernMode = nextValue == PAGE_MODE_MODERN
+            preference.value = nextValue
+            preferenceManager.sharedPreferences?.edit()
+                ?.putBoolean(booleanKey, useModernMode)
+                ?.apply()
+            updateModeSummary(preference)
+            postEvent(EventBus.NOTIFY_MAIN, false)
+            true
+        }
+    }
+
+    private fun updateModeSummary(preference: NameListPreference?) {
+        preference ?: return
+        val index = preference.findIndexOfValue(preference.value)
+        preference.summary = if (index >= 0) preference.entries[index] else preference.summary
+    }
+
     private fun consumeTargetKey() {
         if (targetKeyHandled) return
         val rawTargetKey = activity?.intent?.getStringExtra("targetKey")?.trim().orEmpty()
+        if (rawTargetKey.isBlank()) return
         val targetKey = when (rawTargetKey) {
             KEY_MODERN_RSS_PAGE,
             KEY_SEARCH_JUMP_MODERN_RSS_PAGE,
             KEY_SEARCH_JUMP_RSS_MODE -> KEY_RSS_MODE
+            KEY_SEARCH_JUMP_DISCOVERY_MODE -> KEY_DISCOVERY_MODE
             else -> rawTargetKey
         }
-        if (targetKey.isBlank()) return
         val preference = findPreference<Preference>(targetKey) ?: return
         targetKeyHandled = true
         listView.post {
@@ -88,18 +118,14 @@ class SubscriptionConfigFragment : PreferenceFragment(),
         }
     }
 
-    private fun updateModeSummary(modePref: NameListPreference?) {
-        modePref ?: return
-        val index = modePref.findIndexOfValue(modePref.value)
-        modePref.summary = if (index >= 0) modePref.entries[index] else modePref.summary
-    }
-
     companion object {
         private const val PAGE_MODE_MODERN = "modern"
         private const val PAGE_MODE_LEGACY = "legacy"
+        private const val KEY_DISCOVERY_MODE = "modernDiscoveryMode"
         private const val KEY_RSS_MODE = "modernRssMode"
         private const val KEY_MODERN_RSS_PAGE = "modernRssPage"
         private const val KEY_SEARCH_JUMP_MODERN_RSS_PAGE = "search_jump_modernRssPage"
+        private const val KEY_SEARCH_JUMP_DISCOVERY_MODE = "search_jump_modernDiscoveryMode"
         private const val KEY_SEARCH_JUMP_RSS_MODE = "search_jump_modernRssMode"
     }
 }

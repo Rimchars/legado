@@ -1092,8 +1092,12 @@
     <string name="discovery_settings_summary">Configure discovery entrance and page style.</string>
     <string name="subscription_settings_title">Subscription settings</string>
     <string name="subscription_settings_summary">Configure subscription entrance and page style.</string>
+    <string name="discovery_subscription_settings_title">Discovery and subscriptions</string>
+    <string name="discovery_subscription_settings_summary">Manage discovery and subscription entrances and page styles.</string>
     <string name="discovery_page_mode_modern">Modern discovery</string>
     <string name="discovery_page_mode_legacy">Classic discovery</string>
+    <string name="rss_page_mode_modern">Modern subscription</string>
+    <string name="rss_page_mode_legacy">Classic subscription</string>
     <string name="style">Style</string>
     <string name="group_style">Group style</string>
     <string name="export_file_name">Export file name</string>

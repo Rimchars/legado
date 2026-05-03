@@ -207,6 +207,16 @@
 		<item>legacy</item>
 	</string-array>
 
+	<string-array name="rss_page_mode_entries">
+		<item>@string/rss_page_mode_modern</item>
+		<item>@string/rss_page_mode_legacy</item>
+	</string-array>
+
+	<string-array name="page_mode_values">
+		<item>modern</item>
+		<item>legacy</item>
+	</string-array>
+
 	<string-array name="bottom_bar_effect_mode_entries">
 		<item>常规</item>
 		<item>毛玻璃</item>

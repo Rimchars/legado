@@ -940,6 +940,12 @@
     <string name="discovery_settings_summary">配置发现页入口与页面样式。</string>
     <string name="subscription_settings_title">订阅页管理</string>
     <string name="subscription_settings_summary">配置订阅页入口与页面样式。</string>
+    <string name="discovery_subscription_settings_title">发现与订阅</string>
+    <string name="discovery_subscription_settings_summary">管理发现页和订阅页入口与页面样式。</string>
+    <string name="discovery_page_mode_modern">新版发现</string>
+    <string name="discovery_page_mode_legacy">经典发现</string>
+    <string name="rss_page_mode_modern">新版订阅</string>
+    <string name="rss_page_mode_legacy">经典订阅</string>
     <string name="style">样式</string>
     <string name="group_style">分组样式</string>
     <string name="export_file_name">导出文件名</string>

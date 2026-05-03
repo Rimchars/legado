@@ -146,14 +146,9 @@ class OtherConfigFragment : PreferenceFragment(),
             PreferKey.contentSelectMenuConfig -> ContentSelectMenuConfigDialog()
                 .show(parentFragmentManager, "contentSelectMenuConfig")
             PreferKey.uploadRule -> showDialogFragment<DirectLinkUploadConfig>()
-            "discoverySettings" -> {
+            "discoverySubscriptionSettings" -> {
                 startActivity(Intent(requireContext(), ConfigActivity::class.java).apply {
-                    putExtra("configTag", ConfigTag.DISCOVERY_CONFIG)
-                })
-            }
-            "subscriptionSettings" -> {
-                startActivity(Intent(requireContext(), ConfigActivity::class.java).apply {
-                    putExtra("configTag", ConfigTag.SUBSCRIPTION_CONFIG)
+                    putExtra("configTag", ConfigTag.DISCOVERY_SUBSCRIPTION_CONFIG)
                 })
             }
             PreferKey.checkSource -> showDialogFragment<CheckSourceConfig>()

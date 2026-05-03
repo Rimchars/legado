@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/discovery_settings_title"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="true"
+            android:key="showDiscovery"
+            android:title="@string/show_discovery"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="search_jump_showDiscovery"
+            android:title="@string/show_discovery"
+            android:visible="false" />
+
+        <io.legado.app.lib.prefs.NameListPreference
+            android:defaultValue="modern"
+            android:key="modernDiscoveryMode"
+            android:summary="@string/modern_discovery_page_summary"
+            android:title="@string/modern_discovery_page"
+            app:entries="@array/discovery_page_mode_entries"
+            app:entryValues="@array/discovery_page_mode_values"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="search_jump_modernDiscoveryMode"
+            android:title="@string/modern_discovery_page"
+            android:visible="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:title="@string/subscription_settings_title"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="false"
+            android:key="showRss"
+            android:title="@string/show_rss"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="search_jump_showRss"
+            android:title="@string/show_rss"
+            android:visible="false" />
+
+        <io.legado.app.lib.prefs.NameListPreference
+            android:defaultValue="modern"
+            android:key="modernRssMode"
+            android:summary="@string/modern_rss_page_summary"
+            android:title="@string/modern_rss_page"
+            app:entries="@array/rss_page_mode_entries"
+            app:entryValues="@array/page_mode_values"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="search_jump_modernRssMode"
+            android:title="@string/modern_rss_page"
+            android:visible="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="false"
+            android:key="mergeDiscoveryRss"
+            android:summary="@string/merge_discovery_rss_summary"
+            android:title="@string/merge_discovery_rss"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="search_jump_mergeDiscoveryRss"
+            android:title="@string/merge_discovery_rss"
+            android:visible="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

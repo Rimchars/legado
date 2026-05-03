@@ -44,13 +44,9 @@
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.Preference
-            android:key="discoverySettings"
-            android:title="@string/discovery_settings_title"
-            app:iconSpaceReserved="false" />
-
-        <io.legado.app.lib.prefs.Preference
-            android:key="subscriptionSettings"
-            android:title="@string/subscription_settings_title"
+            android:key="discoverySubscriptionSettings"
+            android:summary="@string/discovery_subscription_settings_summary"
+            android:title="@string/discovery_subscription_settings_title"
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.NameListPreference

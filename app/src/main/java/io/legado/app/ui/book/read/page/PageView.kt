@@ -665,7 +665,7 @@ class PageView(context: Context) : FrameLayout(context) {
 
     private fun advancedTitleTextSizeSp(): Float {
         return with(ReadBookConfig) {
-            (textSize + titleSize * 1.5f).coerceAtLeast(1f)
+            (textSize + titleSize * ADVANCED_TITLE_SIZE_FACTOR).coerceAtLeast(1f)
         }
     }
 
@@ -792,4 +792,8 @@ class PageView(context: Context) : FrameLayout(context) {
     fun hasNativeSelection(): Boolean = binding.contentTextView.hasNativeSelection()
 
     val selectStartPos get() = binding.contentTextView.selectStart
+
+    private companion object {
+        const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
+    }
 }
