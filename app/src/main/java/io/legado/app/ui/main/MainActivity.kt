@@ -344,10 +344,19 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 bottomNavigationGlassView.visibility = android.view.View.GONE
                 bottomNavigationIndicatorContainer.visibility = android.view.View.GONE
                 searchButtonGlassView.visibility = android.view.View.GONE
-                bottomNavigationShellOverlay.visibility = android.view.View.GONE
-                searchButtonShellOverlay.visibility = android.view.View.GONE
-                bottomNavigationView.setBackgroundResource(R.drawable.bg_eink_border_top)
-                searchButton.setBackgroundResource(R.drawable.bg_eink_circle_button)
+                bottomNavigationShellOverlay.visibility = android.view.View.VISIBLE
+                searchButtonShellOverlay.visibility = android.view.View.VISIBLE
+                bottomNavigationShellOverlay.background = createEInkBottomShellDrawable(
+                    cornerRadius = bottomBarCornerRadius,
+                    oval = false
+                )
+                searchButtonShellOverlay.background = createEInkBottomShellDrawable(
+                    cornerRadius = searchButtonCornerRadius,
+                    oval = true
+                )
+                bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
+                searchButton.setBackgroundColor(Color.TRANSPARENT)
+                searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
                 return
             }
             val effectMode = AppConfig.bottomBarEffectMode
@@ -492,6 +501,18 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             }
             setColor(baseColor)
             setStroke(1.dpToPx(), strokeColor)
+        }
+    }
+
+    private fun createEInkBottomShellDrawable(cornerRadius: Float, oval: Boolean): GradientDrawable {
+        val baseColor = bottomBackground
+        return GradientDrawable().apply {
+            shape = if (oval) GradientDrawable.OVAL else GradientDrawable.RECTANGLE
+            if (!oval) {
+                this.cornerRadius = cornerRadius
+            }
+            setColor(baseColor)
+            setStroke(1.dpToPx(), AppColorUtils.withAlpha(Color.BLACK, 0.42f))
         }
     }
 
