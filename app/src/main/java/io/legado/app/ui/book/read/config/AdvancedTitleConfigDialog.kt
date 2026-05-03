@@ -15,6 +15,7 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.cardview.widget.CardView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
@@ -102,8 +103,6 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(18.dpToPx(), 12.dpToPx(), 18.dpToPx(), 4.dpToPx())
-            background = context.filletBackground
-            clipToOutline = true
         }
 
         fun label(text: String) = TextView(context).apply {
@@ -261,7 +260,8 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         updatePreview()
 
         val scrollView = ScrollView(context).apply {
-            clipToOutline = true
+            isFillViewport = true
+            setBackgroundColor(ContextCompat.getColor(context, android.R.color.transparent))
             addView(
                 root,
                 ViewGroup.LayoutParams(
@@ -271,8 +271,23 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             )
         }
 
+        val container = CardView(context).apply {
+            radius = 16.dpToPx().toFloat()
+            cardElevation = 0f
+            preventCornerOverlap = false
+            useCompatPadding = false
+            background = context.filletBackground
+            addView(
+                scrollView,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+
         return AlertDialog.Builder(context)
-            .setView(scrollView)
+            .setView(container)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val rule = buildRule()
                 AdvancedTitleConfig.lottieJson = lottieJsonEdit.text?.toString().orEmpty()
