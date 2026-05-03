@@ -1,11 +1,15 @@
 package io.legado.app.help.config
 
+import com.airbnb.lottie.LottieCompositionFactory
 import io.legado.app.constant.PreferKey
 import io.legado.app.data.entities.Book
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
+import io.legado.app.utils.getPrefInt
 import io.legado.app.utils.getPrefString
+import io.legado.app.utils.putPrefInt
 import io.legado.app.utils.putPrefString
+import org.json.JSONObject
 import splitties.init.appCtx
 import java.io.File
 
@@ -15,6 +19,7 @@ object AdvancedTitleConfig {
     const val SPLIT_DELIMITER = 0
     const val SPLIT_REGEX = 1
     const val LOTTIE_BLOCK_ROLE = "advanced_title_lottie"
+    const val DEFAULT_HEIGHT_FACTOR = 55
     private const val BOOK_RULE_KEY = "advancedTitleRule"
 
     data class SplitRule(
@@ -49,6 +54,13 @@ object AdvancedTitleConfig {
             appCtx.putPrefString(PreferKey.advancedTitleLottiePath, value?.takeIf { it.isNotBlank() })
         }
 
+    var heightFactor: Int
+        get() = appCtx.getPrefInt(PreferKey.advancedTitleHeightFactor, DEFAULT_HEIGHT_FACTOR)
+            .coerceIn(30, 120)
+        set(value) {
+            appCtx.putPrefInt(PreferKey.advancedTitleHeightFactor, value.coerceIn(30, 120))
+        }
+
     fun bookRule(book: Book?): SplitRule? {
         val value = book?.getVariable(BOOK_RULE_KEY)?.takeIf { it.isNotBlank() } ?: return null
         return GSON.fromJsonObject<SplitRule>(value).getOrNull()
@@ -80,6 +92,23 @@ object AdvancedTitleConfig {
                 runCatching { File(path).takeIf { it.isFile }?.readText() }.getOrNull()
             }
         return raw?.let { replaceVariables(it, book, title) }
+    }
+
+    fun renderValidLottieJson(book: Book, title: String): String? {
+        val json = renderLottieJson(book, title)?.takeIf { it.isNotBlank() } ?: return null
+        return json.takeIf { isValidLottieJson(it) }
+    }
+
+    fun isValidLottieJson(json: String): Boolean {
+        return runCatching {
+            val obj = JSONObject(json)
+            obj.has("layers") &&
+                obj.optJSONArray("layers") != null &&
+                LottieCompositionFactory.fromJsonStringSync(
+                    json,
+                    "advanced-title-check:${json.hashCode()}"
+                ).value != null
+        }.getOrDefault(false)
     }
 
     fun preview(title: String, book: Book? = null): String {

@@ -84,6 +84,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         val sampleEdit = edit("第一章 接生")
         val lottieJsonEdit = edit(AdvancedTitleConfig.lottieJson.orEmpty(), minLines = 6)
         val lottiePathEdit = edit(AdvancedTitleConfig.lottiePath.orEmpty())
+        val heightFactorEdit = edit((AdvancedTitleConfig.heightFactor / 10f).toString())
         val preview = TextView(context).apply {
             setPadding(0, 8.dpToPx(), 0, 0)
         }
@@ -131,6 +132,8 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         root.addView(lottieJsonEdit)
         root.addView(label("Lottie JSON 文件路径，JSON字符串为空时生效"))
         root.addView(lottiePathEdit)
+        root.addView(label("标题高度，默认 5.5，范围 3.0-12.0"))
+        root.addView(heightFactorEdit)
 
         updatePreview()
 
@@ -151,6 +154,9 @@ class AdvancedTitleConfigDialog : DialogFragment() {
                 val rule = buildRule()
                 AdvancedTitleConfig.lottieJson = lottieJsonEdit.text?.toString().orEmpty()
                 AdvancedTitleConfig.lottiePath = lottiePathEdit.text?.toString().orEmpty()
+                AdvancedTitleConfig.heightFactor = runCatching {
+                    (heightFactorEdit.text?.toString()?.toFloatOrNull() ?: 5.5f).times(10).toInt()
+                }.getOrDefault(AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR)
                 if (scopeGroup.checkedRadioButtonId == rbBook.id && book != null) {
                     AdvancedTitleConfig.setBookRule(book, rule)
                     lifecycleScope.launch {
@@ -166,6 +172,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
                 AdvancedTitleConfig.globalRule = AdvancedTitleConfig.SplitRule()
                 AdvancedTitleConfig.lottieJson = null
                 AdvancedTitleConfig.lottiePath = null
+                AdvancedTitleConfig.heightFactor = AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR
                 book?.let {
                     AdvancedTitleConfig.setBookRule(it, null)
                     lifecycleScope.launch {

@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.LayerDrawable
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import com.airbnb.lottie.FontAssetDelegate
@@ -119,6 +120,9 @@ class PageView(context: Context) : FrameLayout(context) {
             tvFooterLeft.setColor(tipColor)
             tvFooterMiddle.setColor(tipColor)
             tvFooterRight.setColor(tipColor)
+            advancedTitleFallback.setTextColor(textColor)
+            advancedTitleFallback.textSize = (it.textSize + it.titleSize).toFloat()
+            advancedTitleFallback.typeface = ChapterProvider.titlePaint.typeface ?: ChapterProvider.typeface
             vwTopDivider.backgroundColor = tipDividerColor
             vwBottomDivider.backgroundColor = tipDividerColor
             upStatusBar()
@@ -568,10 +572,29 @@ class PageView(context: Context) : FrameLayout(context) {
 
     private fun upAdvancedTitleLottie(textPage: TextPage) {
         val lottieView = binding.advancedTitleLottie
+        val fallbackView = binding.advancedTitleFallback
         fun hide() {
             lottieView.cancelAnimation()
             advancedTitleLottieKey = null
             lottieView.visibility = GONE
+            fallbackView.visibility = GONE
+        }
+        fun showFallback(block: TextPage.EpubEmbeddedBlock) {
+            lottieView.cancelAnimation()
+            lottieView.visibility = GONE
+            advancedTitleLottieKey = null
+            val targetWidth = (block.width * 0.86f).toInt().coerceAtLeast(160)
+            val targetHeight = block.height.toInt().coerceAtLeast(1)
+            val params = fallbackView.layoutParams as ViewGroup.LayoutParams
+            if (params.width != targetWidth || params.height != targetHeight) {
+                params.width = targetWidth
+                params.height = targetHeight
+                fallbackView.layoutParams = params
+            }
+            fallbackView.translationY = block.offsetY
+            fallbackView.gravity = Gravity.CENTER
+            fallbackView.text = textPage.title
+            fallbackView.visibility = VISIBLE
         }
         if (ReadBookConfig.titleMode != AdvancedTitleConfig.TITLE_MODE_ADVANCED ||
             isScroll
@@ -601,15 +624,25 @@ class PageView(context: Context) : FrameLayout(context) {
         val nextKey = json?.let { "advanced_title:${it.hashCode()}" } ?: "advanced_title:raw"
         if (advancedTitleLottieKey != nextKey) {
             advancedTitleLottieKey = nextKey
-            if (json != null) {
-                lottieView.setAnimationFromJson(json, nextKey)
-            } else {
-                lottieView.setAnimation(R.raw.advanced_title_lottie)
+            runCatching {
+                if (json != null) {
+                    lottieView.setAnimationFromJson(json, nextKey)
+                } else {
+                    lottieView.setAnimation(R.raw.advanced_title_lottie)
+                }
+            }.onFailure {
+                showFallback(block)
+                return
             }
         }
+        fallbackView.visibility = GONE
         lottieView.visibility = VISIBLE
-        if (!lottieView.isAnimating) {
-            lottieView.playAnimation()
+        runCatching {
+            if (!lottieView.isAnimating) {
+                lottieView.playAnimation()
+            }
+        }.onFailure {
+            showFallback(block)
         }
     }
 

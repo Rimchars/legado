@@ -259,6 +259,8 @@ class TextChapterLayout(
             val advancedTitleHandled = titleMode == AdvancedTitleConfig.TITLE_MODE_ADVANCED &&
                 !bookChapter.isVolume &&
                 setTypeAdvancedTitle(book, displayTitle)
+            val advancedTitleFallback = titleMode == AdvancedTitleConfig.TITLE_MODE_ADVANCED &&
+                !advancedTitleHandled
             val titleLines: Array<String> = if (advancedTitleHandled) {
                 emptyArray()
             } else {
@@ -339,7 +341,8 @@ class TextChapterLayout(
                     clickList = clickList,
                     isTitle = true,
                     emptyContent = contents.isEmpty(),
-                    isVolumeTitle = bookChapter.isVolume
+                    isVolumeTitle = bookChapter.isVolume,
+                    forceMiddleTitle = advancedTitleFallback
                 )
                 pendingTextPage.lines.last().isParagraphEnd = true
                 stringBuilder.append("\n")
@@ -740,7 +743,8 @@ class TextChapterLayout(
     private suspend fun setTypeAdvancedTitle(book: Book, title: String): Boolean {
         if (title.isBlank()) return false
         currentCoroutineContext().ensureActive()
-        val blockHeight = (titlePaintTextHeight * 5.5f)
+        val lottieJson = AdvancedTitleConfig.renderValidLottieJson(book, title) ?: return false
+        val blockHeight = (titlePaintTextHeight * AdvancedTitleConfig.heightFactor / 10f)
             .coerceAtLeast(80f)
             .coerceAtMost(visibleHeight * 0.35f)
         prepareNextPageIfNeed(durY + blockHeight)
@@ -752,7 +756,7 @@ class TextChapterLayout(
                 height = blockHeight,
                 commands = emptyList(),
                 role = AdvancedTitleConfig.LOTTIE_BLOCK_ROLE,
-                payload = AdvancedTitleConfig.renderLottieJson(book, title)
+                payload = lottieJson
             )
         )
         durY += blockHeight + titleBottomSpacing
@@ -1883,6 +1887,7 @@ class TextChapterLayout(
         isFirstLine: Boolean = true,
         emptyContent: Boolean = false,
         isVolumeTitle: Boolean = false,
+        forceMiddleTitle: Boolean = false,
         srcList: LinkedList<String>? = null,
         clickList: LinkedList<String?>?
     ) {
@@ -1953,7 +1958,7 @@ class TextChapterLayout(
                     //标题x轴居中
                     val startX = if (
                         isTitle &&
-                        (isMiddleTitle || emptyContent || isVolumeTitle
+                        (isMiddleTitle || forceMiddleTitle || emptyContent || isVolumeTitle
                                 || imageStyle?.uppercase() == Book.imgStyleSingle)
                     ) {
                         (visibleWidth - desiredWidth) / 2
@@ -1968,7 +1973,7 @@ class TextChapterLayout(
                 else -> {
                     if (
                         isTitle &&
-                        (isMiddleTitle || emptyContent || isVolumeTitle
+                        (isMiddleTitle || forceMiddleTitle || emptyContent || isVolumeTitle
                                 || imageStyle?.uppercase() == Book.imgStyleSingle)
                     ) {
                         //标题居中
