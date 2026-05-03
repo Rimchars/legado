@@ -17,12 +17,18 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.constant.EventBus
 import io.legado.app.data.entities.Book
 import io.legado.app.help.config.AdvancedTitleConfig
+import io.legado.app.help.http.newCallResponseBody
+import io.legado.app.help.http.okHttpClient
+import io.legado.app.lib.dialogs.SelectItem
+import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.filletBackground
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.code.CodeEditActivity
 import io.legado.app.ui.file.HandleFileContract
@@ -40,6 +46,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         get() = ReadBook.book
     private var jsonEdit: EditText? = null
     private var currentJson: String = AdvancedTitleConfig.lottieJson.orEmpty()
+    private val importFormNet = "网络导入"
 
     private val jsonEditLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -52,13 +59,17 @@ class AdvancedTitleConfigDialog : DialogFragment() {
 
     private val importJson = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
-            runCatching {
-                uri.readText(requireContext())
-            }.onSuccess { text ->
-                currentJson = text
-                jsonEdit?.setText(text)
-            }.onFailure { error ->
-                context?.toastOnUi("导入失败：${error.localizedMessage}")
+            if (uri.path == "/$importFormNet") {
+                importNetJsonAlert()
+            } else {
+                runCatching {
+                    uri.readText(requireContext())
+                }.onSuccess { text ->
+                    currentJson = text
+                    jsonEdit?.setText(text)
+                }.onFailure { error ->
+                    context?.toastOnUi("导入失败：${error.localizedMessage}")
+                }
             }
         }
     }
@@ -79,6 +90,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(18.dpToPx(), 12.dpToPx(), 18.dpToPx(), 4.dpToPx())
+            background = context.filletBackground
         }
 
         fun label(text: String) = TextView(context).apply {
@@ -134,9 +146,11 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             )
             setHorizontallyScrolling(true)
             setSingleLine(false)
-            setOnClickListener { openJsonEditor() }
         }
         jsonEdit = lottieJsonEdit
+        val openEditorButton = button("打开编辑器").apply {
+            setOnClickListener { openJsonEditor() }
+        }
         val preview = TextView(context).apply {
             setPadding(0, 8.dpToPx(), 0, 0)
         }
@@ -181,11 +195,17 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         root.addView(sampleEdit)
         root.addView(preview)
         root.addView(label("高级标题 JSON"))
+        root.addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            addView(openEditorButton)
+        })
         root.addView(lottieJsonEdit)
         root.addView(TextView(context).apply {
-            text = "支持 ${'$'}{s1}/${'$'}{s2}，点击输入框全屏编辑"
+            text = "支持 ${'$'}{s1}/${'$'}{s2}"
             textSize = 12f
             setPadding(0, 4.dpToPx(), 0, 6.dpToPx())
+            setTextColor(ContextCompat.getColor(context, android.R.color.darker_gray))
         })
         root.addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -196,6 +216,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
                         mode = HandleFileContract.FILE
                         title = "导入高级标题"
                         allowExtensions = arrayOf("json")
+                        otherActions = arrayListOf(SelectItem(importFormNet, -1))
                     }
                 }
             })
@@ -261,6 +282,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             .create().apply {
                 setOnShowListener {
                     window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                    window?.setBackgroundDrawableResource(android.R.color.transparent)
                     window?.setLayout(
                         (resources.displayMetrics.widthPixels * 0.92f).toInt(),
                         (resources.displayMetrics.heightPixels * 0.78f).toInt()
@@ -269,13 +291,39 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             }
     }
 
+    private fun importNetJsonAlert() {
+        context?.alert("输入地址") {
+            val input = EditText(requireContext()).apply { hint = "https://..." }
+            customView { input }
+            okButton {
+                val url = input.text?.toString().orEmpty().trim()
+                if (url.isNotEmpty()) importNetJson(url)
+            }
+            cancelButton()
+        }
+    }
+
+    private fun importNetJson(url: String) {
+        lifecycleScope.launch {
+            runCatching {
+                okHttpClient.newCallResponseBody {
+                    url(url)
+                }.string()
+            }.onSuccess { text ->
+                currentJson = text
+                jsonEdit?.setText(text)
+            }.onFailure { error ->
+                context?.toastOnUi("网络导入失败：${error.localizedMessage}")
+            }
+        }
+    }
+
     private fun openJsonEditor() {
         val editText = jsonEdit ?: return
         currentJson = editText.text?.toString().orEmpty()
         jsonEditLauncher.launch(Intent(requireActivity(), CodeEditActivity::class.java).apply {
             putExtra("text", currentJson)
             putExtra("title", "高级标题 JSON")
-            putExtra("languageName", "source.json")
             putExtra("cursorPosition", editText.selectionStart.coerceAtLeast(0))
         })
     }

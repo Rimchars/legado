@@ -29,6 +29,7 @@ import io.legado.app.help.config.AdvancedTitleConfig
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
+import io.legado.app.help.http.okHttpClient
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.book.read.page.entities.TextLine
@@ -42,10 +43,14 @@ import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.decodeBase64DataUrlBytes
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.gone
+import io.legado.app.utils.SvgUtils
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.setTextIfNotEqual
+import okhttp3.Request
 import splitties.views.backgroundColor
+import java.io.ByteArrayInputStream
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 页面视图
@@ -69,6 +74,7 @@ class PageView(context: Context) : FrameLayout(context) {
     private var isMainView = false
     private var currentTextPage: TextPage? = null
     private var advancedTitleLottieKey: String? = null
+    private val lottieImageCache = ConcurrentHashMap<String, android.graphics.Bitmap?>()
     var isScroll = false
 
     val headerHeight: Int
@@ -647,11 +653,50 @@ class PageView(context: Context) : FrameLayout(context) {
     }
 
     private val dataUriImageAssetDelegate = ImageAssetDelegate { asset: LottieImageAsset ->
-        val source = listOf(asset.fileName, asset.dirName.orEmpty() + asset.fileName)
-            .firstOrNull { it.startsWith("data:image", ignoreCase = true) }
-            ?: return@ImageAssetDelegate null
-        val bytes = source.decodeBase64DataUrlBytes() ?: return@ImageAssetDelegate null
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        val source = resolveLottieAssetSource(asset) ?: return@ImageAssetDelegate null
+        lottieImageCache[source]?.let { return@ImageAssetDelegate it }
+        val bitmap = loadLottieAssetBitmap(source)
+        lottieImageCache[source] = bitmap
+        bitmap
+    }
+
+    private fun resolveLottieAssetSource(asset: LottieImageAsset): String? {
+        val candidates = arrayListOf<String>()
+        asset.fileName?.let { candidates.add(it) }
+        if (!asset.dirName.isNullOrBlank() && !asset.fileName.isNullOrBlank()) {
+            candidates.add(asset.dirName + asset.fileName)
+        }
+        return candidates.firstOrNull { candidate ->
+            candidate.startsWith("data:image", ignoreCase = true)
+                || candidate.startsWith("http://", ignoreCase = true)
+                || candidate.startsWith("https://", ignoreCase = true)
+        }
+    }
+
+    private fun loadLottieAssetBitmap(source: String): android.graphics.Bitmap? {
+        return runCatching {
+            if (source.startsWith("data:image", ignoreCase = true)) {
+                val bytes = source.decodeBase64DataUrlBytes() ?: return@runCatching null
+                decodeBitmapByType(source, bytes)
+            } else {
+                val bytes = okHttpClient.newCall(
+                    Request.Builder().url(source).build()
+                ).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    response.body?.bytes()
+                } ?: return@runCatching null
+                decodeBitmapByType(source, bytes)
+            }
+        }.getOrNull()
+    }
+
+    private fun decodeBitmapByType(source: String, bytes: ByteArray): android.graphics.Bitmap? {
+        val lower = source.lowercase()
+        return if (lower.contains("image/svg+xml") || lower.endsWith(".svg")) {
+            SvgUtils.createBitmap(ByteArrayInputStream(bytes), 1200, 1200)
+        } else {
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        }
     }
 
     private val defaultFontAssetDelegate = object : FontAssetDelegate() {
