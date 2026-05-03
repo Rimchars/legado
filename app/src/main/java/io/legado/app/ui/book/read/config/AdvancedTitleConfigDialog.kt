@@ -5,9 +5,9 @@ import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
+import io.legado.app.R
 import io.legado.app.constant.EventBus
 import io.legado.app.data.entities.Book
 import io.legado.app.help.config.AdvancedTitleConfig
@@ -36,6 +37,7 @@ import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.postEvent
 import io.legado.app.utils.readText
+import io.legado.app.utils.sendToClip
 import io.legado.app.utils.toastOnUi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -76,8 +78,21 @@ class AdvancedTitleConfigDialog : DialogFragment() {
     }
 
     private val exportJson = registerForActivityResult(HandleFileContract()) {
-        if (it.uri != null) {
-            context?.toastOnUi("已导出")
+        val uri = it.uri
+        if (uri != null) {
+            val url = uri.toString()
+            if (url.startsWith("http://", true) || url.startsWith("https://", true)) {
+                context?.alert("上传成功") {
+                    setMessage(url)
+                    positiveButton(R.string.copy_text) {
+                        requireContext().sendToClip(url)
+                        context?.toastOnUi(getString(R.string.copy_complete))
+                    }
+                    negativeButton(R.string.cancel)
+                }
+            } else {
+                context?.toastOnUi("已导出")
+            }
         }
     }
 
@@ -118,9 +133,13 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             setSingleLine(minLines == 1)
         }
 
-        fun button(text: String) = Button(context).apply {
+        fun button(text: String) = TextView(context).apply {
             this.text = text
-            isAllCaps = false
+            gravity = Gravity.CENTER
+            background = ContextCompat.getDrawable(context, R.drawable.bg_book_info_subtle_button)
+            setPadding(12.dpToPx(), 8.dpToPx(), 12.dpToPx(), 8.dpToPx())
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, R.color.primaryText))
         }
 
         val scopeGroup = RadioGroup(context).apply {
@@ -232,6 +251,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             gravity = Gravity.CENTER_VERTICAL
             addView(button("导入").apply {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                (layoutParams as LinearLayout.LayoutParams).marginEnd = 6.dpToPx()
                 setOnClickListener {
                     importJson.launch {
                         mode = HandleFileContract.FILE
@@ -243,6 +263,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             })
             addView(button("导出").apply {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                (layoutParams as LinearLayout.LayoutParams).marginStart = 6.dpToPx()
                 setOnClickListener {
                     val json = lottieJsonEdit.text?.toString().orEmpty()
                     exportJson.launch {
@@ -253,6 +274,62 @@ class AdvancedTitleConfigDialog : DialogFragment() {
                             "application/json"
                         )
                     }
+                }
+            })
+        })
+        root.addView(View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                1.dpToPx()
+            ).apply {
+                topMargin = 10.dpToPx()
+            }
+            setBackgroundColor(ContextCompat.getColor(context, R.color.divider))
+        })
+        root.addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 10.dpToPx(), 0, 6.dpToPx())
+            addView(button("恢复默认").apply {
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                (layoutParams as LinearLayout.LayoutParams).marginEnd = 6.dpToPx()
+                setOnClickListener {
+                    AdvancedTitleConfig.globalRule = AdvancedTitleConfig.SplitRule()
+                    AdvancedTitleConfig.lottieJson = null
+                    AdvancedTitleConfig.lottiePath = null
+                    AdvancedTitleConfig.heightFactor = AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR
+                    book?.let {
+                        AdvancedTitleConfig.setBookRule(it, null)
+                        lifecycleScope.launch {
+                            withContext(Dispatchers.IO) { it.save() }
+                        }
+                    }
+                    postEvent(EventBus.UP_CONFIG, arrayListOf(5, 8))
+                    dismissAllowingStateLoss()
+                }
+            })
+            addView(button("取消").apply {
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { dismissAllowingStateLoss() }
+            })
+            addView(button("确认").apply {
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                (layoutParams as LinearLayout.LayoutParams).marginStart = 6.dpToPx()
+                setOnClickListener {
+                    val rule = buildRule()
+                    AdvancedTitleConfig.lottieJson = lottieJsonEdit.text?.toString().orEmpty()
+                    AdvancedTitleConfig.lottiePath = null
+                    AdvancedTitleConfig.heightFactor = AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR
+                    if (scopeGroup.checkedRadioButtonId == rbBook.id && book != null) {
+                        AdvancedTitleConfig.setBookRule(book, rule)
+                        lifecycleScope.launch {
+                            withContext(Dispatchers.IO) { book.save() }
+                        }
+                    } else {
+                        AdvancedTitleConfig.globalRule = rule
+                    }
+                    postEvent(EventBus.UP_CONFIG, arrayListOf(5, 8))
+                    dismissAllowingStateLoss()
                 }
             })
         })
@@ -288,35 +365,6 @@ class AdvancedTitleConfigDialog : DialogFragment() {
 
         return AlertDialog.Builder(context)
             .setView(container)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                val rule = buildRule()
-                AdvancedTitleConfig.lottieJson = lottieJsonEdit.text?.toString().orEmpty()
-                AdvancedTitleConfig.lottiePath = null
-                AdvancedTitleConfig.heightFactor = AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR
-                if (scopeGroup.checkedRadioButtonId == rbBook.id && book != null) {
-                    AdvancedTitleConfig.setBookRule(book, rule)
-                    lifecycleScope.launch {
-                        withContext(Dispatchers.IO) { book.save() }
-                    }
-                } else {
-                    AdvancedTitleConfig.globalRule = rule
-                }
-                postEvent(EventBus.UP_CONFIG, arrayListOf(5, 8))
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .setNeutralButton("恢复默认") { _, _ ->
-                AdvancedTitleConfig.globalRule = AdvancedTitleConfig.SplitRule()
-                AdvancedTitleConfig.lottieJson = null
-                AdvancedTitleConfig.lottiePath = null
-                AdvancedTitleConfig.heightFactor = AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR
-                book?.let {
-                    AdvancedTitleConfig.setBookRule(it, null)
-                    lifecycleScope.launch {
-                        withContext(Dispatchers.IO) { it.save() }
-                    }
-                }
-                postEvent(EventBus.UP_CONFIG, arrayListOf(5, 8))
-            }
             .create()
     }
 
