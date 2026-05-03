@@ -108,6 +108,11 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
                             withContext(IO) {
                                 appDb.readRecordDao.clear()
                                 appDb.readRecordDailyDao.clear()
+                                appDb.bookDao.all.forEach { book ->
+                                    book.durChapterTime = 0L
+                                    book.durChapterTitle = null
+                                    appDb.bookDao.update(book)
+                                }
                             }
                             loadData(force = true)
                         }

@@ -90,9 +90,18 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
             R.id.menu_clear_record -> {
                 alert(R.string.delete, R.string.sure_del) {
                     yesButton {
-                        appDb.readRecordDao.clear()
-                        appDb.readRecordDailyDao.clear()
-                        loadData()
+                        lifecycleScope.launch {
+                            withContext(IO) {
+                                appDb.readRecordDao.clear()
+                                appDb.readRecordDailyDao.clear()
+                                appDb.bookDao.all.forEach { book ->
+                                    book.durChapterTime = 0L
+                                    book.durChapterTitle = null
+                                    appDb.bookDao.update(book)
+                                }
+                            }
+                            loadData()
+                        }
                     }
                     noButton()
                 }
