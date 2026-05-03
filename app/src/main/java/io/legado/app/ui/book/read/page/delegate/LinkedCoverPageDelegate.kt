@@ -22,7 +22,6 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
     private val linkedOffset get() = viewWidth * 0.2f
     private val maxMaskAlpha = 102
     private val maxCurrentMaskAlpha = 76
-    private val animationSpeedMultiplier = 1.5f
 
     override fun scrollInterpolator(): Interpolator = PathInterpolator(0.4f, 0f, 0.2f, 1f)
 
@@ -43,7 +42,7 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
     }
 
     private fun drawNext(canvas: Canvas, offsetX: Float) {
-        val progress = smoothProgress((-offsetX / viewWidth).coerceIn(0f, 1f))
+        val progress = displayProgress((-offsetX / viewWidth).coerceIn(0f, 1f))
         val currentLeft = -viewWidth * progress
         val currentRight = viewWidth + currentLeft
         val nextLeft = linkedOffset * (1f - progress)
@@ -63,7 +62,7 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
     }
 
     private fun drawPrev(canvas: Canvas, offsetX: Float) {
-        val progress = smoothProgress((offsetX / viewWidth).coerceIn(0f, 1f))
+        val progress = displayProgress((offsetX / viewWidth).coerceIn(0f, 1f))
         val prevLeft = -viewWidth + viewWidth * progress
         val currentLeft = linkedOffset * progress
 
@@ -77,9 +76,13 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
         addEdgeShadow((prevLeft + viewWidth).coerceIn(0f, viewWidth.toFloat()), canvas)
     }
 
+    private fun displayProgress(progress: Float): Float {
+        return if (isStarted) smoothProgress(progress) else progress
+    }
+
     private fun smoothProgress(progress: Float): Float {
-        val eased = progress * progress * (3f - 2f * progress)
-        return (0.3f * progress + 0.7f * eased).coerceIn(0f, 1f)
+        val eased = 1f - (1f - progress) * (1f - progress) * (1f - progress)
+        return (0.2f * progress + 0.8f * eased).coerceIn(0f, 1f)
     }
 
     private fun drawNextMask(canvas: Canvas, left: Float, right: Float, progress: Float) {
@@ -141,7 +144,7 @@ class LinkedCoverPageDelegate(readView: ReadView) : HorizontalPageDelegate(readV
             0,
             distanceX.toInt(),
             0,
-            (animationSpeed * animationSpeedMultiplier).toInt()
+            (animationSpeed * 1.35f).toInt()
         )
     }
 

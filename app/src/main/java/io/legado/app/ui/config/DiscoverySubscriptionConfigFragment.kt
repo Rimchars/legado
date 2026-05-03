@@ -75,7 +75,6 @@ class DiscoverySubscriptionConfigFragment : PreferenceFragment(),
         val useModern = preferenceManager.sharedPreferences
             ?.getBoolean(booleanKey, defaultValue) ?: defaultValue
         preference.value = if (useModern) PAGE_MODE_MODERN else PAGE_MODE_LEGACY
-        updateModeSummary(preference)
         preference.setOnPreferenceChangeListener { _, newValue ->
             val nextValue = newValue?.toString().orEmpty()
             val useModernMode = nextValue == PAGE_MODE_MODERN
@@ -83,16 +82,9 @@ class DiscoverySubscriptionConfigFragment : PreferenceFragment(),
             preferenceManager.sharedPreferences?.edit()
                 ?.putBoolean(booleanKey, useModernMode)
                 ?.apply()
-            updateModeSummary(preference)
             postEvent(EventBus.NOTIFY_MAIN, false)
             true
         }
-    }
-
-    private fun updateModeSummary(preference: NameListPreference?) {
-        preference ?: return
-        val index = preference.findIndexOfValue(preference.value)
-        preference.summary = if (index >= 0) preference.entries[index] else preference.summary
     }
 
     private fun consumeTargetKey() {
