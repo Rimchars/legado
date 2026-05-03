@@ -213,13 +213,6 @@
         app:iconSpaceReserved="false"
         app:isBottomBackground="true" />
 
-    <io.legado.app.lib.prefs.Preference
-        android:key="advancedTitleConfig"
-        android:summary="管理高级标题分隔规则和CSS样式"
-        android:title="高级标题设置"
-        app:iconSpaceReserved="false"
-        app:isBottomBackground="true" />
-
     <io.legado.app.lib.prefs.SwitchPreference
         android:defaultValue="true"
         android:key="showReadTitleAddition"

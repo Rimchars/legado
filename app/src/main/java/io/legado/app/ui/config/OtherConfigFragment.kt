@@ -31,7 +31,6 @@ import io.legado.app.model.ImageProvider
 import io.legado.app.receiver.SharedReceiverActivity
 import io.legado.app.service.WebService
 import io.legado.app.ui.file.HandleFileContract
-import io.legado.app.ui.book.read.config.AdvancedTitleConfigDialog
 import io.legado.app.ui.book.read.config.ContentSelectMenuConfigDialog
 import io.legado.app.ui.video.config.SettingsDialog
 import io.legado.app.ui.widget.code.addJsonPattern
@@ -146,8 +145,6 @@ class OtherConfigFragment : PreferenceFragment(),
             PreferKey.cleanCache -> clearCache()
             PreferKey.contentSelectMenuConfig -> ContentSelectMenuConfigDialog()
                 .show(parentFragmentManager, "contentSelectMenuConfig")
-            PreferKey.advancedTitleConfig -> AdvancedTitleConfigDialog()
-                .show(parentFragmentManager, "advancedTitleConfig")
             PreferKey.uploadRule -> showDialogFragment<DirectLinkUploadConfig>()
             "discoverySettings" -> {
                 startActivity(Intent(requireContext(), ConfigActivity::class.java).apply {

@@ -79,12 +79,6 @@
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.Preference
-            android:key="advancedTitleConfig"
-            android:summary="管理高级标题分隔规则和CSS样式"
-            android:title="高级标题设置"
-            app:iconSpaceReserved="false" />
-
-        <io.legado.app.lib.prefs.Preference
             android:key="localPassword"
             android:summary="@string/set_local_password_summary"
             android:title="@string/set_local_password" />

@@ -1,8 +1,13 @@
 package io.legado.app.ui.book.read.config
 
+import android.app.Activity.RESULT_OK
 import android.app.Dialog
+import android.content.Intent
 import android.os.Bundle
+import android.view.Gravity
 import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -10,6 +15,7 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
@@ -18,8 +24,12 @@ import io.legado.app.constant.EventBus
 import io.legado.app.data.entities.Book
 import io.legado.app.help.config.AdvancedTitleConfig
 import io.legado.app.model.ReadBook
+import io.legado.app.ui.code.CodeEditActivity
+import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.postEvent
+import io.legado.app.utils.readText
+import io.legado.app.utils.toastOnUi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,6 +38,36 @@ class AdvancedTitleConfigDialog : DialogFragment() {
 
     private val currentBook: Book?
         get() = ReadBook.book
+    private var jsonEdit: EditText? = null
+    private var currentJson: String = AdvancedTitleConfig.lottieJson.orEmpty()
+
+    private val jsonEditLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            result.data?.getStringExtra("text")?.let { text ->
+                currentJson = text
+                jsonEdit?.setText(text)
+            }
+        }
+    }
+
+    private val importJson = registerForActivityResult(HandleFileContract()) {
+        it.uri?.let { uri ->
+            runCatching {
+                uri.readText(requireContext())
+            }.onSuccess { text ->
+                currentJson = text
+                jsonEdit?.setText(text)
+            }.onFailure { error ->
+                context?.toastOnUi("导入失败：${error.localizedMessage}")
+            }
+        }
+    }
+
+    private val exportJson = registerForActivityResult(HandleFileContract()) {
+        if (it.uri != null) {
+            context?.toastOnUi("已导出")
+        }
+    }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val context = requireContext()
@@ -52,6 +92,11 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             this.minLines = minLines
             maxLines = if (minLines > 1) 8 else 2
             setSingleLine(minLines == 1)
+        }
+
+        fun button(text: String) = Button(context).apply {
+            this.text = text
+            isAllCaps = false
         }
 
         val scopeGroup = RadioGroup(context).apply {
@@ -82,9 +127,16 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             }
         )
         val sampleEdit = edit("第一章 接生")
-        val lottieJsonEdit = edit(AdvancedTitleConfig.lottieJson.orEmpty(), minLines = 6)
-        val lottiePathEdit = edit(AdvancedTitleConfig.lottiePath.orEmpty())
-        val heightFactorEdit = edit((AdvancedTitleConfig.heightFactor / 10f).toString())
+        val lottieJsonEdit = edit(currentJson, minLines = 6).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                150.dpToPx()
+            )
+            setHorizontallyScrolling(true)
+            setSingleLine(false)
+            setOnClickListener { openJsonEditor() }
+        }
+        jsonEdit = lottieJsonEdit
         val preview = TextView(context).apply {
             setPadding(0, 8.dpToPx(), 0, 0)
         }
@@ -122,18 +174,45 @@ class AdvancedTitleConfigDialog : DialogFragment() {
 
         root.addView(label("作用范围"))
         root.addView(scopeGroup)
-        root.addView(label("分隔规则，不勾选时按符号分隔，勾选后按正则分隔"))
+        root.addView(label("分隔规则"))
         root.addView(useRegexCheck)
         root.addView(ruleEdit)
-        root.addView(label("预览章节名"))
+        root.addView(label("预览"))
         root.addView(sampleEdit)
         root.addView(preview)
-        root.addView(label("Lottie JSON 字符串，支持 ${'$'}{s1}/${'$'}{s2} 和 data:image"))
+        root.addView(label("高级标题 JSON"))
         root.addView(lottieJsonEdit)
-        root.addView(label("Lottie JSON 文件路径，JSON字符串为空时生效"))
-        root.addView(lottiePathEdit)
-        root.addView(label("标题高度，默认 5.5，范围 3.0-12.0"))
-        root.addView(heightFactorEdit)
+        root.addView(TextView(context).apply {
+            text = "支持 ${'$'}{s1}/${'$'}{s2}，点击输入框全屏编辑"
+            textSize = 12f
+            setPadding(0, 4.dpToPx(), 0, 6.dpToPx())
+        })
+        root.addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            addView(button("导入").apply {
+                setOnClickListener {
+                    importJson.launch {
+                        mode = HandleFileContract.FILE
+                        title = "导入高级标题"
+                        allowExtensions = arrayOf("json")
+                    }
+                }
+            })
+            addView(button("导出").apply {
+                setOnClickListener {
+                    val json = lottieJsonEdit.text?.toString().orEmpty()
+                    exportJson.launch {
+                        mode = HandleFileContract.EXPORT
+                        fileData = HandleFileContract.FileData(
+                            "advancedTitle.json",
+                            json.toByteArray(),
+                            "application/json"
+                        )
+                    }
+                }
+            })
+        })
 
         updatePreview()
 
@@ -148,15 +227,13 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         }
 
         return AlertDialog.Builder(context)
-            .setTitle("高级设置")
+            .setTitle("高级标题设置")
             .setView(scrollView)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val rule = buildRule()
                 AdvancedTitleConfig.lottieJson = lottieJsonEdit.text?.toString().orEmpty()
-                AdvancedTitleConfig.lottiePath = lottiePathEdit.text?.toString().orEmpty()
-                AdvancedTitleConfig.heightFactor = runCatching {
-                    (heightFactorEdit.text?.toString()?.toFloatOrNull() ?: 5.5f).times(10).toInt()
-                }.getOrDefault(AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR)
+                AdvancedTitleConfig.lottiePath = null
+                AdvancedTitleConfig.heightFactor = AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR
                 if (scopeGroup.checkedRadioButtonId == rbBook.id && book != null) {
                     AdvancedTitleConfig.setBookRule(book, rule)
                     lifecycleScope.launch {
@@ -181,6 +258,25 @@ class AdvancedTitleConfigDialog : DialogFragment() {
                 }
                 postEvent(EventBus.UP_CONFIG, arrayListOf(5, 8))
             }
-            .create()
+            .create().apply {
+                setOnShowListener {
+                    window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                    window?.setLayout(
+                        (resources.displayMetrics.widthPixels * 0.92f).toInt(),
+                        (resources.displayMetrics.heightPixels * 0.78f).toInt()
+                    )
+                }
+            }
+    }
+
+    private fun openJsonEditor() {
+        val editText = jsonEdit ?: return
+        currentJson = editText.text?.toString().orEmpty()
+        jsonEditLauncher.launch(Intent(requireActivity(), CodeEditActivity::class.java).apply {
+            putExtra("text", currentJson)
+            putExtra("title", "高级标题 JSON")
+            putExtra("languageName", "source.json")
+            putExtra("cursorPosition", editText.selectionStart.coerceAtLeast(0))
+        })
     }
 }

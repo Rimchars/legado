@@ -3,7 +3,6 @@ package io.legado.app.ui.book.read.config
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.view.indices
 import com.jaredrummler.android.colorpicker.ColorPickerDialog
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
@@ -46,10 +45,10 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
     }
 
     private fun initView() {
-        if (ReadBookConfig.titleMode !in binding.rgTitleMode.indices) {
+        if (ReadBookConfig.titleMode !in 0..AdvancedTitleConfig.TITLE_MODE_ADVANCED) {
             ReadBookConfig.titleMode = 0
         }
-        binding.rgTitleMode.checkByIndex(ReadBookConfig.titleMode)
+        binding.rgTitleMode.checkByIndex(titleModeToUiIndex(ReadBookConfig.titleMode))
         upAdvancedTitleConfigState()
         binding.dsbTitleSize.progress = ReadBookConfig.titleSize
         binding.dsbTitleTop.progress = ReadBookConfig.titleTopSpacing
@@ -101,7 +100,7 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
 
     private fun initEvent() = binding.run {
         rgTitleMode.setOnCheckedChangeListener { _, checkedId ->
-            ReadBookConfig.titleMode = rgTitleMode.getIndexById(checkedId)
+            ReadBookConfig.titleMode = uiIndexToTitleMode(rgTitleMode.getIndexById(checkedId))
             upAdvancedTitleConfigState()
             postEvent(EventBus.UP_CONFIG, arrayListOf(5))
         }
@@ -230,6 +229,22 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
         val enabled = ReadBookConfig.titleMode == AdvancedTitleConfig.TITLE_MODE_ADVANCED
         binding.llAdvancedTitleConfig.isEnabled = enabled
         binding.llAdvancedTitleConfig.alpha = if (enabled) 1f else 0.55f
+    }
+
+    private fun titleModeToUiIndex(titleMode: Int): Int {
+        return when (titleMode) {
+            AdvancedTitleConfig.TITLE_MODE_ADVANCED -> 2
+            2 -> 3
+            else -> titleMode
+        }
+    }
+
+    private fun uiIndexToTitleMode(index: Int): Int {
+        return when (index) {
+            2 -> AdvancedTitleConfig.TITLE_MODE_ADVANCED
+            3 -> 2
+            else -> index
+        }
     }
 
     private fun clearRepeat(repeat: Int) = ReadTipConfig.apply {

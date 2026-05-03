@@ -17,6 +17,30 @@
             android:text="@string/body_title"
             android:textSize="18sp" />
 
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_title_size"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="3dp"
+            app:max="20"
+            app:title="@string/title_font_size" />
+
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_title_top"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="3dp"
+            app:max="100"
+            app:title="@string/title_margin_top" />
+
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_title_bottom"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="3dp"
+            app:max="100"
+            app:title="@string/title_margin_bottom" />
+
         <RadioGroup
             android:id="@+id/rg_title_mode"
             android:layout_width="match_parent"
@@ -42,14 +66,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:padding="3dp"
-                android:text="@string/title_hide" />
+                android:text="高级" />
 
             <RadioButton
                 android:id="@+id/rb_title_mode4"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:padding="3dp"
-                android:text="高级" />
+                android:text="@string/title_hide" />
         </RadioGroup>
 
         <LinearLayout
@@ -72,33 +96,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:padding="6dp"
-                android:text="分隔规则和CSS"
+                android:text="分隔规则和样式"
                 android:textColor="@color/primaryText" />
         </LinearLayout>
-
-        <io.legado.app.ui.widget.DetailSeekBar
-            android:id="@+id/dsb_title_size"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="3dp"
-            app:max="20"
-            app:title="@string/title_font_size" />
-
-        <io.legado.app.ui.widget.DetailSeekBar
-            android:id="@+id/dsb_title_top"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="3dp"
-            app:max="100"
-            app:title="@string/title_margin_top" />
-
-        <io.legado.app.ui.widget.DetailSeekBar
-            android:id="@+id/dsb_title_bottom"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="3dp"
-            app:max="100"
-            app:title="@string/title_margin_bottom" />
 
         <io.legado.app.ui.widget.text.AccentTextView
             android:id="@+id/tv_header_padding"

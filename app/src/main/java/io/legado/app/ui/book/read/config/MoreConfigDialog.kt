@@ -200,10 +200,6 @@ class MoreConfigDialog : BasePrefDialogFragment() {
                 PreferKey.contentSelectMenuConfig -> {
                     ContentSelectMenuConfigDialog().show(parentFragmentManager, "contentSelectMenuConfig")
                 }
-                PreferKey.advancedTitleConfig -> {
-                    AdvancedTitleConfigDialog().show(parentFragmentManager, "advancedTitleConfig")
-                }
-
                 PreferKey.pageTouchSlop -> {
                     NumberPickerDialog(requireContext())
                         .setTitle(getString(R.string.page_touch_slop_dialog_title))
