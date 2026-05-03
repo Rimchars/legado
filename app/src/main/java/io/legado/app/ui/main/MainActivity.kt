@@ -347,8 +347,14 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 searchButtonGlassView.visibility = android.view.View.GONE
                 bottomNavigationShellOverlay.visibility = android.view.View.VISIBLE
                 searchButtonShellOverlay.visibility = android.view.View.VISIBLE
-                bottomNavigationShellOverlay.setBackgroundResource(R.drawable.bg_eink_border_top)
-                searchButtonShellOverlay.setBackgroundResource(R.drawable.bg_eink_circle_button)
+                bottomNavigationShellOverlay.background = createEInkBottomShellDrawable(
+                    cornerRadius = bottomBarCornerRadius,
+                    oval = false
+                )
+                searchButtonShellOverlay.background = createEInkBottomShellDrawable(
+                    cornerRadius = searchButtonCornerRadius,
+                    oval = true
+                )
                 bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
                 searchButton.setBackgroundColor(Color.TRANSPARENT)
                 searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
@@ -496,6 +502,18 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             }
             setColor(baseColor)
             setStroke(1.dpToPx(), strokeColor)
+        }
+    }
+
+    private fun createEInkBottomShellDrawable(cornerRadius: Float, oval: Boolean): GradientDrawable {
+        val baseColor = bottomBackground
+        return GradientDrawable().apply {
+            shape = if (oval) GradientDrawable.OVAL else GradientDrawable.RECTANGLE
+            if (!oval) {
+                this.cornerRadius = cornerRadius
+            }
+            setColor(baseColor)
+            setStroke(1.dpToPx(), AppColorUtils.withAlpha(Color.BLACK, 0.42f))
         }
     }
 
