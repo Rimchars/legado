@@ -280,13 +280,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         discoverAllTagItems.clear()
         discoverMajorGroups.clear()
         discoverTagItems.clear()
-        discoverWebView?.stopLoading()
-        runCatching { discoverWebView?.removeJavascriptInterface(nameJava) }
-        runCatching { discoverWebView?.removeJavascriptInterface(nameSource) }
-        runCatching { discoverWebView?.removeJavascriptInterface(nameCache) }
-        discoverWebView?.destroy()
-        discoverWebView = null
-        discoverJsBridge = null
+        releaseDiscoverWebView()
         selectedDiscoverMajorGroup = null
         selectedDiscoverTagIndex = -1
         selectedDiscoverUrlIndex = -1
@@ -337,6 +331,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
     @android.annotation.SuppressLint("SetJavaScriptEnabled")
     private fun showDiscoverWebPage(url: String, html: String? = null, preloadJs: String? = null) {
+        releaseDiscoverWebView()
         discoverPendingPreloadJs = preloadJs?.takeIf { it.isNotBlank() }
         val webView = discoverWebView ?: WebView(requireContext()).also { created ->
             created.layoutParams = ViewGroup.LayoutParams(
@@ -434,8 +429,29 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun restoreDiscoverListPage() {
+        releaseDiscoverWebView()
         binding.discoverWebContainer.gone()
         binding.flDiscoverBooks.visible()
+    }
+
+    private fun releaseDiscoverWebView() {
+        val webView = discoverWebView ?: return
+        discoverWebView = null
+        discoverJsBridge = null
+        discoverPendingPreloadJs = null
+        runCatching { webView.stopLoading() }
+        runCatching { webView.loadUrl("about:blank") }
+        runCatching { webView.removeJavascriptInterface(nameJava) }
+        runCatching { webView.removeJavascriptInterface(nameSource) }
+        runCatching { webView.removeJavascriptInterface(nameCache) }
+        runCatching { binding.discoverWebContainer.removeView(webView) }
+        runCatching {
+            webView.webChromeClient = null
+            webView.webViewClient = null
+        }
+        runCatching { webView.clearHistory() }
+        runCatching { webView.clearFormData() }
+        runCatching { webView.destroy() }
     }
 
     private fun applyDiscoverWebContainerBottomPadding() {
