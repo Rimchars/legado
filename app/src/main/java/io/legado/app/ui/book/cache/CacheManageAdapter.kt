@@ -54,6 +54,11 @@ class CacheManageAdapter(
             item.cachedCount,
             item.totalChapterCount
         )
+        val hasCache = item.cachedCount > 0
+        btnUpload.isEnabled = hasCache
+        btnDelete.isEnabled = hasCache
+        btnUpload.alpha = if (hasCache) 1f else 0.45f
+        btnDelete.alpha = if (hasCache) 1f else 0.45f
     }
 
     override fun registerListener(holder: ItemViewHolder, binding: ItemCacheManageBookBinding) {

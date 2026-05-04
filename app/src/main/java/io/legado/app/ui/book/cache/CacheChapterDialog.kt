@@ -15,6 +15,7 @@ import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
 import io.legado.app.data.entities.Book
 import io.legado.app.databinding.DialogSourcePickerBinding
+import io.legado.app.help.book.isAudio
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
@@ -68,8 +69,16 @@ class CacheChapterDialog : BaseDialogFragment(R.layout.dialog_source_picker) {
         }
         tvFooterLeft.text = getString(R.string.cache_manage_swipe_delete_hint)
         tvFooterLeft.visible()
-        tvCancel.gone()
-        tvOk.gone()
+        tvCancel.setText(R.string.cache_manage_delete_cached)
+        tvCancel.visible()
+        tvCancel.setOnClickListener { deleteCachedChapters() }
+        if (book.isAudio) {
+            tvOk.setText(R.string.cache_manage_cache_uncached)
+            tvOk.visible()
+            tvOk.setOnClickListener { cacheUncachedAudioChapters() }
+        } else {
+            tvOk.gone()
+        }
         searchView.applyTint(primaryTextColor)
         searchView.isSubmitButtonEnabled = true
         searchView.queryHint = getString(R.string.cache_manage_search_chapter)
@@ -165,6 +174,61 @@ class CacheChapterDialog : BaseDialogFragment(R.layout.dialog_source_picker) {
             onCancelled {
                 adapter.notifyItemChanged(position)
             }
+        }
+    }
+
+    private fun cacheUncachedAudioChapters() {
+        val items = adapter.getItems().filterNot { it.cached }
+        if (items.isEmpty()) {
+            toastOnUi(R.string.cache_manage_batch_empty)
+            return
+        }
+        binding.rotateLoading.visible()
+        lifecycleScope.launch {
+            kotlin.runCatching {
+                viewModel.cacheAudioChapters(book, items.map { it.chapter })
+            }.onSuccess { count ->
+                callback?.onCacheChanged()
+                loadChapters(searchView.query?.toString())
+                toastOnUi(getString(R.string.cache_manage_audio_cache_done, count))
+            }.onFailure {
+                binding.rotateLoading.gone()
+                toastOnUi(getString(R.string.cache_manage_audio_cache_failed, it.localizedMessage))
+            }
+        }
+    }
+
+    private fun deleteCachedChapters() {
+        val items = adapter.getItems().filter { it.cached }
+        if (items.isEmpty()) {
+            toastOnUi(R.string.cache_manage_batch_empty)
+            return
+        }
+        alert(
+            getString(R.string.delete),
+            getString(R.string.cache_manage_delete_cached_confirm, items.size)
+        ) {
+            yesButton {
+                binding.rotateLoading.visible()
+                lifecycleScope.launch {
+                    kotlin.runCatching {
+                        items.forEach { viewModel.deleteChapterCache(book, it.chapter) }
+                    }.onSuccess {
+                        callback?.onCacheChanged()
+                        loadChapters(searchView.query?.toString())
+                        toastOnUi(R.string.delete_success)
+                    }.onFailure {
+                        binding.rotateLoading.gone()
+                        toastOnUi(
+                            getString(
+                                R.string.cache_manage_delete_chapter_failed,
+                                it.localizedMessage
+                            )
+                        )
+                    }
+                }
+            }
+            noButton()
         }
     }
 

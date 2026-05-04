@@ -1685,6 +1685,17 @@
     <string name="cache_manage_upload_failed">Upload failed: %1$s</string>
     <string name="cache_manage_no_cache">No cache to upload</string>
     <string name="cache_manage_pack_failed">Failed to pack cache</string>
+    <string name="cache_manage_upload_all">Upload all</string>
+    <string name="cache_manage_delete_all">Delete all</string>
+    <string name="cache_manage_batch_empty">No cache to operate</string>
+    <string name="cache_manage_batch_upload_done">Batch upload finished: %1$d succeeded, %2$d failed</string>
+    <string name="cache_manage_delete_all_confirm">Delete all cache for %1$d item(s) in the current list?</string>
+    <string name="cache_manage_delete_cached">Delete cached</string>
+    <string name="cache_manage_cache_uncached">Cache missing</string>
+    <string name="cache_manage_audio_cache_done">Audio cache finished: %1$d chapter(s)</string>
+    <string name="cache_manage_audio_cache_failed">Audio cache failed: %1$s</string>
+    <string name="cache_manage_delete_cached_confirm">Delete cached content for %1$d chapter(s) in the current list?</string>
+    <string name="cache_manage_audio_url_empty">Audio URL is empty</string>
     <string name="preview">Preview</string>
     <string name="advanced_title_dialog_title">Advanced Title</string>
     <string name="advanced_title_scope_label">Apply to</string>

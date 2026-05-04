@@ -44,6 +44,8 @@ class CacheManageActivity :
         btnBooks.setOnClickListener { switchMode(CacheManageMode.BOOK) }
         btnAudio.setOnClickListener { switchMode(CacheManageMode.AUDIO) }
         btnManga.setOnClickListener { switchMode(CacheManageMode.MANGA) }
+        btnUploadAll.setOnClickListener { uploadAll() }
+        btnDeleteAll.setOnClickListener { deleteAll() }
         updateTabs(CacheManageMode.BOOK)
     }
 
@@ -110,6 +112,51 @@ class CacheManageActivity :
         alert(getString(R.string.delete), getString(R.string.cache_manage_delete_book_confirm, item.book.name)) {
             yesButton {
                 viewModel.deleteBookCache(item.book) {
+                    toastOnUi(R.string.delete_success)
+                }
+            }
+            noButton()
+        }
+    }
+
+    private fun uploadAll() {
+        val items = adapter.getItems().filter { it.cachedCount > 0 }
+        if (items.isEmpty()) {
+            toastOnUi(R.string.cache_manage_batch_empty)
+            return
+        }
+        lifecycleScope.launch {
+            toastOnUi(R.string.cache_manage_uploading)
+            var success = 0
+            var failed = 0
+            items.forEach { item ->
+                kotlin.runCatching {
+                    val zipFile = viewModel.createCachePackage(item.book)
+                    withContext(Dispatchers.IO) {
+                        AppWebDav.uploadCachePackage(zipFile.name, zipFile)
+                    }
+                }.onSuccess {
+                    success++
+                }.onFailure {
+                    failed++
+                }
+            }
+            toastOnUi(getString(R.string.cache_manage_batch_upload_done, success, failed))
+        }
+    }
+
+    private fun deleteAll() {
+        val items = adapter.getItems().filter { it.cachedCount > 0 }
+        if (items.isEmpty()) {
+            toastOnUi(R.string.cache_manage_batch_empty)
+            return
+        }
+        alert(
+            getString(R.string.delete),
+            getString(R.string.cache_manage_delete_all_confirm, items.size)
+        ) {
+            yesButton {
+                viewModel.deleteBookCaches(items.map { it.book }) {
                     toastOnUi(R.string.delete_success)
                 }
             }

@@ -775,6 +775,11 @@ class AnalyzeUrl(
             return ExoPlayerHelper.createMediaItem(url, headerMap)
         }
 
+        fun AnalyzeUrl.getMediaRequest(): ExoPlayerHelper.MediaRequest {
+            setCookie()
+            return ExoPlayerHelper.createMediaRequest(url, headerMap)
+        }
+
     }
 
     @Keep

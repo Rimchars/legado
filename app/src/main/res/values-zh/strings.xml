@@ -1577,6 +1577,17 @@
     <string name="cache_manage_upload_failed">上传失败：%1$s</string>
     <string name="cache_manage_no_cache">没有可上传的缓存</string>
     <string name="cache_manage_pack_failed">缓存打包失败</string>
+    <string name="cache_manage_upload_all">上传全部</string>
+    <string name="cache_manage_delete_all">删除全部</string>
+    <string name="cache_manage_batch_empty">没有可操作的缓存</string>
+    <string name="cache_manage_batch_upload_done">批量上传完成：成功 %1$d，失败 %2$d</string>
+    <string name="cache_manage_delete_all_confirm">删除当前列表中 %1$d 本的全部缓存？</string>
+    <string name="cache_manage_delete_cached">删除已缓存</string>
+    <string name="cache_manage_cache_uncached">缓存未缓存</string>
+    <string name="cache_manage_audio_cache_done">音频缓存完成：%1$d 章</string>
+    <string name="cache_manage_audio_cache_failed">音频缓存失败：%1$s</string>
+    <string name="cache_manage_delete_cached_confirm">删除当前列表中 %1$d 章已缓存内容？</string>
+    <string name="cache_manage_audio_url_empty">未获取到音频链接</string>
     <string name="preview">预览</string>
     <string name="advanced_title_dialog_title">高级标题设置</string>
     <string name="advanced_title_scope_label">作用范围</string>

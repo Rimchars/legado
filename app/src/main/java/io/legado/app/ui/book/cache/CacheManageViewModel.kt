@@ -10,16 +10,25 @@ import io.legado.app.constant.BookType
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
+import io.legado.app.help.exoplayer.ExoPlayerHelper
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.getBookSource
+import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
+import io.legado.app.model.analyzeRule.AnalyzeUrl
+import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.getMediaRequest
+import io.legado.app.model.webBook.WebBook
+import io.legado.app.utils.GSON
 import io.legado.app.utils.externalCache
 import io.legado.app.utils.normalizeFileName
 import io.legado.app.utils.compress.ZipUtils
+import io.legado.app.utils.isJsonArray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,7 +80,21 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
 
     fun deleteBookCache(book: Book, onDone: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
+            deleteAudioMediaCache(book)
             BookHelp.clearCache(book)
+            withContext(Dispatchers.Main) {
+                onDone()
+            }
+            load(mode)
+        }
+    }
+
+    fun deleteBookCaches(books: List<Book>, onDone: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            books.forEach {
+                deleteAudioMediaCache(it)
+                BookHelp.clearCache(it)
+            }
             withContext(Dispatchers.Main) {
                 onDone()
             }
@@ -90,7 +113,7 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
     ): List<CacheChapterItem> {
         return withContext(Dispatchers.IO) {
             val cacheNames = getCacheFileNames(book)
-            if (cachedOnly && cacheNames.none { it.endsWith(".nb") }) {
+            if (cachedOnly && !book.isAudio && cacheNames.none { it.endsWith(".nb") }) {
                 return@withContext emptyList()
             }
             val chapters = if (key.isNullOrBlank()) {
@@ -102,7 +125,12 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
                 .asSequence()
                 .filterNot { it.isVolume }
                 .mapNotNull { chapter ->
-                    val cached = isChapterCached(book, chapter, cacheNames, validateImageContent = false)
+                    val cached = isChapterCached(
+                        book,
+                        chapter,
+                        cacheNames,
+                        validateImageContent = false
+                    )
                     if (cachedOnly && !cached) {
                         return@mapNotNull null
                     }
@@ -114,16 +142,33 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
 
     suspend fun deleteChapterCache(book: Book, chapter: BookChapter) {
         withContext(Dispatchers.IO) {
+            if (book.isAudio) {
+                ExoPlayerHelper.removeMediaCache(chapter.resourceUrl)
+            }
             BookHelp.delChapterCache(book, chapter)
+        }
+    }
+
+    suspend fun cacheAudioChapters(book: Book, chapters: List<BookChapter>): Int {
+        return withContext(Dispatchers.IO) {
+            if (!book.isAudio) return@withContext 0
+            var count = 0
+            chapters.asSequence()
+                .filterNot { it.isVolume }
+                .forEach { chapter ->
+                    currentCoroutineContext().ensureActive()
+                    if (!ExoPlayerHelper.isMediaCached(chapter.resourceUrl)) {
+                        cacheAudioChapter(book, chapter)
+                        count++
+                    }
+                }
+            count
         }
     }
 
     suspend fun createCachePackage(book: Book): File {
         return withContext(Dispatchers.IO) {
             val cacheDir = BookHelp.getCacheDir(book)
-            if (!cacheDir.exists() || cacheDir.listFiles().isNullOrEmpty()) {
-                throw IllegalStateException(context.getString(R.string.cache_manage_no_cache))
-            }
             val outDir = File(appCtx.externalCache, "cache_package").apply {
                 if (!exists()) mkdirs()
             }
@@ -133,6 +178,12 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
             val zipFile = File(outDir, "$fileName.zip").apply {
                 if (exists()) delete()
             }
+            if (book.isAudio) {
+                return@withContext createAudioCachePackage(book, cacheDir, outDir, fileName, zipFile)
+            }
+            if (!cacheDir.exists() || cacheDir.listFiles().isNullOrEmpty()) {
+                throw IllegalStateException(context.getString(R.string.cache_manage_no_cache))
+            }
             if (!ZipUtils.zipFile(cacheDir, zipFile) || !zipFile.exists() || zipFile.length() <= 0L) {
                 throw IllegalStateException(context.getString(R.string.cache_manage_pack_failed))
             }
@@ -140,10 +191,73 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         }
     }
 
+    private fun createAudioCachePackage(
+        book: Book,
+        cacheDir: File,
+        outDir: File,
+        fileName: String,
+        zipFile: File
+    ): File {
+        val packageDir = File(outDir, "${fileName}_audio").apply {
+            if (exists()) deleteRecursively()
+            mkdirs()
+        }
+        var hasCache = false
+        if (cacheDir.exists() && !cacheDir.listFiles().isNullOrEmpty()) {
+            cacheDir.copyRecursively(File(packageDir, "chapter_cache"), overwrite = true)
+            hasCache = true
+        }
+        val audioDir = File(packageDir, "audio_cache").apply { mkdirs() }
+        val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
+            .filterNot { it.isVolume }
+            .mapNotNull { chapter ->
+                val chapterDir = File(audioDir, chapter.index.toString())
+                val fileCount = ExoPlayerHelper.copyMediaCache(chapter.resourceUrl, chapterDir)
+                if (fileCount <= 0) {
+                    chapterDir.deleteRecursively()
+                    return@mapNotNull null
+                }
+                hasCache = true
+                AudioCacheManifest.Chapter(
+                    index = chapter.index,
+                    title = chapter.title,
+                    url = chapter.url,
+                    resourceUrl = chapter.resourceUrl,
+                    fileCount = fileCount
+                )
+            }
+        if (!hasCache) {
+            packageDir.deleteRecursively()
+            throw IllegalStateException(context.getString(R.string.cache_manage_no_cache))
+        }
+        File(packageDir, "manifest.json").writeText(
+            GSON.toJson(
+                AudioCacheManifest(
+                    bookName = book.name,
+                    author = book.author,
+                    bookUrl = book.bookUrl,
+                    chapters = chapters
+                )
+            )
+        )
+        val success = ZipUtils.zipFile(packageDir, zipFile)
+        packageDir.deleteRecursively()
+        if (!success || !zipFile.exists() || zipFile.length() <= 0L) {
+            throw IllegalStateException(context.getString(R.string.cache_manage_pack_failed))
+        }
+        return zipFile
+    }
+
     private fun buildCacheBookItem(book: Book, mode: CacheManageMode): CacheBookItem? {
-        val rawCachedCount = getFastCachedCount(book)
-        if (rawCachedCount <= 0) return null
-        val totalChapterCount = book.totalChapterNum.takeIf { it > 0 } ?: rawCachedCount
+        val rawCachedCount = if (mode == CacheManageMode.AUDIO) {
+            getAudioCachedCount(book)
+        } else {
+            getFastCachedCount(book)
+        }
+        if (rawCachedCount <= 0 && mode != CacheManageMode.AUDIO) return null
+        val totalChapterCount = book.totalChapterNum.takeIf { it > 0 }
+            ?: appDb.bookChapterDao.getChapterCount(book.bookUrl).takeIf { it > 0 }
+            ?: rawCachedCount
         val cachedCount = rawCachedCount.coerceAtMost(totalChapterCount)
         return CacheBookItem(
             book = book,
@@ -155,6 +269,13 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
 
     private fun getFastCachedCount(book: Book): Int {
         return getCacheFileNames(book).count { it.endsWith(".nb") }
+    }
+
+    private fun getAudioCachedCount(book: Book): Int {
+        return appDb.bookChapterDao.getChapterList(book.bookUrl)
+            .asSequence()
+            .filterNot { it.isVolume }
+            .count { ExoPlayerHelper.isMediaCached(it.resourceUrl) }
     }
 
     private fun getCacheFileNames(book: Book): Set<String> {
@@ -170,6 +291,7 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         validateImageContent: Boolean = true
     ): Boolean {
         if (book.isLocal) return false
+        if (book.isAudio) return ExoPlayerHelper.isMediaCached(chapter.resourceUrl)
         val hasContent = BookHelp.getChapterCacheFileNames(book, chapter).any(cacheNames::contains)
         return if (validateImageContent && book.isImage && hasContent) {
             BookHelp.hasImageContent(book, chapter)
@@ -184,6 +306,45 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
             CacheManageMode.AUDIO -> appDb.bookDao.getByTypeOnLine(BookType.audio)
             CacheManageMode.MANGA -> appDb.bookDao.getByTypeOnLine(BookType.image)
         }
+    }
+
+    private fun deleteAudioMediaCache(book: Book) {
+        if (!book.isAudio) return
+        appDb.bookChapterDao.getChapterList(book.bookUrl)
+            .forEach { ExoPlayerHelper.removeMediaCache(it.resourceUrl) }
+    }
+
+    private suspend fun cacheAudioChapter(book: Book, chapter: BookChapter) {
+        val request = resolveAudioMediaRequest(book, chapter)
+        ExoPlayerHelper.cacheMedia(request)
+        if (chapter.resourceUrl != request.url) {
+            chapter.resourceUrl = request.url
+            appDb.bookChapterDao.update(chapter)
+        }
+    }
+
+    private suspend fun resolveAudioMediaRequest(
+        book: Book,
+        chapter: BookChapter
+    ): ExoPlayerHelper.MediaRequest {
+        val source = book.getBookSource()
+            ?: throw IllegalStateException(context.getString(R.string.book_source_not_found))
+        val content = (BookHelp.getContent(book, chapter)
+            ?: WebBook.getContentAwait(source, book, chapter, needSave = true))
+            .trim()
+        if (content.isBlank()) {
+            throw IllegalStateException(context.getString(R.string.cache_manage_audio_url_empty))
+        }
+        if (content.isJsonArray()) {
+            return ExoPlayerHelper.MediaRequest(content)
+        }
+        return AnalyzeUrl(
+            content,
+            source = source,
+            ruleData = book,
+            chapter = chapter,
+            coroutineContext = currentCoroutineContext()
+        ).getMediaRequest()
     }
 }
 
@@ -210,3 +371,18 @@ data class CacheSummary(
     val cachedChapterCount: Int,
     val mode: CacheManageMode
 )
+
+private data class AudioCacheManifest(
+    val bookName: String,
+    val author: String,
+    val bookUrl: String,
+    val chapters: List<Chapter>
+) {
+    data class Chapter(
+        val index: Int,
+        val title: String,
+        val url: String,
+        val resourceUrl: String?,
+        val fileCount: Int
+    )
+}
