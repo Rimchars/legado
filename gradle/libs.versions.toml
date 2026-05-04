@@ -79,7 +79,7 @@ recyclerview = "1.4.0"
 viewpager2 = "1.0.0"
 #noinspection GradleDependency
 firebaseBom = "33.2.0"
-composeBom = "2026.03.00"
+composeBom = "2025.10.00"
 
 [libraries]
 
