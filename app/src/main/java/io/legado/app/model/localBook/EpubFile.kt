@@ -40,7 +40,6 @@ import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.net.URI
 import java.net.URLDecoder
-import java.net.URLConnection
 import java.nio.charset.Charset
 import java.util.IdentityHashMap
 import java.util.Locale
@@ -55,17 +54,6 @@ class EpubFile(var book: Book) {
     }
 
     private data class NativeViewport(val width: Int, val height: Int, val exact: Boolean)
-
-    internal data class EpubSpecialPage(
-        val baseUrl: String,
-        val html: String
-    )
-
-    internal data class EpubWebResource(
-        val mimeType: String,
-        val encoding: String?,
-        val data: ByteArray
-    )
 
     companion object : BaseLocalBookParse {
         const val NATIVE_CONTENT_FLAG = "<epub-native"
@@ -117,16 +105,6 @@ class EpubFile(var book: Book) {
         @Synchronized
         internal fun getNativeLayout(book: Book, href: String): EpubLayoutDocument? {
             return getEFile(book).getNativeLayout(href, NativeLayoutRequestSource.FOREGROUND)
-        }
-
-        @Synchronized
-        internal fun getSpecialPage(book: Book, href: String): EpubSpecialPage? {
-            return getEFile(book).getSpecialPage(href)
-        }
-
-        @Synchronized
-        internal fun getWebResource(book: Book, href: String): EpubWebResource? {
-            return getEFile(book).getWebResource(href)
         }
 
         @Synchronized
@@ -1026,94 +1004,6 @@ class EpubFile(var book: Book) {
 
     private fun canRenderEpubImage(href: String): Boolean {
         return getEpubImageSize(href) != null
-    }
-
-    private fun getSpecialPage(href: String): EpubSpecialPage? {
-        val resource = findEpubResource(href) ?: return null
-        if (!resource.href.shouldUseSpecialPageWebView()) return null
-        val doc = Jsoup.parse(String(resource.data, mCharset))
-        val bodyElement = doc.body()
-        bodyElement.select("image").forEach {
-            it.tagName("img", Parser.NamespaceHtml)
-            it.attr("src", it.attr("xlink:href").ifBlank { it.attr("href") })
-        }
-        bodyElement.applyEpubCss(doc, resource)
-        bodyElement.propagateEpubInheritedStyles()
-        bodyElement.select("[style]")
-            .sortedByDescending { it.parents().size }
-            .forEach { element ->
-                element.applyEpubInlineStyle()
-            }
-        if (bodyElement.hasAttr("style")) {
-            bodyElement.applyEpubInlineStyle()
-        }
-        bodyElement.select("img, source, video, audio").forEach { media ->
-            listOf("src", "poster").forEach { attrName ->
-                val value = media.attr(attrName).trim()
-                if (value.isNotBlank()) {
-                    media.attr(attrName, resolveEpubResourceHref(resource.href, value))
-                }
-            }
-        }
-        bodyElement.select("link[href], a[href]").forEach { element ->
-            val value = element.attr("href").trim()
-            if (value.isNotBlank() && !value.startsWith("#")) {
-                element.attr("href", resolveEpubResourceHref(resource.href, value))
-            }
-        }
-        val html = buildString {
-            append("<!DOCTYPE html><html><head>")
-            append("""<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>""")
-            append(
-                """<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;}img,svg,video,canvas{max-width:100%;height:auto;}body{-webkit-text-size-adjust:none;}</style>"""
-            )
-            append("</head>")
-            append(bodyElement.outerHtml())
-            append("</html>")
-        }
-        val baseUrl = "https://legado-epub.local/"
-        return EpubSpecialPage(baseUrl = baseUrl, html = html)
-    }
-
-    private fun String.shouldUseSpecialPageWebView(): Boolean {
-        val name = substringAfterLast('/').lowercase(Locale.ROOT)
-        return name == "illustration.xhtml" ||
-            name == "introduction.xhtml" ||
-            name == "video.xhtml" ||
-            name.startsWith("serial-num") ||
-            Regex("""volume\d+\.xhtml""").matches(name)
-    }
-
-    private fun getWebResource(href: String): EpubWebResource? {
-        val cleanHref = href.stripUrlOptions()
-        val data = when {
-            cleanHref.startsWith("data:", true) -> cleanHref.decodeBase64DataUrlBytes()
-            cleanHref == "cover.jpeg" -> epubBook?.coverImage?.data
-            else -> findEpubResource(cleanHref)?.data
-        } ?: return null
-        val mimeType = URLConnection.guessContentTypeFromName(cleanHref)
-            ?: when (cleanHref.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
-                "xhtml", "html", "htm" -> "text/html"
-                "css" -> "text/css"
-                "js" -> "text/javascript"
-                "jpg", "jpeg" -> "image/jpeg"
-                "png" -> "image/png"
-                "gif" -> "image/gif"
-                "webp" -> "image/webp"
-                "svg" -> "image/svg+xml"
-                "ttf" -> "font/ttf"
-                "otf" -> "font/otf"
-                "woff" -> "font/woff"
-                "woff2" -> "font/woff2"
-                "mp4" -> "video/mp4"
-                else -> "application/octet-stream"
-            }
-        val encoding = if (mimeType.startsWith("text/") || mimeType.contains("javascript")) {
-            mCharset.name()
-        } else {
-            null
-        }
-        return EpubWebResource(mimeType = mimeType, encoding = encoding, data = data)
     }
 
     private fun getEpubTypeface(

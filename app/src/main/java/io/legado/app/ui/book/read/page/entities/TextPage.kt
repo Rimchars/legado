@@ -89,8 +89,6 @@ data class TextPage(
     var epubBackgroundSize: String? = null
     var epubBackgroundPosition: String? = null
     var epubBackgroundRepeat: String? = null
-    var epubSpecialPageHtml: String? = null
-    var epubSpecialPageBaseUrl: String? = null
     var epubLayoutSnapshotId: Int = 0
     var epubDrawOffsetX: Float = ChapterProvider.paddingLeft.toFloat()
     var epubDrawOffsetY: Float = ChapterProvider.paddingTop.toFloat()
@@ -348,12 +346,8 @@ data class TextPage(
         return epubBackgroundSrc != null || epubBackgroundColor != null
     }
 
-    fun hasEpubSpecialPage(): Boolean {
-        return !epubSpecialPageHtml.isNullOrBlank() && !epubSpecialPageBaseUrl.isNullOrBlank()
-    }
-
     fun hasEpubContent(): Boolean {
-        return hasEpubBackground() || epubNativeCommands.isNotEmpty() || epubEmbeddedBlocks.isNotEmpty() || hasEpubSpecialPage()
+        return hasEpubBackground() || epubNativeCommands.isNotEmpty() || epubEmbeddedBlocks.isNotEmpty()
     }
 
     fun isNativeEpubPage(): Boolean {
@@ -1138,7 +1132,6 @@ data class TextPage(
 
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
-        if (hasEpubSpecialPage()) return false
         if (hasEpubContent() && !canvasRecorder.needRecord()) {
             return false
         }
@@ -1209,10 +1202,6 @@ data class TextPage(
         if (leftLineSize > 0 && leftLineSize != lines.size) {
             val leftHeight = ceil(lines[leftLineSize - 1].lineBottom).toInt()
             renderHeight = max(renderHeight, leftHeight)
-        }
-        if (hasEpubSpecialPage()) {
-            renderHeight = max(renderHeight, ChapterProvider.viewHeight)
-            height = max(height, ChapterProvider.viewHeight.toFloat())
         }
     }
 

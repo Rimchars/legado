@@ -10,11 +10,6 @@ import android.graphics.drawable.LayerDrawable
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.view.View
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import com.airbnb.lottie.FontAssetDelegate
 import com.airbnb.lottie.ImageAssetDelegate
 import android.widget.FrameLayout
@@ -36,7 +31,6 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
 import io.legado.app.model.ReadBook
-import io.legado.app.model.localBook.EpubFile
 import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.book.read.page.entities.TextLine
 import io.legado.app.ui.book.read.page.entities.TextPage
@@ -80,8 +74,6 @@ class PageView(context: Context) : FrameLayout(context) {
     private var isMainView = false
     private var currentTextPage: TextPage? = null
     private var advancedTitleLottieKey: String? = null
-    private var specialPageKey: String? = null
-    private val specialPageWebView by lazy { io.legado.app.ui.widget.PassiveWebView(context) }
     private val lottieImageCache = ConcurrentHashMap<String, android.graphics.Bitmap?>()
     var isScroll = false
 
@@ -101,7 +93,6 @@ class PageView(context: Context) : FrameLayout(context) {
             upStyle()
             binding.vwStatusBar.applyStatusBarPadding()
             binding.vwNavigationBar.applyNavigationBarPadding()
-            initSpecialPageWebView()
         }
     }
 
@@ -112,8 +103,6 @@ class PageView(context: Context) : FrameLayout(context) {
 
     override fun onDetachedFromWindow() {
         binding.advancedTitleLottie.cancelAnimation()
-        specialPageWebView.stopLoading()
-        specialPageWebView.loadUrl("about:blank")
         super.onDetachedFromWindow()
     }
 
@@ -399,7 +388,6 @@ class PageView(context: Context) : FrameLayout(context) {
         currentTextPage = textPage
         upTipStyle(textPage)
         upAdvancedTitleLottie(textPage)
-        upSpecialPage(textPage)
         if (isMainView && !isScroll) {
             setProgress(textPage)
         } else {
@@ -671,80 +659,6 @@ class PageView(context: Context) : FrameLayout(context) {
         }.onFailure {
             showFallback(block)
         }
-    }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun initSpecialPageWebView() {
-        binding.epubSpecialPageHost.removeAllViews()
-        binding.epubSpecialPageHost.addView(
-            specialPageWebView,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-        specialPageWebView.apply {
-            setBackgroundColor(Color.TRANSPARENT)
-            isVerticalScrollBarEnabled = false
-            isHorizontalScrollBarEnabled = false
-            overScrollMode = WebView.OVER_SCROLL_NEVER
-            settings.javaScriptEnabled = false
-            settings.loadsImagesAutomatically = true
-            settings.blockNetworkImage = false
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            settings.domStorageEnabled = false
-            settings.useWideViewPort = true
-            settings.loadWithOverviewMode = true
-            settings.builtInZoomControls = false
-            settings.displayZoomControls = false
-            settings.textZoom = 100
-            webViewClient = object : WebViewClient() {
-                override fun shouldInterceptRequest(
-                    view: WebView,
-                    request: WebResourceRequest
-                ): WebResourceResponse? {
-                    val book = ReadBook.book ?: return super.shouldInterceptRequest(view, request)
-                    val url = request.url
-                    if (url.host != "legado-epub.local") {
-                        return super.shouldInterceptRequest(view, request)
-                    }
-                    val href = url.encodedPath?.trimStart('/').orEmpty()
-                    val resource = EpubFile.getWebResource(book, href) ?: return emptyWebResource()
-                    return WebResourceResponse(
-                        resource.mimeType,
-                        resource.encoding,
-                        ByteArrayInputStream(resource.data)
-                    )
-                }
-
-                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    return true
-                }
-            }
-        }
-    }
-
-    private fun emptyWebResource(): WebResourceResponse {
-        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-    }
-
-    private fun upSpecialPage(textPage: TextPage) {
-        val webView = specialPageWebView
-        val html = textPage.epubSpecialPageHtml
-        val baseUrl = textPage.epubSpecialPageBaseUrl
-        if (html.isNullOrBlank() || baseUrl.isNullOrBlank()) {
-            specialPageKey = null
-            binding.epubSpecialPageHost.visibility = GONE
-            binding.contentTextView.visibility = VISIBLE
-            return
-        }
-        binding.contentTextView.visibility = View.GONE
-        binding.epubSpecialPageHost.visibility = VISIBLE
-        val key = "$baseUrl#${html.hashCode()}"
-        if (specialPageKey == key) return
-        specialPageKey = key
-        webView.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", baseUrl)
     }
 
     private fun advancedTitleTextSizeSp(): Float {
