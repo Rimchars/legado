@@ -1,7 +1,9 @@
 package io.legado.app.ui.book.cache
 
 import android.os.Bundle
+import android.graphics.Color
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.SimpleItemAnimator
@@ -14,6 +16,7 @@ import io.legado.app.databinding.ActivityCacheManageBinding
 import io.legado.app.help.AppWebDav
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.utils.gone
@@ -50,6 +53,17 @@ class CacheManageActivity :
     }
 
     private fun initView() = binding.run {
+        tabBar.background = UiCorner.rounded(
+            ContextCompat.getColor(this@CacheManageActivity, R.color.background_menu),
+            UiCorner.panelRadius(this@CacheManageActivity)
+        )
+        listOf(btnBooks, btnAudio, btnManga).forEach {
+            it.background = UiCorner.actionSelector(
+                Color.TRANSPARENT,
+                ContextCompat.getColor(this@CacheManageActivity, R.color.background_card),
+                UiCorner.actionRadius(this@CacheManageActivity)
+            )
+        }
         recyclerView.layoutManager = LinearLayoutManager(this@CacheManageActivity)
         recyclerView.adapter = adapter
         (recyclerView.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false

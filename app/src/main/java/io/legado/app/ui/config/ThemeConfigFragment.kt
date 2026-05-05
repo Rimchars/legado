@@ -476,7 +476,7 @@ class ThemeConfigFragment : PreferenceFragment(),
             }
             preference.setOnPreferenceChangeListener { _, newValue ->
                 val value = newValue?.toString()?.trim()?.toFloatOrNull()
-                if (value == null || value !in 0f..1f) {
+                if (value == null || value !in 0f..3f) {
                     toastOnUi(R.string.ui_corner_scale_invalid)
                     false
                 } else {

@@ -154,6 +154,28 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
             )
             setStroke(1.dpToPx(), ColorUtils.adjustAlpha(primaryTextColor, 0.08f))
         }
+        val cardColor = ColorUtils.adjustAlpha(
+            ColorUtils.blendColors(primaryTextColor, Color.GRAY, 0.72f),
+            0.12f
+        )
+        val strokeColor = ColorUtils.adjustAlpha(primaryTextColor, 0.08f)
+        binding.llBookshelfHintCard.background = UiCorner.roundedStroke(
+            cardColor,
+            UiCorner.searchRadius(20f),
+            1.dpToPx(),
+            strokeColor
+        )
+        binding.llHistoryCard.background = UiCorner.roundedStroke(
+            cardColor,
+            UiCorner.searchRadius(20f),
+            1.dpToPx(),
+            strokeColor
+        )
+        binding.tvClearHistory.background = UiCorner.actionSelector(
+            ColorUtils.adjustAlpha(primaryTextColor, 0.06f),
+            ColorUtils.adjustAlpha(primaryTextColor, 0.12f),
+            UiCorner.searchRadius(14f)
+        )
         binding.btnMenu.setOnClickListener {
             showSearchMenu(it)
         }

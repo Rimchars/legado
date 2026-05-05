@@ -2,11 +2,13 @@ package io.legado.app.ui.book.cache
 
 import android.content.Context
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import io.legado.app.R
 import io.legado.app.base.adapter.DiffRecyclerAdapter
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.databinding.ItemCacheManageBookBinding
+import io.legado.app.lib.theme.UiCorner
 import io.legado.app.utils.gone
 import io.legado.app.utils.visible
 
@@ -54,6 +56,22 @@ class CacheManageAdapter(
             return@run
         }
         val book = item.book
+        root.background = UiCorner.rounded(
+            ContextCompat.getColor(context, R.color.background_card),
+            UiCorner.panelRadius(context)
+        )
+        btnSource.background = UiCorner.actionSelector(
+            ContextCompat.getColor(context, R.color.background_menu),
+            ContextCompat.getColor(context, R.color.background_card),
+            UiCorner.actionRadius(context)
+        )
+        listOf(btnChapters, btnUpload, btnDelete, btnBookshelf, btnStop).forEach {
+            it.background = UiCorner.actionSelector(
+                ContextCompat.getColor(context, R.color.background_card),
+                ContextCompat.getColor(context, R.color.background_menu),
+                UiCorner.actionRadius(context)
+            )
+        }
         ivCover.load(book, false)
         tvName.text = book.name
         btnSource.text = if (item.sourceAvailable) {

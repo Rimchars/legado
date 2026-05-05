@@ -875,8 +875,8 @@
     <string name="frosted_glass_level">Frosted glass level</string>
     <string name="frosted_glass_level_summary">Current level: %s. Higher means stronger blur and frost on glass bars.</string>
     <string name="ui_corner_scale">Corner radius scale</string>
-    <string name="ui_corner_scale_summary">Current corner radius scale: %s, range 0-1</string>
-    <string name="ui_corner_scale_invalid">Please enter a number from 0 to 1</string>
+    <string name="ui_corner_scale_summary">Current corner radius scale: %s, range 0-3</string>
+    <string name="ui_corner_scale_invalid">Please enter a number from 0 to 3</string>
     <string name="ui_corner_search_follow">Search bars follow corner scale</string>
     <string name="ui_corner_search_follow_summary">Allow search bars to use the global corner radius scale</string>
     <string name="ui_corner_reply_follow">Reply bars follow corner scale</string>

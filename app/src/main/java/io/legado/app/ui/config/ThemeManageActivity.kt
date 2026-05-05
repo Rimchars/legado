@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
@@ -122,6 +123,17 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     }
 
     private fun initView() = binding.run {
+        tabBar.background = UiCorner.rounded(
+            ContextCompat.getColor(this@ThemeManageActivity, R.color.background_menu),
+            UiCorner.panelRadius(this@ThemeManageActivity)
+        )
+        listOf(btnDay, btnNight).forEach {
+            it.background = UiCorner.actionSelector(
+                Color.TRANSPARENT,
+                ContextCompat.getColor(this@ThemeManageActivity, R.color.background_card),
+                UiCorner.actionRadius(this@ThemeManageActivity)
+            )
+        }
         recyclerView.layoutManager = LinearLayoutManager(this@ThemeManageActivity)
         recyclerView.adapter = adapter
         (recyclerView.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
@@ -871,6 +883,11 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
             fun bind(entry: ThemePackageManager.Entry) = itemBinding.run {
                 val pkg = entry.packageInfo
+                root.background = UiCorner.rounded(
+                    ContextCompat.getColor(this@ThemeManageActivity, R.color.background_card),
+                    UiCorner.panelRadius(this@ThemeManageActivity)
+                )
+                cardPreview.radius = UiCorner.panelRadius(this@ThemeManageActivity)
                 tvName.text = pkg.name
                 tvSource.text = when (entry.source) {
                     ThemePackageManager.Source.LOCAL -> if (isApplied(entry)) {
@@ -902,6 +919,18 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 tvName.setTextColor(primaryTextColor)
                 tvInfo.setTextColor(secondaryTextColor)
                 tvSource.setTextColor(accentColor)
+                tvSource.background = UiCorner.actionSelector(
+                    ContextCompat.getColor(this@ThemeManageActivity, R.color.background_menu),
+                    ContextCompat.getColor(this@ThemeManageActivity, R.color.background_card),
+                    UiCorner.actionRadius(this@ThemeManageActivity)
+                )
+                listOf(btnApply, btnEdit, btnMore).forEach {
+                    it.background = UiCorner.actionSelector(
+                        ContextCompat.getColor(this@ThemeManageActivity, R.color.background_card),
+                        ContextCompat.getColor(this@ThemeManageActivity, R.color.background_menu),
+                        UiCorner.actionRadius(this@ThemeManageActivity)
+                    )
+                }
                 btnApply.setTextColor(accentColor)
                 btnApply.text = getString(if (isApplied(entry)) R.string.theme_applied_state else R.string.theme_apply)
                 btnEdit.setTextColor(primaryTextColor)

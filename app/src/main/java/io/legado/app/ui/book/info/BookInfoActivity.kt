@@ -28,6 +28,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -72,6 +73,7 @@ import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.help.webView.WebViewPool
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryTextColor
@@ -269,6 +271,7 @@ class BookInfoActivity :
         binding.arcView?.setBgColor(backgroundColor)
         binding.llInfo.setBackgroundResource(R.color.transparent)
         binding.ivCoverC.setCardBackgroundColor(backgroundColor)
+        applyUiCorners()
         binding.flAction.setBackgroundResource(R.color.transparent)
         binding.vwBg.applyNavigationBarPadding()
         binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
@@ -284,6 +287,23 @@ class BookInfoActivity :
         viewModel.waitDialogData.observe(this) { upWaitDialogStatus(it) }
         viewModel.initData(intent)
         initViewEvent()
+    }
+
+    private fun applyUiCorners() = binding.run {
+        val panelColor = ContextCompat.getColor(this@BookInfoActivity, R.color.background_card)
+        val menuColor = ContextCompat.getColor(this@BookInfoActivity, R.color.background_menu)
+        val transparent = Color.TRANSPARENT
+        ivCoverC.radius = UiCorner.panelRadius(this@BookInfoActivity)
+        listOf(llDetailPanel, llInfoPage, llDetailContentPanel).forEach {
+            it.background = UiCorner.rounded(panelColor, UiCorner.panelRadius(this@BookInfoActivity))
+        }
+        listOf(tvTabIntro, tvTabToc, tvTabInfo, tvIntroToggle, tvShelf).forEach {
+            it.background = UiCorner.actionSelector(
+                transparent,
+                menuColor,
+                UiCorner.actionRadius(this@BookInfoActivity)
+            )
+        }
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {

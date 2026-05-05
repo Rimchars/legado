@@ -10,7 +10,7 @@ import io.legado.app.utils.dpToPx
 object UiCorner {
 
     fun scale(): Float {
-        return AppConfig.uiCornerScale.coerceIn(0f, 1f)
+        return AppConfig.uiCornerScale.coerceIn(0f, 3f)
     }
 
     fun panelRadius(context: Context): Float {
@@ -46,6 +46,12 @@ object UiCorner {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = radius
             setColor(color)
+        }
+    }
+
+    fun roundedStroke(color: Int, radius: Float, strokeWidth: Int, strokeColor: Int): GradientDrawable {
+        return rounded(color, radius).apply {
+            setStroke(strokeWidth, strokeColor)
         }
     }
 

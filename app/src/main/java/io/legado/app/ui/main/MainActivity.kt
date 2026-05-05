@@ -46,7 +46,6 @@ import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.storage.Backup
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.ThemeStore
-import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.service.BaseReadAloudService
@@ -117,13 +116,13 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
     private var onUpBooksBadgeView: BadgeView? = null
     private val bottomBarCornerRadius by lazy {
-        resources.getDimension(R.dimen.main_bottom_bar_corner_radius) * UiCorner.scale()
+        resources.getDimension(R.dimen.main_bottom_bar_corner_radius)
     }
     private val searchButtonCornerRadius by lazy {
-        resources.getDimension(R.dimen.main_bottom_bar_corner_radius) * UiCorner.scale()
+        resources.getDimension(R.dimen.main_bottom_bar_corner_radius)
     }
     private val bottomIndicatorCornerRadius by lazy {
-        resources.getDimension(R.dimen.main_bottom_indicator_corner_radius) * UiCorner.scale()
+        resources.getDimension(R.dimen.main_bottom_indicator_corner_radius)
     }
     private val bottomIndicatorWidth by lazy {
         resources.getDimensionPixelSize(R.dimen.main_bottom_indicator_width)

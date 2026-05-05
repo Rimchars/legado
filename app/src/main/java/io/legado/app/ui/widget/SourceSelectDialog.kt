@@ -2,6 +2,7 @@ package io.legado.app.ui.widget
 
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.view.View
 import android.view.Gravity
@@ -53,7 +54,10 @@ object SourceSelectDialog {
             queryHint = context.getString(R.string.screen_find)
             isIconified = false
             isSubmitButtonEnabled = false
-            setBackgroundResource(R.drawable.bg_source_picker_search)
+            background = GradientDrawable().apply {
+                cornerRadius = UiCorner.searchRadius(10f)
+                setColor(ContextCompat.getColor(context, R.color.background_menu))
+            }
             setPadding(4.dpToPx(), 0, 4.dpToPx(), 0)
             setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String?): Boolean = true

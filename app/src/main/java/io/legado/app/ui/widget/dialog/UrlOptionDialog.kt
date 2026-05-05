@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import io.legado.app.R
 import io.legado.app.constant.AppConst
 import io.legado.app.databinding.DialogUrlOptionEditBinding
+import io.legado.app.lib.theme.dialogSurfaceBackground
 import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.utils.GSON
 import io.legado.app.utils.setLayout
@@ -24,6 +25,7 @@ class UrlOptionDialog(context: Context, private val success: (String) -> Unit) :
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        binding.vwBg.background = context.dialogSurfaceBackground
         binding.root.setOnClickListener { dismiss() }
         binding.vwBg.setOnClickListener(null)
         binding.editMethod.setFilterValues("POST", "GET")

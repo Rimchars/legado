@@ -1100,10 +1100,10 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     var uiCornerScale: Float
         get() = appCtx.getPrefString(PreferKey.uiCornerScale, "1")
             ?.toFloatOrNull()
-            ?.coerceIn(0f, 1f)
+            ?.coerceIn(0f, 3f)
             ?: 1f
         set(value) {
-            appCtx.putPrefString(PreferKey.uiCornerScale, value.coerceIn(0f, 1f).toPlainScale())
+            appCtx.putPrefString(PreferKey.uiCornerScale, value.coerceIn(0f, 3f).toPlainScale())
         }
 
     val uiCornerSearchFollow: Boolean

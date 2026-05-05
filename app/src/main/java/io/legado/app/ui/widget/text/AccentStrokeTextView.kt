@@ -6,6 +6,7 @@ import androidx.appcompat.widget.AppCompatTextView
 import io.legado.app.R
 import io.legado.app.lib.theme.Selector
 import io.legado.app.lib.theme.ThemeStore
+import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
@@ -19,7 +20,8 @@ class AccentStrokeTextView(context: Context, attrs: AttributeSet) :
 
     init {
         val typedArray = context.obtainStyledAttributes(attrs, R.styleable.AccentStrokeTextView)
-        radius = typedArray.getDimensionPixelOffset(R.styleable.StrokeTextView_radius, radius)
+        radius = (typedArray.getDimensionPixelOffset(R.styleable.StrokeTextView_radius, radius) *
+            UiCorner.scale()).toInt()
         isBottomBackground =
             typedArray.getBoolean(R.styleable.StrokeTextView_isBottomBackground, false)
         typedArray.recycle()

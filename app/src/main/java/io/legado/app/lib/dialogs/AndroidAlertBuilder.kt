@@ -8,6 +8,7 @@ import android.view.View
 import androidx.appcompat.app.AlertDialog
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.dialogSurfaceBackground
 import io.legado.app.utils.applyTint
 
 internal class AndroidAlertBuilder(override val ctx: Context) : AlertBuilder<AlertDialog> {
@@ -151,7 +152,7 @@ internal class AndroidAlertBuilder(override val ctx: Context) : AlertBuilder<Ale
                 attributes = attr
                 setBackgroundDrawableResource(R.drawable.bg_eink_border_dialog)
             } else {
-                setBackgroundDrawableResource(R.drawable.bg_dialog_surface)
+                setBackgroundDrawable(ctx.dialogSurfaceBackground)
             }
         }
         return dialog
@@ -167,7 +168,7 @@ internal class AndroidAlertBuilder(override val ctx: Context) : AlertBuilder<Ale
                 attributes = attr
                 setBackgroundDrawableResource(R.drawable.bg_eink_border_dialog)
             } else {
-                setBackgroundDrawableResource(R.drawable.bg_dialog_surface)
+                setBackgroundDrawable(ctx.dialogSurfaceBackground)
             }
         }
         return dialog
