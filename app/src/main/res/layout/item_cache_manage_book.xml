@@ -7,7 +7,7 @@
     android:layout_marginTop="6dp"
     android:layout_marginBottom="6dp"
     android:background="@drawable/bg_book_info_intro_panel"
-    android:minHeight="126dp"
+    android:minHeight="106dp"
     android:paddingStart="10dp"
     android:paddingTop="10dp"
     android:paddingEnd="10dp"
@@ -15,7 +15,7 @@
 
     <io.legado.app.ui.widget.image.CoverImageView
         android:id="@+id/iv_cover"
-        android:layout_width="74dp"
+        android:layout_width="64dp"
         android:layout_height="0dp"
         android:contentDescription="@string/img_cover"
         android:scaleType="centerCrop"
@@ -57,60 +57,10 @@
         </LinearLayout>
 
         <TextView
-            android:id="@+id/tv_author"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textColor="@color/secondaryText"
-            android:textSize="12sp"
-            tools:text="@string/author" />
-
-        <TextView
-            android:id="@+id/tv_type"
-            android:layout_width="wrap_content"
-            android:layout_height="24dp"
-            android:layout_marginTop="5dp"
-            android:background="@drawable/bg_discover_embedded_chip"
-            android:ellipsize="end"
-            android:gravity="center"
-            android:maxWidth="180dp"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
-            android:singleLine="true"
-            android:textColor="@color/secondaryText"
-            android:textSize="12sp"
-            tools:text="@string/cache_manage_books" />
-
-        <TextView
-            android:id="@+id/tv_read"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textColor="@color/secondaryText"
-            android:textSize="12sp"
-            android:visibility="gone"
-            tools:text="@string/read_dur_progress" />
-
-        <TextView
-            android:id="@+id/tv_latest"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textColor="@color/secondaryText"
-            android:textSize="12sp"
-            tools:text="@string/lasted_show" />
-
-        <TextView
             android:id="@+id/tv_cache"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="8dp"
             android:ellipsize="end"
             android:singleLine="true"
             android:textColor="@color/primaryText"
@@ -123,9 +73,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:ellipsize="end"
-            android:maxLines="2"
+            android:maxLines="1"
             android:textColor="@color/secondaryText"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:visibility="gone"
             tools:text="2/12 · 4.2 M / 20 M · 512 kb/s" />
 
@@ -133,7 +83,7 @@
 
     <LinearLayout
         android:id="@+id/lay_actions"
-        android:layout_width="136dp"
+        android:layout_width="124dp"
         android:layout_height="wrap_content"
         android:gravity="end"
         android:orientation="vertical"
@@ -144,25 +94,25 @@
         <TextView
             android:id="@+id/btn_source"
             android:layout_width="match_parent"
-            android:layout_height="30dp"
+            android:layout_height="28dp"
             android:background="@drawable/bg_book_info_action_secondary"
             android:ellipsize="end"
             android:gravity="center"
             android:singleLine="true"
             android:text="@string/cache_manage_select_source"
             android:textColor="@color/primaryText"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
+            android:layout_marginTop="6dp"
             android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/btn_chapters"
                 android:layout_width="0dp"
-                android:layout_height="30dp"
+                android:layout_height="28dp"
                 android:layout_weight="1"
                 android:background="@drawable/bg_book_info_action_secondary"
                 android:ellipsize="end"
@@ -170,13 +120,13 @@
                 android:singleLine="true"
                 android:text="@string/chapter_list"
                 android:textColor="@color/primaryText"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/btn_upload"
                 android:layout_width="0dp"
-                android:layout_height="30dp"
-                android:layout_marginStart="6dp"
+                android:layout_height="28dp"
+                android:layout_marginStart="5dp"
                 android:layout_weight="1"
                 android:background="@drawable/bg_book_info_action_secondary"
                 android:ellipsize="end"
@@ -184,20 +134,20 @@
                 android:singleLine="true"
                 android:text="@string/cache_manage_upload"
                 android:textColor="@color/primaryText"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
 
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
+            android:layout_marginTop="6dp"
             android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/btn_bookshelf"
                 android:layout_width="0dp"
-                android:layout_height="30dp"
+                android:layout_height="28dp"
                 android:layout_weight="1"
                 android:background="@drawable/bg_book_info_action_secondary"
                 android:ellipsize="end"
@@ -205,13 +155,13 @@
                 android:singleLine="true"
                 android:text="@string/cache_manage_add_bookshelf"
                 android:textColor="@color/primaryText"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/btn_delete"
                 android:layout_width="0dp"
-                android:layout_height="30dp"
-                android:layout_marginStart="6dp"
+                android:layout_height="28dp"
+                android:layout_marginStart="5dp"
                 android:layout_weight="1"
                 android:background="@drawable/bg_book_info_action_secondary"
                 android:ellipsize="end"
@@ -219,22 +169,22 @@
                 android:singleLine="true"
                 android:text="@string/delete"
                 android:textColor="@color/primaryText"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
 
         </LinearLayout>
 
         <TextView
             android:id="@+id/btn_stop"
             android:layout_width="match_parent"
-            android:layout_height="30dp"
-            android:layout_marginTop="7dp"
+            android:layout_height="28dp"
+            android:layout_marginTop="6dp"
             android:background="@drawable/bg_book_info_action_secondary"
             android:ellipsize="end"
             android:gravity="center"
             android:singleLine="true"
             android:text="@string/stop"
             android:textColor="@color/primaryText"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:visibility="gone" />
 
     </LinearLayout>

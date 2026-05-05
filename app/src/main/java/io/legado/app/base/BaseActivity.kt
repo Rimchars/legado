@@ -83,6 +83,7 @@ abstract class BaseActivity<VB : ViewBinding>(
         applyPreferredRefreshRate()
         setupSystemBar()
         setContentView(binding.root)
+        applyRootBackgroundPolicy()
         upBackgroundImage()
         lastThemeValuesChanged = ThemeStore.valuesChanged(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -107,6 +108,7 @@ abstract class BaseActivity<VB : ViewBinding>(
         if (valuesChanged != lastThemeValuesChanged) {
             lastThemeValuesChanged = valuesChanged
             setupSystemBar()
+            applyRootBackgroundPolicy()
             upBackgroundImage()
         }
     }
@@ -182,7 +184,7 @@ abstract class BaseActivity<VB : ViewBinding>(
     }
 
     private fun applyInitialWindowBackground() {
-        if (imageBg && ThemeConfig.hasUsableBgImage(this)) {
+        if (imageBg && !AppConfig.isEInkMode && ThemeConfig.hasUsableBgImage(this)) {
             ViewCompat.setBackgroundTintList(window.decorView, null)
             window.decorView.background = null
         } else {
@@ -190,8 +192,15 @@ abstract class BaseActivity<VB : ViewBinding>(
         }
     }
 
+    private fun applyRootBackgroundPolicy() {
+        if (imageBg && !AppConfig.isEInkMode && ThemeConfig.hasUsableBgImage(this)) {
+            ViewCompat.setBackgroundTintList(binding.root, null)
+            binding.root.background = null
+        }
+    }
+
     open fun upBackgroundImage() {
-        if (!imageBg) {
+        if (!imageBg || AppConfig.isEInkMode) {
             applyWindowBackgroundColor()
             return
         }

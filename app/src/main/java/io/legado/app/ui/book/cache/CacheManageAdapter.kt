@@ -52,7 +52,6 @@ class CacheManageAdapter(
         val book = item.book
         ivCover.load(book, false)
         tvName.text = book.name
-        tvType.setText(item.mode.titleRes)
         btnSource.text = if (item.sourceAvailable) {
             item.sourceName
         } else {
@@ -60,10 +59,6 @@ class CacheManageAdapter(
         }
         btnSource.isEnabled = item.sourceVariants.size > 1
         btnSource.alpha = if (item.sourceVariants.size > 1) 1f else 0.72f
-        tvAuthor.text = book.getRealAuthor()
-        tvRead.gone()
-        tvLatest.text = book.latestChapterTitle?.takeIf { it.isNotBlank() }
-            ?: context.getString(R.string.lasted_show, context.getString(R.string.unknown))
         tvCache.text = context.getString(
             R.string.cache_manage_cached_count,
             item.cachedCount,

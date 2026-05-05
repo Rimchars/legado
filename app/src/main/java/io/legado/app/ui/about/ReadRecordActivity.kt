@@ -20,7 +20,6 @@ import io.legado.app.databinding.ItemReadRecordRecentBookBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
-import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.utils.ColorUtils
@@ -281,42 +280,16 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
     }
 
     private fun applyPageChrome() {
-        val baseColor = backgroundColor
-        val baseIsLight = ColorUtils.isColorLight(baseColor)
-        val panelSurfaceColor = if (baseIsLight) {
-            ColorUtils.blendColors(
-                baseColor,
-                ContextCompat.getColor(this, R.color.background_card),
-                0.82f
-            )
-        } else {
-            ColorUtils.blendColors(
-                baseColor,
-                ContextCompat.getColor(this, R.color.white),
-                0.1f
-            )
-        }
-        val cardSurfaceColor = if (baseIsLight) {
-            ColorUtils.blendColors(
-                baseColor,
-                ContextCompat.getColor(this, R.color.background_menu),
-                0.92f
-            )
-        } else {
-            ColorUtils.blendColors(
-                baseColor,
-                ContextCompat.getColor(this, R.color.white),
-                0.06f
-            )
-        }
+        val panelSurfaceColor = ContextCompat.getColor(this, R.color.background_card)
+        val cardSurfaceColor = ContextCompat.getColor(this, R.color.background_card)
         val strokeColor = ColorUtils.adjustAlpha(
-            if (baseIsLight) primaryTextColor else ContextCompat.getColor(this, R.color.white),
-            if (baseIsLight) 0.08f else 0.14f
+            primaryTextColor,
+            0.08f
         )
         val accentSurfaceColor = ColorUtils.blendColors(
             panelSurfaceColor,
             accentColor,
-            if (baseIsLight) 0.16f else 0.24f
+            0.16f
         )
 
         listOf(

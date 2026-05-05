@@ -10,8 +10,11 @@ import android.view.View
 import androidx.annotation.LayoutRes
 import androidx.appcompat.view.SupportMenuInflater
 import androidx.appcompat.widget.Toolbar
+import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
 import io.legado.app.R
+import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.ThemeConfig
 import io.legado.app.ui.widget.TitleBar
 import io.legado.app.utils.applyTint
 
@@ -27,9 +30,17 @@ abstract class BaseFragment(@LayoutRes layoutID: Int) : Fragment(layoutID) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        applyRootBackgroundPolicy(view)
         onMultiWindowModeChanged()
         observeLiveBus()
         onFragmentCreated(view, savedInstanceState)
+    }
+
+    private fun applyRootBackgroundPolicy(view: View) {
+        if (!AppConfig.isEInkMode && ThemeConfig.hasUsableBgImage(requireContext())) {
+            ViewCompat.setBackgroundTintList(view, null)
+            view.background = null
+        }
     }
 
     abstract fun onFragmentCreated(view: View, savedInstanceState: Bundle?)
