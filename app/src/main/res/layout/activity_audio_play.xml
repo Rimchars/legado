@@ -241,7 +241,7 @@
             android:background="@drawable/selector_circle_btn_bg"
             android:contentDescription="@string/offline_cache"
             android:padding="5dp"
-            android:src="@drawable/ic_download"
+            android:src="@drawable/ic_download_line"
             app:tint="@color/md_white_1000"
             tools:ignore="ImageContrastCheck" />
 

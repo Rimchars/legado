@@ -20,6 +20,7 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.BookSource
 import io.legado.app.databinding.ActivityAudioPlayBinding
+import io.legado.app.databinding.DialogDownloadChoiceBinding
 import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.removeType
 import io.legado.app.help.config.AppConfig
@@ -29,7 +30,7 @@ import io.legado.app.model.BookCover
 import io.legado.app.service.AudioPlayService
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.book.changesource.ChangeBookSourceDialog
-import io.legado.app.ui.book.cache.CacheChapterDialog
+import io.legado.app.ui.book.cache.CacheManageViewModel
 import io.legado.app.ui.book.source.edit.BookSourceEditActivity
 import io.legado.app.ui.book.toc.TocActivityResult
 import io.legado.app.ui.login.SourceLoginActivity
@@ -44,6 +45,7 @@ import io.legado.app.utils.sendToClip
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.startActivityForBook
+import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.toDurationTime
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
@@ -71,6 +73,7 @@ class AudioPlayActivity :
 
     override val binding by viewBinding(ActivityAudioPlayBinding::inflate)
     override val viewModel by viewModels<AudioPlayViewModel>()
+    private val cacheViewModel by viewModels<CacheManageViewModel>()
     private val timerSliderPopup by lazy { SliderPopup(this, TIMER) }
     private val speedControlPopup by lazy { SliderPopup(this, SPEED) }
     private var adjustProgress = false
@@ -226,7 +229,7 @@ class AudioPlayActivity :
     private fun initListener() {
         binding.ivCache?.setOnClickListener {
             AudioPlay.book?.let {
-                showDialogFragment(CacheChapterDialog.newInstance(it))
+                showAudioCacheRangeDialog(it)
             }
         }
         binding.fabPlayStop.setOnClickListener {
@@ -245,6 +248,44 @@ class AudioPlayActivity :
             AudioPlay.book?.let {
                 tocActivityResult.launch(it.bookUrl)
             }
+        }
+    }
+
+    private fun showAudioCacheRangeDialog(book: Book) {
+        alert(titleResource = R.string.offline_cache) {
+            val total = book.totalChapterNum.takeIf { it > 0 } ?: AudioPlay.simulatedChapterSize
+            val alertBinding = DialogDownloadChoiceBinding.inflate(layoutInflater).apply {
+                editStart.setText((book.durChapterIndex + 1).coerceAtLeast(1).toString())
+                editEnd.setText(total.coerceAtLeast(1).toString())
+            }
+            customView { alertBinding.root }
+            okButton {
+                lifecycleScope.launch {
+                    val start = alertBinding.editStart.text?.toString()?.toIntOrNull()
+                        ?.coerceAtLeast(1) ?: 1
+                    val end = alertBinding.editEnd.text?.toString()?.toIntOrNull()
+                        ?.coerceAtLeast(start) ?: total.coerceAtLeast(start)
+                    val chapters = withContext(IO) {
+                        appDb.bookChapterDao.getChapterList(book.bookUrl, start - 1, end - 1)
+                    }
+                    if (chapters.isEmpty()) {
+                        toastOnUi(R.string.chapter_list_empty)
+                        return@launch
+                    }
+                    kotlin.runCatching {
+                        cacheViewModel.cacheAudioChapters(book, chapters)
+                    }.onSuccess { count ->
+                        if (count > 0) {
+                            toastOnUi(getString(R.string.cache_manage_audio_cache_started, count))
+                        } else {
+                            toastOnUi(R.string.cache_manage_batch_empty)
+                        }
+                    }.onFailure {
+                        toastOnUi(getString(R.string.cache_manage_cache_failed, it.localizedMessage))
+                    }
+                }
+            }
+            cancelButton()
         }
     }
 

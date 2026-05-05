@@ -7,6 +7,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.SimpleItemAnimator
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
+import io.legado.app.data.appDb
+import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.ActivityCacheManageBinding
 import io.legado.app.help.AppWebDav
 import io.legado.app.lib.dialogs.alert
@@ -15,6 +18,7 @@ import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.utils.gone
 import io.legado.app.utils.showDialogFragment
+import io.legado.app.utils.startActivityForBook
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
@@ -242,5 +246,19 @@ class CacheManageActivity :
 
     override fun onCacheChanged() {
         viewModel.load()
+    }
+
+    override fun openCacheChapter(book: Book, chapter: BookChapter) {
+        val target = book.apply {
+            durChapterIndex = chapter.index
+            durChapterTitle = chapter.title
+            durChapterPos = 0
+        }
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                appDb.bookDao.update(target)
+            }
+            startActivityForBook(target)
+        }
     }
 }

@@ -16,6 +16,7 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.FragmentChapterListBinding
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isVideo
 import io.legado.app.help.book.simulatedTotalChapterNum
@@ -180,6 +181,9 @@ class ChapterListFragment : VMBaseFragment<TocViewModel>(R.layout.fragment_chapt
 
     override val isLocalBook: Boolean
         get() = viewModel.bookData.value?.isLocal == true
+
+    override val isAudioBook: Boolean
+        get() = viewModel.bookData.value?.isAudio == true
 
     override fun durChapterIndex(): Int {
         return durChapterIndex

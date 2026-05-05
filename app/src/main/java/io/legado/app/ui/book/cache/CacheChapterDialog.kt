@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
 import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.DialogCacheChaptersBinding
 import io.legado.app.help.book.isAudio
 import io.legado.app.lib.dialogs.alert
@@ -84,7 +85,10 @@ class CacheChapterDialog :
     }
 
     override fun onChapterClick(item: CacheChapterItem) {
-        if (!adapter.selectionMode) return
+        if (!adapter.selectionMode) {
+            callback?.openCacheChapter(book, item.chapter)
+            return
+        }
         adapter.toggleSelection(item)
         updateSelectionBar()
     }
@@ -236,6 +240,7 @@ class CacheChapterDialog :
 
     interface Callback {
         fun onCacheChanged()
+        fun openCacheChapter(book: Book, chapter: BookChapter) {}
     }
 
     companion object {

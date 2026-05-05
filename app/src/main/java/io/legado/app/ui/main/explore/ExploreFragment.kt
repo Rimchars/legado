@@ -900,7 +900,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.rvDiscoverSelects.submitItems(
             items.map {
                 val value = currentDiscoverSelectValue(it)
-                RoundedTagBarView.Item("${it.text}:${value}", 1f)
+                RoundedTagBarView.Item("${it.text}：${value}", 1f)
             },
             -1
         )

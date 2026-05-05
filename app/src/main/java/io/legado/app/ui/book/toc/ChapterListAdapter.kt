@@ -13,6 +13,7 @@ import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.ItemChapterListBinding
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
+import io.legado.app.help.exoplayer.ExoPlayerHelper
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.lib.theme.ThemeUtils
@@ -129,7 +130,11 @@ class ChapterListAdapter(context: Context, val callback: Callback) :
             val cached = callback.isLocalBook
                     || item.isVolume
                     || callback.book?.let { book ->
-                        BookHelp.getChapterCacheFileNames(book, item).any(cacheFileNames::contains)
+                        if (callback.isAudioBook) {
+                            ExoPlayerHelper.isMediaCached(item.resourceUrl)
+                        } else {
+                            BookHelp.getChapterCacheFileNames(book, item).any(cacheFileNames::contains)
+                        }
                     } == true
             if (payloads.isEmpty()) {
                 if (isDur) {
@@ -233,6 +238,7 @@ class ChapterListAdapter(context: Context, val callback: Callback) :
         val scope: CoroutineScope
         val book: Book?
         val isLocalBook: Boolean
+        val isAudioBook: Boolean
         fun openChapter(bookChapter: BookChapter)
         fun toggleVolume(bookChapter: BookChapter)
         fun isVolumeCollapsed(bookChapter: BookChapter): Boolean
