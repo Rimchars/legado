@@ -135,6 +135,20 @@ object ThemeConfig {
         return bgImage?.stackBlur(bgImgBlu)?.toDrawable(context.resources)
     }
 
+    fun hasUsableBgImage(context: Context): Boolean {
+        val preferenceKey = when (getTheme()) {
+            Theme.Light -> PreferKey.bgImage
+            Theme.Dark -> PreferKey.bgImageN
+            else -> return false
+        }
+        val path = context.getPrefString(preferenceKey)?.takeIf { it.isNotBlank() } ?: return false
+        if (path.startsWith("http", ignoreCase = true)) {
+            val filePath = FileUtils.getPath(context.externalFiles, preferenceKey, getUrlToFile(path))
+            return FileUtils.exist(filePath)
+        }
+        return File(path).exists()
+    }
+
     fun upConfig() {
         addConfigs(getConfigs())
     }

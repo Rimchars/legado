@@ -158,12 +158,12 @@ abstract class BaseActivity<VB : ViewBinding>(
             Theme.Transparent -> setTheme(R.style.AppTheme_Transparent)
             Theme.Dark -> {
                 setTheme(R.style.AppTheme_Dark)
-                applyWindowBackgroundColor()
+                applyInitialWindowBackground()
             }
 
             Theme.Light -> {
                 setTheme(R.style.AppTheme_Light)
-                applyWindowBackgroundColor()
+                applyInitialWindowBackground()
             }
 
             else -> {
@@ -172,7 +172,7 @@ abstract class BaseActivity<VB : ViewBinding>(
                 } else {
                     setTheme(R.style.AppTheme_Light)
                 }
-                applyWindowBackgroundColor()
+                applyInitialWindowBackground()
             }
         }
     }
@@ -180,6 +180,15 @@ abstract class BaseActivity<VB : ViewBinding>(
     private fun applyWindowBackgroundColor() {
         ViewCompat.setBackgroundTintList(window.decorView, null)
         window.decorView.setBackgroundColor(backgroundColor)
+    }
+
+    private fun applyInitialWindowBackground() {
+        if (imageBg && ThemeConfig.hasUsableBgImage(this)) {
+            ViewCompat.setBackgroundTintList(window.decorView, null)
+            window.decorView.background = null
+        } else {
+            applyWindowBackgroundColor()
+        }
     }
 
     open fun upBackgroundImage() {

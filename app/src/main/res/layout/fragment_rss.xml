@@ -142,7 +142,7 @@
             <io.legado.app.ui.widget.RoundedTagBarView
                 android:id="@+id/rv_rss_tags"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="@dimen/bookshelf_tag_bar_height"
                 android:layout_marginTop="8dp"
                 android:visibility="gone" />
 

@@ -52,12 +52,14 @@ class CacheManageAdapter(
         val book = item.book
         ivCover.load(book, false)
         tvName.text = book.name
-        tvType.text = if (item.sourceAvailable) {
+        tvType.setText(item.mode.titleRes)
+        btnSource.text = if (item.sourceAvailable) {
             item.sourceName
         } else {
             context.getString(R.string.cache_manage_source_deleted_chip, item.sourceName)
         }
-        tvType.alpha = if (item.sourceVariants.size > 1) 1f else 0.72f
+        btnSource.isEnabled = item.sourceVariants.size > 1
+        btnSource.alpha = if (item.sourceVariants.size > 1) 1f else 0.72f
         tvAuthor.text = book.getRealAuthor()
         tvRead.gone()
         tvLatest.text = book.latestChapterTitle?.takeIf { it.isNotBlank() }
@@ -114,7 +116,7 @@ class CacheManageAdapter(
         binding.btnStop.setOnClickListener {
             getItem(holder.layoutPosition)?.let(callback::stopAudioCache)
         }
-        binding.tvType.setOnClickListener {
+        binding.btnSource.setOnClickListener {
             getItem(holder.layoutPosition)?.let(callback::selectSource)
         }
     }
