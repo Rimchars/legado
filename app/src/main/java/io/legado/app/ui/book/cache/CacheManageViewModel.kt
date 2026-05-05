@@ -12,10 +12,13 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.exoplayer.ExoPlayerHelper
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.CacheBookManifest
+import io.legado.app.help.book.CacheManifestHelper
 import io.legado.app.help.book.getBookSource
 import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
+import io.legado.app.model.CacheBook
 import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.getMediaRequest
 import io.legado.app.model.webBook.WebBook
@@ -52,9 +55,20 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         job = viewModelScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
             loadingLiveData.postValue(true)
             try {
-                val items = getBooks(mode)
+                val currentBooks = getBooks(mode)
+                val currentBookUrls = currentBooks.mapTo(hashSetOf()) { it.bookUrl }
+                val currentItems = currentBooks
                     .asSequence()
                     .mapNotNull { book -> buildCacheBookItem(book, mode) }
+                    .toList()
+                val manifestItems = CacheManifestHelper.listManifests()
+                    .asSequence()
+                    .filter { it.matches(mode) }
+                    .filterNot { currentBookUrls.contains(it.bookUrl) }
+                    .mapNotNull { manifest -> buildCacheBookItem(manifest, mode) }
+                    .toList()
+                val items = (currentItems + manifestItems)
+                    .asSequence()
                     .sortedWith(compareByDescending<CacheBookItem> { it.cachedCount }.thenBy { it.book.name })
                     .toList()
                 ensureActive()
@@ -82,6 +96,7 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             deleteAudioMediaCache(book)
             BookHelp.clearCache(book)
+            CacheManifestHelper.delete(book)
             withContext(Dispatchers.Main) {
                 onDone()
             }
@@ -94,6 +109,7 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
             books.forEach {
                 deleteAudioMediaCache(it)
                 BookHelp.clearCache(it)
+                CacheManifestHelper.delete(it)
             }
             withContext(Dispatchers.Main) {
                 onDone()
@@ -103,24 +119,28 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
     }
 
     suspend fun getChapterItems(book: Book, key: String? = null): List<CacheChapterItem> {
-        return getChapterItems(book, key, false)
+        return getChapterItems(book, key, CacheChapterFilter.ALL)
     }
 
     suspend fun getChapterItems(
         book: Book,
         key: String? = null,
-        cachedOnly: Boolean = false
+        filter: CacheChapterFilter = CacheChapterFilter.ALL
     ): List<CacheChapterItem> {
         return withContext(Dispatchers.IO) {
             val cacheNames = getCacheFileNames(book)
-            if (cachedOnly && !book.isAudio && cacheNames.none { it.endsWith(".nb") }) {
-                return@withContext emptyList()
-            }
-            val chapters = if (key.isNullOrBlank()) {
+            val manifest = CacheManifestHelper.read(book)
+            val dbChapters = if (key.isNullOrBlank()) {
                 appDb.bookChapterDao.getChapterList(book.bookUrl)
             } else {
                 appDb.bookChapterDao.search(book.bookUrl, key)
             }
+            if (book.isAudio && CacheManifestHelper.mergeResourceUrls(dbChapters, manifest)) {
+                appDb.bookChapterDao.update(*dbChapters.toTypedArray())
+            }
+            val chapters = dbChapters.takeIf { it.isNotEmpty() }
+                ?: CacheManifestHelper.toChapters(manifest ?: return@withContext emptyList())
+                    .filterByKey(key)
             chapters
                 .asSequence()
                 .filterNot { it.isVolume }
@@ -131,8 +151,10 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
                         cacheNames,
                         validateImageContent = false
                     )
-                    if (cachedOnly && !cached) {
-                        return@mapNotNull null
+                    when (filter) {
+                        CacheChapterFilter.CACHED -> if (!cached) return@mapNotNull null
+                        CacheChapterFilter.UNCACHED -> if (cached) return@mapNotNull null
+                        CacheChapterFilter.ALL -> Unit
                     }
                     CacheChapterItem(chapter = chapter, cached = cached)
                 }
@@ -146,7 +168,24 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
                 ExoPlayerHelper.removeMediaCache(chapter.resourceUrl)
             }
             BookHelp.delChapterCache(book, chapter)
+            refreshManifest(book)
         }
+    }
+
+    fun cacheBookChapters(book: Book, chapters: List<BookChapter>): Int {
+        if (book.isAudio || book.isLocal) return 0
+        val indexes = chapters
+            .asSequence()
+            .filterNot { it.isVolume }
+            .map { it.index }
+            .distinct()
+            .sorted()
+            .toList()
+        if (indexes.isEmpty()) return 0
+        indexes.toRanges().forEach { (start, end) ->
+            CacheBook.start(appCtx, book, start, end)
+        }
+        return indexes.size
     }
 
     suspend fun cacheAudioChapters(book: Book, chapters: List<BookChapter>): Int {
@@ -169,12 +208,51 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
                     appDb.bookChapterDao.update(chapter)
                 }
             },
-            onFinished = { load(mode) }
+            onFinished = {
+                refreshManifest(book)
+                load(mode)
+            }
         )
         if (started) {
             load(mode)
         }
         return if (started) targets.size else 0
+    }
+
+    suspend fun restoreCacheToBookshelf(item: CacheBookItem): Boolean {
+        return withContext(Dispatchers.IO) {
+            val manifest = item.manifest ?: CacheManifestHelper.read(item.book) ?: return@withContext false
+            val sameUrlBook = appDb.bookDao.getBook(manifest.bookUrl)
+            val sameNameBook = appDb.bookDao.getBook(manifest.name, manifest.author)
+            val cacheBook = CacheManifestHelper.toBook(manifest).apply {
+                sameUrlBook?.let {
+                    group = it.group
+                    order = it.order
+                    durChapterIndex = it.durChapterIndex
+                    durChapterTitle = it.durChapterTitle
+                    durChapterPos = it.durChapterPos
+                    readConfig = it.readConfig
+                } ?: sameNameBook?.let {
+                    group = it.group
+                    order = it.order
+                    durChapterIndex = it.durChapterIndex
+                    durChapterTitle = it.durChapterTitle
+                    durChapterPos = it.durChapterPos
+                    readConfig = it.readConfig
+                }
+            }
+            when {
+                sameUrlBook != null -> appDb.bookDao.update(cacheBook)
+                sameNameBook != null -> appDb.bookDao.replace(sameNameBook, cacheBook)
+                else -> appDb.bookDao.insert(cacheBook)
+            }
+            val chapters = CacheManifestHelper.toChapters(manifest, cacheBook.bookUrl)
+            if (chapters.isNotEmpty()) {
+                appDb.bookChapterDao.delByBook(cacheBook.bookUrl)
+                appDb.bookChapterDao.insert(*chapters.toTypedArray())
+            }
+            true
+        }
     }
 
     suspend fun createCachePackage(book: Book): File {
@@ -219,7 +297,9 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
             hasCache = true
         }
         val audioDir = File(packageDir, "audio_cache").apply { mkdirs() }
-        val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
+        val chapters = (appDb.bookChapterDao.getChapterList(book.bookUrl)
+            .takeIf { it.isNotEmpty() }
+            ?: CacheManifestHelper.read(book)?.let(CacheManifestHelper::toChapters).orEmpty())
             .filterNot { it.isVolume }
             .mapNotNull { chapter ->
                 val chapterDir = File(audioDir, chapter.index.toString())
@@ -261,14 +341,30 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
 
     private fun buildCacheBookItem(book: Book, mode: CacheManageMode): CacheBookItem? {
         val taskState = AudioCacheTaskManager.snapshot(book.bookUrl)
-        val rawCachedCount = if (mode == CacheManageMode.AUDIO) {
-            getAudioCachedCount(book)
-        } else {
-            getFastCachedCount(book)
+        val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
+        val manifest = CacheManifestHelper.read(book)
+        if (book.isAudio && CacheManifestHelper.mergeResourceUrls(chapters, manifest)) {
+            appDb.bookChapterDao.update(*chapters.toTypedArray())
         }
-        if (rawCachedCount <= 0 && taskState?.active != true) return null
+        val cacheNames = getCacheFileNames(book)
+        val rawCachedCount = if (mode == CacheManageMode.AUDIO) {
+            getAudioCachedCount(chapters)
+        } else {
+            getFastCachedCount(cacheNames)
+        }
+        if (rawCachedCount <= 0 && taskState?.active != true) {
+            CacheManifestHelper.delete(book)
+            return null
+        }
+        val updatedManifest = if (rawCachedCount > 0 && chapters.isNotEmpty()) {
+            CacheManifestHelper.write(book, chapters) {
+                isChapterCached(book, it, cacheNames, validateImageContent = false)
+            }
+        } else {
+            manifest
+        }
         val totalChapterCount = book.totalChapterNum.takeIf { it > 0 }
-            ?: appDb.bookChapterDao.getChapterCount(book.bookUrl).takeIf { it > 0 }
+            ?: chapters.size.takeIf { it > 0 }
             ?: rawCachedCount
         val cachedCount = rawCachedCount.coerceAtMost(totalChapterCount)
         return CacheBookItem(
@@ -276,16 +372,48 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
             mode = mode,
             cachedCount = cachedCount,
             totalChapterCount = totalChapterCount,
-            taskState = taskState
+            taskState = taskState,
+            manifest = updatedManifest,
+            inBookshelf = true,
+            sourceAvailable = book.isLocal || book.getBookSource() != null
         )
     }
 
-    private fun getFastCachedCount(book: Book): Int {
-        return getCacheFileNames(book).count { it.endsWith(".nb") }
+    private fun buildCacheBookItem(
+        manifest: CacheBookManifest,
+        mode: CacheManageMode
+    ): CacheBookItem? {
+        val book = CacheManifestHelper.toBook(manifest)
+        val chapters = CacheManifestHelper.toChapters(manifest)
+        val cacheNames = getCacheFileNames(book)
+        val rawCachedCount = if (mode == CacheManageMode.AUDIO) {
+            getAudioCachedCount(chapters)
+        } else {
+            chapters.count {
+                isChapterCached(book, it, cacheNames, validateImageContent = false)
+            }
+        }
+        if (rawCachedCount <= 0) return null
+        val totalChapterCount = manifest.totalChapterNum.takeIf { it > 0 }
+            ?: chapters.size.takeIf { it > 0 }
+            ?: rawCachedCount
+        return CacheBookItem(
+            book = book,
+            mode = mode,
+            cachedCount = rawCachedCount.coerceAtMost(totalChapterCount),
+            totalChapterCount = totalChapterCount,
+            manifest = manifest,
+            inBookshelf = false,
+            sourceAvailable = book.isLocal || book.getBookSource() != null
+        )
     }
 
-    private fun getAudioCachedCount(book: Book): Int {
-        return appDb.bookChapterDao.getChapterList(book.bookUrl)
+    private fun getFastCachedCount(cacheNames: Set<String>): Int {
+        return cacheNames.count { it.endsWith(".nb") }
+    }
+
+    private fun getAudioCachedCount(chapters: List<BookChapter>): Int {
+        return chapters
             .asSequence()
             .filterNot { it.isVolume }
             .count { ExoPlayerHelper.isMediaCached(it.resourceUrl) }
@@ -323,16 +451,24 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
 
     private fun deleteAudioMediaCache(book: Book) {
         if (!book.isAudio) return
-        appDb.bookChapterDao.getChapterList(book.bookUrl)
+        val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
+            .takeIf { it.isNotEmpty() }
+            ?: CacheManifestHelper.read(book)?.let(CacheManifestHelper::toChapters).orEmpty()
+        chapters
             .forEach { ExoPlayerHelper.removeMediaCache(it.resourceUrl) }
     }
 
-    private suspend fun cacheAudioChapter(book: Book, chapter: BookChapter) {
-        val request = resolveAudioMediaRequest(book, chapter)
-        ExoPlayerHelper.cacheMedia(request)
-        if (chapter.resourceUrl != request.url) {
-            chapter.resourceUrl = request.url
-            appDb.bookChapterDao.update(chapter)
+    private fun refreshManifest(book: Book) {
+        val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
+            .takeIf { it.isNotEmpty() }
+            ?: CacheManifestHelper.read(book)?.let(CacheManifestHelper::toChapters).orEmpty()
+        if (chapters.isEmpty()) {
+            CacheManifestHelper.delete(book)
+            return
+        }
+        val cacheNames = getCacheFileNames(book)
+        CacheManifestHelper.write(book, chapters) {
+            isChapterCached(book, it, cacheNames, validateImageContent = false)
         }
     }
 
@@ -341,7 +477,7 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         chapter: BookChapter
     ): ExoPlayerHelper.MediaRequest {
         chapter.resourceUrl
-            ?.takeIf { it.isNotBlank() && ExoPlayerHelper.isMediaCached(it) }
+            ?.takeIf { it.isNotBlank() }
             ?.let { return ExoPlayerHelper.MediaRequest(it) }
         val source = book.getBookSource()
             ?: throw IllegalStateException(context.getString(R.string.book_source_not_found))
@@ -377,10 +513,16 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
     }
 }
 
-enum class CacheManageMode(@StringRes val titleRes: Int) {
-    BOOK(R.string.cache_manage_books),
-    AUDIO(R.string.cache_manage_audio),
-    MANGA(R.string.cache_manage_manga)
+enum class CacheManageMode(@StringRes val titleRes: Int, val bookType: Int) {
+    BOOK(R.string.cache_manage_books, BookType.text),
+    AUDIO(R.string.cache_manage_audio, BookType.audio),
+    MANGA(R.string.cache_manage_manga, BookType.image)
+}
+
+enum class CacheChapterFilter {
+    ALL,
+    CACHED,
+    UNCACHED
 }
 
 data class CacheBookItem(
@@ -388,7 +530,10 @@ data class CacheBookItem(
     val mode: CacheManageMode,
     val cachedCount: Int,
     val totalChapterCount: Int,
-    val taskState: AudioCacheTaskState? = null
+    val taskState: AudioCacheTaskState? = null,
+    val manifest: CacheBookManifest? = null,
+    val inBookshelf: Boolean = true,
+    val sourceAvailable: Boolean = true
 )
 
 data class CacheChapterItem(
@@ -415,4 +560,31 @@ private data class AudioCacheManifest(
         val resourceUrl: String?,
         val fileCount: Int
     )
+}
+
+private fun CacheBookManifest.matches(mode: CacheManageMode): Boolean {
+    return type and mode.bookType > 0
+}
+
+private fun List<BookChapter>.filterByKey(key: String?): List<BookChapter> {
+    if (key.isNullOrBlank()) return this
+    return filter { it.title.contains(key, ignoreCase = true) }
+}
+
+private fun List<Int>.toRanges(): List<Pair<Int, Int>> {
+    if (isEmpty()) return emptyList()
+    val ranges = arrayListOf<Pair<Int, Int>>()
+    var start = first()
+    var previous = first()
+    drop(1).forEach { value ->
+        if (value == previous + 1) {
+            previous = value
+        } else {
+            ranges.add(start to previous)
+            start = value
+            previous = value
+        }
+    }
+    ranges.add(start to previous)
+    return ranges
 }

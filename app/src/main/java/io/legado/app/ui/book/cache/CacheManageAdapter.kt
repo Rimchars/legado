@@ -31,7 +31,9 @@ class CacheManageAdapter(
                     oldItem.cachedCount == newItem.cachedCount &&
                     oldItem.totalChapterCount == newItem.totalChapterCount &&
                     oldItem.mode == newItem.mode &&
-                    oldItem.taskState == newItem.taskState
+                    oldItem.taskState == newItem.taskState &&
+                    oldItem.inBookshelf == newItem.inBookshelf &&
+                    oldItem.sourceAvailable == newItem.sourceAvailable
             }
         }
 
@@ -49,7 +51,17 @@ class CacheManageAdapter(
         ivCover.load(book, false)
         tvName.text = book.name
         tvType.setText(item.mode.titleRes)
-        tvAuthor.text = context.getString(R.string.author_show, book.getRealAuthor())
+        val sourceName = book.originName.ifBlank { book.origin }
+        val sourceText = if (item.sourceAvailable) {
+            sourceName
+        } else {
+            context.getString(R.string.cache_manage_source_deleted, sourceName)
+        }
+        tvAuthor.text = context.getString(
+            R.string.cache_manage_author_source,
+            book.getRealAuthor(),
+            sourceText
+        )
         tvRead.text = book.durChapterTitle?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.last_read)
         tvLatest.text = book.latestChapterTitle?.takeIf { it.isNotBlank() }
@@ -76,6 +88,11 @@ class CacheManageAdapter(
             btnStop.gone()
         }
         val hasCache = item.cachedCount > 0
+        btnBookshelf.setText(
+            if (item.inBookshelf) R.string.cache_manage_use_cache
+            else R.string.cache_manage_add_bookshelf
+        )
+        if (item.manifest != null) btnBookshelf.visible() else btnBookshelf.gone()
         btnUpload.isEnabled = hasCache && !isCaching
         btnDelete.isEnabled = hasCache && !isCaching
         btnUpload.alpha = if (hasCache && !isCaching) 1f else 0.45f
@@ -91,6 +108,9 @@ class CacheManageAdapter(
         }
         binding.btnUpload.setOnClickListener {
             getItem(holder.layoutPosition)?.let(callback::upload)
+        }
+        binding.btnBookshelf.setOnClickListener {
+            getItem(holder.layoutPosition)?.let(callback::restoreToBookshelf)
         }
         binding.btnDelete.setOnClickListener {
             getItem(holder.layoutPosition)?.let(callback::deleteBookCache)
@@ -108,6 +128,7 @@ class CacheManageAdapter(
     interface Callback {
         fun openChapters(item: CacheBookItem)
         fun upload(item: CacheBookItem)
+        fun restoreToBookshelf(item: CacheBookItem)
         fun deleteBookCache(item: CacheBookItem)
         fun stopAudioCache(item: CacheBookItem)
     }

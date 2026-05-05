@@ -157,6 +157,18 @@
             android:textSize="13sp" />
 
         <TextView
+            android:id="@+id/btn_bookshelf"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_book_info_action_secondary"
+            android:gravity="center"
+            android:minWidth="64dp"
+            android:text="@string/cache_manage_add_bookshelf"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp" />
+
+        <TextView
             android:id="@+id/btn_delete"
             android:layout_width="wrap_content"
             android:layout_height="34dp"

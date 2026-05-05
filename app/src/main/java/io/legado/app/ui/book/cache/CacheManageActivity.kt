@@ -127,6 +127,26 @@ class CacheManageActivity :
         }
     }
 
+    override fun restoreToBookshelf(item: CacheBookItem) {
+        lifecycleScope.launch {
+            kotlin.runCatching {
+                viewModel.restoreCacheToBookshelf(item)
+            }.onSuccess { success ->
+                if (success) {
+                    toastOnUi(
+                        if (item.inBookshelf) R.string.cache_manage_use_cache_success
+                        else R.string.cache_manage_add_bookshelf_success
+                    )
+                    viewModel.load()
+                } else {
+                    toastOnUi(R.string.cache_manage_no_cache)
+                }
+            }.onFailure {
+                toastOnUi(it.localizedMessage ?: getString(R.string.error))
+            }
+        }
+    }
+
     override fun deleteBookCache(item: CacheBookItem) {
         alert(getString(R.string.delete), getString(R.string.cache_manage_delete_book_confirm, item.book.name)) {
             yesButton {

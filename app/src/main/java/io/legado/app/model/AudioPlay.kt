@@ -181,7 +181,7 @@ object AudioPlay : CoroutineScope by MainScope() {
         if (addLoading(index)) {
             val book = book
             val bookSource = bookSource
-            if (book != null && bookSource != null) {
+            if (book != null) {
                 upDurChapter()
                 val chapter = durChapter
                 if (chapter == null) {
@@ -203,12 +203,18 @@ object AudioPlay : CoroutineScope by MainScope() {
                         removeLoading(index)
                         return
                     }
+                if (bookSource == null) {
+                    upLoading(false)
+                    appCtx.toastOnUi(R.string.book_source_not_found)
+                    removeLoading(index)
+                    return
+                }
                 upLoading(true)
                 WebBook.getContent(this, bookSource, book, chapter)
                     .onSuccess { content ->
                         val content = content.trim()
                         if (content.isEmpty()) {
-                            appCtx.toastOnUi("未获取到资源链接")
+                            appCtx.toastOnUi(R.string.cache_manage_audio_url_empty)
                         } else {
                             contentLoadFinish(chapter, content)
                         }
@@ -223,7 +229,7 @@ object AudioPlay : CoroutineScope by MainScope() {
                     }
             } else {
                 removeLoading(index)
-                appCtx.toastOnUi("book or source is null")
+                appCtx.toastOnUi(R.string.book_source_not_found)
             }
         }
     }

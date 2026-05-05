@@ -109,7 +109,9 @@ object BookHelp {
             }
             downloadDir.getFile(cacheFolderName)
                 .listFiles()?.forEach { bookFile ->
-                    if (!bookFolderNames.contains(bookFile.name)) {
+                    if (!bookFolderNames.contains(bookFile.name)
+                        && !CacheManifestHelper.hasManifest(bookFile)
+                    ) {
                         FileUtils.delete(bookFile.absolutePath)
                     }
                 }

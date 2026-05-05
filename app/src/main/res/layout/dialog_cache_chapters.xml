@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <io.legado.app.ui.widget.TitleBar
+        android:id="@+id/tool_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:theme="?attr/actionBarStyle"
+        app:attachToActivity="false"
+        app:contentLayout="@layout/view_search"
+        app:fitStatusBar="false"
+        app:popupTheme="@style/AppTheme.PopupOverlay"
+        app:titleTextAppearance="@style/ToolbarTitle"
+        tools:ignore="RtlHardcoded,RtlSymmetry" />
+
+    <LinearLayout
+        android:id="@+id/filter_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/btn_filter_all"
+            android:layout_width="0dp"
+            android:layout_height="34dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_book_info_action_secondary"
+            android:gravity="center"
+            android:text="@string/cache_manage_all_chapters"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_filter_cached"
+            android:layout_width="0dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_book_info_action_secondary"
+            android:gravity="center"
+            android:text="@string/cache_manage_cached"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_filter_uncached"
+            android:layout_width="0dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_book_info_action_secondary"
+            android:gravity="center"
+            android:text="@string/cache_manage_not_cached"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="6dp"
+        android:text="@string/cache_manage_long_press_hint"
+        android:textColor="@color/secondaryText"
+        android:textSize="12sp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <io.legado.app.ui.widget.recycler.scroller.FastScrollRecyclerView
+            android:id="@+id/recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="8dp"
+            android:scrollbars="none"
+            tools:ignore="SpeakableTextPresentCheck" />
+
+        <io.legado.app.ui.widget.anima.RotateLoading
+            android:id="@+id/rotate_loading"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="center"
+            android:layout_margin="6dp"
+            android:visibility="gone"
+            app:loading_width="2dp" />
+
+        <TextView
+            android:id="@+id/tv_msg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="16dp"
+            android:textColor="@color/secondaryText"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/selection_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_book_info_intro_panel"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tv_selection_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp"
+            tools:text="@string/cache_manage_selected_count" />
+
+        <TextView
+            android:id="@+id/btn_select_all"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:background="@drawable/bg_book_info_action_secondary"
+            android:gravity="center"
+            android:minWidth="58dp"
+            android:text="@string/select_all"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_cache_selected"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_book_info_action_secondary"
+            android:gravity="center"
+            android:minWidth="58dp"
+            android:text="@string/cache_manage_cache_selected"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_delete_selected"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_book_info_action_secondary"
+            android:gravity="center"
+            android:minWidth="58dp"
+            android:text="@string/delete"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp" />
+
+    </LinearLayout>
+</LinearLayout>

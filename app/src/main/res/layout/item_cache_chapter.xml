@@ -10,6 +10,13 @@
     android:paddingEnd="16dp"
     android:paddingBottom="12dp">
 
+    <io.legado.app.lib.theme.view.ThemeCheckBox
+        android:id="@+id/cb_select"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/tv_title"
         android:layout_width="0dp"
