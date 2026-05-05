@@ -33,6 +33,7 @@ class SwitchPreference(context: Context, attrs: AttributeSet) :
             v.applyTint(context.accentColor)
         }
         super.onBindViewHolder(holder)
+        PreferenceItemStyle.apply(this, holder)
         onLongClick?.let { listener ->
             holder.itemView.setOnLongClickListener {
                 listener.invoke(this)

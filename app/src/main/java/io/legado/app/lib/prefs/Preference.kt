@@ -111,6 +111,7 @@ open class Preference(context: Context, attrs: AttributeSet) :
     final override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
         onBindView(holder)
+        PreferenceItemStyle.apply(this, holder)
         onLongClick?.let { listener ->
             holder.itemView.onLongClick {
                 listener.invoke(this)

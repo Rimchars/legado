@@ -71,6 +71,7 @@ class IconListPreference(context: Context, attrs: AttributeSet) : ListPreference
                 v.setImageDrawable(drawable)
             }
         }
+        PreferenceItemStyle.apply(this, holder)
     }
 
     override fun onClick() {

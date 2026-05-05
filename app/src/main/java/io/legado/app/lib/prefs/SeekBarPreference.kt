@@ -77,6 +77,7 @@ class SeekBarPreference(context: Context, attrs: AttributeSet) : Preference(cont
             mSeekBar?.progressAdd(-1)
             value--
         }
+        PreferenceItemStyle.apply(this, holder)
     }
 
     override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
