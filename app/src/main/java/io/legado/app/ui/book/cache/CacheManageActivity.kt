@@ -24,7 +24,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.collectLatest
 
 class CacheManageActivity :
-    VMBaseActivity<ActivityCacheManageBinding, CacheManageViewModel>(),
+    VMBaseActivity<ActivityCacheManageBinding, CacheManageViewModel>(imageBg = false),
     CacheManageAdapter.Callback,
     CacheChapterDialog.Callback {
 

@@ -2,13 +2,13 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_selected="true">
         <shape android:shape="rectangle">
-            <corners android:radius="@dimen/bookshelf_tag_item_radius" />
+            <corners android:radius="@dimen/ui_action_radius" />
             <solid android:color="@color/background_card" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <corners android:radius="@dimen/bookshelf_tag_item_radius" />
+            <corners android:radius="@dimen/ui_action_radius" />
             <solid android:color="@android:color/transparent" />
         </shape>
     </item>

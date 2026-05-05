@@ -12,7 +12,7 @@ import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 
-class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() {
+class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>(imageBg = false) {
 
     override val binding by viewBinding(ActivityConfigBinding::inflate)
     override val viewModel by viewModels<ConfigViewModel>()

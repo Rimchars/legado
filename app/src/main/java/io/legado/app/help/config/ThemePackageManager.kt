@@ -33,8 +33,8 @@ object ThemePackageManager {
         } else {
             emptyMap()
         }
-        val keys = (local.keys + remote.keys).sorted()
-        keys.mapNotNull { key ->
+        val keys = local.keys + remote.keys
+        sortEntries(keys.mapNotNull { key ->
             val localEntry = local[key]
             val remoteEntry = remote[key]
             when {
@@ -47,11 +47,11 @@ object ThemePackageManager {
                 remoteEntry != null -> remoteEntry
                 else -> null
             }
-        }
+        })
     }
 
     suspend fun loadLocalOnly(isNightTheme: Boolean): List<Entry> = withContext(IO) {
-        loadLocal(isNightTheme)
+        sortEntries(loadLocal(isNightTheme))
     }
 
     suspend fun localThemeExists(
@@ -221,6 +221,15 @@ object ThemePackageManager {
             }.orEmpty()
     }
 
+    private fun sortEntries(entries: List<Entry>): List<Entry> {
+        return entries.sortedWith(
+            compareByDescending<Entry> { maxOf(it.packageInfo.updatedAt, it.remoteUpdatedAt) }
+                .thenByDescending { it.packageInfo.updatedAt }
+                .thenBy { it.packageInfo.name }
+                .thenBy { it.dirName }
+        )
+    }
+
     private suspend fun loadRemote(isNightTheme: Boolean): List<Entry> {
         return AppWebDav.listThemePackages(isNightTheme).map { remoteDir ->
             val dirName = remoteDir.displayName.trimEnd('/').removeSuffix(".zip")
@@ -275,7 +284,13 @@ object ThemePackageManager {
         }
         targetDir.mkdirs()
         packageFile.parentFile?.copyRecursively(targetDir, overwrite = true)
-        val targetPackage = readPackage(targetDir) ?: pkg
+        val restoredPackage = readPackage(targetDir) ?: pkg
+        val targetPackage = if (remoteUpdatedAt == 0L) {
+            restoredPackage.copy(updatedAt = System.currentTimeMillis())
+        } else {
+            restoredPackage
+        }
+        File(targetDir, packageFileName).writeText(GSON.toJson(targetPackage))
         ThemeConfig.addConfig(resolveConfigPaths(targetPackage, targetDir))
         return Entry(targetPackage, Source.LOCAL, localDir = targetDir, remoteUpdatedAt = remoteUpdatedAt)
     }

@@ -80,6 +80,10 @@
     <dimen name="bookshelf_tag_item_padding_horizontal">12dp</dimen>
     <dimen name="bookshelf_content_margin_top">12dp</dimen>
 
+    <!-- Shared modern UI shape tokens -->
+    <dimen name="ui_panel_radius">10dp</dimen>
+    <dimen name="ui_action_radius">9dp</dimen>
+
     <!-- Manga reader floating chapter control -->
     <dimen name="manga_control_outer_margin_horizontal">16dp</dimen>
     <dimen name="manga_control_outer_margin_vertical">14dp</dimen>

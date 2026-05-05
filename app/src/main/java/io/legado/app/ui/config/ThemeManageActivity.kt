@@ -59,7 +59,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPickerDialogListener {
+class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(imageBg = false),
+    ColorPickerDialogListener {
 
     override val binding by viewBinding(ActivityThemeManageBinding::inflate)
 

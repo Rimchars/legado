@@ -15,6 +15,7 @@ import android.widget.FrameLayout
 import androidx.activity.addCallback
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.viewbinding.ViewBinding
 import io.legado.app.R
 import io.legado.app.constant.AppConst
@@ -24,10 +25,8 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.lib.theme.backgroundColor
-import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.widget.TitleBar
 import io.legado.app.utils.ColorUtils
-import io.legado.app.utils.applyBackgroundTint
 import io.legado.app.utils.applyOpenTint
 import io.legado.app.utils.applyTint
 import io.legado.app.utils.disableAutoFill
@@ -147,12 +146,12 @@ abstract class BaseActivity<VB : ViewBinding>(
             Theme.Transparent -> setTheme(R.style.AppTheme_Transparent)
             Theme.Dark -> {
                 setTheme(R.style.AppTheme_Dark)
-               window.decorView.applyBackgroundTint(backgroundColor)
+                applyWindowBackgroundColor()
             }
 
             Theme.Light -> {
                 setTheme(R.style.AppTheme_Light)
-               window.decorView.applyBackgroundTint(backgroundColor)
+                applyWindowBackgroundColor()
             }
 
             else -> {
@@ -161,28 +160,34 @@ abstract class BaseActivity<VB : ViewBinding>(
                 } else {
                     setTheme(R.style.AppTheme_Light)
                 }
-               window.decorView.applyBackgroundTint(backgroundColor)
+                applyWindowBackgroundColor()
             }
         }
     }
 
+    private fun applyWindowBackgroundColor() {
+        ViewCompat.setBackgroundTintList(window.decorView, null)
+        window.decorView.setBackgroundColor(backgroundColor)
+    }
+
     open fun upBackgroundImage() {
         if (!imageBg) {
-            window.decorView.applyBackgroundTint(backgroundColor)
+            applyWindowBackgroundColor()
             return
         }
         try {
             val drawable = ThemeConfig.getBgImage(this, windowManager.windowSize)
             if (drawable != null) {
+                ViewCompat.setBackgroundTintList(window.decorView, null)
                 window.decorView.background = drawable
             } else {
-                window.decorView.applyBackgroundTint(backgroundColor)
+                applyWindowBackgroundColor()
             }
         } catch (_: OutOfMemoryError) {
-            window.decorView.applyBackgroundTint(backgroundColor)
+            applyWindowBackgroundColor()
             toastOnUi(R.string.background_image_too_large)
         } catch (e: Exception) {
-            window.decorView.applyBackgroundTint(backgroundColor)
+            applyWindowBackgroundColor()
             AppLog.put(getString(R.string.background_image_load_error, e.localizedMessage), e)
         }
     }
