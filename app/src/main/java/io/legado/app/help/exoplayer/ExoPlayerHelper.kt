@@ -190,12 +190,16 @@ object ExoPlayerHelper {
 
     fun cacheMedia(
         request: MediaRequest,
-        progress: ((requestLength: Long, bytesCached: Long, newBytesCached: Long) -> Unit)? = null
+        progress: ((requestLength: Long, bytesCached: Long, newBytesCached: Long) -> Unit)? = null,
+        shouldCancel: (() -> Boolean)? = null
     ): Long {
         var totalCached = 0L
         val urls = getMediaUrls(request.url)
         require(urls.isNotEmpty()) { "media url is empty" }
         urls.forEach { url ->
+            if (shouldCancel?.invoke() == true) {
+                throw kotlinx.coroutines.CancellationException("audio cache cancelled")
+            }
             val dataSpec = DataSpec.Builder()
                 .setUri(url)
                 .setKey(url)
@@ -207,6 +211,9 @@ object ExoPlayerHelper {
                 dataSpec,
                 null
             ) { requestLength, bytesCached, newBytesCached ->
+                if (shouldCancel?.invoke() == true) {
+                    throw kotlinx.coroutines.CancellationException("audio cache cancelled")
+                }
                 cached = bytesCached
                 progress?.invoke(requestLength, bytesCached, newBytesCached)
             }.cache()

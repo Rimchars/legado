@@ -183,16 +183,19 @@ class CacheChapterDialog : BaseDialogFragment(R.layout.dialog_source_picker) {
             toastOnUi(R.string.cache_manage_batch_empty)
             return
         }
-        binding.rotateLoading.visible()
         lifecycleScope.launch {
             kotlin.runCatching {
                 viewModel.cacheAudioChapters(book, items.map { it.chapter })
             }.onSuccess { count ->
                 callback?.onCacheChanged()
-                loadChapters(searchView.query?.toString())
-                toastOnUi(getString(R.string.cache_manage_audio_cache_done, count))
+                if (count > 0) {
+                    toastOnUi(getString(R.string.cache_manage_audio_cache_started, count))
+                    dismissAllowingStateLoss()
+                } else {
+                    loadChapters(searchView.query?.toString())
+                    toastOnUi(getString(R.string.cache_manage_audio_cache_done, count))
+                }
             }.onFailure {
-                binding.rotateLoading.gone()
                 toastOnUi(getString(R.string.cache_manage_audio_cache_failed, it.localizedMessage))
             }
         }

@@ -20,6 +20,7 @@ import io.legado.app.utils.visible
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.collectLatest
 
 class CacheManageActivity :
     VMBaseActivity<ActivityCacheManageBinding, CacheManageViewModel>(),
@@ -34,6 +35,7 @@ class CacheManageActivity :
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         initView()
         observeData()
+        observeTasks()
         viewModel.load(CacheManageMode.BOOK)
     }
 
@@ -70,6 +72,23 @@ class CacheManageActivity :
         }
         viewModel.loadingLiveData.observe(this) { loading ->
             if (loading) binding.rotateLoading.visible() else binding.rotateLoading.gone()
+        }
+    }
+
+    private fun observeTasks() {
+        lifecycleScope.launch {
+            AudioCacheTaskManager.states.collectLatest { states ->
+                adapter.updateTaskStates(states)
+                if (viewModel.mode == CacheManageMode.AUDIO) {
+                    val visibleBookUrls = adapter.getItems().map { it.book.bookUrl }.toSet()
+                    val taskBookUrls = states.values.filter { it.active }.map { it.bookUrl }.toSet()
+                    if (!visibleBookUrls.containsAll(taskBookUrls)) {
+                        viewModel.load()
+                    } else if (states.values.any { !it.active }) {
+                        viewModel.load()
+                    }
+                }
+            }
         }
     }
 
@@ -117,6 +136,10 @@ class CacheManageActivity :
             }
             noButton()
         }
+    }
+
+    override fun stopAudioCache(item: CacheBookItem) {
+        AudioCacheTaskManager.cancel(item.book.bookUrl)
     }
 
     private fun uploadAll() {

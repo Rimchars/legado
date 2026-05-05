@@ -150,20 +150,31 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
     }
 
     suspend fun cacheAudioChapters(book: Book, chapters: List<BookChapter>): Int {
-        return withContext(Dispatchers.IO) {
-            if (!book.isAudio) return@withContext 0
-            var count = 0
-            chapters.asSequence()
+        if (!book.isAudio) return 0
+        val targets = withContext(Dispatchers.IO) {
+            chapters
+                .asSequence()
                 .filterNot { it.isVolume }
-                .forEach { chapter ->
-                    currentCoroutineContext().ensureActive()
-                    if (!ExoPlayerHelper.isMediaCached(chapter.resourceUrl)) {
-                        cacheAudioChapter(book, chapter)
-                        count++
-                    }
-                }
-            count
+                .filterNot { ExoPlayerHelper.isMediaCached(it.resourceUrl) }
+                .toList()
         }
+        if (targets.isEmpty()) return 0
+        val started = AudioCacheTaskManager.start(
+            book = book,
+            chapters = targets,
+            resolver = ::resolveAudioMediaRequest,
+            onChapterResolved = { chapter, request ->
+                if (chapter.resourceUrl != request.url) {
+                    chapter.resourceUrl = request.url
+                    appDb.bookChapterDao.update(chapter)
+                }
+            },
+            onFinished = { load(mode) }
+        )
+        if (started) {
+            load(mode)
+        }
+        return if (started) targets.size else 0
     }
 
     suspend fun createCachePackage(book: Book): File {
@@ -249,12 +260,13 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
     }
 
     private fun buildCacheBookItem(book: Book, mode: CacheManageMode): CacheBookItem? {
+        val taskState = AudioCacheTaskManager.snapshot(book.bookUrl)
         val rawCachedCount = if (mode == CacheManageMode.AUDIO) {
             getAudioCachedCount(book)
         } else {
             getFastCachedCount(book)
         }
-        if (rawCachedCount <= 0 && mode != CacheManageMode.AUDIO) return null
+        if (rawCachedCount <= 0 && taskState?.active != true) return null
         val totalChapterCount = book.totalChapterNum.takeIf { it > 0 }
             ?: appDb.bookChapterDao.getChapterCount(book.bookUrl).takeIf { it > 0 }
             ?: rawCachedCount
@@ -263,7 +275,8 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
             book = book,
             mode = mode,
             cachedCount = cachedCount,
-            totalChapterCount = totalChapterCount
+            totalChapterCount = totalChapterCount,
+            taskState = taskState
         )
     }
 
@@ -327,24 +340,40 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         book: Book,
         chapter: BookChapter
     ): ExoPlayerHelper.MediaRequest {
+        chapter.resourceUrl
+            ?.takeIf { it.isNotBlank() && ExoPlayerHelper.isMediaCached(it) }
+            ?.let { return ExoPlayerHelper.MediaRequest(it) }
         val source = book.getBookSource()
             ?: throw IllegalStateException(context.getString(R.string.book_source_not_found))
-        val content = (BookHelp.getContent(book, chapter)
-            ?: WebBook.getContentAwait(source, book, chapter, needSave = true))
+        val candidates = linkedSetOf<String>()
+        BookHelp.getContent(book, chapter)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let(candidates::add)
+        WebBook.getContentAwait(source, book, chapter, needSave = true)
             .trim()
-        if (content.isBlank()) {
-            throw IllegalStateException(context.getString(R.string.cache_manage_audio_url_empty))
+            .takeIf { it.isNotBlank() }
+            ?.let(candidates::add)
+        var lastError: Throwable? = null
+        for (content in candidates) {
+            try {
+                if (content.isJsonArray()) {
+                    return ExoPlayerHelper.MediaRequest(content)
+                }
+                return AnalyzeUrl(
+                    content,
+                    source = source,
+                    ruleData = book,
+                    chapter = chapter,
+                    coroutineContext = currentCoroutineContext()
+                ).getMediaRequest()
+            } catch (e: Exception) {
+                lastError = e
+            }
         }
-        if (content.isJsonArray()) {
-            return ExoPlayerHelper.MediaRequest(content)
-        }
-        return AnalyzeUrl(
-            content,
-            source = source,
-            ruleData = book,
-            chapter = chapter,
-            coroutineContext = currentCoroutineContext()
-        ).getMediaRequest()
+        throw IllegalStateException(
+            lastError?.localizedMessage ?: context.getString(R.string.cache_manage_audio_url_empty)
+        )
     }
 }
 
@@ -358,7 +387,8 @@ data class CacheBookItem(
     val book: Book,
     val mode: CacheManageMode,
     val cachedCount: Int,
-    val totalChapterCount: Int
+    val totalChapterCount: Int,
+    val taskState: AudioCacheTaskState? = null
 )
 
 data class CacheChapterItem(

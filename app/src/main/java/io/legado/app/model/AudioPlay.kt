@@ -22,8 +22,11 @@ import io.legado.app.help.book.simulatedTotalChapterNum
 import io.legado.app.help.book.update
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.help.exoplayer.ExoPlayerHelper
 import io.legado.app.help.globalExecutor
+import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.model.webBook.WebBook
+import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.getMediaRequest
 import io.legado.app.service.AudioPlayService
 import io.legado.app.model.SourceCallBack
 import io.legado.app.utils.postEvent
@@ -190,6 +193,16 @@ object AudioPlay : CoroutineScope by MainScope() {
                     removeLoading(index)
                     return
                 }
+                chapter.resourceUrl
+                    ?.takeIf { ExoPlayerHelper.isMediaCached(it) }
+                    ?.let { cachedUrl ->
+                        durPlayUrl = cachedUrl
+                        durLyric = chapter.getVariable("lyric")
+                        upLoading(false)
+                        upPlayUrl()
+                        removeLoading(index)
+                        return
+                    }
                 upLoading(true)
                 WebBook.getContent(this, bookSource, book, chapter)
                     .onSuccess { content ->
@@ -220,6 +233,18 @@ object AudioPlay : CoroutineScope by MainScope() {
      */
     private fun contentLoadFinish(chapter: BookChapter, content: String) {
         if (chapter.index == book?.durChapterIndex) {
+            kotlin.runCatching {
+                val request = AnalyzeUrl(
+                    content,
+                    source = bookSource,
+                    ruleData = book,
+                    chapter = chapter
+                ).getMediaRequest()
+                if (chapter.resourceUrl != request.url) {
+                    chapter.resourceUrl = request.url
+                    chapter.update()
+                }
+            }
             durPlayUrl = content
             durLyric = chapter.getVariable("lyric")
             upPlayUrl()

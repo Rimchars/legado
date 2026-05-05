@@ -110,6 +110,18 @@
                 android:textSize="13sp"
                 tools:text="@string/download_count" />
 
+            <TextView
+                android:id="@+id/tv_task"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="@color/secondaryText"
+                android:textSize="12sp"
+                android:visibility="gone"
+                tools:text="2/12 · 4.2 M / 20 M · 512 kb/s" />
+
         </LinearLayout>
 
     </LinearLayout>
@@ -155,6 +167,19 @@
             android:text="@string/delete"
             android:textColor="@color/primaryText"
             android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_stop"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_book_info_action_secondary"
+            android:gravity="center"
+            android:minWidth="64dp"
+            android:text="@string/stop"
+            android:textColor="@color/primaryText"
+            android:textSize="13sp"
+            android:visibility="gone" />
 
     </LinearLayout>
 

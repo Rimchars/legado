@@ -1585,9 +1585,14 @@
     <string name="cache_manage_delete_cached">删除已缓存</string>
     <string name="cache_manage_cache_uncached">缓存未缓存</string>
     <string name="cache_manage_audio_cache_done">音频缓存完成：%1$d 章</string>
+    <string name="cache_manage_audio_cache_started">已加入缓存：%1$d 章</string>
     <string name="cache_manage_audio_cache_failed">音频缓存失败：%1$s</string>
     <string name="cache_manage_delete_cached_confirm">删除当前列表中 %1$d 章已缓存内容？</string>
     <string name="cache_manage_audio_url_empty">未获取到音频链接</string>
+    <string name="cache_manage_resolving_chapter">正在解析 %1$d/%2$d</string>
+    <string name="cache_manage_task_progress">%1$d/%2$d · %3$s / %4$s · %5$s</string>
+    <string name="cache_manage_task_done">缓存完成：%1$d 章</string>
+    <string name="cache_manage_task_cancelled">缓存已停止</string>
     <string name="preview">预览</string>
     <string name="advanced_title_dialog_title">高级标题设置</string>
     <string name="advanced_title_scope_label">作用范围</string>

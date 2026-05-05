@@ -7,11 +7,15 @@ import io.legado.app.R
 import io.legado.app.base.adapter.DiffRecyclerAdapter
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.databinding.ItemCacheManageBookBinding
+import io.legado.app.utils.gone
+import io.legado.app.utils.visible
 
 class CacheManageAdapter(
     context: Context,
     private val callback: Callback
 ) : DiffRecyclerAdapter<CacheBookItem, ItemCacheManageBookBinding>(context) {
+
+    private var taskStates: Map<String, AudioCacheTaskState> = emptyMap()
 
     override val diffItemCallback: DiffUtil.ItemCallback<CacheBookItem> =
         object : DiffUtil.ItemCallback<CacheBookItem>() {
@@ -26,7 +30,8 @@ class CacheManageAdapter(
                     oldItem.book.latestChapterTitle == newItem.book.latestChapterTitle &&
                     oldItem.cachedCount == newItem.cachedCount &&
                     oldItem.totalChapterCount == newItem.totalChapterCount &&
-                    oldItem.mode == newItem.mode
+                    oldItem.mode == newItem.mode &&
+                    oldItem.taskState == newItem.taskState
             }
         }
 
@@ -54,11 +59,27 @@ class CacheManageAdapter(
             item.cachedCount,
             item.totalChapterCount
         )
+        val taskState = taskStates[book.bookUrl] ?: item.taskState
+        val isCaching = taskState?.active == true
+        if (taskState?.active == true) {
+            tvTask.visible()
+            tvTask.text = taskState.message
+            btnStop.visible()
+        } else {
+            val lastMessage = taskState?.message
+            if (!lastMessage.isNullOrBlank() && taskState.status != CacheTaskStatus.COMPLETED) {
+                tvTask.visible()
+                tvTask.text = lastMessage
+            } else {
+                tvTask.gone()
+            }
+            btnStop.gone()
+        }
         val hasCache = item.cachedCount > 0
-        btnUpload.isEnabled = hasCache
-        btnDelete.isEnabled = hasCache
-        btnUpload.alpha = if (hasCache) 1f else 0.45f
-        btnDelete.alpha = if (hasCache) 1f else 0.45f
+        btnUpload.isEnabled = hasCache && !isCaching
+        btnDelete.isEnabled = hasCache && !isCaching
+        btnUpload.alpha = if (hasCache && !isCaching) 1f else 0.45f
+        btnDelete.alpha = if (hasCache && !isCaching) 1f else 0.45f
     }
 
     override fun registerListener(holder: ItemViewHolder, binding: ItemCacheManageBookBinding) {
@@ -74,11 +95,20 @@ class CacheManageAdapter(
         binding.btnDelete.setOnClickListener {
             getItem(holder.layoutPosition)?.let(callback::deleteBookCache)
         }
+        binding.btnStop.setOnClickListener {
+            getItem(holder.layoutPosition)?.let(callback::stopAudioCache)
+        }
+    }
+
+    fun updateTaskStates(states: Map<String, AudioCacheTaskState>) {
+        taskStates = states
+        notifyDataSetChanged()
     }
 
     interface Callback {
         fun openChapters(item: CacheBookItem)
         fun upload(item: CacheBookItem)
         fun deleteBookCache(item: CacheBookItem)
+        fun stopAudioCache(item: CacheBookItem)
     }
 }
