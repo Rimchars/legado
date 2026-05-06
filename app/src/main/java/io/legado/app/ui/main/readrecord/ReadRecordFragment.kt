@@ -368,7 +368,7 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
                 startActivityForBook(item.book)
             }
             itemBinding.root.setOnLongClickListener {
-                alert(R.string.delete, item.book.name) {
+                alert(getString(R.string.delete), item.book.name) {
                     yesButton {
                         lifecycleScope.launch {
                             withContext(IO) {
@@ -401,7 +401,7 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
             itemBinding.tvDaySubtitle.text = buildDaySubtitle(item.date)
             itemBinding.tvDayTime.text = formatDuring(item.readTime)
             itemBinding.root.setOnLongClickListener {
-                alert(R.string.delete, item.date.format(fullDayFormatter)) {
+                alert(getString(R.string.delete), item.date.format(fullDayFormatter)) {
                     yesButton {
                         lifecycleScope.launch {
                             withContext(IO) {
