@@ -20,7 +20,6 @@ class BookshelfShelfDecoration(
 
     private val topPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val plankPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val plankFrontPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val contactShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -39,7 +38,6 @@ class BookshelfShelfDecoration(
     private val shadowColor = 0xFF000000.toInt()
     private val topColor: Int
     private val frontColor: Int
-    private val frontBottomColor: Int
 
     init {
         surfaceColor = context.bottomBackground
@@ -50,7 +48,6 @@ class BookshelfShelfDecoration(
         }
         topColor = ColorUtils.blendARGB(surfaceColor, toneColor, 0.06f)
         frontColor = ColorUtils.blendARGB(surfaceColor, toneColor, 0.16f)
-        frontBottomColor = ColorUtils.blendARGB(surfaceColor, toneColor, 0.26f)
         highlightPaint.color = ColorUtils.setAlphaComponent(0xFFFFFFFF.toInt(), 38)
         shadowPaint.color = ColorUtils.setAlphaComponent(shadowColor, 34)
         contactShadowPaint.color = ColorUtils.setAlphaComponent(shadowColor, 58)
@@ -124,9 +121,6 @@ class BookshelfShelfDecoration(
 
         plankRect.set(visualLeft, topBottom, visualRight, topBottom + 1.dpToPx())
         canvas.drawRect(plankRect, highlightPaint)
-        plankRect.set(visualLeft, frontBottom - 7.dpToPx(), visualRight, frontBottom)
-        plankFrontPaint.color = frontBottomColor
-        canvas.drawRect(plankRect, plankFrontPaint)
 
         plankRect.set(visualLeft + 8.dpToPx(), frontBottom, visualRight - 8.dpToPx(), frontBottom + shadowHeight)
         canvas.drawRect(plankRect, shadowPaint)
