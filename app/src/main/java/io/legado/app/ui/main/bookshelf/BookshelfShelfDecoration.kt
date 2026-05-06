@@ -2,9 +2,11 @@ package io.legado.app.ui.main.bookshelf
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.view.View
 import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
@@ -32,9 +34,10 @@ class BookshelfShelfDecoration(
     private val bookToPlankGap = (-2).dpToPx().toFloat()
     private val topHeight = 12.dpToPx().toFloat()
     private val frontHeight = 11.dpToPx().toFloat()
-    private val shadowHeight = 9.dpToPx().toFloat()
+    private val shadowHeight = 18.dpToPx().toFloat()
     private val bottomEdgeHeight = 1.dpToPx().toFloat()
     private val frontBottomInset = 8.dpToPx().toFloat()
+    private val shelfShadowInset = 18.dpToPx().toFloat()
     private val rowTopSpacing = 14.dpToPx()
     private val bottomSpacing = 12.dpToPx()
     private val surfaceColor: Int
@@ -53,7 +56,7 @@ class BookshelfShelfDecoration(
         topColor = ColorUtils.blendARGB(surfaceColor, toneColor, 0.06f)
         frontColor = ColorUtils.blendARGB(surfaceColor, toneColor, 0.16f)
         highlightPaint.color = ColorUtils.setAlphaComponent(0xFFFFFFFF.toInt(), 38)
-        shadowPaint.color = ColorUtils.setAlphaComponent(shadowColor, 34)
+        shadowPaint.color = ColorUtils.setAlphaComponent(0xFF707070.toInt(), 44)
         contactShadowPaint.color = ColorUtils.setAlphaComponent(shadowColor, 58)
         bottomEdgePaint.color = ColorUtils.setAlphaComponent(shadowColor, 112)
     }
@@ -142,12 +145,27 @@ class BookshelfShelfDecoration(
         canvas.drawRect(plankRect, bottomEdgePaint)
 
         plankRect.set(
-            visualLeft + frontBottomInset + 2.dpToPx(),
+            visualLeft + frontBottomInset + shelfShadowInset,
             frontBottom,
-            visualRight - frontBottomInset - 2.dpToPx(),
+            visualRight - frontBottomInset - shelfShadowInset,
             frontBottom + shadowHeight
         )
-        canvas.drawRect(plankRect, shadowPaint)
+        shadowPaint.shader = LinearGradient(
+            0f,
+            frontBottom,
+            0f,
+            frontBottom + shadowHeight,
+            ColorUtils.setAlphaComponent(0xFF707070.toInt(), 46),
+            ColorUtils.setAlphaComponent(0xFF707070.toInt(), 0),
+            Shader.TileMode.CLAMP
+        )
+        canvas.drawRoundRect(
+            plankRect,
+            10.dpToPx().toFloat(),
+            10.dpToPx().toFloat(),
+            shadowPaint
+        )
+        shadowPaint.shader = null
     }
 
     private fun drawFillShelves(

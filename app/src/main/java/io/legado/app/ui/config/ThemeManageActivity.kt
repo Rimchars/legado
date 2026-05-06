@@ -26,7 +26,6 @@ import io.legado.app.databinding.DialogThemePackageEditBinding
 import io.legado.app.databinding.ItemThemePackageOptionBinding
 import io.legado.app.databinding.ItemThemePackageBinding
 import io.legado.app.constant.PreferKey
-import io.legado.app.help.DirectLinkUpload
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
@@ -39,7 +38,6 @@ import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.file.HandleFileContract
-import io.legado.app.ui.widget.dialog.TextDialog
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.GSON
@@ -53,7 +51,7 @@ import io.legado.app.utils.getPrefString
 import io.legado.app.utils.hexString
 import io.legado.app.utils.putPrefString
 import io.legado.app.utils.removePref
-import io.legado.app.utils.showDialogFragment
+import io.legado.app.utils.sendToClip
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CancellationException
@@ -104,8 +102,20 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
     }
     private val exportThemePackage = registerForActivityResult(HandleFileContract()) {
-        it.uri?.let {
-            toastOnUi(getString(R.string.theme_zip_exported))
+        it.uri?.let { uri ->
+            val url = uri.toString()
+            if (url.startsWith("http://", true) || url.startsWith("https://", true)) {
+                alert(R.string.advanced_title_upload_success) {
+                    setMessage(url)
+                    positiveButton(R.string.copy_text) {
+                        sendToClip(url)
+                        toastOnUi(getString(R.string.copy_complete))
+                    }
+                    negativeButton(R.string.cancel)
+                }
+            } else {
+                toastOnUi(getString(R.string.theme_zip_exported))
+            }
         }
     }
     private val dateFormat by lazy {
@@ -603,7 +613,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             when (actions[index]) {
                 ThemeAction.APPLY -> applyTheme(entry)
                 ThemeAction.EDIT -> showEditDialog(entry)
-                ThemeAction.EXPORT -> showThemeExportOptions(entry)
+                ThemeAction.EXPORT -> exportThemeZip(entry)
                 ThemeAction.DOWNLOAD -> runAction(getString(R.string.theme_downloaded)) { ThemePackageManager.download(entry) }
                 ThemeAction.UPLOAD -> {
                     enqueueUploadIfNeeded(entry)
@@ -619,19 +629,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     ThemePackageManager.deleteLocal(entry)
                     enqueueRemoteDelete(entry)
                 }
-            }
-        }
-    }
-
-    private fun showThemeExportOptions(entry: ThemePackageManager.Entry) {
-        val options = listOf(
-            getString(R.string.theme_export_zip),
-            getString(R.string.upload_url)
-        )
-        selector(getString(R.string.export_str), options) { _, index ->
-            when (index) {
-                0 -> exportThemeZip(entry)
-                1 -> uploadThemeUrl(entry)
             }
         }
     }
@@ -652,26 +649,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(getString(R.string.theme_export_failed, it.localizedMessage))
-            }
-        }
-    }
-
-    private fun uploadThemeUrl(entry: ThemePackageManager.Entry) {
-        lifecycleScope.launch {
-            kotlin.runCatching {
-                val zipFile = ThemePackageManager.exportZip(entry)
-                val directUrl = DirectLinkUpload.upLoad(
-                    zipFile.name,
-                    zipFile,
-                    "application/zip"
-                )
-                zipFile.delete()
-                directUrl
-            }.onSuccess { url ->
-                showDialogFragment(TextDialog(getString(R.string.upload_url), url))
-            }.onFailure {
-                if (it.isJobCancellation()) return@onFailure
-                toastOnUi(it.localizedMessage ?: getString(R.string.unknown_error))
             }
         }
     }
