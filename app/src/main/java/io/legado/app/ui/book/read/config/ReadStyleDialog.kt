@@ -167,12 +167,10 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
             ReadBookConfig.paragraphSpacing = it
             postEvent(EventBus.UP_CONFIG, arrayListOf(8, 5))
         }
-        val updatePaperInk: (Int) -> Unit = {
+        dsbPaperInk.onChanged = {
             ReadBookConfig.paperInkStrength = it
-            postEvent(EventBus.UP_CONFIG, arrayListOf(2, 9, 6))
+            postEvent(EventBus.UP_CONFIG, arrayListOf(2, 9))
         }
-        dsbPaperInk.onChanging = updatePaperInk
-        dsbPaperInk.onChanged = updatePaperInk
     }
 
     private fun changeBgTextConfig(index: Int) {

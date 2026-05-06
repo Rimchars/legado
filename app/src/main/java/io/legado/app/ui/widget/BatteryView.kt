@@ -11,7 +11,6 @@ import android.text.StaticLayout
 import android.util.AttributeSet
 import androidx.annotation.ColorInt
 import androidx.appcompat.widget.AppCompatTextView
-import io.legado.app.help.PaperInkHelper
 import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.canvasrecorder.CanvasRecorderFactory
 import io.legado.app.utils.canvasrecorder.recordIfNeededThenDraw
@@ -78,26 +77,12 @@ class BatteryView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         if (AppConfig.optimizeRender) {
             canvasRecorder.recordIfNeededThenDraw(canvas, width, height) {
-                drawText(this)
+                super.onDraw(this)
                 drawBattery(this)
             }
         } else {
-            drawText(canvas)
+            super.onDraw(canvas)
             drawBattery(canvas)
-        }
-    }
-
-    private fun drawText(canvas: Canvas) {
-        if (PaperInkHelper.strength <= 0) {
-            super.onDraw(canvas)
-            return
-        }
-        PaperInkHelper.drawTextBlock(
-            canvas = canvas,
-            paint = paint,
-            seed = text.hashCode() * 31 + width * 17 + height
-        ) {
-            super.onDraw(canvas)
         }
     }
 
