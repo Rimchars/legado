@@ -287,7 +287,7 @@
     <string name="download_all">Download all</string>
     <string name="content_sl">This is a test text, \n\u3000\u3000 just to show you the effect</string>
     <string name="text_bg_style">Color and background (long tap to customize)</string>
-    <string name="paper_effect">Paper ink</string>
+    <string name="paper_effect">Relief text</string>
     <string name="immersion_status_bar">Immersive status bar</string>
     <string name="un_download">%d chapter(s) left</string>
     <string name="long_click_input_color">Long tap to input color value</string>

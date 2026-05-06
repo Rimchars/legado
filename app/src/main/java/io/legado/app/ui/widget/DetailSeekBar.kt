@@ -26,6 +26,7 @@ class DetailSeekBar @JvmOverloads constructor(
     private val isBottomBackground: Boolean
 
     var valueFormat: ((progress: Int) -> String)? = null
+    var onChanging: ((progress: Int) -> Unit)? = null
     var onChanged: ((progress: Int) -> Unit)? = null
     var progress: Int
         get() = binding.seekBar.progress
@@ -79,6 +80,9 @@ class DetailSeekBar @JvmOverloads constructor(
 
     override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
         upValue(progress)
+        if (fromUser) {
+            onChanging?.invoke(progress)
+        }
     }
 
     override fun onStartTrackingTouch(seekBar: SeekBar) {

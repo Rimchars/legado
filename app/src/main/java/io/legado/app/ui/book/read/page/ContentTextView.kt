@@ -2,12 +2,9 @@ package io.legado.app.ui.book.read.page
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapShader
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -17,9 +14,9 @@ import io.legado.app.R
 import io.legado.app.constant.AppLog
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.Bookmark
+import io.legado.app.help.PaperInkHelper
 import io.legado.app.help.book.isOnLineTxt
 import io.legado.app.help.config.AppConfig
-import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.model.ReadBook
 import io.legado.app.model.localBook.EpubFile
@@ -84,9 +81,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     private var doubleClick = false
     private var nativeSelectedText: String? = null
     private var nativeSelectionRect: RectF? = null
-    private var paperShader: BitmapShader? = null
     private val paperPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val paperTintPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     //绘制图片的paint
     val imagePaint by lazy {
@@ -293,21 +288,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     private fun drawPaperEffect(canvas: Canvas) {
-        val strength = ReadBookConfig.paperInkStrength
-        if (strength <= 0 || width <= 0 || height <= 0) return
-        val ratio = strength / 100f
-        canvas.save()
-        canvas.clipRect(0, 0, width, height)
-        paperTintPaint.color = if (AppConfig.isNightTheme) {
-            Color.argb((8 + 20 * ratio).toInt(), 255, 245, 220)
-        } else {
-            Color.argb((14 + 42 * ratio).toInt(), 255, 246, 220)
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paperTintPaint)
-        paperPaint.shader = paperShader ?: createPaperShader().also { paperShader = it }
-        paperPaint.alpha = ((if (AppConfig.isNightTheme) 18 else 28) + 64 * ratio).toInt()
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paperPaint)
-        canvas.restore()
+        PaperInkHelper.drawBackground(canvas, width, height, paperPaint)
     }
 
     fun drawTextWithPaperInk(
@@ -320,34 +301,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         paint: Paint,
         enableBlend: Boolean = true
     ) {
-        val strength = ReadBookConfig.paperInkStrength
-        if (strength <= 0 || !enableBlend) {
-            canvas.drawText(text, start, end, x, y, paint)
-            return
-        }
-        val ratio = strength / 100f
-        val oldColor = paint.color
-        val oldAlpha = paint.alpha
-        val oldShader = paint.shader
-        paint.color = blendInkColor(oldColor, ratio)
-        val alphaScale = if (AppConfig.isNightTheme) {
-            1f - 0.18f * ratio
-        } else {
-            1f - 0.26f * ratio
-        }
-        paint.alpha = (oldAlpha * alphaScale).toInt()
-            .coerceIn(0, oldAlpha)
-        val blur = 0.25f + 1.2f * ratio
-        val offset = 0.12f + 0.32f * ratio
-        paint.setShadowLayer(blur, offset, offset, blendInkShadowColor(oldColor, ratio))
-        canvas.drawText(text, start, end, x, y, paint)
-        paint.clearShadowLayer()
-        paint.shader = paperShader ?: createPaperShader().also { paperShader = it }
-        paint.alpha = (oldAlpha * (0.28f + 0.62f * ratio)).toInt().coerceIn(0, oldAlpha)
-        canvas.drawText(text, start, end, x, y, paint)
-        paint.shader = oldShader
-        paint.alpha = oldAlpha
-        paint.color = oldColor
+        PaperInkHelper.drawText(canvas, text, start, end, x, y, paint, enableBlend)
     }
 
     fun drawTextWithPaperInk(
@@ -359,42 +313,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         enableBlend: Boolean = true
     ) {
         drawTextWithPaperInk(canvas, text, 0, text.length, x, y, paint, enableBlend)
-    }
-
-    private fun blendInkColor(color: Int, strength: Float): Int {
-        val bg = ReadBookConfig.bgMeanColor
-        val ratio = (if (AppConfig.isNightTheme) 0.28f else 0.42f) * strength
-        val inv = 1f - ratio
-        return Color.argb(
-            Color.alpha(color),
-            (Color.red(color) * inv + Color.red(bg) * ratio).toInt().coerceIn(0, 255),
-            (Color.green(color) * inv + Color.green(bg) * ratio).toInt().coerceIn(0, 255),
-            (Color.blue(color) * inv + Color.blue(bg) * ratio).toInt().coerceIn(0, 255)
-        )
-    }
-
-    private fun blendInkShadowColor(color: Int, strength: Float): Int {
-        val alpha = ((if (AppConfig.isNightTheme) 22 else 32) + 46 * strength).toInt()
-        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
-    }
-
-    private fun createPaperShader(): BitmapShader {
-        val size = 72
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        for (y in 0 until size) {
-            for (x in 0 until size) {
-                val seed = (x * 1103515245 + y * 12345 + x * y * 31)
-                val fiber = if ((x + y * 3 + (seed ushr 29)) % 11 == 0) 34 else 0
-                val alpha = 18 + (seed ushr 24 and 0x1F) + fiber
-                val color = if ((seed and 1) == 0) {
-                    Color.argb(alpha, 255, 255, 255)
-                } else {
-                    Color.argb(alpha, 0, 0, 0)
-                }
-                bitmap.setPixel(x, y, color)
-            }
-        }
-        return BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
     }
 
     /**

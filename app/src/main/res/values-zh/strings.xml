@@ -285,7 +285,7 @@
     <string name="download_all">一键缓存</string>
     <string name="content_sl">这是一段测试文字\n\u3000\u3000只是让你看看效果的</string>
     <string name="text_bg_style">文字颜色和背景（长按自定义）</string>
-    <string name="paper_effect">纸墨融合</string>
+    <string name="paper_effect">文字浮雕</string>
     <string name="immersion_status_bar">沉浸式状态栏</string>
     <string name="un_download">还剩 %d 章未下载</string>
     <string name="long_click_input_color">长按输入颜色值</string>
