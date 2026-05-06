@@ -27,6 +27,10 @@ object ReadRecordComponentConfigDialog {
     ) {
         val binding = DialogReadRecordComponentsBinding.inflate(LayoutInflater.from(context))
         val adapter = ComponentAdapter(context, initialItems.map { it.copy() }.toMutableList())
+        binding.root.layoutParams = ViewGroup.LayoutParams(
+            (context.resources.displayMetrics.widthPixels * 0.9f).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
         binding.recyclerView.layoutManager = LinearLayoutManager(context)
         binding.recyclerView.adapter = adapter
         val fixedListHeight = min(420.dpToPx(), (context.resources.displayMetrics.heightPixels * 0.48f).toInt())
@@ -56,10 +60,6 @@ object ReadRecordComponentConfigDialog {
             }
         }
         dialog.show()
-        dialog.window?.setLayout(
-            (context.resources.displayMetrics.widthPixels * 0.9f).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
     }
 
     private class ComponentAdapter(

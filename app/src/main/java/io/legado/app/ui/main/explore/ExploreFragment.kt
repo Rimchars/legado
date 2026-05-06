@@ -384,9 +384,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         preloadJs: String?,
                         config: String?
                     ): Boolean {
-                        if (!isAdded) return false
-                        binding.root.post { showDiscoverWebPage(url, html, preloadJs) }
-                        return true
+                        return false
                     }
 
                     override fun open(
@@ -990,12 +988,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                                 preloadJs: String?,
                                 config: String?
                             ): Boolean {
-                                if (!isAdded) return false
-                                handledByAction = true
-                                binding.root.post {
-                                    showDiscoverWebPage(url, html, preloadJs)
-                                }
-                                return true
+                                return false
                             }
 
                             override fun open(

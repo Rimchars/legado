@@ -23,14 +23,16 @@ class BookshelfShelfDecoration(
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val contactShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val bottomEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val plankRect = RectF()
     private val contactShadowRect = RectF()
     private val topPath = Path()
     private val sideInset = 18.dpToPx().toFloat()
     private val bookToPlankGap = (-2).dpToPx().toFloat()
     private val topHeight = 12.dpToPx().toFloat()
-    private val frontHeight = 16.dpToPx().toFloat()
+    private val frontHeight = 11.dpToPx().toFloat()
     private val shadowHeight = 9.dpToPx().toFloat()
+    private val bottomEdgeHeight = 1.dpToPx().toFloat()
     private val rowTopSpacing = 14.dpToPx()
     private val bottomSpacing = 12.dpToPx()
     private val surfaceColor: Int
@@ -51,6 +53,7 @@ class BookshelfShelfDecoration(
         highlightPaint.color = ColorUtils.setAlphaComponent(0xFFFFFFFF.toInt(), 38)
         shadowPaint.color = ColorUtils.setAlphaComponent(shadowColor, 34)
         contactShadowPaint.color = ColorUtils.setAlphaComponent(shadowColor, 58)
+        bottomEdgePaint.color = ColorUtils.setAlphaComponent(shadowColor, 112)
     }
 
     override fun onDraw(canvas: Canvas, parent: RecyclerView, state: RecyclerView.State) {
@@ -75,9 +78,11 @@ class BookshelfShelfDecoration(
 
         val left = parent.paddingLeft.toFloat()
         val right = (parent.width - parent.paddingRight).toFloat()
-        rows.values.forEach { bounds ->
+        val rowBounds = rows.values.toList()
+        rowBounds.forEach { bounds ->
             drawShelfCell(canvas, left, right, bounds)
         }
+        drawFillShelves(canvas, parent, left, right, rowBounds)
     }
 
     override fun getItemOffsets(
@@ -121,9 +126,35 @@ class BookshelfShelfDecoration(
 
         plankRect.set(visualLeft, topBottom, visualRight, topBottom + 1.dpToPx())
         canvas.drawRect(plankRect, highlightPaint)
+        plankRect.set(visualLeft, frontBottom - bottomEdgeHeight, visualRight, frontBottom)
+        canvas.drawRect(plankRect, bottomEdgePaint)
 
         plankRect.set(visualLeft + 8.dpToPx(), frontBottom, visualRight - 8.dpToPx(), frontBottom + shadowHeight)
         canvas.drawRect(plankRect, shadowPaint)
+    }
+
+    private fun drawFillShelves(
+        canvas: Canvas,
+        parent: RecyclerView,
+        left: Float,
+        right: Float,
+        boundsList: List<RowBounds>
+    ) {
+        if (boundsList.isEmpty()) return
+        val contentBottom = parent.height - parent.paddingBottom.toFloat()
+        val first = boundsList.first()
+        val rowStride = if (boundsList.size >= 2) {
+            (boundsList[1].bottom - first.bottom).takeIf { it > 0f }
+        } else {
+            null
+        } ?: ((first.bottom - first.top) + rowTopSpacing + topHeight + frontHeight + bottomSpacing)
+        var nextTop = boundsList.last().top + rowStride
+        var nextBottom = boundsList.last().bottom + rowStride
+        while (nextBottom + topHeight + frontHeight <= contentBottom) {
+            drawShelfCell(canvas, left, right, RowBounds(nextTop, nextBottom))
+            nextTop += rowStride
+            nextBottom += rowStride
+        }
     }
 
     private data class RowBounds(

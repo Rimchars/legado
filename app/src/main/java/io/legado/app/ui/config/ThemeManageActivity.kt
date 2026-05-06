@@ -26,6 +26,7 @@ import io.legado.app.databinding.DialogThemePackageEditBinding
 import io.legado.app.databinding.ItemThemePackageOptionBinding
 import io.legado.app.databinding.ItemThemePackageBinding
 import io.legado.app.constant.PreferKey
+import io.legado.app.help.DirectLinkUpload
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
@@ -38,6 +39,7 @@ import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.file.HandleFileContract
+import io.legado.app.ui.widget.dialog.TextDialog
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.GSON
@@ -51,6 +53,7 @@ import io.legado.app.utils.getPrefString
 import io.legado.app.utils.hexString
 import io.legado.app.utils.putPrefString
 import io.legado.app.utils.removePref
+import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CancellationException
@@ -588,6 +591,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             add(ThemeAction.APPLY)
             add(ThemeAction.EDIT)
             if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.EXPORT)
+            if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.UPLOAD_URL)
             if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DOWNLOAD)
             if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.UPLOAD)
             if (!isApplied(entry)) {
@@ -601,6 +605,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 ThemeAction.APPLY -> applyTheme(entry)
                 ThemeAction.EDIT -> showEditDialog(entry)
                 ThemeAction.EXPORT -> exportThemeZip(entry)
+                ThemeAction.UPLOAD_URL -> uploadThemeUrl(entry)
                 ThemeAction.DOWNLOAD -> runAction(getString(R.string.theme_downloaded)) { ThemePackageManager.download(entry) }
                 ThemeAction.UPLOAD -> {
                     enqueueUploadIfNeeded(entry)
@@ -636,6 +641,26 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(getString(R.string.theme_export_failed, it.localizedMessage))
+            }
+        }
+    }
+
+    private fun uploadThemeUrl(entry: ThemePackageManager.Entry) {
+        lifecycleScope.launch {
+            kotlin.runCatching {
+                val zipFile = ThemePackageManager.exportZip(entry)
+                val directUrl = DirectLinkUpload.upLoad(
+                    zipFile.name,
+                    zipFile,
+                    "application/zip"
+                )
+                zipFile.delete()
+                directUrl
+            }.onSuccess { url ->
+                showDialogFragment(TextDialog(getString(R.string.upload_url), url))
+            }.onFailure {
+                if (it.isJobCancellation()) return@onFailure
+                toastOnUi(it.localizedMessage ?: getString(R.string.unknown_error))
             }
         }
     }
@@ -1010,6 +1035,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         APPLY(R.string.theme_apply),
         EDIT(R.string.edit),
         EXPORT(R.string.theme_export_zip),
+        UPLOAD_URL(R.string.upload_url),
         DOWNLOAD(R.string.theme_download_local),
         UPLOAD(R.string.theme_upload_remote),
         DELETE_LOCAL(R.string.theme_delete_local),
