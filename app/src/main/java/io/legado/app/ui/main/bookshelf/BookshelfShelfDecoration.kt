@@ -23,19 +23,22 @@ class BookshelfShelfDecoration(
     private val plankFrontPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val contactShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val plankRect = RectF()
+    private val contactShadowRect = RectF()
     private val topPath = Path()
     private val sideInset = 18.dpToPx().toFloat()
-    private val bookToPlankGap = 18.dpToPx().toFloat()
+    private val bookToPlankGap = (-2).dpToPx().toFloat()
     private val topHeight = 12.dpToPx().toFloat()
     private val frontHeight = 18.dpToPx().toFloat()
     private val shadowHeight = 10.dpToPx().toFloat()
-    private val bottomSpacing = 26.dpToPx()
+    private val bottomSpacing = 10.dpToPx()
 
     init {
         context.resources.displayMetrics
         shadowPaint.color = 0x4A2B160B
-        highlightPaint.color = 0xAFFFF4DA.toInt()
+        highlightPaint.color = 0x42FFF4DA
+        contactShadowPaint.color = 0x59331B10
     }
 
     override fun onDraw(canvas: Canvas, parent: RecyclerView, state: RecyclerView.State) {
@@ -84,6 +87,9 @@ class BookshelfShelfDecoration(
         val topLeft = left + sideInset
         val topRight = right - sideInset
 
+        contactShadowRect.set(topLeft, bounds.bottom - 2.dpToPx(), topRight, bounds.bottom + 7.dpToPx())
+        canvas.drawRoundRect(contactShadowRect, 6.dpToPx().toFloat(), 6.dpToPx().toFloat(), contactShadowPaint)
+
         topPath.reset()
         topPath.moveTo(topLeft, plankTop)
         topPath.lineTo(topRight, plankTop)
@@ -95,7 +101,7 @@ class BookshelfShelfDecoration(
             plankTop,
             0f,
             topBottom,
-            intArrayOf(0xFFFFE3AF.toInt(), 0xFFD0A06B.toInt()),
+            intArrayOf(0xFFE8BF82.toInt(), 0xFFC58C52.toInt()),
             null,
             Shader.TileMode.CLAMP
         )
@@ -108,14 +114,14 @@ class BookshelfShelfDecoration(
             topBottom,
             visualRight,
             frontBottom,
-            intArrayOf(0xFFD2A06C.toInt(), 0xFFB17A48.toInt(), 0xFF87522F.toInt()),
+            intArrayOf(0xFFC28B54.toInt(), 0xFFA86B3B.toInt(), 0xFF744225.toInt()),
             floatArrayOf(0f, 0.58f, 1f),
             Shader.TileMode.CLAMP
         )
         canvas.drawRect(plankRect, plankPaint)
         plankPaint.shader = null
 
-        plankRect.set(visualLeft, plankTop, visualRight, plankTop + 3.dpToPx())
+        plankRect.set(visualLeft, plankTop, visualRight, plankTop + 1.dpToPx())
         canvas.drawRect(plankRect, highlightPaint)
         plankRect.set(visualLeft, frontBottom - 7.dpToPx(), visualRight, frontBottom)
         plankFrontPaint.shader = LinearGradient(
