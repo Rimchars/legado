@@ -8,9 +8,11 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.view.View
+import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.utils.dpToPx
 
 class BookshelfShelfDecoration(
@@ -30,15 +32,35 @@ class BookshelfShelfDecoration(
     private val sideInset = 18.dpToPx().toFloat()
     private val bookToPlankGap = (-2).dpToPx().toFloat()
     private val topHeight = 12.dpToPx().toFloat()
-    private val frontHeight = 18.dpToPx().toFloat()
+    private val frontHeight = 16.dpToPx().toFloat()
     private val shadowHeight = 10.dpToPx().toFloat()
-    private val bottomSpacing = 10.dpToPx()
+    private val rowTopSpacing = 14.dpToPx()
+    private val bottomSpacing = 12.dpToPx()
+    private val topStartColor: Int
+    private val topEndColor: Int
+    private val frontStartColor: Int
+    private val frontMiddleColor: Int
+    private val frontEndColor: Int
+    private val frontBottomStartColor: Int
+    private val frontBottomEndColor: Int
 
     init {
-        context.resources.displayMetrics
-        shadowPaint.color = 0x4A2B160B
-        highlightPaint.color = 0x42FFF4DA
-        contactShadowPaint.color = 0x59331B10
+        val background = context.backgroundColor
+        val darkBase = if (ColorUtils.calculateLuminance(background) > 0.5) {
+            0xFF000000.toInt()
+        } else {
+            0xFFFFFFFF.toInt()
+        }
+        topStartColor = ColorUtils.blendARGB(background, darkBase, 0.08f)
+        topEndColor = ColorUtils.blendARGB(background, darkBase, 0.18f)
+        frontStartColor = ColorUtils.blendARGB(background, darkBase, 0.16f)
+        frontMiddleColor = ColorUtils.blendARGB(background, darkBase, 0.28f)
+        frontEndColor = ColorUtils.blendARGB(background, darkBase, 0.40f)
+        frontBottomStartColor = ColorUtils.blendARGB(background, darkBase, 0.30f)
+        frontBottomEndColor = ColorUtils.blendARGB(background, darkBase, 0.52f)
+        shadowPaint.color = ColorUtils.setAlphaComponent(darkBase, 42)
+        highlightPaint.color = ColorUtils.setAlphaComponent(background, 72)
+        contactShadowPaint.color = ColorUtils.setAlphaComponent(darkBase, 64)
     }
 
     override fun onDraw(canvas: Canvas, parent: RecyclerView, state: RecyclerView.State) {
@@ -75,6 +97,10 @@ class BookshelfShelfDecoration(
         state: RecyclerView.State
     ) {
         if (!AppConfig.bookshelfShelfEffect || spanCountProvider() < 2) return
+        val position = parent.getChildAdapterPosition(view)
+        if (position >= spanCountProvider()) {
+            outRect.top += rowTopSpacing
+        }
         outRect.bottom += bottomSpacing
     }
 
@@ -82,8 +108,8 @@ class BookshelfShelfDecoration(
         val plankTop = bounds.bottom + bookToPlankGap
         val topBottom = plankTop + topHeight
         val frontBottom = topBottom + frontHeight
-        val visualLeft = left - sideInset
-        val visualRight = right + sideInset
+        val visualLeft = left
+        val visualRight = right
         val topLeft = left + sideInset
         val topRight = right - sideInset
 
@@ -101,7 +127,7 @@ class BookshelfShelfDecoration(
             plankTop,
             0f,
             topBottom,
-            intArrayOf(0xFFE8BF82.toInt(), 0xFFC58C52.toInt()),
+            intArrayOf(topStartColor, topEndColor),
             null,
             Shader.TileMode.CLAMP
         )
@@ -114,7 +140,7 @@ class BookshelfShelfDecoration(
             topBottom,
             visualRight,
             frontBottom,
-            intArrayOf(0xFFC28B54.toInt(), 0xFFA86B3B.toInt(), 0xFF744225.toInt()),
+            intArrayOf(frontStartColor, frontMiddleColor, frontEndColor),
             floatArrayOf(0f, 0.58f, 1f),
             Shader.TileMode.CLAMP
         )
@@ -129,8 +155,8 @@ class BookshelfShelfDecoration(
             frontBottom - 7.dpToPx(),
             0f,
             frontBottom,
-            0xFF9C6840.toInt(),
-            0xFF5A301B.toInt(),
+            frontBottomStartColor,
+            frontBottomEndColor,
             Shader.TileMode.CLAMP
         )
         canvas.drawRect(plankRect, plankFrontPaint)
