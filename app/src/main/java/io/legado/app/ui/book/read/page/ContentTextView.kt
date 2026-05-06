@@ -293,17 +293,19 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     private fun drawPaperEffect(canvas: Canvas) {
-        if (!ReadBookConfig.paperEffect || width <= 0 || height <= 0) return
+        val strength = ReadBookConfig.paperInkStrength
+        if (strength <= 0 || width <= 0 || height <= 0) return
+        val ratio = strength / 100f
         canvas.save()
         canvas.clipRect(0, 0, width, height)
         paperTintPaint.color = if (AppConfig.isNightTheme) {
-            Color.argb(14, 255, 245, 220)
+            Color.argb((8 + 20 * ratio).toInt(), 255, 245, 220)
         } else {
-            Color.argb(28, 255, 246, 220)
+            Color.argb((14 + 42 * ratio).toInt(), 255, 246, 220)
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paperTintPaint)
         paperPaint.shader = paperShader ?: createPaperShader().also { paperShader = it }
-        paperPaint.alpha = if (AppConfig.isNightTheme) 36 else 60
+        paperPaint.alpha = ((if (AppConfig.isNightTheme) 18 else 28) + 64 * ratio).toInt()
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paperPaint)
         canvas.restore()
     }
@@ -318,18 +320,32 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         paint: Paint,
         enableBlend: Boolean = true
     ) {
-        if (!ReadBookConfig.paperEffect || !enableBlend) {
+        val strength = ReadBookConfig.paperInkStrength
+        if (strength <= 0 || !enableBlend) {
             canvas.drawText(text, start, end, x, y, paint)
             return
         }
+        val ratio = strength / 100f
         val oldColor = paint.color
         val oldAlpha = paint.alpha
-        paint.color = blendInkColor(oldColor)
-        paint.alpha = (oldAlpha * if (AppConfig.isNightTheme) 0.9f else 0.86f).toInt()
+        val oldShader = paint.shader
+        paint.color = blendInkColor(oldColor, ratio)
+        val alphaScale = if (AppConfig.isNightTheme) {
+            1f - 0.18f * ratio
+        } else {
+            1f - 0.26f * ratio
+        }
+        paint.alpha = (oldAlpha * alphaScale).toInt()
             .coerceIn(0, oldAlpha)
-        paint.setShadowLayer(0.55f, 0.18f, 0.18f, blendInkShadowColor(oldColor))
+        val blur = 0.25f + 1.2f * ratio
+        val offset = 0.12f + 0.32f * ratio
+        paint.setShadowLayer(blur, offset, offset, blendInkShadowColor(oldColor, ratio))
         canvas.drawText(text, start, end, x, y, paint)
         paint.clearShadowLayer()
+        paint.shader = paperShader ?: createPaperShader().also { paperShader = it }
+        paint.alpha = (oldAlpha * (0.28f + 0.62f * ratio)).toInt().coerceIn(0, oldAlpha)
+        canvas.drawText(text, start, end, x, y, paint)
+        paint.shader = oldShader
         paint.alpha = oldAlpha
         paint.color = oldColor
     }
@@ -345,9 +361,9 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         drawTextWithPaperInk(canvas, text, 0, text.length, x, y, paint, enableBlend)
     }
 
-    private fun blendInkColor(color: Int): Int {
+    private fun blendInkColor(color: Int, strength: Float): Int {
         val bg = ReadBookConfig.bgMeanColor
-        val ratio = if (AppConfig.isNightTheme) 0.18f else 0.26f
+        val ratio = (if (AppConfig.isNightTheme) 0.28f else 0.42f) * strength
         val inv = 1f - ratio
         return Color.argb(
             Color.alpha(color),
@@ -357,18 +373,19 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         )
     }
 
-    private fun blendInkShadowColor(color: Int): Int {
-        val alpha = if (AppConfig.isNightTheme) 28 else 38
+    private fun blendInkShadowColor(color: Int, strength: Float): Int {
+        val alpha = ((if (AppConfig.isNightTheme) 22 else 32) + 46 * strength).toInt()
         return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
     }
 
     private fun createPaperShader(): BitmapShader {
-        val size = 96
+        val size = 72
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         for (y in 0 until size) {
             for (x in 0 until size) {
                 val seed = (x * 1103515245 + y * 12345 + x * y * 31)
-                val alpha = 4 + (seed ushr 24 and 0x07)
+                val fiber = if ((x + y * 3 + (seed ushr 29)) % 11 == 0) 34 else 0
+                val alpha = 18 + (seed ushr 24 and 0x1F) + fiber
                 val color = if ((seed and 1) == 0) {
                     Color.argb(alpha, 255, 255, 255)
                 } else {

@@ -305,10 +305,11 @@ object ReadBookConfig {
             config.paragraphSpacing = value
         }
 
-    var paperEffect: Boolean
-        get() = config.paperEffect
+    var paperInkStrength: Int
+        get() = config.curPaperInkStrength()
         set(value) {
-            config.paperEffect = value
+            config.paperInkStrength = value.coerceIn(0, 100)
+            config.paperEffect = false
         }
 
     /**
@@ -448,6 +449,7 @@ object ReadBookConfig {
             exportConfig.lineSpacingExtra = shareConfig.lineSpacingExtra
             exportConfig.paragraphSpacing = shareConfig.paragraphSpacing
             exportConfig.paperEffect = shareConfig.paperEffect
+            exportConfig.paperInkStrength = shareConfig.paperInkStrength
             exportConfig.titleMode = shareConfig.titleMode
             exportConfig.titleSize = shareConfig.titleSize
             exportConfig.titleTopSpacing = shareConfig.titleTopSpacing
@@ -581,6 +583,7 @@ object ReadBookConfig {
         var lineSpacingExtra: Int = 12,//行间距
         var paragraphSpacing: Int = 2,//段距
         var paperEffect: Boolean = false,//纸质化
+        var paperInkStrength: Int = 0,//纸墨融合强度
         var titleMode: Int = 0,//标题位置 0:居左 1:居中 2:隐藏
         var titleSize: Int = 0,
         var titleTopSpacing: Int = 0,
@@ -792,6 +795,10 @@ object ReadBookConfig {
             }
         }
 
+        fun curPaperInkStrength(): Int {
+            return paperInkStrength.takeIf { it > 0 } ?: if (paperEffect) 60 else 0
+        }
+
         fun curBgDrawable(width: Int, height: Int): Drawable {
             val curBgStr = curBgStr()
             isNineBgImg = curBgStr.endsWith(".9.png")
@@ -890,6 +897,7 @@ object ReadBookConfig {
             "lineSpacingExtra" to lineSpacingExtra,
             "paragraphSpacing" to paragraphSpacing,
             "paperEffect" to paperEffect,
+            "paperInkStrength" to paperInkStrength,
             "titleMode" to titleMode,
             "titleSize" to titleSize,
             "titleTopSpacing" to titleTopSpacing,

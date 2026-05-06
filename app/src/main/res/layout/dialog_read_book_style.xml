@@ -317,19 +317,6 @@
                 android:textSize="12sp" />
 
             <TextView
-                android:id="@+id/tv_paper_effect"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/paper_effect" />
-
-            <io.legado.app.ui.widget.checkbox.SmoothCheckBox
-                android:id="@+id/cb_paper_effect"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="6dp"
-                android:layout_marginEnd="14dp" />
-
-            <TextView
                 android:id="@+id/tv_share_layout"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -343,6 +330,16 @@
                 android:layout_marginEnd="12dp" />
 
         </LinearLayout>
+
+        <io.legado.app.ui.widget.DetailSeekBar
+            android:id="@+id/dsb_paper_ink"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="8dp"
+            app:isBottomBackground="true"
+            app:max="100"
+            app:title="@string/paper_effect" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_style"
