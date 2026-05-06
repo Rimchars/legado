@@ -120,7 +120,7 @@
 
         <FrameLayout
             android:id="@+id/tab_indicator_container"
-            android:layout_width="@dimen/main_bottom_indicator_width"
+            android:layout_width="@dimen/bookshelf_tag_indicator_width"
             android:layout_height="@dimen/bookshelf_tag_bar_height"
             android:layout_gravity="start|center_vertical"
             android:clickable="false"

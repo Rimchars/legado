@@ -30,6 +30,7 @@ import io.legado.app.help.LauncherIconHelp
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.upType
 import io.legado.app.help.config.LocalConfig
+import io.legado.app.help.config.NavigationBarIconConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
@@ -255,6 +256,7 @@ object Restore {
         }
         restoreBackgroundAssets(path)
         restoreThemePackages(path)
+        restoreNavigationIcons(path)
         //AppWebDav.downBgs()
         appCtx.getSharedPreferences(path, "config")?.all?.let { map ->
             val edit = appCtx.defaultSharedPreferences.edit()
@@ -289,6 +291,7 @@ object Restore {
             edit.commit()
         }
         normalizeBackgroundPrefs()
+        normalizeNavigationIconPrefs()
         kotlin.runCatching {
             ThemePackageManager.ensureLocalAppliedTheme(appCtx, false)
             ThemePackageManager.ensureLocalAppliedTheme(appCtx, true)
@@ -374,6 +377,18 @@ object Restore {
         }
     }
 
+    private fun restoreNavigationIcons(path: String) {
+        val sourceDir = File(path, "navigationIcons")
+        if (!sourceDir.exists() || !sourceDir.isDirectory) return
+        val targetDir = NavigationBarIconConfig.rootDir
+        kotlin.runCatching {
+            FileUtils.delete(targetDir, deleteRootDir = true)
+            copyDir(sourceDir, targetDir)
+        }.onFailure {
+            AppLog.put("恢复导航栏图标出错\n${it.localizedMessage}", it)
+        }
+    }
+
     private fun normalizeBackgroundPrefs() {
         val edit = appCtx.defaultSharedPreferences.edit()
         var changed = false
@@ -386,6 +401,36 @@ object Restore {
             if (restoredFile.exists()) {
                 edit.putString(key, restoredFile.absolutePath)
                 changed = true
+            }
+        }
+        if (changed) {
+            edit.commit()
+        }
+    }
+
+    private fun normalizeNavigationIconPrefs() {
+        val edit = appCtx.defaultSharedPreferences.edit()
+        var changed = false
+        val modes = arrayOf(
+            NavigationBarIconConfig.MODE_DAY,
+            NavigationBarIconConfig.MODE_NIGHT
+        )
+        val states = arrayOf(
+            NavigationBarIconConfig.STATE_NORMAL,
+            NavigationBarIconConfig.STATE_SELECTED
+        )
+        modes.forEach { mode ->
+            NavigationBarIconConfig.items.forEach { item ->
+                states.forEach { state ->
+                    val key = NavigationBarIconConfig.prefKey(mode, item.key, state)
+                    val current = appCtx.getPrefString(key) ?: return@forEach
+                    if (current.isBlank() || File(current).exists()) return@forEach
+                    val restoredFile = File(NavigationBarIconConfig.rootDir, File(current).name)
+                    if (restoredFile.exists()) {
+                        edit.putString(key, restoredFile.absolutePath)
+                        changed = true
+                    }
+                }
             }
         }
         if (changed) {

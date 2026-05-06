@@ -1664,6 +1664,16 @@
     <string name="video_origin_label">Origin: %s</string>
     <string name="delete_success">Deleted</string>
     <string name="theme_manage_title">Theme Manager</string>
+    <string name="navigation_bar_manage">Navigation bar manager</string>
+    <string name="navigation_bar_manage_summary">Customize bottom navigation icons for day and night themes.</string>
+    <string name="navigation_icon_normal">Normal</string>
+    <string name="navigation_icon_selected">Selected</string>
+    <string name="navigation_icon_set_normal">Set normal icon</string>
+    <string name="navigation_icon_set_selected">Set selected icon</string>
+    <string name="navigation_icon_clear_normal">Clear normal icon</string>
+    <string name="navigation_icon_clear_selected">Clear selected icon</string>
+    <string name="navigation_icon_select_file">Select navigation icon</string>
+    <string name="navigation_icon_decode_failed">Icon parse failed. Please use ico, svg, png, jpg or jpeg.</string>
     <string name="theme_day">Day theme</string>
     <string name="theme_night">Night theme</string>
     <string name="theme_day_short">Day</string>

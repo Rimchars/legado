@@ -1556,6 +1556,16 @@
     <string name="disable">禁用</string>
     <string name="delete_success">已删除</string>
     <string name="theme_manage_title">主题管理</string>
+    <string name="navigation_bar_manage">导航栏管理</string>
+    <string name="navigation_bar_manage_summary">分别设置日间和夜间底栏图标，导入后会压缩为默认图标大小。</string>
+    <string name="navigation_icon_normal">未选中</string>
+    <string name="navigation_icon_selected">已选中</string>
+    <string name="navigation_icon_set_normal">设置未选中图标</string>
+    <string name="navigation_icon_set_selected">设置选中图标</string>
+    <string name="navigation_icon_clear_normal">清除未选中图标</string>
+    <string name="navigation_icon_clear_selected">清除选中图标</string>
+    <string name="navigation_icon_select_file">选择导航栏图标</string>
+    <string name="navigation_icon_decode_failed">图标解析失败，请使用 ico、svg、png、jpg 或 jpeg。</string>
     <string name="theme_day">日间主题</string>
     <string name="theme_night">夜间主题</string>
     <string name="theme_day_short">日间</string>

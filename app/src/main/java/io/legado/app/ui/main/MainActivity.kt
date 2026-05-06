@@ -41,6 +41,7 @@ import io.legado.app.databinding.DialogEditTextBinding
 import io.legado.app.help.AppWebDav
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.NavigationBarIconConfig
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.storage.Backup
@@ -238,6 +239,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
 
     override fun onResume() {
         super.onResume()
+        applyBottomNavigationIcons()
         scheduleLiquidGlassSetup()
     }
 
@@ -297,7 +299,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         bottomNavigationView.setOnNavigationItemSelectedListener(this@MainActivity)
         bottomNavigationView.setOnNavigationItemReselectedListener(this@MainActivity)
         bottomNavigationView.menu.findItem(getBottomNavigationItemId(initialPage))?.isChecked = true
-        searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
+        applyBottomNavigationIcons()
         searchButton.setOnClickListener {
             startActivity(Intent(this@MainActivity, SearchActivity::class.java))
         }
@@ -357,7 +359,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 )
                 bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
                 searchButton.setBackgroundColor(Color.TRANSPARENT)
-                searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
+                syncSearchButtonTint()
                 return
             }
             val effectMode = AppConfig.bottomBarEffectMode
@@ -381,7 +383,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 )
                 bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
                 searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
-                searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
+                syncSearchButtonTint()
                 bottomNavigationIndicatorOverlay.background = createSolidBottomIndicatorDrawable()
                 updateBottomNavigationIndicator(animate = false)
                 return
@@ -394,7 +396,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             searchButtonShellOverlay.isVisible = true
             bottomNavigationView.setBackgroundColor(Color.TRANSPARENT)
             searchButton.setBackgroundResource(R.drawable.bg_main_search_button)
-            searchButtonIcon.imageTintList = bottomNavigationView.itemIconTintList
+            syncSearchButtonTint()
             bottomNavigationGlassView.visibility = android.view.View.VISIBLE
             bottomNavigationIndicatorGlassView.visibility = android.view.View.VISIBLE
             searchButtonGlassView.visibility = android.view.View.VISIBLE
@@ -487,6 +489,24 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 touchEffectEnabled = true
             )
         }
+    }
+
+    private fun applyBottomNavigationIcons() = binding.run {
+        val hasCustom = NavigationBarIconConfig.applyTo(
+            bottomNavigationView.menu,
+            this@MainActivity,
+            AppConfig.isNightTheme
+        )
+        if (hasCustom) {
+            bottomNavigationView.itemIconTintList = null
+        } else {
+            bottomNavigationView.restoreThemeIconTint()
+        }
+        syncSearchButtonTint()
+    }
+
+    private fun syncSearchButtonTint() = binding.run {
+        searchButtonIcon.imageTintList = bottomNavigationView.createThemeColorStateList()
     }
 
     private fun createSolidBottomShellDrawable(cornerRadius: Float, oval: Boolean): GradientDrawable {
@@ -895,6 +915,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 if (it) {
                     bottomNavigationView.menu.clear()
                     bottomNavigationView.inflateMenu(R.menu.main_bnv)
+                    applyBottomNavigationIcons()
                     onUpBooksBadgeView = null
                 }
                 upBottomMenu()

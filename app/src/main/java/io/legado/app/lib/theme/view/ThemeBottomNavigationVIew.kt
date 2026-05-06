@@ -1,6 +1,7 @@
 package io.legado.app.lib.theme.view
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.util.AttributeSet
 import android.view.LayoutInflater
@@ -24,20 +25,13 @@ class ThemeBottomNavigationVIew(context: Context, attrs: AttributeSet) :
 
     init {
         val transparentNavBar = context.transparentNavBar
-        val bgColor = context.bottomBackground
-        val selectedColor = ThemeStore.accentColor(context)
         if (transparentNavBar) {
             setBackgroundColor(Color.TRANSPARENT)
         } else {
             setBackgroundColor(Color.TRANSPARENT)
             elevation = context.elevation
         }
-        val textIsDark = ColorUtils.isColorLight(bgColor)
-        val textColor = context.getSecondaryTextColor(textIsDark)
-        val colorStateList = Selector.colorBuild()
-            .setDefaultColor(textColor)
-            .setSelectedColor(selectedColor)
-            .create()
+        val colorStateList = createThemeColorStateList()
         itemIconTintList = colorStateList
         itemTextColor = colorStateList
         itemRippleColor = null
@@ -45,6 +39,23 @@ class ThemeBottomNavigationVIew(context: Context, attrs: AttributeSet) :
         itemBackground = Color.TRANSPARENT.toDrawable()
 
         ViewCompat.setOnApplyWindowInsetsListener(this, null)
+    }
+
+    fun createThemeColorStateList(): ColorStateList {
+        val bgColor = context.bottomBackground
+        val selectedColor = ThemeStore.accentColor(context)
+        val textIsDark = ColorUtils.isColorLight(bgColor)
+        val textColor = context.getSecondaryTextColor(textIsDark)
+        return Selector.colorBuild()
+            .setDefaultColor(textColor)
+            .setSelectedColor(selectedColor)
+            .create()
+    }
+
+    fun restoreThemeIconTint() {
+        val colorStateList = createThemeColorStateList()
+        itemIconTintList = colorStateList
+        itemTextColor = colorStateList
     }
 
     fun addBadgeView(index: Int): BadgeView {

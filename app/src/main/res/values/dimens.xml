@@ -46,10 +46,11 @@
     <dimen name="main_bottom_bar_corner_radius">22dp</dimen>
     <dimen name="main_bottom_nav_horizontal_padding">10dp</dimen>
     <dimen name="main_bottom_nav_icon_size">21dp</dimen>
-    <dimen name="main_bottom_indicator_width">44dp</dimen>
-    <dimen name="main_bottom_indicator_height">34dp</dimen>
+    <dimen name="main_bottom_indicator_width">48dp</dimen>
+    <dimen name="main_bottom_indicator_height">36dp</dimen>
     <dimen name="main_bottom_indicator_margin_start">8dp</dimen>
-    <dimen name="main_bottom_indicator_corner_radius">16dp</dimen>
+    <dimen name="main_bottom_indicator_corner_radius">18dp</dimen>
+    <dimen name="bookshelf_tag_indicator_width">44dp</dimen>
     <dimen name="main_search_button_size">48dp</dimen>
     <dimen name="main_search_button_elevation">14dp</dimen>
     <dimen name="main_search_button_icon_size">22dp</dimen>

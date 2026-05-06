@@ -235,6 +235,9 @@
             android:name=".ui.config.ThemeManageActivity"
             android:launchMode="standard" />
         <activity
+            android:name=".ui.config.NavigationBarManageActivity"
+            android:launchMode="standard" />
+        <activity
             android:name=".ui.main.ai.AiChatActivity"
             android:launchMode="standard"
             android:windowSoftInputMode="adjustResize|stateHidden" />

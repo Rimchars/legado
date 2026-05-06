@@ -29,6 +29,7 @@ import io.legado.app.ui.book.source.manage.BookSourceActivity
 import io.legado.app.ui.book.toc.rule.TxtTocRuleActivity
 import io.legado.app.ui.config.ConfigActivity
 import io.legado.app.ui.config.ConfigTag
+import io.legado.app.ui.config.NavigationBarManageActivity
 import io.legado.app.ui.config.ThemeManageActivity
 import io.legado.app.ui.dict.rule.DictRuleActivity
 import io.legado.app.ui.file.FileManageActivity
@@ -362,6 +363,8 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                 }
 
                 "theme_manage" -> startActivity<ThemeManageActivity>()
+
+                "navigation_bar_manage" -> startActivity<NavigationBarManageActivity>()
 
                 "coverConfig" -> startActivity<ConfigActivity> {
                     putExtra("configTag", ConfigTag.COVER_CONFIG)
