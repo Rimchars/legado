@@ -29,7 +29,6 @@ import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.book.info.BookInfoActivity
 import io.legado.app.ui.main.MainViewModel
-import io.legado.app.ui.main.bookshelf.BookshelfShelfDecoration
 import io.legado.app.utils.cnCompare
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.dpToPx
@@ -130,9 +129,6 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         }
         booksAdapter.stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY
         binding.rvBookshelf.adapter = booksAdapter
-        binding.rvBookshelf.addItemDecoration(BookshelfShelfDecoration(requireContext()) {
-            bookshelfLayout
-        })
         /**
          * 应该是当初没有使用override val keepScrollPosition = true 加的代码
          * 最近阅读插入顶部时会造成滚动

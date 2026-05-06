@@ -80,7 +80,6 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                 tvName.visible()
                 tvName.text = item.name
             }
-            ivCover.setCoverCornerRadius(0f)
             ivCover.load(item, false)
             upRefresh(this, item)
         }
@@ -137,7 +136,6 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
 
         fun onBind(item: Book, position: Int) = binding.run {
             tvName.text = item.name
-            ivCover.setCoverCornerRadius(0f)
             ivCover.load(item, false)
             upRefresh(this, item)
         }

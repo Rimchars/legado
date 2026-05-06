@@ -70,7 +70,6 @@ class CoverImageView @JvmOverloads constructor(
     private var author: String? = null
     private var nameHeight = 0f
     private var authorHeight = 0f
-    private var coverCornerRadius = 12f
     private val drawBookName = BookCover.drawBookName
     private val drawBookAuthor by lazy { BookCover.drawBookAuthor }
 
@@ -97,22 +96,12 @@ class CoverImageView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        updateOutline(w, h)
-    }
-
-    fun setCoverCornerRadius(radius: Float) {
-        coverCornerRadius = radius.coerceAtLeast(0f)
-        updateOutline(width, height)
-        invalidate()
-    }
-
-    private fun updateOutline(w: Int, h: Int) {
         outlineProvider = object : ViewOutlineProvider() {
             override fun getOutline(view: View, outline: Outline) {
-                outline.setRoundRect(0, 0, w, h, coverCornerRadius)
+                outline.setRoundRect(0, 0, w, h, 12f)
             }
         }
-        clipToOutline = coverCornerRadius > 0f
+        clipToOutline = true
     }
 
     override fun onDraw(canvas: Canvas) {

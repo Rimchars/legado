@@ -7,8 +7,6 @@
     android:layout_height="wrap_content"
     android:background="@drawable/bg_item_focused_on_tv"
     android:clickable="true"
-    android:clipChildren="false"
-    android:clipToPadding="false"
     android:focusable="true"
     android:scrollbars="none"
     tools:ignore="UnusedAttribute">
@@ -18,8 +16,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:clipChildren="false"
-        android:clipToPadding="false"
         android:paddingLeft="4dp"
         android:paddingTop="4dp"
         android:paddingRight="4dp"
@@ -30,22 +26,7 @@
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:clipChildren="false"
-            android:clipToPadding="false"
             android:scrollbars="none">
-
-            <View
-                android:id="@+id/v_book_shadow"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_margin="4dp"
-                android:background="@drawable/bg_bookshelf_book_shadow"
-                android:translationX="3dp"
-                android:translationY="10dp"
-                app:layout_constraintBottom_toBottomOf="@id/iv_cover"
-                app:layout_constraintEnd_toEndOf="@id/iv_cover"
-                app:layout_constraintStart_toStartOf="@id/iv_cover"
-                app:layout_constraintTop_toTopOf="@id/iv_cover" />
 
             <io.legado.app.ui.widget.image.CoverImageView
                 android:id="@+id/iv_cover"
@@ -59,27 +40,6 @@
                 app:layout_constraintTop_toTopOf="parent"
                 tools:ignore="UnusedAttribute,ImageContrastCheck"
                 tools:layout_editor_absoluteX="4dp" />
-
-            <View
-                android:id="@+id/v_book_spine"
-                android:layout_width="7dp"
-                android:layout_height="0dp"
-                android:layout_marginStart="4dp"
-                android:background="@drawable/bg_bookshelf_book_spine"
-                app:layout_constraintBottom_toBottomOf="@id/iv_cover"
-                app:layout_constraintStart_toStartOf="@id/iv_cover"
-                app:layout_constraintTop_toTopOf="@id/iv_cover" />
-
-            <View
-                android:id="@+id/v_book_bottom"
-                android:layout_width="0dp"
-                android:layout_height="14dp"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="4dp"
-                android:background="@drawable/bg_bookshelf_book_bottom"
-                app:layout_constraintBottom_toBottomOf="@id/iv_cover"
-                app:layout_constraintEnd_toEndOf="@id/iv_cover"
-                app:layout_constraintStart_toStartOf="@id/iv_cover" />
 
             <TextView
                 android:id="@+id/tv_name"
@@ -134,7 +94,7 @@
         android:id="@+id/vw_foreground"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:background="@android:color/transparent"
+        android:background="?android:attr/selectableItemBackground"
         android:scrollbars="none"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toTopOf="parent"

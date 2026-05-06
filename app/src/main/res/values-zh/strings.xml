@@ -1700,7 +1700,6 @@
     <string name="theme_image_value_unselected">未选择</string>
     <string name="theme_image_value_unselected_blur">未选择 · 模糊 %d</string>
     <string name="theme_image_value_file_blur">%1$s · 模糊 %2$d</string>
-    <string name="bookshelf_shelf_effect">书柜搁板效果</string>
     <string name="unknown">未知</string>
     <string name="ai_read_prompt_template">你是阅读页里的问 AI 助手。请围绕当前书籍和选中文本回答，优先解释原文含义、上下文、人物关系、伏笔或用户提问，不要编造未给出的剧情。
 

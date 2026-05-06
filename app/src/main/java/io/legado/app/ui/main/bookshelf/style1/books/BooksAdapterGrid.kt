@@ -40,7 +40,6 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
                     } else {
                         tvName.gone()
                     }
-                    ivCover.setCoverCornerRadius(0f)
                     ivCover.loadThumb(item, false)
                     upRefresh(binding, item)
                 } else {
@@ -63,7 +62,6 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
             is ItemBookshelfGrid2Binding -> binding.run {
                 if (payloads.isEmpty()) {
                     tvName.text = item.name
-                    ivCover.setCoverCornerRadius(0f)
                     ivCover.loadThumb(item, false)
                     upRefresh(binding, item)
                 } else {

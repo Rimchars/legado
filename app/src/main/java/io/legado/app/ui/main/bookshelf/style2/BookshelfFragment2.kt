@@ -26,7 +26,6 @@ import io.legado.app.ui.book.group.GroupEditDialog
 import io.legado.app.ui.book.info.BookInfoActivity
 import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.ui.main.bookshelf.BaseBookshelfFragment
-import io.legado.app.ui.main.bookshelf.BookshelfShelfDecoration
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.cnCompare
 import io.legado.app.utils.dpToPx
@@ -103,9 +102,6 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
             binding.rvBookshelf.layoutManager = LinearLayoutManager(context)
         }
         binding.rvBookshelf.adapter = booksAdapter
-        binding.rvBookshelf.addItemDecoration(BookshelfShelfDecoration(requireContext()) {
-            bookshelfLayout
-        })
         /**
          * 采用 layoutManager?.onRestoreInstanceState(layoutState)
          * 恢复滚动位置
