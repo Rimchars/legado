@@ -18,7 +18,7 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:background="@drawable/bg_preference_item_modern"
-            android:hint="主题名称"
+            android:hint="@string/theme_name"
             android:paddingStart="14dp"
             android:paddingEnd="14dp"
             android:singleLine="true"
