@@ -16,6 +16,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
 import com.bumptech.glide.Glide
+import com.canhub.cropper.CropImage
+import com.canhub.cropper.CropImageContract
 import com.jaredrummler.android.colorpicker.ColorPickerDialog
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
 import io.legado.app.R
@@ -42,6 +44,7 @@ import io.legado.app.ui.widget.number.NumberPickerDialog
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.GSON
+import io.legado.app.utils.ImageCropHelper
 import io.legado.app.utils.externalFiles
 import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.getCompatColor
@@ -89,16 +92,30 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private var syncingRemoteTasks = false
     private var appliedDayThemeOverride: String? = null
     private var appliedNightThemeOverride: String? = null
+    private var pendingImageCropRequest: ImageCropHelper.Request? = null
     private val selectImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
-            val targetPath = copySelectedImage(uri, if (it.requestCode == requestMainBackground) "main" else "book_info")
-            if (it.requestCode == requestMainBackground) {
+            startImageCrop(uri, it.requestCode)
+        }
+    }
+    @Suppress("DEPRECATION")
+    private val cropImage = registerForActivityResult(CropImageContract()) { result ->
+        val request = pendingImageCropRequest ?: return@registerForActivityResult
+        pendingImageCropRequest = null
+        if (result === CropImage.CancelledResult) {
+            return@registerForActivityResult
+        }
+        val targetPath = ImageCropHelper.resultPath(result.uriContent, request.outputPath)
+        if (result.isSuccessful && targetPath != null) {
+            if (request.requestCode == requestMainBackground) {
                 pendingMainBackgroundPath = targetPath
                 editDialogBinding?.let { binding -> updateImageRow(binding.rowMainBackground, true) }
             } else {
                 pendingBookInfoBackgroundPath = targetPath
                 editDialogBinding?.let { binding -> updateImageRow(binding.rowBookInfoBackground, false) }
             }
+        } else {
+            toastOnUi(getString(R.string.image_crop_failed, result.error?.localizedMessage.orEmpty()))
         }
     }
     private val importThemePackage = registerForActivityResult(HandleFileContract()) {
@@ -537,7 +554,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 fontScale = pendingFontScale
             )
         }.onFailure {
-            toastOnUi("颜色格式不正确")
+            toastOnUi(R.string.color_format_error)
         }.getOrNull() ?: return
         addTheme(config)
     }
@@ -644,19 +661,21 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         return color
     }
 
-    private fun copySelectedImage(uri: Uri, prefix: String): String? {
-        return kotlin.runCatching {
-            val dir = externalFiles.getFile("themePackageTemp").apply { mkdirs() }
-            val suffix = contentResolver.getType(uri)?.substringAfterLast("/")?.let { ".$it" } ?: ".jpg"
-            val file = File(dir, "${prefix}_${System.currentTimeMillis()}$suffix")
-            contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(file).use { output -> input.copyTo(output) }
-            } ?: return null
-            file.absolutePath
-        }.onFailure {
-            if (it.isJobCancellation()) return@onFailure
-            toastOnUi(it.localizedMessage)
-        }.getOrNull()
+    private fun startImageCrop(uri: Uri, requestCode: Int) {
+        val aspect = ImageCropHelper.screenAspect(this)
+        val prefix = if (requestCode == requestMainBackground) "main" else "book_info"
+        val request = ImageCropHelper.buildRequest(
+            context = this,
+            sourceUri = uri,
+            requestCode = requestCode,
+            aspectWidth = aspect.first,
+            aspectHeight = aspect.second,
+            dirName = "themePackageTemp",
+            prefix = prefix,
+            targetWidth = 1600
+        )
+        pendingImageCropRequest = request
+        cropImage.launch(request.options)
     }
 
     private fun showActions(entry: ThemePackageManager.Entry) {

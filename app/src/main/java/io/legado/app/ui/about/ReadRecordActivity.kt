@@ -1,6 +1,7 @@
 package io.legado.app.ui.about
 
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.app.DatePickerDialog
 import android.view.Menu
@@ -12,6 +13,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.canhub.cropper.CropImage
+import com.canhub.cropper.CropImageContract
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
 import io.legado.app.data.appDb
@@ -28,10 +31,12 @@ import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.utils.ColorUtils
+import io.legado.app.utils.ImageCropHelper
 import io.legado.app.utils.applyNavigationBarPadding
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.registerForActivityResult
 import io.legado.app.utils.startActivityForBook
+import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
@@ -70,9 +75,27 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
     private var currentTotalTime: Long = 0L
     private var currentReadBookCount: Int = 0
     private var pendingAvatarUpdate: ((String) -> Unit)? = null
+    private var pendingAvatarCropRequest: ImageCropHelper.Request? = null
     private val selectGoalAvatar = registerForActivityResult(HandleFileContract()) {
-        it.uri?.toString()?.let { uri ->
-            pendingAvatarUpdate?.invoke(uri)
+        it.uri?.let { uri ->
+            startAvatarCrop(uri)
+        } ?: run {
+            pendingAvatarUpdate = null
+        }
+    }
+    @Suppress("DEPRECATION")
+    private val cropGoalAvatar = registerForActivityResult(CropImageContract()) { result ->
+        val request = pendingAvatarCropRequest ?: return@registerForActivityResult
+        pendingAvatarCropRequest = null
+        if (result === CropImage.CancelledResult) {
+            pendingAvatarUpdate = null
+            return@registerForActivityResult
+        }
+        val path = ImageCropHelper.resultPath(result.uriContent, request.outputPath)
+        if (result.isSuccessful && path != null) {
+            pendingAvatarUpdate?.invoke(path)
+        } else {
+            toastOnUi(getString(R.string.image_crop_failed, result.error?.localizedMessage.orEmpty()))
         }
         pendingAvatarUpdate = null
     }
@@ -172,6 +195,21 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
             }
             renderDashboard(dashboard)
         }
+    }
+
+    private fun startAvatarCrop(uri: Uri) {
+        val request = ImageCropHelper.buildRequest(
+            context = this,
+            sourceUri = uri,
+            requestCode = requestGoalAvatar,
+            aspectWidth = 1,
+            aspectHeight = 1,
+            dirName = "readRecordGoalAvatar",
+            prefix = "avatar",
+            targetWidth = 512
+        )
+        pendingAvatarCropRequest = request
+        cropGoalAvatar.launch(request.options)
     }
 
     private fun buildDashboard(): ReadRecordDashboard {
@@ -618,6 +656,10 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
         }
         val time = "$d$h$m$s"
         return if (time.isBlank()) getString(R.string.duration_zero) else time
+    }
+
+    companion object {
+        private const val requestGoalAvatar = 501
     }
 
 }

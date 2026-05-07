@@ -13,6 +13,8 @@ import android.widget.SeekBar
 import androidx.core.view.MenuProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
+import com.canhub.cropper.CropImage
+import com.canhub.cropper.CropImageContract
 import io.legado.app.R
 import io.legado.app.constant.EventBus
 import io.legado.app.constant.PreferKey
@@ -34,6 +36,7 @@ import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.FileUtils
+import io.legado.app.utils.ImageCropHelper
 import io.legado.app.utils.MD5Utils
 import io.legado.app.utils.applyTint
 import io.legado.app.utils.externalFiles
@@ -62,27 +65,24 @@ class ThemeConfigFragment : PreferenceFragment(),
     private val requestCodeBgDark = 122
     private val requestCodeBookInfoBg = 123
     private val requestCodeBookInfoBgDark = 124
+    private var pendingImageCropRequest: ImageCropHelper.Request? = null
     private val selectImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
-            when (it.requestCode) {
-                requestCodeBgLight -> setBgFromUri(uri, PreferKey.bgImage) {
-                    upTheme(false)
-                }
-
-                requestCodeBgDark -> setBgFromUri(uri, PreferKey.bgImageN) {
-                    upTheme(true)
-                }
-
-                requestCodeBookInfoBg -> setBgFromUri(uri, PreferKey.bookInfoBgImage) {
-                    upPreferenceSummary(PreferKey.bookInfoBgImage, getPrefString(PreferKey.bookInfoBgImage))
-                    recreateActivities()
-                }
-
-                requestCodeBookInfoBgDark -> setBgFromUri(uri, PreferKey.bookInfoBgImageN) {
-                    upPreferenceSummary(PreferKey.bookInfoBgImageN, getPrefString(PreferKey.bookInfoBgImageN))
-                    recreateActivities()
-                }
-            }
+            startImageCrop(uri, it.requestCode)
+        }
+    }
+    @Suppress("DEPRECATION")
+    private val cropImage = registerForActivityResult(CropImageContract()) { result ->
+        val request = pendingImageCropRequest ?: return@registerForActivityResult
+        pendingImageCropRequest = null
+        if (result === CropImage.CancelledResult) {
+            return@registerForActivityResult
+        }
+        val path = ImageCropHelper.resultPath(result.uriContent, request.outputPath)
+        if (result.isSuccessful && path != null) {
+            applyCroppedImage(request.requestCode, path)
+        } else {
+            toastOnUi(getString(R.string.image_crop_failed, result.error?.localizedMessage.orEmpty()))
         }
     }
 
@@ -343,6 +343,57 @@ class ThemeConfigFragment : PreferenceFragment(),
             }
 
             else -> preference.summary = value
+        }
+    }
+
+    private fun startImageCrop(uri: Uri, requestCode: Int) {
+        val aspect = ImageCropHelper.screenAspect(requireContext())
+        val prefix = when (requestCode) {
+            requestCodeBgLight -> "read_day"
+            requestCodeBgDark -> "read_night"
+            requestCodeBookInfoBg -> "book_info_day"
+            requestCodeBookInfoBgDark -> "book_info_night"
+            else -> "theme"
+        }
+        val request = ImageCropHelper.buildRequest(
+            context = requireContext(),
+            sourceUri = uri,
+            requestCode = requestCode,
+            aspectWidth = aspect.first,
+            aspectHeight = aspect.second,
+            dirName = "themeCroppedImages",
+            prefix = prefix,
+            targetWidth = 1600
+        )
+        pendingImageCropRequest = request
+        cropImage.launch(request.options)
+    }
+
+    private fun applyCroppedImage(requestCode: Int, path: String) {
+        when (requestCode) {
+            requestCodeBgLight -> {
+                putPrefString(PreferKey.bgImage, path)
+                upPreferenceSummary(PreferKey.bgImage, path)
+                upTheme(false)
+            }
+
+            requestCodeBgDark -> {
+                putPrefString(PreferKey.bgImageN, path)
+                upPreferenceSummary(PreferKey.bgImageN, path)
+                upTheme(true)
+            }
+
+            requestCodeBookInfoBg -> {
+                putPrefString(PreferKey.bookInfoBgImage, path)
+                upPreferenceSummary(PreferKey.bookInfoBgImage, path)
+                recreateActivities()
+            }
+
+            requestCodeBookInfoBgDark -> {
+                putPrefString(PreferKey.bookInfoBgImageN, path)
+                upPreferenceSummary(PreferKey.bookInfoBgImageN, path)
+                recreateActivities()
+            }
         }
     }
 

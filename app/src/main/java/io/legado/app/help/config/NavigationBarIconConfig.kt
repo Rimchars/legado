@@ -314,6 +314,11 @@ object NavigationBarIconConfig {
         return previewDrawable(context, currentEntry(AppConfig.isNightTheme), item, selected)
     }
 
+    fun currentMenuDrawable(context: Context, itemKey: String): Drawable? {
+        val item = items.firstOrNull { it.key == itemKey } ?: return null
+        return createMenuDrawable(context, currentEntry(AppConfig.isNightTheme), item)
+    }
+
     fun getIconFileName(entry: Entry, itemKey: String, selected: Boolean): String? {
         val state = if (selected) STATE_SELECTED else STATE_NORMAL
         return entry.config.icons[iconKey(itemKey, state)]?.let { File(it).name }

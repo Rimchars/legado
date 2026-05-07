@@ -1522,10 +1522,22 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         bottomMenuCount = index + 1
         pagePosition = pagePosition.coerceIn(0, bottomMenuCount - 1)
         adapter.notifyDataSetChanged()
+        applyBottomNavigationIcons()
+        applyMergedDiscoveryIcon()
         binding.bottomNavigationView.post {
             bindMergedDiscoveryLongClick()
             updateSideNavigationItems()
             updateBottomNavigationIndicator(animate = false)
+        }
+    }
+
+    private fun applyMergedDiscoveryIcon() = binding.run {
+        val showDiscovery = AppConfig.showDiscovery
+        val showRss = AppConfig.showRSS && bottomNavigationView.menu.findItem(R.id.menu_rss) != null
+        if (!(AppConfig.mergeDiscoveryRss && showDiscovery && showRss)) return
+        val key = if (resolveDiscoveryNavTarget() == idRss) "rss" else "discovery"
+        NavigationBarIconConfig.currentMenuDrawable(this@MainActivity, key)?.let { icon ->
+            bottomNavigationView.menu.findItem(R.id.menu_discovery)?.icon = icon
         }
     }
 

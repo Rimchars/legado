@@ -1841,6 +1841,9 @@
     <string name="theme_image_value_unselected">Not selected</string>
     <string name="theme_image_value_unselected_blur">Not selected · blur %d</string>
     <string name="theme_image_value_file_blur">%1$s · blur %2$d</string>
+    <string name="image_crop_title">Crop image</string>
+    <string name="image_crop_failed">Image crop failed: %1$s</string>
+    <string name="color_format_error">Invalid color format</string>
     <string name="unknown">Unknown</string>
     <string name="ai_read_prompt_template">You are the Ask AI assistant inside the reading page. Answer around the current book and selected text. Prioritize explaining the original text, context, character relationships, foreshadowing, or the user question. Do not invent plot details not provided.
 
