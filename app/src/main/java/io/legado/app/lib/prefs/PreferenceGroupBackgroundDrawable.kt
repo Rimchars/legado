@@ -24,6 +24,24 @@ class PreferenceGroupBackgroundDrawable(
     private val rect = RectF()
     private var pressed = false
 
+    fun hasSameConfig(
+        @ColorInt normalColor: Int,
+        @ColorInt pressedColor: Int,
+        @ColorInt dividerColor: Int,
+        radius: Float,
+        hasPrev: Boolean,
+        hasNext: Boolean,
+        dividerInset: Float
+    ): Boolean {
+        return this.normalColor == normalColor &&
+                this.pressedColor == pressedColor &&
+                this.dividerColor == dividerColor &&
+                this.radius == radius &&
+                this.hasPrev == hasPrev &&
+                this.hasNext == hasNext &&
+                this.dividerInset == dividerInset
+    }
+
     override fun draw(canvas: Canvas) {
         rect.set(bounds)
         path.reset()
@@ -49,9 +67,10 @@ class PreferenceGroupBackgroundDrawable(
         )
     }
 
-    override fun isStateful(): Boolean = true
+    override fun isStateful(): Boolean = normalColor != pressedColor
 
     override fun onStateChange(state: IntArray): Boolean {
+        if (!isStateful) return false
         val newPressed = state.any {
             it == android.R.attr.state_pressed || it == android.R.attr.state_focused
         }

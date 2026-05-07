@@ -26,6 +26,7 @@ abstract class PreferenceFragment : PreferenceFragmentCompat() {
         listView.setBackgroundColor(Color.TRANSPARENT)
         listView.clipToPadding = false
         listView.applyNavigationBarPadding()
+        listView.itemAnimator = null
     }
 
     /**
