@@ -2,6 +2,11 @@ name: Android Fast Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Optional fixed version name, for patching an existing release tag"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -38,7 +43,10 @@ jobs:
       - name: Prepare release version
         id: version
         run: |
-          VERSION_NAME="3.$(TZ=Asia/Shanghai date +%y.%m%d%H)"
+          VERSION_NAME="${{ inputs.version_name }}"
+          if [ -z "$VERSION_NAME" ]; then
+            VERSION_NAME="3.$(TZ=Asia/Shanghai date +%y.%m%d%H)"
+          fi
           VERSION_CODE=$(($(date -u +%s) / 60))
           TAG_NAME="archive-v3-${VERSION_NAME}"
           {
@@ -91,6 +99,19 @@ jobs:
         with:
           name: legado-release-abi
           path: release-apks/*.apk
+
+      - name: Clear existing versioned release APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.version.outputs.tag }} --jq '.id' 2>/dev/null || true)
+          if [ -n "$RELEASE_ID" ]; then
+            gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate \
+              --jq '.[] | select(.name | endswith(".apk")) | .id' \
+              | while read -r ASSET_ID; do
+                  gh api -X DELETE repos/${{ github.repository }}/releases/assets/$ASSET_ID
+                done
+          fi
 
       - name: Publish versioned release
         uses: softprops/action-gh-release@v2
