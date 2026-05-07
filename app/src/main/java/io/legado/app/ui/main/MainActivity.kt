@@ -126,6 +126,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private var sidebarGestureHandled = false
     private var sidebarGestureAllowed = false
     private var sideNavigationGravity = AppConfig.bottomBarSidebarGravity
+    private var sideNavigationLockedGravity: String? = null
     private var sideBookshelfGroupsExpanded = false
     private var sideBookGroups: List<BookGroup> = emptyList()
     private val sidebarTouchSlop by lazy {
@@ -456,6 +457,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                     false
                 }
                 if (handled) {
+                    cancelChildTouch(ev)
                     sidebarGestureHandled = true
                     return true
                 }
@@ -473,11 +475,22 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
 
     private fun isSidebarCloseGesture(dx: Float): Boolean {
-        return if (sideNavigationGravity == "end") {
+        val gravity = sideNavigationLockedGravity ?: sideNavigationGravity
+        return if (gravity == "end") {
             dx > 0f
         } else {
             dx < 0f
         }
+    }
+
+    private fun cancelChildTouch(ev: MotionEvent) {
+        val cancelEvent = MotionEvent.obtain(ev).apply {
+            action = MotionEvent.ACTION_CANCEL
+        }
+        runCatching {
+            binding.contentContainer.dispatchTouchEvent(cancelEvent)
+        }
+        cancelEvent.recycle()
     }
 
     private fun applyBottomLayoutMode() = binding.run {
@@ -488,6 +501,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         if (sidebarMode) {
             if (!sideNavigationOpen) {
                 sideNavigationGravity = AppConfig.bottomBarSidebarGravity
+                sideNavigationLockedGravity = null
             }
             bottomIndicatorAnimator.cancel()
             bottomNavigationIndicatorContainer.isVisible = false
@@ -499,6 +513,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             placeSideNavigation(animate = false)
         } else {
             sideNavigationOpen = false
+            sideNavigationLockedGravity = null
             sideNavigationPanel.animate().cancel()
             sideNavigationScrim.animate().cancel()
             sideNavigationScrim.visibility = View.GONE
@@ -640,6 +655,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private fun placeSideNavigation(animate: Boolean) = binding.run {
         if (!isSidebarMode() || sideNavigationPanel.width == 0) return
         sideNavigationPanel.animate().cancel()
+        updateSideNavigationPanelWidth()
         val fromEnd = sideNavigationGravity == "end"
         (sideNavigationPanel.layoutParams as? ConstraintLayout.LayoutParams)?.let {
             it.startToStart = ConstraintSet.PARENT_ID
@@ -666,6 +682,19 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             sideNavigationPanel.translationX = target
             sideNavigationScrim.alpha = if (sideNavigationOpen) 1f else 0f
             sideNavigationScrim.isVisible = sideNavigationOpen
+        }
+    }
+
+    private fun updateSideNavigationPanelWidth() = binding.run {
+        val rootWidth = root.width
+        val rootHeight = root.height
+        if (rootWidth <= 0 || rootHeight <= 0) return@run
+        val percent = if (rootWidth > rootHeight) 0.50f else 0.76f
+        (sideNavigationPanel.layoutParams as? ConstraintLayout.LayoutParams)?.let {
+            if (it.matchConstraintPercentWidth != percent) {
+                it.matchConstraintPercentWidth = percent
+                sideNavigationPanel.layoutParams = it
+            }
         }
     }
 
@@ -697,6 +726,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         if (!isSidebarMode()) return
         if (sideNavigationOpen) return
         sideNavigationGravity = gravity.takeIf { it == "end" } ?: "start"
+        sideNavigationLockedGravity = sideNavigationGravity
         binding.sideNavigationPanel.background = createSideNavigationPanelDrawable()
         sideNavigationOpen = true
         placeSideNavigation(animate = true)
@@ -706,6 +736,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         if (!sideNavigationOpen) return
         sideNavigationOpen = false
         placeSideNavigation(animate = true)
+        sideNavigationLockedGravity = null
     }
 
     private fun setupLiquidGlass() {
