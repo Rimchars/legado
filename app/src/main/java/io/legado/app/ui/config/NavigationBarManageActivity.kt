@@ -415,7 +415,9 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 add(NavAction.EXPORT)
                 if (AppConfig.syncThemePackages) add(NavAction.UPLOAD)
                 if (entry.source != NavigationBarIconConfig.Source.LOCAL) add(NavAction.DOWNLOAD)
-                add(NavAction.DELETE)
+                if (entry.source != NavigationBarIconConfig.Source.REMOTE) add(NavAction.DELETE_LOCAL)
+                if (entry.source != NavigationBarIconConfig.Source.LOCAL) add(NavAction.DELETE_REMOTE)
+                if (entry.source == NavigationBarIconConfig.Source.BOTH) add(NavAction.DELETE_BOTH)
             }
         }
         selector(entry.config.name, actions.map { getString(it.titleRes) }) { _, index ->
@@ -425,11 +427,31 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 NavAction.EXPORT -> exportPackage(entry)
                 NavAction.UPLOAD -> runAction { NavigationBarIconConfig.upload(entry) }
                 NavAction.DOWNLOAD -> runAction { NavigationBarIconConfig.download(entry) }
-                NavAction.DELETE -> runAction {
+                NavAction.DELETE_LOCAL -> confirmDelete(entry, getString(R.string.navigation_bar_delete_local_confirm)) {
+                    NavigationBarIconConfig.deleteLocal(entry)
+                    postEvent(EventBus.NAVIGATION_BAR_CHANGED, entry.config.isNightMode)
+                }
+                NavAction.DELETE_REMOTE -> confirmDelete(entry, getString(R.string.navigation_bar_delete_remote_confirm)) {
+                    NavigationBarIconConfig.deleteRemote(entry)
+                }
+                NavAction.DELETE_BOTH -> confirmDelete(entry, getString(R.string.navigation_bar_delete_both_confirm)) {
                     NavigationBarIconConfig.delete(entry)
                     postEvent(EventBus.NAVIGATION_BAR_CHANGED, entry.config.isNightMode)
                 }
             }
+        }
+    }
+
+    private fun confirmDelete(
+        entry: NavigationBarIconConfig.Entry,
+        message: String,
+        block: suspend () -> Unit
+    ) {
+        alert(getString(R.string.delete), message) {
+            yesButton {
+                runAction(block)
+            }
+            noButton()
         }
     }
 
@@ -454,6 +476,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
             }.onSuccess { zip ->
                 exportPackage.launch {
                     mode = HandleFileContract.EXPORT
+                    showUploadUrl = false
                     fileData = HandleFileContract.FileData(zip.name, zip, "application/zip")
                 }
             }.onFailure {
@@ -530,7 +553,9 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         EXPORT(R.string.export),
         UPLOAD(R.string.navigation_bar_upload),
         DOWNLOAD(R.string.action_download),
-        DELETE(R.string.delete)
+        DELETE_LOCAL(R.string.theme_delete_local),
+        DELETE_REMOTE(R.string.theme_delete_remote),
+        DELETE_BOTH(R.string.theme_delete_both)
     }
 
     private inner class Adapter : RecyclerView.Adapter<Adapter.Holder>() {

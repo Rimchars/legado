@@ -750,6 +750,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }.onSuccess { zipFile ->
                 exportThemePackage.launch {
                     mode = HandleFileContract.EXPORT
+                    showUploadUrl = false
                     fileData = HandleFileContract.FileData(
                         zipFile.name,
                         zipFile,

@@ -1679,6 +1679,9 @@
     <string name="navigation_bar_config_missing">Bottom bar theme config is missing.</string>
     <string name="navigation_bar_import_suffix">Imported</string>
     <string name="navigation_bar_upload">Upload</string>
+    <string name="navigation_bar_delete_local_confirm">Delete local bottom bar theme?</string>
+    <string name="navigation_bar_delete_remote_confirm">Delete cloud bottom bar theme?</string>
+    <string name="navigation_bar_delete_both_confirm">Delete both local and cloud bottom bar theme?</string>
     <string name="navigation_icon_normal">Normal</string>
     <string name="navigation_icon_selected">Selected</string>
     <string name="navigation_icon_set_normal">Set normal icon</string>

@@ -80,9 +80,10 @@ class HandleFileActivity :
             HandleFileContract.DIR_SYS -> getDirActions(true)
             HandleFileContract.DIR -> getDirActions()
             HandleFileContract.FILE -> getFileActions()
-            HandleFileContract.EXPORT -> arrayListOf(
-                SelectItem(getString(R.string.upload_url), 111)
-            ).apply {
+            HandleFileContract.EXPORT -> arrayListOf<SelectItem<Int>>().apply {
+                if (intent.getBooleanExtra("showUploadUrl", true)) {
+                    add(SelectItem(getString(R.string.upload_url), 111))
+                }
                 addAll(getDirActions())
             }
 

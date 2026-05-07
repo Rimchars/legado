@@ -39,6 +39,7 @@ class HandleFileContract :
                 intent.putExtra("contentType", fileData.type)
             }
             intent.putExtra("value", it.value)
+            intent.putExtra("showUploadUrl", it.showUploadUrl)
         }
         return intent
     }
@@ -71,7 +72,8 @@ class HandleFileContract :
         var otherActions: ArrayList<SelectItem<Int>>? = null,
         var fileData: FileData? = null,
         var requestCode: Int = 0,
-        var value: String? = null
+        var value: String? = null,
+        var showUploadUrl: Boolean = true
     )
 
     data class Result(

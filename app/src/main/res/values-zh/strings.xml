@@ -1571,6 +1571,9 @@
     <string name="navigation_bar_config_missing">底栏配置不存在。</string>
     <string name="navigation_bar_import_suffix">导入</string>
     <string name="navigation_bar_upload">上传</string>
+    <string name="navigation_bar_delete_local_confirm">删除本地底栏主题？</string>
+    <string name="navigation_bar_delete_remote_confirm">删除云端底栏主题？</string>
+    <string name="navigation_bar_delete_both_confirm">同时删除本地和云端底栏主题？</string>
     <string name="navigation_icon_normal">未选中</string>
     <string name="navigation_icon_selected">已选中</string>
     <string name="navigation_icon_set_normal">设置未选中图标</string>
