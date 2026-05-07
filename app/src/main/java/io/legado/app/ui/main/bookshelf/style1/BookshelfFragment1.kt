@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupWindow
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentStatePagerAdapter
@@ -19,7 +20,6 @@ import io.legado.app.databinding.FragmentBookshelf1Binding
 import io.legado.app.help.book.BookTagHelper
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
-import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.legado.app.ui.main.bookshelf.style1.books.BooksFragment
@@ -88,8 +88,9 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         binding.btnMoreGlassView.visibility = View.GONE
         binding.btnMoreShellOverlay.visibility = View.GONE
         binding.btnMore.setBackgroundResource(R.drawable.bg_more_icon_button_clear)
-        binding.btnMore.setColorFilter(ThemeStore.textColorPrimary(requireContext()))
-        binding.ivBookshelfTitleArrow.setColorFilter(ThemeStore.textColorPrimary(requireContext()))
+        val iconColor = ContextCompat.getColor(requireContext(), R.color.primaryText)
+        binding.btnMore.setColorFilter(iconColor)
+        binding.ivBookshelfTitleArrow.setColorFilter(iconColor)
         binding.tabLayout.setOnTagClickListener { index ->
             val tag = bookTags.getOrNull(index).orEmpty()
             if (tag == selectedBookTag) {

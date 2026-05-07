@@ -24,7 +24,7 @@ object PreferenceItemStyle {
                 ContextCompat.getColor(preference.context, R.color.background_card)
             ),
             pressedColor = UiCorner.surfaceColor(
-                ContextCompat.getColor(preference.context, R.color.btn_bg_press),
+                ContextCompat.getColor(preference.context, R.color.btn_bg_press_2),
                 pressed = true
             ),
             dividerColor = ContextCompat.getColor(preference.context, R.color.bg_divider_line),

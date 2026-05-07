@@ -5,7 +5,7 @@
             <item>
                 <shape android:shape="rectangle">
                     <corners android:topLeftRadius="@dimen/ui_panel_radius" android:topRightRadius="@dimen/ui_panel_radius" />
-                    <solid android:color="@color/btn_bg_press" />
+                    <solid android:color="@color/btn_bg_press_2" />
                 </shape>
             </item>
             <item android:gravity="bottom" android:left="16dp" android:right="16dp">
