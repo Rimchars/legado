@@ -84,6 +84,7 @@ object NavigationBarIconConfig {
         var effectMode: String = "glass",
         var opacity: Int = 72,
         var updatedAt: Long = System.currentTimeMillis(),
+        var sidebarBackgroundPath: String? = null,
         var icons: MutableMap<String, String> = linkedMapOf()
     )
 
@@ -293,6 +294,47 @@ object NavigationBarIconConfig {
         return addOrUpdate(config, entry)
     }
 
+    fun saveSidebarBackgroundToPackage(
+        context: Context,
+        sourcePath: String,
+        entry: Entry
+    ): Entry {
+        if (entry.dirName == DEFAULT_DIR_NAME) {
+            throw IllegalArgumentException(context.getString(R.string.navigation_bar_default_readonly))
+        }
+        val source = File(sourcePath)
+        if (!source.exists()) {
+            throw IllegalArgumentException(
+                context.getString(R.string.image_crop_failed, context.getString(R.string.unknown))
+            )
+        }
+        val dirName = entry.dirName.ifBlank {
+            entry.config.name.normalizeFileName().ifBlank { "navigation_${System.currentTimeMillis()}" }
+        }
+        val dir = entry.localDir ?: localDir(entry.config.isNightMode, dirName).apply { mkdirs() }
+        val suffix = source.name.substringAfterLast('.', "")
+            .takeIf { it.isNotBlank() }
+            ?.let { ".${it.lowercase(Locale.ROOT)}" }
+            ?: ".jpg"
+        val fileName = "sidebar_background$suffix"
+        source.copyTo(File(dir, fileName), overwrite = true)
+        val config = entry.config.copy(icons = entry.config.icons.toMutableMap())
+        config.sidebarBackgroundPath = fileName
+        return addOrUpdate(config, entry)
+    }
+
+    fun clearSidebarBackground(entry: Entry): Entry {
+        if (entry.dirName == DEFAULT_DIR_NAME) return entry
+        entry.config.sidebarBackgroundPath?.let { name ->
+            File(entry.localDir ?: localDir(entry.config.isNightMode, entry.dirName), name)
+                .takeIf { it.exists() }
+                ?.delete()
+        }
+        val config = entry.config.copy(icons = entry.config.icons.toMutableMap())
+        config.sidebarBackgroundPath = null
+        return addOrUpdate(config, entry)
+    }
+
     fun applyTo(menu: Menu, context: Context, isNight: Boolean): Boolean {
         val entry = currentEntry(isNight)
         val hasCustom = entry.dirName != DEFAULT_DIR_NAME && entry.config.icons.isNotEmpty()
@@ -317,6 +359,10 @@ object NavigationBarIconConfig {
     fun currentMenuDrawable(context: Context, itemKey: String): Drawable? {
         val item = items.firstOrNull { it.key == itemKey } ?: return null
         return createMenuDrawable(context, currentEntry(AppConfig.isNightTheme), item)
+    }
+
+    fun currentSidebarBackgroundPath(isNight: Boolean): String? {
+        return resolveSidebarBackgroundPath(currentEntry(isNight))
     }
 
     fun getIconFileName(entry: Entry, itemKey: String, selected: Boolean): String? {
@@ -468,6 +514,16 @@ object NavigationBarIconConfig {
         return if (file.isAbsolute) value else File(entry.localDir ?: localDir(entry.config.isNightMode, entry.dirName), value).absolutePath
     }
 
+    private fun resolveSidebarBackgroundPath(entry: Entry): String? {
+        if (entry.dirName == DEFAULT_DIR_NAME) return null
+        val value = entry.config.sidebarBackgroundPath ?: return null
+        val file = File(value)
+        return if (file.isAbsolute) value else File(
+            entry.localDir ?: localDir(entry.config.isNightMode, entry.dirName),
+            value
+        ).absolutePath
+    }
+
     private fun iconKey(itemKey: String, state: String): String = "${itemKey}_$state"
 
     private fun defaultDrawable(context: Context, @DrawableRes resId: Int, color: Int): Drawable {
@@ -579,10 +635,12 @@ object NavigationBarIconConfig {
             ?.takeIf { it in setOf("solid", "glass", "frosted") }
             ?: "glass"
         val icons = runCatching { config.icons }.getOrNull() ?: linkedMapOf()
+        val sidebarBackgroundPath = runCatching { config.sidebarBackgroundPath }.getOrNull()
         config.layoutMode = layoutMode
         config.sidebarGravity = sidebarGravity
         config.effectMode = effectMode
         config.opacity = config.opacity.coerceIn(0, 100)
+        config.sidebarBackgroundPath = sidebarBackgroundPath
         config.icons = icons.toMutableMap()
         return config
     }

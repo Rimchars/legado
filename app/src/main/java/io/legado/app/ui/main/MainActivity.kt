@@ -76,6 +76,7 @@ import io.legado.app.ui.main.rss.RssFragment
 import io.legado.app.ui.widget.dialog.TextDialog
 import io.legado.app.ui.widget.text.BadgeView
 import io.legado.app.utils.isCreated
+import io.legado.app.utils.BitmapUtils
 import io.legado.app.utils.navigationBarHeight
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.setEdgeEffectColor
@@ -510,6 +511,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             sideNavigationHeader.background = createSideNavigationHeaderDrawable()
             sideSearchRow.background = createSideNavigationSearchDrawable()
             sideNavAiRow.background = createSideNavigationRowDrawable(false)
+            applySideNavigationBackground()
             updateSideNavigationItems()
             placeSideNavigation(animate = false)
         } else {
@@ -732,6 +734,28 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 sideNavigationPanel.layoutParams = it
             }
         }
+        applySideNavigationBackground()
+    }
+
+    private fun applySideNavigationBackground() = binding.run {
+        val path = NavigationBarIconConfig.currentSidebarBackgroundPath(AppConfig.isNightTheme)
+        if (path.isNullOrBlank()) {
+            sideNavigationBackground.setImageDrawable(null)
+            sideNavigationBackground.isVisible = false
+            return@run
+        }
+        val targetWidth = sideNavigationPanel.width.takeIf { it > 0 } ?: root.width
+        val targetHeight = sideNavigationPanel.height.takeIf { it > 0 } ?: root.height
+        val bitmap = kotlin.runCatching {
+            BitmapUtils.decodeBitmap(path, targetWidth.coerceAtLeast(1), targetHeight.coerceAtLeast(1))
+        }.getOrNull()
+        if (bitmap == null) {
+            sideNavigationBackground.setImageDrawable(null)
+            sideNavigationBackground.isVisible = false
+            return@run
+        }
+        sideNavigationBackground.setImageBitmap(bitmap)
+        sideNavigationBackground.isVisible = true
     }
 
     private fun animateSideNavigationScrim(show: Boolean) = binding.run {

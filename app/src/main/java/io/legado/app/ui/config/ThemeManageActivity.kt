@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
 import com.bumptech.glide.Glide
+import com.bumptech.glide.signature.ObjectKey
 import com.jaredrummler.android.colorpicker.ColorPickerDialog
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
 import io.legado.app.R
@@ -1025,10 +1026,18 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 if (backgroundPath.isNullOrBlank()) {
                     return
                 }
-                ImageLoader.load(ivPreview.context, backgroundPath)
+                val previewSignature = backgroundPath.takeIf { !it.startsWith("http", ignoreCase = true) }
+                    ?.let { path ->
+                        val file = File(path)
+                        if (file.exists()) ObjectKey("${file.absolutePath}:${file.length()}:${file.lastModified()}") else null
+                    }
+                val request = ImageLoader.load(ivPreview.context, backgroundPath)
                     .centerCrop()
                     .error(ColorDrawable(fallbackColor))
-                    .into(ivPreview)
+                if (previewSignature != null) {
+                    request.signature(previewSignature)
+                }
+                request.into(ivPreview)
             }
 
             private fun String?.toPreviewColor(isNightTheme: Boolean): Int {

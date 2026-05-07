@@ -67,7 +67,7 @@ class ImageCropActivity : BaseActivity<ActivityImageCropBinding>(
         targetWidth = intent.getIntExtra(EXTRA_TARGET_WIDTH, 1600).coerceAtLeast(128)
         outputPath = intent.getStringExtra(EXTRA_OUTPUT_PATH)
         binding.cropOverlay.setAspect(aspectWidth, aspectHeight)
-        binding.photoView.setScaleType(ImageView.ScaleType.CENTER_CROP)
+        binding.photoView.setScaleType(ImageView.ScaleType.CENTER_INSIDE)
         binding.photoView.setMaxScale(6f)
         binding.btnCancel.setOnClickListener { finish() }
         binding.btnConfirm.setOnClickListener { saveCrop() }
@@ -130,6 +130,9 @@ class ImageCropActivity : BaseActivity<ActivityImageCropBinding>(
             }
             sourceBitmap = bitmap
             binding.photoView.setImageBitmap(bitmap)
+            binding.photoView.post {
+                binding.photoView.fitInsideRect(binding.cropOverlay.getCropRect())
+            }
         }
     }
 

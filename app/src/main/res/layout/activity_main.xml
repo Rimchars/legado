@@ -172,6 +172,15 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintWidth_percent="0.66">
 
+        <ImageView
+            android:id="@+id/side_navigation_background"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"

@@ -347,6 +347,9 @@ object ThemePackageManager {
     }
 
     private fun copyAsset(path: String?, dir: File, prefix: String): String? {
+        dir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith(prefix) }
+            ?.forEach { it.delete() }
         if (path.isNullOrBlank() || path.startsWith("http", ignoreCase = true)) return path
         val source = File(path)
         if (!source.exists()) return path

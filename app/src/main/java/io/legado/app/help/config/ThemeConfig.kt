@@ -38,6 +38,7 @@ import androidx.core.graphics.drawable.toDrawable
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.http.newCallResponse
 import io.legado.app.help.http.okHttpClient
+import io.legado.app.utils.CenterCropBitmapDrawable
 import io.legado.app.utils.MD5Utils
 import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.putPrefBoolean
@@ -131,9 +132,9 @@ object ThemeConfig {
         val bgImage = BitmapUtils
             .decodeBitmap(path, metrics.widthPixels, metrics.heightPixels)
         if (bgImgBlu == 0) {
-            return bgImage?.toDrawable(context.resources)
+            return bgImage?.let { CenterCropBitmapDrawable(context.resources, it) }
         }
-        return bgImage?.stackBlur(bgImgBlu)?.toDrawable(context.resources)
+        return bgImage?.stackBlur(bgImgBlu)?.let { CenterCropBitmapDrawable(context.resources, it) }
     }
 
     fun hasUsableBgImage(context: Context): Boolean {

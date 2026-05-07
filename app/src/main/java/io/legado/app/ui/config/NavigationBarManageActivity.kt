@@ -31,7 +31,9 @@ import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.ui.file.HandleFileContract
+import io.legado.app.ui.image.ImageCropContract
 import io.legado.app.ui.widget.number.NumberPickerDialog
+import io.legado.app.utils.ImageCropHelper
 import io.legado.app.utils.externalFiles
 import io.legado.app.utils.getFile
 import io.legado.app.utils.observeEvent
@@ -58,6 +60,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
     private var editingDialog: LinearLayout? = null
     private var pendingConfig: NavigationBarIconConfig.Config? = null
     private var pendingIconRequest: IconRequest? = null
+    private var pendingSidebarBackgroundEntry: NavigationBarIconConfig.Entry? = null
     private val dateFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
     private val selectIcon = registerForActivityResult(HandleFileContract()) { result ->
@@ -95,6 +98,56 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
     private val exportPackage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let {
             toastOnUi(R.string.export_success)
+        }
+    }
+
+    private val selectSidebarBackground = registerForActivityResult(HandleFileContract()) { result ->
+        val entry = pendingSidebarBackgroundEntry ?: return@registerForActivityResult
+        val uri = result.uri ?: return@registerForActivityResult
+        val metrics = resources.displayMetrics
+        val request = ImageCropHelper.buildRequest(
+            context = this,
+            sourceUri = uri,
+            requestCode = requestSidebarBackground,
+            aspectWidth = minOf(metrics.widthPixels, metrics.heightPixels),
+            aspectHeight = maxOf(metrics.widthPixels, metrics.heightPixels),
+            dirName = "navigationBarSidebarBackground",
+            prefix = "sidebar_bg",
+            targetWidth = 1440
+        )
+        pendingSidebarBackgroundEntry = entry
+        cropSidebarBackground.launch(request.params)
+    }
+
+    private val cropSidebarBackground = registerForActivityResult(ImageCropContract()) { result ->
+        val entry = pendingSidebarBackgroundEntry ?: return@registerForActivityResult
+        pendingSidebarBackgroundEntry = null
+        if (result == null) {
+            return@registerForActivityResult
+        }
+        if (!File(result).exists()) {
+            toastOnUi(getString(R.string.image_crop_failed, getString(R.string.unknown)))
+            return@registerForActivityResult
+        }
+        lifecycleScope.launch {
+            kotlin.runCatching {
+                withContext(Dispatchers.IO) {
+                    NavigationBarIconConfig.saveSidebarBackgroundToPackage(
+                        this@NavigationBarManageActivity,
+                        result,
+                        entry
+                    )
+                }
+            }.onSuccess {
+                editingEntry = it
+                pendingConfig = it.config.copy(icons = it.config.icons.toMutableMap())
+                notifyAppliedIfNeeded(it)
+                refreshEditDialog()
+                loadPackages()
+                toastOnUi(R.string.success)
+            }.onFailure {
+                toastOnUi(it.localizedMessage ?: getString(R.string.navigation_icon_decode_failed))
+            }
         }
     }
 
@@ -308,6 +361,39 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                             config.opacity = it.coerceIn(0, 100)
                             refreshEditDialog()
                         }
+                })
+            } else {
+                addView(optionRow(
+                    getString(R.string.navigation_bar_sidebar_background),
+                    if (config.sidebarBackgroundPath.isNullOrBlank()) {
+                        getString(R.string.select_image)
+                    } else {
+                        getString(R.string.theme_image_selected)
+                    }
+                ) {
+                    selector(
+                        getString(R.string.navigation_bar_sidebar_background),
+                        buildList {
+                            add(getString(R.string.select_image))
+                            if (!config.sidebarBackgroundPath.isNullOrBlank()) {
+                                add(getString(R.string.delete))
+                            }
+                        }
+                    ) { _, index ->
+                        if (index == 0) {
+                            pendingSidebarBackgroundEntry = entry
+                            selectSidebarBackground.launch {
+                                mode = HandleFileContract.IMAGE
+                                title = getString(R.string.navigation_bar_sidebar_background)
+                            }
+                        } else {
+                            editingEntry = NavigationBarIconConfig.clearSidebarBackground(entry)
+                            pendingConfig = editingEntry!!.config.copy(icons = editingEntry!!.config.icons.toMutableMap())
+                            notifyAppliedIfNeeded(editingEntry!!)
+                            refreshEditDialog()
+                            loadPackages()
+                        }
+                    }
                 })
             }
             NavigationBarIconConfig.items.forEach { item ->
@@ -579,6 +665,10 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         val item: NavigationBarIconConfig.NavItem,
         val selected: Boolean
     )
+
+    private companion object {
+        const val requestSidebarBackground = 7001
+    }
 
     private enum class NavAction(val titleRes: Int) {
         APPLY(R.string.theme_apply),
