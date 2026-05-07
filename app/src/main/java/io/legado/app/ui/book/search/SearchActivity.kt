@@ -147,9 +147,9 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
         binding.btnMenu.setColorFilter(secondaryTextColor)
         val isNight = AppConfig.isNightTheme
         val searchSurfaceColor = if (isNight) {
-            ColorUtils.adjustAlpha(Color.rgb(52, 52, 56), 0.36f)
+            ColorUtils.adjustAlpha(Color.rgb(52, 52, 56), 0.42f)
         } else {
-            ContextCompat.getColor(this, R.color.background_card)
+            ColorUtils.adjustAlpha(Color.rgb(120, 120, 128), 0.18f)
         }
         val cardColor = if (isNight) {
             ColorUtils.adjustAlpha(Color.rgb(44, 44, 46), 0.45f)

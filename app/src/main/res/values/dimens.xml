@@ -55,6 +55,27 @@
     <dimen name="main_search_button_elevation">14dp</dimen>
     <dimen name="main_search_button_icon_size">22dp</dimen>
     <dimen name="main_content_bottom_bar_padding">90dp</dimen>
+    <dimen name="main_sidebar_panel_padding_horizontal">18dp</dimen>
+    <dimen name="main_sidebar_panel_padding_vertical">18dp</dimen>
+    <dimen name="main_sidebar_header_padding_top">28dp</dimen>
+    <dimen name="main_sidebar_goal_avatar_size">54dp</dimen>
+    <dimen name="main_sidebar_goal_avatar_radius">27dp</dimen>
+    <dimen name="main_sidebar_goal_card_min_height">96dp</dimen>
+    <dimen name="main_sidebar_goal_card_padding">18dp</dimen>
+    <dimen name="main_sidebar_goal_text_margin_start">14dp</dimen>
+    <dimen name="main_sidebar_goal_text_spacing">6dp</dimen>
+    <dimen name="main_sidebar_row_height">60dp</dimen>
+    <dimen name="main_sidebar_search_height">42dp</dimen>
+    <dimen name="main_sidebar_scroll_margin_top">16dp</dimen>
+    <dimen name="main_sidebar_search_margin_top">12dp</dimen>
+    <dimen name="main_sidebar_item_padding_horizontal">14dp</dimen>
+    <dimen name="main_sidebar_item_icon_size">44dp</dimen>
+    <dimen name="main_sidebar_item_icon_padding">11dp</dimen>
+    <dimen name="main_sidebar_search_icon_size">42dp</dimen>
+    <dimen name="main_sidebar_search_icon_padding">10dp</dimen>
+    <dimen name="main_sidebar_item_text_margin_start">14dp</dimen>
+    <dimen name="main_sidebar_group_margin_bottom">8dp</dimen>
+    <dimen name="main_sidebar_spacing">8dp</dimen>
 
     <!-- Shared bookshelf/discover tag bar -->
     <dimen name="bookshelf_action_button_size">34dp</dimen>

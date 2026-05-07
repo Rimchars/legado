@@ -62,6 +62,8 @@ import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.service.BaseReadAloudService
 import io.legado.app.ui.about.CrashLogsDialog
+import io.legado.app.ui.about.ReadRecordWidgetStore
+import io.legado.app.ui.about.loadReadRecordCover
 import io.legado.app.ui.association.ImportBookSourceDialog
 import io.legado.app.ui.association.ImportReplaceRuleDialog
 import io.legado.app.ui.association.ImportRssSourceDialog
@@ -272,6 +274,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     override fun onResume() {
         super.onResume()
         refreshBottomNavigationConfig()
+        updateSideGoalHeader()
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
@@ -512,6 +515,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             sideSearchRow.background = createSideNavigationSearchDrawable()
             sideNavAiRow.background = createSideNavigationRowDrawable(false)
             applySideNavigationBackground()
+            updateSideGoalHeader()
             updateSideNavigationItems()
             placeSideNavigation(animate = false)
         } else {
@@ -742,6 +746,10 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         if (path.isNullOrBlank()) {
             sideNavigationBackground.setImageDrawable(null)
             sideNavigationBackground.isVisible = false
+            sideNavigationPanel.background = createSideNavigationPanelDrawable()
+            sideNavigationHeader.background = createSideNavigationHeaderDrawable()
+            sideSearchRow.background = createSideNavigationSearchDrawable()
+            updateSideNavigationItems()
             return@run
         }
         val targetWidth = sideNavigationPanel.width.takeIf { it > 0 } ?: root.width
@@ -752,10 +760,46 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         if (bitmap == null) {
             sideNavigationBackground.setImageDrawable(null)
             sideNavigationBackground.isVisible = false
+            sideNavigationPanel.background = createSideNavigationPanelDrawable()
+            sideNavigationHeader.background = createSideNavigationHeaderDrawable()
+            sideSearchRow.background = createSideNavigationSearchDrawable()
+            updateSideNavigationItems()
             return@run
         }
         sideNavigationBackground.setImageBitmap(bitmap)
         sideNavigationBackground.isVisible = true
+        sideNavigationPanel.background = createSideNavigationPanelDrawable()
+        sideNavigationHeader.background = createSideNavigationHeaderDrawable()
+        sideSearchRow.background = createSideNavigationSearchDrawable()
+        updateSideNavigationItems()
+    }
+
+    private fun updateSideGoalHeader() {
+        lifecycleScope.launch {
+            val goalConfig = ReadRecordWidgetStore.loadGoalConfig()
+            val todayTime = withContext(IO) {
+                appDb.readRecordDailyDao.get(java.time.LocalDate.now().toString())?.readTime ?: 0L
+            }
+            val todayText = formatSideReadDuration(todayTime)
+            binding.sideGoalAvatar.loadReadRecordCover(goalConfig.avatar)
+            binding.sideGoalUserName.text = goalConfig.userName?.takeIf { it.isNotBlank() }
+                ?: getString(R.string.read_record_goal_card)
+            binding.sideGoalToday.text = getString(R.string.read_record_goal_today, todayText)
+        }
+    }
+
+    private fun formatSideReadDuration(duration: Long): String {
+        val totalMinutes = (duration / DateUtils.MINUTE_IN_MILLIS).toInt()
+        val hours = totalMinutes / 60
+        val minutes = totalMinutes % 60
+        return when {
+            hours > 0 && minutes > 0 -> {
+                "${getString(R.string.duration_hour, hours)} ${getString(R.string.duration_minute, minutes)}"
+            }
+
+            hours > 0 -> getString(R.string.duration_hour, hours)
+            else -> getString(R.string.duration_minute, minutes)
+        }
     }
 
     private fun animateSideNavigationScrim(show: Boolean) = binding.run {
@@ -1024,6 +1068,14 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
 
     private fun createSideNavigationHeaderDrawable(): GradientDrawable {
         val baseColor = bottomBackground
+        if (binding.sideNavigationBackground.isVisible) {
+            return GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = UiCorner.panelRadius(this@MainActivity)
+                setColor(Color.TRANSPARENT)
+                setStroke(0, Color.TRANSPARENT)
+            }
+        }
         val isLight = AppColorUtils.isColorLight(baseColor)
         val surface = AppColorUtils.blendColors(
             baseColor,
@@ -1046,9 +1098,9 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
 
     private fun createSideNavigationSearchDrawable(): GradientDrawable {
         val searchSurfaceColor = if (AppConfig.isNightTheme) {
-            AppColorUtils.withAlpha(Color.rgb(52, 52, 56), 0.36f)
+            AppColorUtils.withAlpha(Color.rgb(52, 52, 56), 0.42f)
         } else {
-            ContextCompat.getColor(this@MainActivity, R.color.background_card)
+            AppColorUtils.withAlpha(Color.rgb(120, 120, 128), 0.18f)
         }
         val strokeColor = AppColorUtils.withAlpha(
             ContextCompat.getColor(this@MainActivity, R.color.primaryText),
@@ -1064,30 +1116,38 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
 
     private fun createSideNavigationPanelDrawable(): GradientDrawable {
         val baseColor = bottomBackground
+        val hasWallpaper = binding.sideNavigationBackground.isVisible
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = 0f
-            setColor(baseColor)
-            setStroke(
-                1.dpToPx(),
-                AppColorUtils.withAlpha(
-                    if (AppColorUtils.isColorLight(baseColor)) Color.BLACK else Color.WHITE,
-                    0.12f
+            setColor(if (hasWallpaper) Color.TRANSPARENT else baseColor)
+            if (hasWallpaper) {
+                setStroke(0, Color.TRANSPARENT)
+            } else {
+                setStroke(
+                    1.dpToPx(),
+                    AppColorUtils.withAlpha(
+                        if (AppColorUtils.isColorLight(baseColor)) Color.BLACK else Color.WHITE,
+                        0.12f
+                    )
                 )
-            )
+            }
         }
     }
 
     private fun createSideNavigationRowDrawable(selected: Boolean): GradientDrawable {
         val baseColor = bottomBackground
         val isLight = AppColorUtils.isColorLight(baseColor)
-        val surface = if (selected) {
-            AppColorUtils.blendColors(baseColor, primaryColor, if (isLight) 0.16f else 0.28f)
-        } else {
-            AppColorUtils.withAlpha(baseColor, 0f)
-        }
+        val surface = Color.TRANSPARENT
         val stroke = if (selected) {
-            AppColorUtils.withAlpha(primaryColor, if (isLight) 0.22f else 0.34f)
+            AppColorUtils.withAlpha(
+                if (binding.sideNavigationBackground.isVisible) {
+                    if (isLight) Color.BLACK else Color.WHITE
+                } else {
+                    primaryColor
+                },
+                if (binding.sideNavigationBackground.isVisible) 0.12f else if (isLight) 0.22f else 0.34f
+            )
         } else {
             Color.TRANSPARENT
         }

@@ -12,6 +12,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.widget.ImageView
+import android.widget.FrameLayout
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
@@ -71,6 +72,9 @@ class ImageCropActivity : BaseActivity<ActivityImageCropBinding>(
         binding.photoView.setMaxScale(6f)
         binding.btnCancel.setOnClickListener { finish() }
         binding.btnConfirm.setOnClickListener { saveCrop() }
+        binding.cropOverlay.post {
+            updatePhotoViewport()
+        }
         loadImage()
     }
 
@@ -131,14 +135,40 @@ class ImageCropActivity : BaseActivity<ActivityImageCropBinding>(
             sourceBitmap = bitmap
             binding.photoView.setImageBitmap(bitmap)
             binding.photoView.post {
-                binding.photoView.fitInsideRect(binding.cropOverlay.getCropRect())
+                updatePhotoViewport()
             }
+        }
+    }
+
+    private fun updatePhotoViewport() {
+        val cropRect = binding.cropOverlay.getCropRect()
+        if (cropRect.isEmpty) return
+        val layoutParams = (binding.photoView.layoutParams as? FrameLayout.LayoutParams)
+            ?: FrameLayout.LayoutParams(
+                cropRect.width().roundToInt(),
+                cropRect.height().roundToInt()
+            )
+        layoutParams.width = cropRect.width().roundToInt()
+        layoutParams.height = cropRect.height().roundToInt()
+        layoutParams.leftMargin = cropRect.left.roundToInt()
+        layoutParams.topMargin = cropRect.top.roundToInt()
+        binding.photoView.layoutParams = layoutParams
+        binding.photoView.scaleType = ImageView.ScaleType.CENTER_INSIDE
+        binding.photoView.post {
+            binding.photoView.fitInsideRect(
+                RectF(
+                    0f,
+                    0f,
+                    binding.photoView.width.toFloat(),
+                    binding.photoView.height.toFloat()
+                )
+            )
         }
     }
 
     private fun saveCrop() {
         val bitmap = sourceBitmap ?: return
-        val cropRect = binding.cropOverlay.getCropRect()
+        val cropRect = RectF(0f, 0f, binding.photoView.width.toFloat(), binding.photoView.height.toFloat())
         val matrix = binding.photoView.getDisplayMatrixCopy()
         binding.btnConfirm.isEnabled = false
         lifecycleScope.launch {

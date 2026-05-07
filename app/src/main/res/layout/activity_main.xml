@@ -160,10 +160,6 @@
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:elevation="@dimen/main_bottom_bar_elevation"
-        android:paddingStart="18dp"
-        android:paddingTop="28dp"
-        android:paddingEnd="18dp"
-        android:paddingBottom="18dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -182,51 +178,68 @@
             android:visibility="gone" />
 
         <LinearLayout
+            android:id="@+id/side_navigation_content"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingStart="@dimen/main_sidebar_panel_padding_horizontal"
+            android:paddingTop="@dimen/main_sidebar_header_padding_top"
+            android:paddingEnd="@dimen/main_sidebar_panel_padding_horizontal"
+            android:paddingBottom="@dimen/main_sidebar_panel_padding_vertical">
 
             <LinearLayout
                 android:id="@+id/side_navigation_header"
                 android:layout_width="match_parent"
-                android:layout_height="92dp"
+                android:layout_height="wrap_content"
+                android:minHeight="@dimen/main_sidebar_goal_card_min_height"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp">
+                android:paddingStart="@dimen/main_sidebar_goal_card_padding"
+                android:paddingTop="@dimen/main_sidebar_goal_card_padding"
+                android:paddingEnd="@dimen/main_sidebar_goal_card_padding"
+                android:paddingBottom="@dimen/main_sidebar_goal_card_padding">
 
-                <androidx.appcompat.widget.AppCompatImageView
-                    android:layout_width="54dp"
-                    android:layout_height="54dp"
+                <androidx.cardview.widget.CardView
+                    android:layout_width="@dimen/main_sidebar_goal_avatar_size"
+                    android:layout_height="@dimen/main_sidebar_goal_avatar_size"
                     android:background="@drawable/bg_main_search_button"
-                    android:padding="13dp"
-                    android:src="@drawable/ic_bottom_books"
-                    android:tint="@color/primaryText" />
+                    app:cardCornerRadius="@dimen/main_sidebar_goal_avatar_radius"
+                    app:cardElevation="0dp"
+                    app:cardUseCompatPadding="false">
+
+                    <io.legado.app.ui.widget.image.CoverImageView
+                        android:id="@+id/side_goal_avatar"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="@null"
+                        android:importantForAccessibility="no"
+                        android:scaleType="centerCrop" />
+
+                </androidx.cardview.widget.CardView>
 
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
+                    android:layout_marginStart="@dimen/main_sidebar_goal_text_margin_start"
                     android:layout_weight="1"
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/side_goal_user_name"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:singleLine="true"
-                        android:text="@string/app_name_sigma"
+                        android:maxLines="2"
+                        android:text="@string/read_record_goal_card"
                         android:textColor="@color/primaryText"
-                        android:textSize="22sp"
+                        android:textSize="18sp"
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/side_goal_today"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:ellipsize="end"
-                        android:singleLine="true"
-                        android:text="@string/navigation_bar_manage"
+                        android:layout_marginTop="@dimen/main_sidebar_goal_text_spacing"
+                        android:maxLines="2"
                         android:textColor="@color/secondaryText"
                         android:textSize="14sp" />
 
@@ -234,21 +247,12 @@
 
             </LinearLayout>
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="8dp"
-                android:text="@string/menu"
-                android:textColor="@color/secondaryText"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
             <androidx.core.widget.NestedScrollView
                 android:id="@+id/side_navigation_scroll"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
+                android:layout_marginTop="@dimen/main_sidebar_scroll_margin_top"
                 android:background="@color/transparent"
                 android:clipToPadding="false"
                 android:fillViewport="false"
@@ -265,27 +269,27 @@
                     <LinearLayout
                         android:id="@+id/side_nav_bookshelf_row"
                         android:layout_width="match_parent"
-                        android:layout_height="60dp"
-                        android:layout_marginBottom="8dp"
+                        android:layout_height="@dimen/main_sidebar_row_height"
+                        android:layout_marginBottom="@dimen/main_sidebar_spacing"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp">
+                        android:paddingStart="@dimen/main_sidebar_item_padding_horizontal"
+                        android:paddingEnd="@dimen/main_sidebar_item_padding_horizontal">
 
                         <androidx.appcompat.widget.AppCompatImageButton
                             android:id="@+id/side_nav_bookshelf"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="@dimen/main_sidebar_item_icon_size"
+                            android:layout_height="@dimen/main_sidebar_item_icon_size"
                             android:background="@drawable/bg_more_icon_button_clear"
                             android:contentDescription="@string/bookshelf"
-                            android:padding="11dp"
+                            android:padding="@dimen/main_sidebar_item_icon_padding"
                             android:scaleType="centerInside" />
 
                         <TextView
                             android:id="@+id/side_nav_bookshelf_text"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="14dp"
+                            android:layout_marginStart="@dimen/main_sidebar_item_text_margin_start"
                             android:layout_weight="1"
                             android:ellipsize="end"
                             android:singleLine="true"
@@ -300,34 +304,34 @@
                         android:id="@+id/side_nav_bookshelf_groups"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
+                        android:layout_marginBottom="@dimen/main_sidebar_group_margin_bottom"
                         android:orientation="vertical"
                         android:visibility="gone" />
 
                     <LinearLayout
                         android:id="@+id/side_nav_discovery_row"
                         android:layout_width="match_parent"
-                        android:layout_height="60dp"
-                        android:layout_marginBottom="8dp"
+                        android:layout_height="@dimen/main_sidebar_row_height"
+                        android:layout_marginBottom="@dimen/main_sidebar_spacing"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp">
+                        android:paddingStart="@dimen/main_sidebar_item_padding_horizontal"
+                        android:paddingEnd="@dimen/main_sidebar_item_padding_horizontal">
 
                         <androidx.appcompat.widget.AppCompatImageButton
                             android:id="@+id/side_nav_discovery"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="@dimen/main_sidebar_item_icon_size"
+                            android:layout_height="@dimen/main_sidebar_item_icon_size"
                             android:background="@drawable/bg_more_icon_button_clear"
                             android:contentDescription="@string/discovery"
-                            android:padding="11dp"
+                            android:padding="@dimen/main_sidebar_item_icon_padding"
                             android:scaleType="centerInside" />
 
                         <TextView
                             android:id="@+id/side_nav_discovery_text"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="14dp"
+                            android:layout_marginStart="@dimen/main_sidebar_item_text_margin_start"
                             android:layout_weight="1"
                             android:ellipsize="end"
                             android:singleLine="true"
@@ -341,27 +345,27 @@
                     <LinearLayout
                         android:id="@+id/side_nav_rss_row"
                         android:layout_width="match_parent"
-                        android:layout_height="60dp"
-                        android:layout_marginBottom="8dp"
+                        android:layout_height="@dimen/main_sidebar_row_height"
+                        android:layout_marginBottom="@dimen/main_sidebar_spacing"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp">
+                        android:paddingStart="@dimen/main_sidebar_item_padding_horizontal"
+                        android:paddingEnd="@dimen/main_sidebar_item_padding_horizontal">
 
                         <androidx.appcompat.widget.AppCompatImageButton
                             android:id="@+id/side_nav_rss"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="@dimen/main_sidebar_item_icon_size"
+                            android:layout_height="@dimen/main_sidebar_item_icon_size"
                             android:background="@drawable/bg_more_icon_button_clear"
                             android:contentDescription="@string/rss"
-                            android:padding="11dp"
+                            android:padding="@dimen/main_sidebar_item_icon_padding"
                             android:scaleType="centerInside" />
 
                         <TextView
                             android:id="@+id/side_nav_rss_text"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="14dp"
+                            android:layout_marginStart="@dimen/main_sidebar_item_text_margin_start"
                             android:layout_weight="1"
                             android:ellipsize="end"
                             android:singleLine="true"
@@ -375,27 +379,27 @@
                     <LinearLayout
                         android:id="@+id/side_nav_read_record_row"
                         android:layout_width="match_parent"
-                        android:layout_height="60dp"
-                        android:layout_marginBottom="8dp"
+                        android:layout_height="@dimen/main_sidebar_row_height"
+                        android:layout_marginBottom="@dimen/main_sidebar_spacing"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp">
+                        android:paddingStart="@dimen/main_sidebar_item_padding_horizontal"
+                        android:paddingEnd="@dimen/main_sidebar_item_padding_horizontal">
 
                         <androidx.appcompat.widget.AppCompatImageButton
                             android:id="@+id/side_nav_read_record"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="@dimen/main_sidebar_item_icon_size"
+                            android:layout_height="@dimen/main_sidebar_item_icon_size"
                             android:background="@drawable/bg_more_icon_button_clear"
                             android:contentDescription="@string/side_nav_stats"
-                            android:padding="11dp"
+                            android:padding="@dimen/main_sidebar_item_icon_padding"
                             android:scaleType="centerInside" />
 
                         <TextView
                             android:id="@+id/side_nav_read_record_text"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="14dp"
+                            android:layout_marginStart="@dimen/main_sidebar_item_text_margin_start"
                             android:layout_weight="1"
                             android:ellipsize="end"
                             android:singleLine="true"
@@ -409,27 +413,27 @@
                     <LinearLayout
                         android:id="@+id/side_nav_my_config_row"
                         android:layout_width="match_parent"
-                        android:layout_height="60dp"
-                        android:layout_marginBottom="8dp"
+                        android:layout_height="@dimen/main_sidebar_row_height"
+                        android:layout_marginBottom="@dimen/main_sidebar_spacing"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp">
+                        android:paddingStart="@dimen/main_sidebar_item_padding_horizontal"
+                        android:paddingEnd="@dimen/main_sidebar_item_padding_horizontal">
 
                         <androidx.appcompat.widget.AppCompatImageButton
                             android:id="@+id/side_nav_my_config"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="@dimen/main_sidebar_item_icon_size"
+                            android:layout_height="@dimen/main_sidebar_item_icon_size"
                             android:background="@drawable/bg_more_icon_button_clear"
                             android:contentDescription="@string/my"
-                            android:padding="11dp"
+                            android:padding="@dimen/main_sidebar_item_icon_padding"
                             android:scaleType="centerInside" />
 
                         <TextView
                             android:id="@+id/side_nav_my_config_text"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="14dp"
+                            android:layout_marginStart="@dimen/main_sidebar_item_text_margin_start"
                             android:layout_weight="1"
                             android:ellipsize="end"
                             android:singleLine="true"
@@ -443,21 +447,21 @@
                     <LinearLayout
                         android:id="@+id/side_nav_ai_row"
                         android:layout_width="match_parent"
-                        android:layout_height="60dp"
-                        android:layout_marginBottom="8dp"
+                        android:layout_height="@dimen/main_sidebar_row_height"
+                        android:layout_marginBottom="@dimen/main_sidebar_spacing"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp"
+                        android:paddingStart="@dimen/main_sidebar_item_padding_horizontal"
+                        android:paddingEnd="@dimen/main_sidebar_item_padding_horizontal"
                         android:visibility="gone">
 
                         <androidx.appcompat.widget.AppCompatImageButton
                             android:id="@+id/side_nav_ai"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="@dimen/main_sidebar_item_icon_size"
+                            android:layout_height="@dimen/main_sidebar_item_icon_size"
                             android:background="@drawable/bg_more_icon_button_clear"
                             android:contentDescription="@string/side_nav_assistant"
-                            android:padding="11dp"
+                            android:padding="@dimen/main_sidebar_item_icon_padding"
                             android:scaleType="centerInside"
                             android:src="@drawable/ic_bottom_ai_e" />
 
@@ -465,7 +469,7 @@
                             android:id="@+id/side_nav_ai_text"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="14dp"
+                            android:layout_marginStart="@dimen/main_sidebar_item_text_margin_start"
                             android:layout_weight="1"
                             android:ellipsize="end"
                             android:singleLine="true"
@@ -483,20 +487,20 @@
             <LinearLayout
                 android:id="@+id/side_search_row"
                 android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginTop="12dp"
+                android:layout_height="@dimen/main_sidebar_search_height"
+                android:layout_marginTop="@dimen/main_sidebar_search_margin_top"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp">
+                android:paddingStart="@dimen/main_sidebar_item_padding_horizontal"
+                android:paddingEnd="@dimen/main_sidebar_item_padding_horizontal">
 
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/side_search_button"
-                    android:layout_width="42dp"
-                    android:layout_height="42dp"
+                    android:layout_width="@dimen/main_sidebar_search_icon_size"
+                    android:layout_height="@dimen/main_sidebar_search_icon_size"
                     android:background="@drawable/bg_more_icon_button_clear"
                     android:contentDescription="@string/search"
-                    android:padding="10dp"
+                    android:padding="@dimen/main_sidebar_search_icon_padding"
                     android:scaleType="centerInside"
                     android:src="@drawable/ic_search"
                     android:tint="@color/primaryText" />
@@ -504,7 +508,7 @@
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
+                    android:layout_marginStart="@dimen/main_sidebar_item_text_margin_start"
                     android:layout_weight="1"
                     android:ellipsize="end"
                     android:singleLine="true"
