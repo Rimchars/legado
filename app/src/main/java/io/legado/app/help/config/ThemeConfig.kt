@@ -232,8 +232,6 @@ object ThemeConfig {
             config.accentColor.toColorInt()
             config.backgroundColor.toColorInt()
             config.bottomBackground.toColorInt()
-            config.primaryTextColor?.toColorInt()
-            config.secondaryTextColor?.toColorInt()
             return true
         } catch (_: Exception) {
             return false
@@ -271,8 +269,6 @@ object ThemeConfig {
             val isNightTheme = config.isNightTheme
             val backgroundPath = config.backgroundImgPath
             val bookInfoBackgroundPath = config.bookInfoBackgroundImgPath
-            val primaryTextColor = config.primaryTextColor?.toColorInt()
-            val secondaryTextColor = config.secondaryTextColor?.toColorInt()
             config.uiCornerScale?.let {
                 context.putPrefString(PreferKey.uiCornerScale, it.coerceIn(0f, 3f).toPlainScale())
             }
@@ -349,10 +345,6 @@ object ThemeConfig {
             if (switchNightMode) {
                 AppConfig.isNightTheme = isNightTheme
             }
-            val themeEditor = ThemeStore.editTheme(context)
-            primaryTextColor?.let { themeEditor.textColorPrimary(it) }
-            secondaryTextColor?.let { themeEditor.textColorSecondary(it) }
-            themeEditor.apply()
             if (!notify) {
                 return
             }
@@ -426,8 +418,6 @@ object ThemeConfig {
                 backgroundImgPath = bgImgPath,
                 backgroundImgBlur = bgImgBlur,
                 bookInfoBackgroundImgPath = bookInfoBgImgPath,
-                primaryTextColor = "#${ThemeStore.textColorPrimary(context).hexString}",
-                secondaryTextColor = "#${ThemeStore.textColorSecondary(context).hexString}",
                 uiCornerScale = stored?.uiCornerScale ?: AppConfig.uiCornerScale,
                 uiLayoutAlpha = stored?.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha,
                 uiCornerSearchFollow = stored?.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow,
@@ -478,8 +468,6 @@ object ThemeConfig {
                 backgroundImgPath = bgImgPath,
                 backgroundImgBlur = bgImgBlur,
                 bookInfoBackgroundImgPath = bookInfoBgImgPath,
-                primaryTextColor = "#${ThemeStore.textColorPrimary(context).hexString}",
-                secondaryTextColor = "#${ThemeStore.textColorSecondary(context).hexString}",
                 uiCornerScale = stored?.uiCornerScale ?: AppConfig.uiCornerScale,
                 uiLayoutAlpha = stored?.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha,
                 uiCornerSearchFollow = stored?.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow,
@@ -505,8 +493,6 @@ object ThemeConfig {
             } else {
                 config.backgroundImgBlur
             },
-            primaryTextColor = config.primaryTextColor ?: stored.primaryTextColor,
-            secondaryTextColor = config.secondaryTextColor ?: stored.secondaryTextColor,
             uiCornerScale = config.uiCornerScale ?: stored.uiCornerScale,
             uiLayoutAlpha = config.uiLayoutAlpha ?: stored.uiLayoutAlpha,
             uiCornerSearchFollow = config.uiCornerSearchFollow ?: stored.uiCornerSearchFollow,
@@ -640,8 +626,6 @@ object ThemeConfig {
         var backgroundImgPath: String?,
         var backgroundImgBlur: Int,
         var bookInfoBackgroundImgPath: String? = null,
-        var primaryTextColor: String? = null,
-        var secondaryTextColor: String? = null,
         var uiCornerScale: Float? = null,
         var uiLayoutAlpha: Int? = null,
         var uiCornerSearchFollow: Boolean? = null,
@@ -666,8 +650,6 @@ object ThemeConfig {
                         && other.backgroundImgPath == backgroundImgPath
                         && other.backgroundImgBlur == backgroundImgBlur
                         && other.bookInfoBackgroundImgPath == bookInfoBackgroundImgPath
-                        && other.primaryTextColor == primaryTextColor
-                        && other.secondaryTextColor == secondaryTextColor
                         && other.uiCornerScale == uiCornerScale
                         && other.uiLayoutAlpha == uiLayoutAlpha
                         && other.uiCornerSearchFollow == uiCornerSearchFollow
@@ -688,8 +670,6 @@ object ThemeConfig {
             "backgroundImgPath" to backgroundImgPath,
             "backgroundImgBlur" to backgroundImgBlur,
             "bookInfoBackgroundImgPath" to bookInfoBackgroundImgPath,
-            "primaryTextColor" to primaryTextColor,
-            "secondaryTextColor" to secondaryTextColor,
             "uiCornerScale" to uiCornerScale,
             "uiLayoutAlpha" to uiLayoutAlpha,
             "uiCornerSearchFollow" to uiCornerSearchFollow,

@@ -1725,14 +1725,10 @@
     <string name="theme_color_accent">强调色</string>
     <string name="theme_color_background">背景色</string>
     <string name="theme_color_bottom_background">底栏色</string>
-    <string name="theme_color_primary_text">主文字色</string>
-    <string name="theme_color_secondary_text">副文字色</string>
     <string name="theme_image_main_background">主界面背景</string>
     <string name="theme_image_book_info_background">详情页背景</string>
     <string name="theme_image_blur">背景图片模糊</string>
     <string name="theme_image_select">选择图片</string>
-    <string name="theme_image_online">在线图片链接</string>
-    <string name="theme_image_online_invalid">请输入 http:// 或 https:// 开头的图片地址</string>
     <string name="theme_image_delete">删除图片</string>
     <string name="theme_image_value_unselected">未选择</string>
     <string name="theme_image_value_unselected_blur">未选择 · 模糊 %d</string>

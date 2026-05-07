@@ -48,14 +48,6 @@
                 android:id="@+id/row_bottom_background"
                 layout="@layout/item_theme_package_option" />
 
-            <include
-                android:id="@+id/row_primary_text"
-                layout="@layout/item_theme_package_option" />
-
-            <include
-                android:id="@+id/row_secondary_text"
-                layout="@layout/item_theme_package_option" />
-
         </LinearLayout>
 
         <LinearLayout

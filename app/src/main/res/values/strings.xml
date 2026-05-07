@@ -1833,14 +1833,10 @@
     <string name="theme_color_accent">Accent color</string>
     <string name="theme_color_background">Background color</string>
     <string name="theme_color_bottom_background">Bottom bar color</string>
-    <string name="theme_color_primary_text">Primary text color</string>
-    <string name="theme_color_secondary_text">Secondary text color</string>
     <string name="theme_image_main_background">Main background</string>
     <string name="theme_image_book_info_background">Book detail background</string>
     <string name="theme_image_blur">Background image blur</string>
     <string name="theme_image_select">Select image</string>
-    <string name="theme_image_online">Online image link</string>
-    <string name="theme_image_online_invalid">Please enter an image URL starting with http:// or https://</string>
     <string name="theme_image_delete">Delete image</string>
     <string name="theme_image_value_unselected">Not selected</string>
     <string name="theme_image_value_unselected_blur">Not selected · blur %d</string>

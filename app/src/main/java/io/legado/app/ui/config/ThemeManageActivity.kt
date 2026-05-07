@@ -313,8 +313,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             setupColorRow(rowAccent, R.string.theme_color_accent, current.accentColor, colorAccent)
             setupColorRow(rowBackground, R.string.theme_color_background, current.backgroundColor, colorBackground)
             setupColorRow(rowBottomBackground, R.string.theme_color_bottom_background, current.bottomBackground, colorBottomBackground)
-            setupColorRow(rowPrimaryText, R.string.theme_color_primary_text, current.primaryTextColor ?: "#${primaryTextColor.hexString}", colorPrimaryText)
-            setupColorRow(rowSecondaryText, R.string.theme_color_secondary_text, current.secondaryTextColor ?: "#${secondaryTextColor.hexString}", colorSecondaryText)
             setupImageRow(rowMainBackground, R.string.theme_image_main_background, true)
             setupImageRow(rowBookInfoBackground, R.string.theme_image_book_info_background, false)
             setupInterfaceRows(this)
@@ -468,7 +466,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         val actions = buildList {
             if (isMain) add(ThemeImageAction.BLUR)
             add(ThemeImageAction.SELECT)
-            add(ThemeImageAction.ONLINE)
             if (hasImage) add(ThemeImageAction.DELETE)
         }
         selector(
@@ -481,7 +478,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     requestCode = if (isMain) requestMainBackground else requestBookInfoBackground
                     mode = HandleFileContract.IMAGE
                 }
-                ThemeImageAction.ONLINE -> showOnlineImageDialog(isMain)
                 ThemeImageAction.DELETE -> {
                     if (isMain) {
                         pendingMainBackgroundPath = null
@@ -492,39 +488,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     }
                 }
             }
-        }
-    }
-
-    private fun showOnlineImageDialog(isMain: Boolean) {
-        alert(R.string.theme_image_online) {
-            val alertBinding = io.legado.app.databinding.DialogEditTextBinding.inflate(layoutInflater).apply {
-                editView.hint = "https://..."
-                editView.setText(
-                    if (isMain) {
-                        pendingMainBackgroundPath?.takeIf { it.startsWith("http", ignoreCase = true) }
-                    } else {
-                        pendingBookInfoBackgroundPath?.takeIf { it.startsWith("http", ignoreCase = true) }
-                    }.orEmpty()
-                )
-            }
-            customView { alertBinding.root }
-            okButton {
-                val url = alertBinding.editView.text?.toString()?.trim().orEmpty()
-                if (!url.startsWith("http://", ignoreCase = true) &&
-                    !url.startsWith("https://", ignoreCase = true)
-                ) {
-                    toastOnUi(R.string.theme_image_online_invalid)
-                    return@okButton
-                }
-                if (isMain) {
-                    pendingMainBackgroundPath = url
-                    editDialogBinding?.let { updateImageRow(it.rowMainBackground, true) }
-                } else {
-                    pendingBookInfoBackgroundPath = url
-                    editDialogBinding?.let { updateImageRow(it.rowBookInfoBackground, false) }
-                }
-            }
-            cancelButton()
         }
     }
 
@@ -567,8 +530,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 backgroundImgPath = pendingMainBackgroundPath,
                 backgroundImgBlur = pendingBlur,
                 bookInfoBackgroundImgPath = pendingBookInfoBackgroundPath,
-                primaryTextColor = normalizeOptionalColor(dialogBinding.rowPrimaryText.tvValue.text?.toString()),
-                secondaryTextColor = normalizeOptionalColor(dialogBinding.rowSecondaryText.tvValue.text?.toString()),
                 uiCornerScale = pendingUiCornerScale,
                 uiLayoutAlpha = pendingUiLayoutAlpha,
                 uiCornerSearchFollow = pendingUiCornerSearchFollow,
@@ -659,8 +620,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             backgroundImgPath = getPrefString(if (isNightTheme) PreferKey.bgImageN else PreferKey.bgImage),
             backgroundImgBlur = getPrefInt(if (isNightTheme) PreferKey.bgImageNBlurring else PreferKey.bgImageBlurring, 0),
             bookInfoBackgroundImgPath = getPrefString(if (isNightTheme) PreferKey.bookInfoBgImageN else PreferKey.bookInfoBgImage),
-            primaryTextColor = "#${ThemeStore.textColorPrimary(this).hexString}",
-            secondaryTextColor = "#${ThemeStore.textColorSecondary(this).hexString}",
             uiCornerScale = AppConfig.uiCornerScale,
             uiLayoutAlpha = AppConfig.uiLayoutAlpha,
             uiCornerSearchFollow = AppConfig.uiCornerSearchFollow,
@@ -683,12 +642,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
         color.toColorInt()
         return color
-    }
-
-    private fun normalizeOptionalColor(value: String?): String? {
-        val text = value?.trim().orEmpty()
-        if (text.isBlank()) return null
-        return normalizeColor(text)
     }
 
     private fun copySelectedImage(uri: Uri, prefix: String): String? {
@@ -1082,8 +1035,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             colorAccent -> binding.rowAccent
             colorBackground -> binding.rowBackground
             colorBottomBackground -> binding.rowBottomBackground
-            colorPrimaryText -> binding.rowPrimaryText
-            colorSecondaryText -> binding.rowSecondaryText
             else -> null
         } ?: return
         row.tvValue.text = hex
@@ -1104,8 +1055,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         private const val colorAccent = 402
         private const val colorBackground = 403
         private const val colorBottomBackground = 404
-        private const val colorPrimaryText = 405
-        private const val colorSecondaryText = 406
     }
 
     private enum class ThemeAction(val titleRes: Int) {
@@ -1122,7 +1071,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private enum class ThemeImageAction(val titleRes: Int) {
         BLUR(R.string.theme_image_blur),
         SELECT(R.string.theme_image_select),
-        ONLINE(R.string.theme_image_online),
         DELETE(R.string.theme_image_delete)
     }
 
