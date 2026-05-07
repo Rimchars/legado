@@ -2,12 +2,45 @@ name: Android Fast Debug
 
 on:
   workflow_dispatch:
+    inputs:
+      probe_only:
+        description: "Only publish a txt probe"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  publish-txt-probe:
+    if: ${{ inputs.probe_only }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create txt probe
+        run: |
+          cat > debug-release-probe.txt <<EOF
+          Txt release probe
+
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+          Time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          EOF
+
+      - name: Upload txt probe to existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME=$(gh api repos/${{ github.repository }}/releases --jq '.[0].tag_name')
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
+            echo "No release tag found."
+            exit 1
+          fi
+          gh release upload "$TAG_NAME" debug-release-probe.txt --clobber -R "${{ github.repository }}"
+
   build-debug-arm64:
+    if: ${{ !inputs.probe_only }}
     runs-on: ubuntu-latest
 
     steps:
@@ -46,8 +79,32 @@ jobs:
           echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
           echo "name=$APK_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: legado-debug-arm64
-          path: ${{ steps.apk.outputs.path }}
+      - name: Publish debug release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LATEST_RELEASE=$(gh api repos/${{ github.repository }}/releases --jq '.[0]')
+          TAG_NAME=$(jq -r '.tag_name' <<< "$LATEST_RELEASE")
+          RELEASE_ID=$(jq -r '.id' <<< "$LATEST_RELEASE")
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ] || [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "No release found to upload debug APK."
+            exit 1
+          fi
+          NOTES_FILE="debug-release-notes.md"
+          cat > "$NOTES_FILE" <<EOF
+          Debug build
+
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+          APK: ${{ steps.apk.outputs.name }}
+          EOF
+
+          gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate \
+            --jq '.[] | select(.name | endswith(".apk")) | .id' \
+            | while read -r ASSET_ID; do
+                gh api -X DELETE repos/${{ github.repository }}/releases/assets/$ASSET_ID
+              done
+          gh release upload "$TAG_NAME" "${{ steps.apk.outputs.path }}" --clobber
+          gh release edit "$TAG_NAME" \
+            --notes-file "$NOTES_FILE" \
+            --prerelease
