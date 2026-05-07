@@ -12,6 +12,13 @@
         app:iconSpaceReserved="false"
         app:icons="@array/icons" />
 
+    <io.legado.app.lib.prefs.SwitchPreference
+        android:defaultValue="false"
+        android:key="mainTransparentStatusBar"
+        android:summary="@string/main_status_bar_immersion"
+        android:title="@string/main_immersion_status_bar"
+        app:iconSpaceReserved="false" />
+
     <io.legado.app.lib.prefs.Preference
         android:key="theme_manage"
         android:summary="@string/theme_list_summary"

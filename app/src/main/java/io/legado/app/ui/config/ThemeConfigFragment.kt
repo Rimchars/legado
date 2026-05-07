@@ -154,6 +154,7 @@ class ThemeConfigFragment : PreferenceFragment(),
         sharedPreferences ?: return
         when (key) {
             PreferKey.launcherIcon -> LauncherIconHelp.changeIcon(getPrefString(key))
+            PreferKey.mainTransparentStatusBar -> recreateActivities()
             PreferKey.transparentStatusBar -> recreateActivities()
             PreferKey.immNavigationBar -> recreateActivities()
             PreferKey.cPrimary,
