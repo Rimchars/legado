@@ -196,7 +196,7 @@ class ReadMenu @JvmOverloads constructor(
         tvChapterUrl.setTextColor(
             ColorUtils.withAlpha(primaryTextColor, 0.72f)
         )
-        val menuOpacity = 1f
+        val menuOpacity = (AppConfig.readMenuAlpha / 100f).coerceIn(0.35f, 1f)
         val isBgLight = ColorUtils.isColorLight(bgColor)
         val headerBaseColor = ColorUtils.blendColors(
             palette.surface,
@@ -232,15 +232,21 @@ class ReadMenu @JvmOverloads constructor(
             titleBarAddition.background = null
             llTitleInfo.background = null
             bottomMenu.background = null
-            llBottomBg.background = createPanelDrawable(28F, sheetColor, panelStrokeColor, topOnly = true)
+            llBottomBg.background = createPanelDrawable(
+                UiCorner.panelRadius(context),
+                sheetColor,
+                panelStrokeColor,
+                topOnly = true
+            )
             quickActionBarContainer.background = null
             llFloatingButton.background = null
             llBrightness.background = null
             llChapterPanel.background = null
             llActionPanel.background = null
-            tvSourceAction.background = createPanelDrawable(12F, actionColor, panelStrokeColor)
-            tvPre.background = createPanelDrawable(12F, actionColor, panelStrokeColor)
-            tvNext.background = createPanelDrawable(12F, actionColor, panelStrokeColor)
+            val actionRadius = UiCorner.actionRadius(context)
+            tvSourceAction.background = createPanelDrawable(actionRadius, actionColor, panelStrokeColor)
+            tvPre.background = createPanelDrawable(actionRadius, actionColor, panelStrokeColor)
+            tvNext.background = createPanelDrawable(actionRadius, actionColor, panelStrokeColor)
         }
         tvSourceAction.setTextColor(primaryTextColor)
         fabSearch.backgroundTintList = null

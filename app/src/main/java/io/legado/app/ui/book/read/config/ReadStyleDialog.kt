@@ -87,6 +87,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
         }
         dsbLineSize.valueFormat = { ((it - 10) / 10f).toString() }
         dsbParagraphSpacing.valueFormat = { (it / 10f).toString() }
+        dsbReadMenuAlpha.valueFormat = { "${it + 35}%" }
         styleAdapter = StyleAdapter()
         rvStyle.adapter = styleAdapter
         styleAdapter.addFooterView {
@@ -164,6 +165,10 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
             ReadBookConfig.paragraphSpacing = it
             postEvent(EventBus.UP_CONFIG, arrayListOf(8, 5))
         }
+        dsbReadMenuAlpha.onChanged = {
+            AppConfig.readMenuAlpha = it + 35
+            postEvent(EventBus.UPDATE_READ_ACTION_BAR, true)
+        }
     }
 
     private fun changeBgTextConfig(index: Int) {
@@ -198,6 +203,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
             dsbLineSize.progress = it.lineSpacingExtra
             dsbParagraphSpacing.progress = it.paragraphSpacing
         }
+        dsbReadMenuAlpha.progress = AppConfig.readMenuAlpha - 35
     }
 
     override val curFontPath: String

@@ -170,6 +170,14 @@
         app:max="20"
         app:title="@string/paragraph_size" />
 
+    <io.legado.app.ui.widget.DetailSeekBar
+        android:id="@+id/dsb_read_menu_alpha"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:isBottomBackground="true"
+        app:max="65"
+        app:title="@string/read_menu_alpha" />
+
     <LinearLayout
         android:id="@+id/panel_page_anim"
         android:layout_width="match_parent"
