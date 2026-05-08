@@ -506,7 +506,7 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
     private fun renderGoalCard(todayTime: Long, totalTime: Long, readBookCount: Int) {
         val todayText = formatDuring(todayTime)
         val totalText = formatDuring(totalTime)
-        binding.ivGoalAvatar.loadReadRecordCover(currentGoalConfig.avatar)
+        binding.ivGoalAvatar.loadReadRecordAvatar(currentGoalConfig.avatar)
         binding.tvGoalUserName.text = currentGoalConfig.userName.orEmpty()
         binding.tvGoalUserName.isVisible = !currentGoalConfig.userName.isNullOrBlank()
         binding.tvGoalToday.text = getString(R.string.read_record_goal_today, todayText)

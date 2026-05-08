@@ -96,8 +96,8 @@ fun ImageView.loadReadRecordCover(path: String?) {
 
 fun ImageView.loadReadRecordAvatar(path: String?) {
     ImageLoader.load(context, path)
-        .placeholder(BookCover.defaultDrawable)
-        .error(BookCover.defaultDrawable)
+        .placeholder(R.drawable.ic_read_record_default_avatar)
+        .error(R.drawable.ic_read_record_default_avatar)
         .centerCrop()
         .into(this)
 }

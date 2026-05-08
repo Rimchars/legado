@@ -4,6 +4,7 @@ package io.legado.app.ui.main
 
 import android.animation.ValueAnimator
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -94,6 +95,7 @@ import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.ColorUtils as AppColorUtils
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -136,6 +138,10 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private var sideNavigationLockedGravity: String? = null
     private var sideBookshelfGroupsExpanded = false
     private var sideBookGroups: List<BookGroup> = emptyList()
+    private var sideNavigationBackgroundJob: Job? = null
+    private var sideNavigationBackgroundLoadingKey: String? = null
+    private var sideNavigationBackgroundKey: String? = null
+    private var sideNavigationBackgroundBitmap: Bitmap? = null
     private val sidebarTouchSlop by lazy {
         ViewConfiguration.get(this).scaledTouchSlop
     }
@@ -763,37 +769,86 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         applySideNavigationBackground()
     }
 
-    private fun applySideNavigationBackground() = binding.run {
-        val path = NavigationBarIconConfig.currentSidebarBackgroundPath(AppConfig.isNightTheme)
-        if (path.isNullOrBlank()) {
-            sideNavigationBackground.setImageDrawable(null)
-            sideNavigationBackground.isVisible = false
-            sideNavigationPanel.background = createSideNavigationPanelDrawable()
-            sideNavigationHeader.background = createSideNavigationHeaderDrawable()
-            sideSearchRow.background = createSideNavigationSearchDrawable()
-            updateSideNavigationItems()
-            return@run
-        }
-        val targetWidth = sideNavigationPanel.width.takeIf { it > 0 } ?: root.width
-        val targetHeight = sideNavigationPanel.height.takeIf { it > 0 } ?: root.height
-        val bitmap = kotlin.runCatching {
-            BitmapUtils.decodeBitmap(path, targetWidth.coerceAtLeast(1), targetHeight.coerceAtLeast(1))
-        }.getOrNull()
-        if (bitmap == null) {
-            sideNavigationBackground.setImageDrawable(null)
-            sideNavigationBackground.isVisible = false
-            sideNavigationPanel.background = createSideNavigationPanelDrawable()
-            sideNavigationHeader.background = createSideNavigationHeaderDrawable()
-            sideSearchRow.background = createSideNavigationSearchDrawable()
-            updateSideNavigationItems()
-            return@run
-        }
-        sideNavigationBackground.setImageBitmap(bitmap)
-        sideNavigationBackground.isVisible = true
+    private fun applySideNavigationSurface() = binding.run {
         sideNavigationPanel.background = createSideNavigationPanelDrawable()
         sideNavigationHeader.background = createSideNavigationHeaderDrawable()
         sideSearchRow.background = createSideNavigationSearchDrawable()
         updateSideNavigationItems()
+    }
+
+    private fun clearSideNavigationBackground(cancelLoading: Boolean = true) = binding.run {
+        if (cancelLoading) {
+            sideNavigationBackgroundJob?.cancel()
+            sideNavigationBackgroundJob = null
+            sideNavigationBackgroundLoadingKey = null
+        }
+        sideNavigationBackgroundKey = null
+        sideNavigationBackground.setImageDrawable(null)
+        sideNavigationBackground.isVisible = false
+        sideNavigationBackgroundBitmap?.takeIf { !it.isRecycled }?.recycle()
+        sideNavigationBackgroundBitmap = null
+        applySideNavigationSurface()
+    }
+
+    private fun applySideNavigationBackground() = binding.run {
+        val path = NavigationBarIconConfig.currentSidebarBackgroundPath(AppConfig.isNightTheme)
+        if (path.isNullOrBlank()) {
+            clearSideNavigationBackground()
+            return@run
+        }
+        val targetWidth = sideNavigationPanel.width.takeIf { it > 0 } ?: root.width
+        val targetHeight = sideNavigationPanel.height.takeIf { it > 0 } ?: root.height
+        if (targetWidth <= 0 || targetHeight <= 0) {
+            applySideNavigationSurface()
+            return@run
+        }
+        val cacheKey = "$path@$targetWidth@$targetHeight"
+        sideNavigationBackgroundBitmap?.takeIf {
+            sideNavigationBackgroundKey == cacheKey && !it.isRecycled
+        }?.let { bitmap ->
+            sideNavigationBackground.setImageBitmap(bitmap)
+            sideNavigationBackground.isVisible = true
+            applySideNavigationSurface()
+            return@run
+        }
+        if (sideNavigationBackgroundLoadingKey == cacheKey) {
+            applySideNavigationSurface()
+            return@run
+        }
+        sideNavigationBackgroundJob?.cancel()
+        sideNavigationBackgroundLoadingKey = cacheKey
+        if (sideNavigationBackgroundKey != cacheKey) {
+            sideNavigationBackground.setImageDrawable(null)
+            sideNavigationBackground.isVisible = false
+        }
+        applySideNavigationSurface()
+        sideNavigationBackgroundJob = lifecycleScope.launch {
+            val bitmap = withContext(IO) {
+                kotlin.runCatching {
+                    BitmapUtils.decodeBitmap(path, targetWidth.coerceAtLeast(1), targetHeight.coerceAtLeast(1))
+                }.getOrNull()
+            }
+            if (sideNavigationBackgroundLoadingKey != cacheKey ||
+                NavigationBarIconConfig.currentSidebarBackgroundPath(AppConfig.isNightTheme) != path ||
+                isFinishing ||
+                isDestroyed
+            ) {
+                bitmap?.takeIf { !it.isRecycled }?.recycle()
+                return@launch
+            }
+            sideNavigationBackgroundLoadingKey = null
+            sideNavigationBackgroundKey = cacheKey
+            sideNavigationBackgroundBitmap?.takeIf { it !== bitmap && !it.isRecycled }?.recycle()
+            sideNavigationBackgroundBitmap = bitmap
+            if (bitmap == null) {
+                sideNavigationBackground.setImageDrawable(null)
+                sideNavigationBackground.isVisible = false
+            } else {
+                sideNavigationBackground.setImageBitmap(bitmap)
+                sideNavigationBackground.isVisible = true
+            }
+            applySideNavigationSurface()
+        }
     }
 
     private fun updateSideGoalHeader() {
@@ -1547,6 +1602,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
 
     override fun onDestroy() {
+        clearSideNavigationBackground()
         super.onDestroy()
         Coroutine.async {
             BookHelp.clearInvalidCache()

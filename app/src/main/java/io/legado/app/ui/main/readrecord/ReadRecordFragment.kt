@@ -36,7 +36,7 @@ import io.legado.app.ui.about.ReadRecordRankDialog
 import io.legado.app.ui.about.ReadRecordRankItem
 import io.legado.app.ui.about.ReadRecordWidgetStore
 import io.legado.app.ui.about.ReadRecentVisualItem
-import io.legado.app.ui.about.loadReadRecordCover
+import io.legado.app.ui.about.loadReadRecordAvatar
 import io.legado.app.ui.about.openReadRecordBook
 import io.legado.app.ui.about.showReadRecordBookActionDialog
 import io.legado.app.ui.about.showReadRecordGoalDialog
@@ -553,7 +553,7 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
     private fun renderGoalCard(todayTime: Long, totalTime: Long, readBookCount: Int) {
         val todayText = formatDuring(todayTime)
         val totalText = formatDuring(totalTime)
-        binding.ivGoalAvatar.loadReadRecordCover(currentGoalConfig.avatar)
+        binding.ivGoalAvatar.loadReadRecordAvatar(currentGoalConfig.avatar)
         binding.tvGoalUserName.text = currentGoalConfig.userName.orEmpty()
         binding.tvGoalUserName.isVisible = !currentGoalConfig.userName.isNullOrBlank()
         binding.tvGoalToday.text = getString(R.string.read_record_goal_today, todayText)

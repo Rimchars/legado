@@ -555,13 +555,13 @@
                             app:cardPreventCornerOverlap="false"
                             app:cardUseCompatPadding="false">
 
-                            <io.legado.app.ui.widget.image.CoverImageView
+                            <io.legado.app.ui.widget.image.CircleImageView
                                 android:id="@+id/iv_goal_avatar"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
                                 android:contentDescription="@string/img_cover"
                                 android:scaleType="centerCrop"
-                                android:src="@drawable/image_cover_default" />
+                                android:src="@drawable/ic_read_record_default_avatar" />
 
                         </androidx.cardview.widget.CardView>
 

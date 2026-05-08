@@ -208,7 +208,7 @@
                     app:cardPreventCornerOverlap="false"
                     app:cardUseCompatPadding="false">
 
-                    <androidx.appcompat.widget.AppCompatImageView
+                    <io.legado.app.ui.widget.image.CircleImageView
                         android:id="@+id/side_goal_avatar"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"

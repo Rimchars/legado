@@ -67,7 +67,7 @@ class ThemeConfigFragment : PreferenceFragment(),
     private var pendingImageCropRequest: ImageCropHelper.Request? = null
     private val selectImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
-            startImageCrop(uri, it.requestCode)
+            handleSelectedImage(uri, it.requestCode)
         }
     }
     private val cropImage = registerForActivityResult(ImageCropContract()) { result ->
@@ -80,6 +80,36 @@ class ThemeConfigFragment : PreferenceFragment(),
             applyCroppedImage(request.requestCode, result)
         } else {
             toastOnUi(getString(R.string.image_crop_failed, getString(R.string.unknown)))
+        }
+    }
+
+    private fun handleSelectedImage(uri: Uri, requestCode: Int) {
+        if (uri.scheme?.lowercase() !in listOf("http", "https")) {
+            startImageCrop(uri, requestCode)
+            return
+        }
+        when (requestCode) {
+            requestCodeBgLight -> setBgFromUri(uri, PreferKey.bgImage) {
+                upPreferenceSummary(PreferKey.bgImage, getPrefString(PreferKey.bgImage))
+                upTheme(false)
+            }
+
+            requestCodeBgDark -> setBgFromUri(uri, PreferKey.bgImageN) {
+                upPreferenceSummary(PreferKey.bgImageN, getPrefString(PreferKey.bgImageN))
+                upTheme(true)
+            }
+
+            requestCodeBookInfoBg -> setBgFromUri(uri, PreferKey.bookInfoBgImage) {
+                upPreferenceSummary(PreferKey.bookInfoBgImage, getPrefString(PreferKey.bookInfoBgImage))
+                recreateActivities()
+            }
+
+            requestCodeBookInfoBgDark -> setBgFromUri(uri, PreferKey.bookInfoBgImageN) {
+                upPreferenceSummary(PreferKey.bookInfoBgImageN, getPrefString(PreferKey.bookInfoBgImageN))
+                recreateActivities()
+            }
+
+            else -> startImageCrop(uri, requestCode)
         }
     }
 

@@ -19,7 +19,6 @@ import androidx.recyclerview.widget.SimpleItemAnimator
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
 import io.legado.app.constant.EventBus
-import io.legado.app.constant.PreferKey
 import io.legado.app.databinding.ActivityThemeManageBinding
 import io.legado.app.databinding.ItemThemePackageBinding
 import io.legado.app.help.config.AppConfig
@@ -38,7 +37,6 @@ import io.legado.app.utils.externalFiles
 import io.legado.app.utils.getFile
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.postEvent
-import io.legado.app.utils.putPrefBoolean
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers
@@ -319,10 +317,6 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                     )
                 ) { _, index ->
                     config.layoutMode = if (index == 1) "sidebar" else "floating"
-                    if (config.layoutMode == "sidebar" && AppConfig.mergeDiscoveryRss) {
-                        putPrefBoolean(PreferKey.mergeDiscoveryRss, false)
-                        postEvent(EventBus.NOTIFY_MAIN, false)
-                    }
                     refreshEditDialog()
                 }
             })
