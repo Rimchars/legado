@@ -30,9 +30,13 @@ import io.legado.app.databinding.ViewReadAiFloatingPanelBinding
 import io.legado.app.help.ai.AiChatService
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.applyUiLabelStyle
+import io.legado.app.lib.theme.applyUiSectionTitleStyle
 import io.legado.app.lib.theme.backgroundColor
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.main.ai.AiChatMessage
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.dpToPx
@@ -99,6 +103,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
 
     init {
         orientation = VERTICAL
+        binding.root.applyUiBodyTypefaceDeep(context.uiTypeface())
         binding.answerContainer.layoutManager = LinearLayoutManager(context).apply {
             stackFromEnd = true
         }
@@ -332,8 +337,8 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private fun makeHistoryEmptyView(): View {
         return TextView(context).apply {
             text = resources.getString(R.string.ai_read_history_empty)
+            applyUiLabelStyle(context)
             setTextColor(context.secondaryTextColor)
-            textSize = 14f
             setPadding(12.dpToPx(), 18.dpToPx(), 12.dpToPx(), 18.dpToPx())
         }
     }
@@ -353,16 +358,15 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                 if (session.chapterTitle.isNotBlank()) append("\n").append(session.chapterTitle)
                 append(" · ").append(timeFormat.format(Date(session.updatedAt)))
             }
-            setTextColor(context.primaryTextColor)
-            textSize = 13f
+            applyUiLabelStyle(context)
             maxLines = 3
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         row.addView(titleView, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         val deleteView = TextView(context).apply {
             text = resources.getString(R.string.delete)
+            applyUiLabelStyle(context)
             setTextColor(context.accentColor)
-            textSize = 13f
             gravity = android.view.Gravity.CENTER
             setPadding(10.dpToPx(), 0, 4.dpToPx(), 0)
             setOnClickListener { deleteSession(session.id) }
@@ -384,8 +388,8 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private fun makeClearAllView(): View {
         return TextView(context).apply {
             text = resources.getString(R.string.ai_read_clear_history)
+            applyUiSectionTitleStyle(context)
             setTextColor(context.accentColor)
-            textSize = 13f
             gravity = android.view.Gravity.CENTER
             setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 12.dpToPx())
             setOnClickListener { confirmClearHistory() }
@@ -768,6 +772,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
                 tvMessage.ellipsize = null
                 tvMessage.maxLines = Int.MAX_VALUE
                 tvMessage.setTextColor(context.primaryTextColor)
+                tvMessage.typeface = context.uiTypeface()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     tvMessage.setTextClassifier(android.view.textclassifier.TextClassifier.NO_OP)
                 }

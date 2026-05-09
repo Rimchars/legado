@@ -20,7 +20,12 @@ import io.legado.app.databinding.ItemReadRecordCoverBinding
 import io.legado.app.databinding.ItemReadRecordRankBinding
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiInputStyle
+import io.legado.app.lib.theme.applyUiSectionTitleStyle
+import io.legado.app.lib.theme.applyUiSubtleButtonStyle
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.primaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.BookCover
 import io.legado.app.help.glide.ImageLoader
 import io.legado.app.ui.book.info.BookInfoActivity
@@ -167,6 +172,9 @@ class ReadRecordRankAdapter(
                 "${position + 1}. $author"
             }
             binding.tvTime.text = formatDuring(item.readTime)
+            binding.tvName.typeface = context.uiTypeface()
+            binding.tvMeta.typeface = context.uiTypeface()
+            binding.tvTime.typeface = context.uiTypeface()
             binding.ivCover.loadReadRecordCover(
                 item.book?.getDisplayCover() ?: item.snapshot?.displayCover()
             )
@@ -222,7 +230,7 @@ object ReadRecordRankDialog {
             addView(
                 androidx.appcompat.widget.AppCompatTextView(context).apply {
                     text = context.getString(R.string.read_record_read_rank)
-                    setTextColor(context.primaryTextColor)
+                    applyUiSectionTitleStyle(context)
                     textSize = 18f
                 },
                 LinearLayout.LayoutParams(
@@ -258,22 +266,23 @@ fun Context.showReadRecordGoalDialog(
         orientation = LinearLayout.VERTICAL
         setPadding(20.dpToPx(), 12.dpToPx(), 20.dpToPx(), 0)
     }
+    container.applyUiBodyTypefaceDeep(uiTypeface())
     val userNameInput = EditText(this).apply {
         hint = getString(R.string.read_record_goal_user_name_hint)
         setText(initial.userName.orEmpty())
         inputType = InputType.TYPE_CLASS_TEXT
-        minLines = 1
-        maxLines = 1
+        applyUiInputStyle(this@showReadRecordGoalDialog)
     }
     val avatarInput = EditText(this).apply {
         hint = getString(R.string.read_record_goal_avatar_hint)
         setText(initial.avatar.orEmpty())
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-        minLines = 1
+        applyUiInputStyle(this@showReadRecordGoalDialog)
         maxLines = 2
     }
     val avatarButton = Button(this).apply {
         text = getString(R.string.read_record_goal_avatar_pick)
+        applyUiSubtleButtonStyle(this@showReadRecordGoalDialog)
         setOnClickListener {
             onPickAvatarRequest?.invoke { value ->
                 avatarInput.setText(value)
@@ -285,12 +294,12 @@ fun Context.showReadRecordGoalDialog(
         hint = getString(R.string.read_record_goal_minutes)
         setText(initial.dailyGoalMinutes.toString())
         inputType = InputType.TYPE_CLASS_NUMBER
+        applyUiInputStyle(this@showReadRecordGoalDialog)
     }
     fun sectionTitle(textRes: Int) =
         androidx.appcompat.widget.AppCompatTextView(this).apply {
             text = getString(textRes)
-            setTextColor(primaryTextColor)
-            textSize = 14f
+            applyUiSectionTitleStyle(this@showReadRecordGoalDialog)
         }
     container.addView(sectionTitle(R.string.read_record_goal_user_name))
     container.addView(userNameInput)

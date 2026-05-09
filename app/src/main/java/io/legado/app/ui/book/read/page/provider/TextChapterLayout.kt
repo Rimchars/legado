@@ -675,14 +675,14 @@ class TextChapterLayout(
             setTypeEpubDiagnosticPage(reason, rawNativeEntry.take(180))
             return true
         }
-        AppLog.put(
+        AppLog.putDebug(
             "EPUB Native Layout request: chapter=${bookChapter.index}:${bookChapter.title}, " +
                 "hrefs=${hrefs.joinToString()}, view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
         )
         var rendered = false
         hrefs.forEach { href ->
             val layout = EpubFile.getNativeLayout(book, href) ?: run {
-                AppLog.put(
+                AppLog.putDebug(
                     "EPUB Native Layout skip: getNativeLayout 返回 null, " +
                         "chapter=${bookChapter.index}:${bookChapter.title}, href=$href, " +
                         "view=${ChapterProvider.visibleWidth}x${ChapterProvider.visibleHeight}"
@@ -690,13 +690,13 @@ class TextChapterLayout(
                 return@forEach
             }
             if (layout.pages.isEmpty()) {
-                AppLog.put(
+                AppLog.putDebug(
                     "EPUB Native Layout skip: layout 页数为 0, " +
                         "chapter=${bookChapter.index}:${bookChapter.title}, href=$href"
                 )
                 return@forEach
             }
-            AppLog.put(
+            AppLog.putDebug(
                 "EPUB Native Layout success: chapter=${bookChapter.index}:${bookChapter.title}, " +
                     "href=$href, pages=${layout.pages.size}"
             )
@@ -789,7 +789,20 @@ class TextChapterLayout(
             pendingTextPage.epubDrawOffsetY = if (backgroundImage != null) 0f else paddingTop.toFloat()
             layoutPage.commands.forEach { command ->
                 if (command is EpubImageBox) {
-                    ImageProvider.cacheImage(book, command.src, ReadBook.bookSource)
+                    if (command.isBackground) {
+                        ImageProvider.cacheImageAsync(
+                            book = book,
+                            src = command.src,
+                            bookSource = ReadBook.bookSource,
+                            width = viewWidth,
+                            height = viewHeight,
+                            cacheKeySuffix = "epub-bg-${viewWidth}x${viewHeight}"
+                        ) {
+                            ReadBook.invalidateEpubResource(book.bookUrl, bookChapter.index, command.src)
+                        }
+                    } else {
+                        ImageProvider.cacheImage(book, command.src, ReadBook.bookSource)
+                    }
                 }
             }
             if (backgroundColor != null) {
@@ -916,7 +929,16 @@ class TextChapterLayout(
             pendingTextPage.epubBackgroundColor = it
         }
         if (backgroundSrc.isNotBlank()) {
-            ImageProvider.cacheImage(book, backgroundSrc, ReadBook.bookSource)
+            ImageProvider.cacheImageAsync(
+                book = book,
+                src = backgroundSrc,
+                bookSource = ReadBook.bookSource,
+                width = viewWidth,
+                height = viewHeight,
+                cacheKeySuffix = "epub-bg-${viewWidth}x${viewHeight}"
+            ) {
+                ReadBook.invalidateEpubResource(book.bookUrl, bookChapter.index, backgroundSrc)
+            }
             pendingTextPage.epubBackgroundSrc = backgroundSrc
         }
         pendingTextPage.height = viewHeight.toFloat()

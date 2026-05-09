@@ -23,15 +23,23 @@ import io.legado.app.utils.FileUtils
 import io.legado.app.utils.SvgUtils
 import io.legado.app.utils.isDataUrl
 import io.legado.app.utils.toastOnUi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import splitties.init.appCtx
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
 object ImageProvider {
+
+    private val imageCacheScope = CoroutineScope(SupervisorJob() + IO)
+    private val inflightCacheKeys = ConcurrentHashMap.newKeySet<String>()
 
     private val errorBitmap: Bitmap by lazy {
         BitmapFactory.decodeResource(appCtx.resources, R.drawable.image_loading_error)
@@ -150,6 +158,36 @@ object ImageProvider {
                 }
             }
             return@withContext vFile
+        }
+    }
+
+    fun cacheImageAsync(
+        book: Book,
+        src: String,
+        bookSource: BookSource?,
+        width: Int? = null,
+        height: Int? = null,
+        cacheKeySuffix: String? = null,
+        onFinished: (() -> Unit)? = null
+    ) {
+        val key = "${book.bookUrl}|$src"
+        if (!inflightCacheKeys.add(key)) return
+        imageCacheScope.launch {
+            try {
+                cacheImage(book, src, bookSource)
+                if (width != null && width > 0) {
+                    getImage(book, src, width, height, cacheKeySuffix)
+                }
+            } catch (e: Exception) {
+                putDebug("ImageProvider async cache failed: $src\n${e.localizedMessage}")
+            } finally {
+                inflightCacheKeys.remove(key)
+                if (onFinished != null) {
+                    withContext(Main) {
+                        onFinished.invoke()
+                    }
+                }
+            }
         }
     }
 

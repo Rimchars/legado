@@ -75,9 +75,13 @@ import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.applyUiTitleTypeface
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
+import io.legado.app.lib.theme.titleTypeface
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.BookCover
 import io.legado.app.model.remote.RemoteBookWebDav
 import io.legado.app.ui.about.AppLogDialog
@@ -235,6 +239,7 @@ class BookInfoActivity :
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
             view.revealOnFocusHint = false
         }
+        view.typeface = uiTypeface()
         view
     }
 
@@ -272,6 +277,7 @@ class BookInfoActivity :
         binding.llInfo.setBackgroundResource(R.color.transparent)
         binding.ivCoverC.setCardBackgroundColor(backgroundColor)
         applyUiCorners()
+        applyBookInfoTypography()
         binding.flAction.setBackgroundResource(R.color.transparent)
         binding.vwBg.applyNavigationBarPadding()
         binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
@@ -313,6 +319,24 @@ class BookInfoActivity :
             1.dpToPx(),
             strokeColor
         )
+    }
+
+    private fun applyBookInfoTypography() = binding.run {
+        val uiTf = uiTypeface()
+        llInfo.applyUiBodyTypefaceDeep(uiTf)
+        flAction.applyUiBodyTypefaceDeep(uiTf)
+        val titleTf = titleTypeface()
+        listOfNotNull(
+            tvName,
+            tvTabIntro,
+            tvTabToc,
+            tvTabInfo,
+            tvToc,
+            tvIntroToggle
+        ).forEach {
+            it.applyUiTitleTypeface(this@BookInfoActivity)
+            it.typeface = titleTf
+        }
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
@@ -1009,6 +1033,7 @@ class BookInfoActivity :
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
             textSize = if (selected) 14.5f else 13.5f
+            typeface = uiTypeface()
             setTextColor(if (selected) accentColor else primaryTextColor)
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 9.dpToPx(), 0, 9.dpToPx())

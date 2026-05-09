@@ -1,6 +1,7 @@
 package io.legado.app.ui.widget
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.FrameLayout
@@ -10,6 +11,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.primaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 
 class RoundedTagBarView @JvmOverloads constructor(
     context: Context,
@@ -142,12 +146,19 @@ class RoundedTagBarView @JvmOverloads constructor(
                 ContextCompat.getColor(parent.context, R.color.background_card),
                 UiCorner.actionRadius(parent.context)
             )
+            textView.setTextColor(
+                ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_selected), intArrayOf()),
+                    intArrayOf(parent.context.accentColor, parent.context.primaryTextColor)
+                )
+            )
             return TagViewHolder(textView)
         }
 
         override fun onBindViewHolder(holder: TagViewHolder, position: Int) {
             val item = items[position]
             holder.textView.text = item.text
+            holder.textView.typeface = holder.textView.context.uiTypeface()
             holder.textView.alpha = item.alpha
             holder.textView.isSelected = position == selectedIndex
             holder.textView.setOnClickListener {

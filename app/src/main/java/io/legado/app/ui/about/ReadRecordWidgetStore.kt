@@ -9,6 +9,8 @@ import io.legado.app.utils.getPrefString
 import io.legado.app.utils.putPrefString
 import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.fromJsonObject
+import io.legado.app.receiver.ReadGoalWidgetProvider
+import io.legado.app.receiver.ReadRankWidgetProvider
 import splitties.init.appCtx
 
 data class ReadRecentVisualSnapshot(
@@ -60,6 +62,7 @@ object ReadRecordWidgetStore {
             )
         )
         saveRecentSnapshots(current.take(MAX_SNAPSHOTS))
+        updateAllWidgets()
     }
 
     fun loadRecentSnapshots(): List<ReadRecentVisualSnapshot> {
@@ -76,16 +79,19 @@ object ReadRecordWidgetStore {
         val current = loadRecentSnapshots()
             .filterNot { it.bookUrl == bookUrl }
         saveRecentSnapshots(current)
+        updateAllWidgets()
     }
 
     fun removeRecentSnapshot(book: Book) {
         val current = loadRecentSnapshots()
             .filterNot { it.sameBook(book.name, book.author) || it.bookUrl == book.bookUrl }
         saveRecentSnapshots(current)
+        updateAllWidgets()
     }
 
     fun clearRecentSnapshots() {
         saveRecentSnapshots(emptyList())
+        updateAllWidgets()
     }
 
     fun loadRecentVisualItems(limit: Int): List<ReadRecentVisualItem> {
@@ -105,6 +111,7 @@ object ReadRecordWidgetStore {
 
     fun saveGoalConfig(config: ReadRecordGoalConfig) {
         appCtx.putPrefString(PreferKey.readRecordGoalConfig, GSON.toJson(config))
+        updateAllWidgets()
     }
 
     fun buildRankItems(limit: Int? = null): List<ReadRecordRankItem> {
@@ -144,5 +151,10 @@ object ReadRecordWidgetStore {
         if (normalizedName.isEmpty()) return false
         return this.name.trim() == normalizedName &&
             this.author.trim() == author.orEmpty().trim()
+    }
+
+    private fun updateAllWidgets() {
+        ReadGoalWidgetProvider.updateAll(appCtx, force = true)
+        ReadRankWidgetProvider.updateAll(appCtx, force = true)
     }
 }

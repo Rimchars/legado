@@ -1,7 +1,9 @@
 package io.legado.app.help.config
 
 import android.content.Context
+import android.net.Uri
 import androidx.annotation.Keep
+import androidx.documentfile.provider.DocumentFile
 import io.legado.app.constant.PreferKey
 import io.legado.app.help.AppWebDav
 import io.legado.app.utils.FileUtils
@@ -23,6 +25,8 @@ object ThemePackageManager {
     private const val packageFileName = "theme.json"
     private const val mainBackgroundPrefix = "background"
     private const val bookInfoBackgroundPrefix = "book_info_background"
+    private const val uiFontPrefix = "ui_font"
+    private const val titleFontPrefix = "title_font"
 
     val rootDir: File
         get() = appCtx.externalFiles.getFile("themePackages")
@@ -340,26 +344,92 @@ object ThemePackageManager {
             dir,
             bookInfoBackgroundPrefix
         )
+        val uiFont = copyAsset(config.uiFontPath, dir, uiFontPrefix, keepOriginalName = true)
+        val titleFont = copyAsset(config.titleFontPath, dir, titleFontPrefix, keepOriginalName = true)
         return config.copy(
             backgroundImgPath = background,
-            bookInfoBackgroundImgPath = bookInfo
+            bookInfoBackgroundImgPath = bookInfo,
+            uiFontPath = uiFont,
+            titleFontPath = titleFont
         )
     }
 
-    private fun copyAsset(path: String?, dir: File, prefix: String): String? {
-        dir.listFiles()
-            ?.filter { it.isFile && it.name.startsWith(prefix) }
-            ?.forEach { it.delete() }
-        if (path.isNullOrBlank() || path.startsWith("http", ignoreCase = true)) return path
+    private fun copyAsset(
+        path: String?,
+        dir: File,
+        prefix: String,
+        keepOriginalName: Boolean = false
+    ): String? {
+        if (path.isNullOrBlank()) {
+            deletePackagedAssets(dir, prefix)
+            return path
+        }
+        if (path.startsWith("http", ignoreCase = true)) {
+            deletePackagedAssets(dir, prefix)
+            return path
+        }
+        if (path.startsWith("content://", ignoreCase = true)) {
+            return runCatching {
+                val uri = Uri.parse(path)
+                val name = DocumentFile.fromSingleUri(appCtx, uri)?.name.orEmpty()
+                val target = File(dir, packageAssetName(prefix, name, keepOriginalName))
+                appCtx.contentResolver.openInputStream(uri)?.use { input ->
+                    target.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: return path
+                deletePackagedAssets(dir, prefix, target)
+                target.name
+            }.getOrDefault(path)
+        }
         val source = File(path)
-        if (!source.exists()) return path
-        val suffix = source.name.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
-        val target = File(dir, "$prefix$suffix")
+        if (!source.exists()) {
+            return findPackagedAssetByPrefix(dir, prefix)?.name ?: path
+        }
+        if (source.parentFile?.canonicalFile == dir.canonicalFile && source.name.startsWith(prefix)) {
+            deletePackagedAssets(dir, prefix, source)
+            return source.name
+        }
+        val target = File(dir, packageAssetName(prefix, source.name, keepOriginalName))
         if (source.canonicalFile == target.canonicalFile) {
+            deletePackagedAssets(dir, prefix, target)
             return target.name
         }
         source.copyTo(target, overwrite = true)
+        deletePackagedAssets(dir, prefix, target)
         return target.name
+    }
+
+    private fun deletePackagedAssets(dir: File, prefix: String, keepFile: File? = null) {
+        val keepCanonical = keepFile?.takeIf { it.exists() }?.canonicalFile
+        dir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith(prefix) }
+            ?.filter { keepCanonical == null || it.canonicalFile != keepCanonical }
+            ?.forEach { it.delete() }
+    }
+
+    private fun findPackagedAssetByPrefix(dir: File, prefix: String): File? {
+        return dir.listFiles()?.firstOrNull { it.isFile && it.name.startsWith(prefix) }
+    }
+
+    private fun packageAssetName(prefix: String, sourceName: String, keepOriginalName: Boolean): String {
+        val suffix = sourceName.substringAfterLast('.', "")
+            .takeIf { it.isNotBlank() }
+            ?.let { ".$it" }
+            .orEmpty()
+        if (!keepOriginalName) {
+            return "$prefix$suffix"
+        }
+        val normalizedName = sourceName.normalizeFileName()
+        if (normalizedName.startsWith("$prefix.")) {
+            return "$prefix$suffix"
+        }
+        val cleanName = normalizedName.removePrefix("${prefix}_")
+        return if (cleanName.isBlank()) {
+            "$prefix$suffix"
+        } else {
+            "${prefix}_${cleanName}"
+        }
     }
 
     private fun resolveConfigPaths(pkg: Package, dir: File): ThemeConfig.Config {
@@ -378,7 +448,9 @@ object ThemePackageManager {
             themeName = pkg.name,
             isNightTheme = pkg.isNightTheme,
             backgroundImgPath = resolvePath(config.backgroundImgPath, dir),
-            bookInfoBackgroundImgPath = resolvePath(config.bookInfoBackgroundImgPath, dir)
+            bookInfoBackgroundImgPath = resolvePath(config.bookInfoBackgroundImgPath, dir),
+            uiFontPath = resolvePath(config.uiFontPath, dir),
+            titleFontPath = resolvePath(config.titleFontPath, dir)
         )
     }
 

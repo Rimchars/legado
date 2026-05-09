@@ -13,9 +13,11 @@ import androidx.core.view.isVisible
 import androidx.preference.PreferenceViewHolder
 import io.legado.app.R
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
 import io.legado.app.lib.theme.getSecondaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.ColorUtils
 import splitties.views.onLongClick
 import kotlin.math.roundToInt
@@ -57,6 +59,10 @@ open class Preference(context: Context, attrs: AttributeSet) :
             tvSummary?.let {
                 tvSummary.text = summary
                 tvSummary.isGone = summary.isNullOrEmpty()
+            }
+            if (!viewHolder.itemView.isInEditMode) {
+                tvTitle?.applyUiTitleTypeface(context)
+                tvSummary?.typeface = context.uiTypeface()
             }
             if (isBottomBackground && !viewHolder.itemView.isInEditMode) {
                 val isLight = ColorUtils.isColorLight(context.bottomBackground)

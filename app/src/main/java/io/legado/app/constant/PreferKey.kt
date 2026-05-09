@@ -117,6 +117,8 @@ object PreferKey {
     const val comicStyleSelect = "comicStyleSelect"
     const val readStyleSelect = "readStyleSelect"
     const val systemTypefaces = "system_typefaces"
+    const val uiFontPath = "ui_font_path"
+    const val titleFontPath = "title_font_path"
     const val readBodyToLh = "readBodyToLh"
     const val textFullJustify = "textFullJustify"
     const val textBottomJustify = "textBottomJustify"

@@ -137,7 +137,7 @@
         app:isBottomBackground="true" />
 
     <io.legado.app.lib.prefs.Preference
-        android:defaultValue="75"
+        android:defaultValue="100"
         android:key="readMenuAlpha"
         android:summary="@string/read_menu_alpha_summary"
         android:title="@string/read_menu_alpha"

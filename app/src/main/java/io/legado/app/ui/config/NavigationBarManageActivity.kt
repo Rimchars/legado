@@ -27,9 +27,12 @@ import io.legado.app.help.config.NavigationBarIconConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiInputStyle
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.image.ImageCropContract
 import io.legado.app.ui.widget.number.NumberPickerDialog
@@ -296,13 +299,12 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(2, 2, 2, 4)
+            applyUiBodyTypefaceDeep(this@NavigationBarManageActivity.uiTypeface())
             val name = EditText(this@NavigationBarManageActivity).apply {
                 tag = "name"
                 setText(config.name)
                 hint = getString(R.string.navigation_bar_name)
-                setSingleLine(true)
-                textSize = 15f
-                setPadding(14.dp, 0, 14.dp, 0)
+                applyUiInputStyle(this@NavigationBarManageActivity)
                 background = UiCorner.opaqueRounded(
                     ContextCompat.getColor(context, R.color.background_card),
                     UiCorner.actionRadius(context)
@@ -431,12 +433,14 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 text = title
                 textSize = 15f
                 setTextColor(primaryTextColor)
+                typeface = this@NavigationBarManageActivity.uiTypeface()
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
             addView(TextView(context).apply {
                 text = value
                 textSize = 13f
                 setTextColor(secondaryTextColor)
+                typeface = this@NavigationBarManageActivity.uiTypeface()
             })
             setOnClickListener { onClick() }
         }
@@ -459,6 +463,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 setText(item.titleRes)
                 textSize = 15f
                 setTextColor(primaryTextColor)
+                typeface = this@NavigationBarManageActivity.uiTypeface()
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
             addView(previewButton(entry, item, false))

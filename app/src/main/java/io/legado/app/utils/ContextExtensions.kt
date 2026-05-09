@@ -22,6 +22,7 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.net.ConnectivityManager
 import android.net.Uri
@@ -45,6 +46,7 @@ import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isVideo
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.ThemeConfig
 import io.legado.app.ui.book.audio.AudioPlayActivity
 import io.legado.app.ui.video.VideoPlayerActivity
 import io.legado.app.ui.book.manga.ReadMangaActivity
@@ -163,26 +165,68 @@ fun Context.startForegroundServiceCompat(intent: Intent) {
 val Context.defaultSharedPreferences: SharedPreferences
     get() = PreferenceManager.getDefaultSharedPreferences(this)
 
-fun Context.getPrefBoolean(key: String, defValue: Boolean = false) =
-    defaultSharedPreferences.getBoolean(key, defValue)
+fun Context.getPrefBoolean(key: String, defValue: Boolean = false): Boolean {
+    return try {
+        defaultSharedPreferences.getBoolean(key, defValue)
+    } catch (_: ClassCastException) {
+        val value = when (val raw = defaultSharedPreferences.all[key]) {
+            is String -> raw.toBooleanStrictOrNull()
+            is Number -> raw.toInt() != 0
+            else -> null
+        } ?: return defValue
+        defaultSharedPreferences.edit { putBoolean(key, value) }
+        value
+    }
+}
 
 fun Context.putPrefBoolean(key: String, value: Boolean = false) =
     defaultSharedPreferences.edit { putBoolean(key, value) }
 
-fun Context.getPrefInt(key: String, defValue: Int = 0) =
-    defaultSharedPreferences.getInt(key, defValue)
+fun Context.getPrefInt(key: String, defValue: Int = 0): Int {
+    return try {
+        defaultSharedPreferences.getInt(key, defValue)
+    } catch (_: ClassCastException) {
+        val value = when (val raw = defaultSharedPreferences.all[key]) {
+            is Number -> raw.toInt()
+            is String -> raw.toIntOrNull()
+            is Boolean -> if (raw) 1 else 0
+            else -> null
+        } ?: return defValue
+        defaultSharedPreferences.edit { putInt(key, value) }
+        value
+    }
+}
 
 fun Context.putPrefInt(key: String, value: Int) =
     defaultSharedPreferences.edit { putInt(key, value) }
 
-fun Context.getPrefLong(key: String, defValue: Long = 0L) =
-    defaultSharedPreferences.getLong(key, defValue)
+fun Context.getPrefLong(key: String, defValue: Long = 0L): Long {
+    return try {
+        defaultSharedPreferences.getLong(key, defValue)
+    } catch (_: ClassCastException) {
+        val value = when (val raw = defaultSharedPreferences.all[key]) {
+            is Number -> raw.toLong()
+            is String -> raw.toLongOrNull()
+            is Boolean -> if (raw) 1L else 0L
+            else -> null
+        } ?: return defValue
+        defaultSharedPreferences.edit { putLong(key, value) }
+        value
+    }
+}
 
 fun Context.putPrefLong(key: String, value: Long) =
     defaultSharedPreferences.edit { putLong(key, value) }
 
-fun Context.getPrefString(key: String, defValue: String? = null) =
-    defaultSharedPreferences.getString(key, defValue)
+fun Context.getPrefString(key: String, defValue: String? = null): String? {
+    return try {
+        defaultSharedPreferences.getString(key, defValue)
+    } catch (_: ClassCastException) {
+        val value = defaultSharedPreferences.all[key]?.toString() ?: return defValue
+        defaultSharedPreferences.edit { putString(key, value) }
+        value
+    }
+}
 
 fun Context.putPrefString(key: String, value: String?) =
     defaultSharedPreferences.edit { putString(key, value) }
@@ -199,7 +243,12 @@ fun Context.removePref(key: String) =
     defaultSharedPreferences.edit { remove(key) }
 
 
-fun Context.getCompatColor(@ColorRes id: Int): Int = ContextCompat.getColor(this, id)
+fun Context.getCompatColor(@ColorRes id: Int): Int {
+    if (id == R.color.background && !AppConfig.isEInkMode && ThemeConfig.hasUsableBgImage(this)) {
+        return Color.TRANSPARENT
+    }
+    return ContextCompat.getColor(this, id)
+}
 
 fun Context.getCompatDrawable(@DrawableRes id: Int): Drawable? = ContextCompat.getDrawable(this, id)
 

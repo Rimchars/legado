@@ -20,6 +20,7 @@ import io.legado.app.databinding.FragmentBookshelf1Binding
 import io.legado.app.help.book.BookTagHelper
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.legado.app.ui.main.bookshelf.style1.books.BooksFragment
@@ -176,6 +177,7 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
 
     private fun updateHeaderTitle() {
         binding.tvBookshelfTitle.text = selectedGroup?.groupName ?: getString(R.string.bookshelf)
+        binding.tvBookshelfTitle.applyUiTitleTypeface(requireContext())
     }
 
     fun onBooksChanged(groupId: Long, books: List<Book>) {

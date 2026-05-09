@@ -16,6 +16,8 @@ import io.legado.app.databinding.ItemThemeConfigBinding
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.primaryColor
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.widget.recycler.VerticalDivider
 import io.legado.app.utils.*
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -43,6 +45,7 @@ class ThemeListDialog : BaseDialogFragment(R.layout.dialog_recycler_view),
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.addItemDecoration(VerticalDivider(requireContext()))
         recyclerView.adapter = adapter
+        root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
     }
 
     private fun initMenu() = binding.run {
@@ -100,6 +103,7 @@ class ThemeListDialog : BaseDialogFragment(R.layout.dialog_recycler_view),
         ) {
             binding.apply {
                 tvName.text = item.themeName
+                tvName.typeface = context.uiTypeface()
             }
         }
 

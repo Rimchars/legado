@@ -240,8 +240,9 @@ object LocalBook {
     /**
      * 导入本地文件
      */
-    fun importFile(uri: Uri): Book {
+    fun importFile(uri: Uri, onStage: ((String) -> Unit)? = null): Book {
         //updateTime变量不要修改,否则会导致读取不到缓存
+        onStage?.invoke("读取文件信息")
         val fileDoc = FileDoc.fromUri(uri, false)
         if (fileDoc.size == 0L) throw EmptyFileException("Unexpected empty File")
         val fileName = fileDoc.name
@@ -250,6 +251,7 @@ object LocalBook {
         val fileSize = fileDoc.size
         var book = appDb.bookDao.getBook(bookUrl)
         if (book == null) {
+            onStage?.invoke("解析书籍信息")
             val nameAuthor = analyzeNameAuthor(fileName)
             book = Book(
                 type = BookType.text or BookType.local,
@@ -261,8 +263,10 @@ object LocalBook {
                 order = appDb.bookDao.minOrder - 1
             )
             upBookInfoSafely(book, fileSize)
+            onStage?.invoke("保存书籍信息")
             appDb.bookDao.insert(book)
         } else {
+            onStage?.invoke("更新书籍信息")
             deleteBook(book, false)
             upBookInfoSafely(book, fileSize)
             // 触发 isLocalModified
@@ -337,17 +341,19 @@ object LocalBook {
     }
 
     /* 批量导入 支持自动导入压缩包的支持书籍 */
-    fun importFiles(uri: Uri): List<Book> {
+    fun importFiles(uri: Uri, onStage: ((String) -> Unit)? = null): List<Book> {
         val books = mutableListOf<Book>()
+        onStage?.invoke("读取文件信息")
         val fileDoc = FileDoc.fromUri(uri, false)
         if (ArchiveUtils.isArchive(fileDoc.name)) {
+            onStage?.invoke("解压压缩包")
             books.addAll(
                 importArchiveFile(uri) {
                     it.matches(AppPattern.bookFileRegex)
                 }
             )
         } else {
-            books.add(importFile(uri))
+            books.add(importFile(uri, onStage))
         }
         return books
     }
@@ -379,27 +385,13 @@ object LocalBook {
         onProgress: (stage: String, processed: Int, total: Int, title: String) -> Unit = { _, _, _, _ -> }
     ) {
         if (!book.isEpub) return
+        onProgress("toc", 0, 1, book.name)
         val chapterList = getChapterList(book)
         if (chapterList.isEmpty()) return
         appDb.bookChapterDao.delByBook(book.bookUrl)
         appDb.bookChapterDao.insert(*chapterList.toTypedArray())
         appDb.bookDao.update(book)
-        val decodeTargets = chapterList.filterNot { it.isVolume }
-        val decodeTotal = decodeTargets.size.coerceAtLeast(1)
-        onProgress("decode", 0, decodeTotal, "")
-        var decodeProcessed = 0
-        decodeTargets.forEach { chapter ->
-            runCatching {
-                getContent(book, chapter)?.let { content ->
-                    BookHelp.saveText(book, chapter, content)
-                }
-            }
-            decodeProcessed += 1
-            onProgress("decode", decodeProcessed, decodeTotal, chapter.title)
-        }
-        onProgress("index", 0, 1, book.name)
-        EpubFile.warmImportIndex(book)
-        onProgress("index", 1, 1, book.name)
+        onProgress("toc", 1, 1, book.name)
     }
 
     /**

@@ -30,7 +30,13 @@ import io.legado.app.help.http.newCallResponseBody
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.applyUiInputStyle
+import io.legado.app.lib.theme.applyUiLabelStyle
+import io.legado.app.lib.theme.applyUiSectionTitleStyle
+import io.legado.app.lib.theme.applyUiSubtleButtonStyle
 import io.legado.app.lib.theme.dialogSurfaceBackground
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.code.CodeEditActivity
 import io.legado.app.ui.file.HandleFileContract
@@ -125,15 +131,13 @@ class AdvancedTitleConfigDialog : DialogFragment() {
 
         fun label(text: String) = TextView(context).apply {
             this.text = text
-            textSize = 14f
             setPadding(0, 10.dpToPx(), 0, 4.dpToPx())
+            applyUiLabelStyle(context)
         }
 
         fun edit(text: String, minLines: Int = 1) = EditText(context).apply {
             setText(text)
-            this.minLines = minLines
-            maxLines = if (minLines > 1) 8 else 2
-            setSingleLine(minLines == 1)
+            applyUiInputStyle(context, minLines)
         }
 
         fun button(text: String) = TextView(context).apply {
@@ -141,8 +145,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
             gravity = Gravity.CENTER
             background = ContextCompat.getDrawable(context, R.drawable.bg_book_info_subtle_button)
             setPadding(12.dpToPx(), 8.dpToPx(), 12.dpToPx(), 8.dpToPx())
-            textSize = 14f
-            setTextColor(ContextCompat.getColor(context, R.color.primaryText))
+            applyUiSubtleButtonStyle(context)
         }
 
         val scopeGroup = RadioGroup(context).apply {
@@ -181,6 +184,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         }
         val preview = TextView(context).apply {
             setPadding(0, 8.dpToPx(), 0, 0)
+            applyUiSectionTitleStyle(context)
         }
 
         fun buildRule(): AdvancedTitleConfig.SplitRule {
@@ -371,6 +375,7 @@ class AdvancedTitleConfigDialog : DialogFragment() {
                 )
             )
         }
+        container.applyUiBodyTypefaceDeep(context.uiTypeface())
 
         return AlertDialog.Builder(context)
             .setView(container)

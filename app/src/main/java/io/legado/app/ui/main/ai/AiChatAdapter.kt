@@ -1,6 +1,7 @@
 package io.legado.app.ui.main.ai
 
 import android.content.Context
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -115,8 +116,8 @@ class AiChatAdapter(
                     small, small
                 )
             }
-            setColor(UiCorner.surfaceColor(fillColor))
-            setStroke(1.dpToPx(), if (UiCorner.effectMode() == "solid") strokeColor else UiCorner.effectStrokeColor(fillColor))
+            setColor(fillColor)
+            setStroke(1.dpToPx(), strokeColor)
         }
     }
 
@@ -432,11 +433,13 @@ class AiChatAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(message: AiChatMessage) {
-            val bubbleColor = ColorUtils.blendColors(context.backgroundColor, context.accentColor, 0.18f)
-            val strokeColor = ColorUtils.adjustAlpha(context.accentColor, 0.18f)
             binding.tvMessage.text = message.content
-            binding.tvMessage.background = createBubble(bubbleColor, strokeColor, isUser = true)
-            binding.tvMessage.setTextColor(context.primaryTextColor)
+            binding.tvMessage.background = createBubble(
+                USER_BUBBLE_COLOR,
+                USER_BUBBLE_STROKE_COLOR,
+                isUser = true
+            )
+            binding.tvMessage.setTextColor(CHAT_BUBBLE_TEXT_COLOR)
             binding.tvMessage.alpha = 1f
             binding.tvMessage.setTextIsSelectable(true)
             binding.tvMessage.setOnLongClickListener(null)
@@ -449,24 +452,13 @@ class AiChatAdapter(
 
         fun bind(message: AiChatMessage) {
             val parsed = parseMessageContent(message.content)
-            val backgroundColor = context.backgroundColor
-            val bubbleColor = if (ColorUtils.isColorLight(backgroundColor)) {
-                ColorUtils.blendColors(
-                    backgroundColor,
-                    ContextCompat.getColor(context, R.color.background_card),
-                    0.68f
-                )
-            } else {
-                ColorUtils.blendColors(
-                    backgroundColor,
-                    ContextCompat.getColor(context, R.color.white),
-                    0.12f
-                )
-            }
-            val strokeColor = ColorUtils.adjustAlpha(context.secondaryTextColor, 0.08f)
             binding.messageContainer.minimumWidth = if (message.pending) 220.dpToPx() else 0
-            binding.tvMessage.background = createBubble(bubbleColor, strokeColor, isUser = false)
-            binding.tvMessage.setTextColor(context.primaryTextColor)
+            binding.tvMessage.background = createBubble(
+                ASSISTANT_BUBBLE_COLOR,
+                ASSISTANT_BUBBLE_STROKE_COLOR,
+                isUser = false
+            )
+            binding.tvMessage.setTextColor(CHAT_BUBBLE_TEXT_COLOR)
             binding.tvMessage.alpha = if (message.pending) 0.76f else 1f
             binding.tvMessage.setOnLongClickListener(null)
             if (message.pending) {
@@ -519,6 +511,11 @@ class AiChatAdapter(
         const val TYPE_USER = 1
         const val TYPE_ASSISTANT = 2
         const val searchBookScheme = "legado-search-book://"
+        val USER_BUBBLE_COLOR: Int = Color.rgb(149, 236, 105)
+        val USER_BUBBLE_STROKE_COLOR: Int = Color.rgb(124, 212, 82)
+        val ASSISTANT_BUBBLE_COLOR: Int = Color.rgb(248, 248, 248)
+        val ASSISTANT_BUBBLE_STROKE_COLOR: Int = Color.rgb(226, 226, 226)
+        val CHAT_BUBBLE_TEXT_COLOR: Int = Color.rgb(32, 32, 32)
         val toolEventBlockRegex = Regex(
             "```legado-tool-events\\s*\\n([\\s\\S]*?)\\n```",
             setOf(RegexOption.MULTILINE)

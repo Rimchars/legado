@@ -89,6 +89,14 @@
                 layout="@layout/item_theme_package_option" />
 
             <include
+                android:id="@+id/row_ui_font"
+                layout="@layout/item_theme_package_option" />
+
+            <include
+                android:id="@+id/row_title_font"
+                layout="@layout/item_theme_package_option" />
+
+            <include
                 android:id="@+id/row_search_follow"
                 layout="@layout/item_theme_package_option" />
 

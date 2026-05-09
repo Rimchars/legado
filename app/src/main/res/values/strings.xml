@@ -1040,6 +1040,7 @@
     <string name="read_record_rank_empty">No reading time rank yet</string>
     <string name="read_record_rank_number">No.%1$d</string>
     <string name="read_record_goal_target_progress">Today\'s target %1$s / %2$s</string>
+    <string name="read_goal_widget_description">Reading goal card</string>
     <string name="read_record_open_book_info">Open book details</string>
     <string name="read_record_delete_entry">Delete this record</string>
     <string name="local_tts">Local TTS</string>
@@ -1215,6 +1216,8 @@
     <string name="login_header">login header</string>
     <string name="font_scale">font scale</string>
     <string name="font_scale_summary">font scale:%.1f</string>
+    <string name="ui_font">UI font</string>
+    <string name="title_font">Title font</string>
     <string name="search_content_size">search result</string>
     <string name="search_content_empty">Empty search result, check conversation settings</string>
     <string name="tts_speech_reduce">Decrease speech speed</string>
@@ -1333,7 +1336,7 @@
     <string name="show_read_title_addition">show read title addition area</string>
     <string name="read_bar_style_follow_page">read bar style follow page</string>
     <string name="read_menu_alpha">Read Menu Opacity</string>
-    <string name="read_menu_alpha_summary">Adjust transparency for top/bottom menu panels</string>
+    <string name="read_menu_alpha_summary">Adjust opacity for top/bottom menu panels</string>
     <string name="rule_image_decode">Decode Image(imageDecode)</string>
     <string name="like_source">Like</string>
     <string name="not_like_source">Not like</string>
@@ -1846,6 +1849,7 @@
     <string name="image_crop_hint">Move or pinch the image, then confirm</string>
     <string name="theme_image_selected">Selected</string>
     <string name="navigation_bar_sidebar_background">Sidebar wallpaper</string>
+    <string name="read_rank_widget_description">Reading rank widget</string>
     <string name="color_format_error">Invalid color format</string>
     <string name="unknown">Unknown</string>
     <string name="ai_read_prompt_template">You are the Ask AI assistant inside the reading page. Answer around the current book and selected text. Prioritize explaining the original text, context, character relationships, foreshadowing, or the user question. Do not invent plot details not provided.

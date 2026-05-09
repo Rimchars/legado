@@ -24,8 +24,10 @@ import io.legado.app.databinding.DialogRecyclerViewBinding
 import io.legado.app.databinding.Item1lineTextAndDelBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.lib.theme.primaryColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.widget.number.NumberPickerDialog
 import io.legado.app.ui.widget.recycler.ItemTouchCallback
 import io.legado.app.ui.widget.recycler.VerticalDivider
@@ -119,6 +121,7 @@ class KeyboardAssistsConfig(private val callBack: CallBack) : BaseDialogFragment
                 layout2.hint = "value"
                 layout2.visible()
                 edit2.setText(keyboardAssist?.value)
+                root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
             }
             setCustomView(alertBinding.root)
             cancelButton()
@@ -162,6 +165,7 @@ class KeyboardAssistsConfig(private val callBack: CallBack) : BaseDialogFragment
         ) {
             binding.root.setBackgroundColor(context.backgroundColor)
             binding.textView.text = item.key
+            binding.textView.typeface = context.uiTypeface()
         }
 
         override fun registerListener(holder: ItemViewHolder, binding: Item1lineTextAndDelBinding) {

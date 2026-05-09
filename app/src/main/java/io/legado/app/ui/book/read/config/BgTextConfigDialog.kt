@@ -31,9 +31,11 @@ import io.legado.app.help.http.okHttpClient
 import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
 import io.legado.app.lib.theme.getSecondaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.file.HandleFileContract
@@ -142,6 +144,7 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
         secondaryTextColor = requireContext().getSecondaryTextColor(isLight)
         rootView.background = ReaderSheetStyle.topSheetDrawable(ReaderSheetStyle.resolve(requireContext(), bg))
         rootView.clipToOutline = true
+        rootView.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
         tvNameTitle.setTextColor(primaryTextColor)
         tvName.setTextColor(secondaryTextColor)
         ivEdit.setColorFilter(secondaryTextColor, PorterDuff.Mode.SRC_IN)
@@ -170,6 +173,7 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
                     if (view is android.widget.TextView) {
                         view.setBackgroundColor(bg) // 设置下拉列表项的背景色
                         view.setTextColor(primaryTextColor) // 设置下拉列表项的文本颜色
+                        view.typeface = requireContext().uiTypeface()
                     }
                     return view
                 }
@@ -192,6 +196,7 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
         recyclerView.adapter = adapter
         adapter.addHeaderView {
             ItemBgImageBinding.inflate(layoutInflater, it, false).apply {
+                root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
                 tvName.setTextColor(secondaryTextColor)
                 tvName.text = getString(R.string.select_image)
                 ivBg.setImageResource(R.drawable.ic_image)
@@ -225,6 +230,7 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
                 val alertBinding = DialogEditTextBinding.inflate(layoutInflater).apply {
                     editView.hint = "name"
                     editView.setText(ReadBookConfig.durConfig.name)
+                    root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
                 }
                 customView { alertBinding.root }
                 okButton {
@@ -395,6 +401,7 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
     private fun importNetConfigAlert() {
         alert("输入地址") {
             val alertBinding = DialogEditTextBinding.inflate(layoutInflater)
+            alertBinding.root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
             customView { alertBinding.root }
             okButton {
                 alertBinding.editView.text?.toString()?.let { url ->

@@ -26,6 +26,8 @@ import io.legado.app.constant.PreferKey
 import io.legado.app.databinding.ItemTextBinding
 import io.legado.app.databinding.PopupActionMenuBinding
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.getPrefStringSet
@@ -73,6 +75,7 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
     init {
         @SuppressLint("InflateParams")
         contentView = binding.root
+        binding.root.applyUiBodyTypefaceDeep(context.uiTypeface())
 
         isTouchable = true
         isOutsideTouchable = false
@@ -198,6 +201,7 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
         ) {
             with(binding) {
                 textView.text = item.title
+                textView.typeface = context.uiTypeface()
             }
         }
 

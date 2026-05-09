@@ -28,6 +28,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.source.sortUrls
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
@@ -218,6 +219,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     }
 
     private fun initModernRssView() {
+        binding.tvRssSourceSelect.applyUiTitleTypeface(requireContext())
         binding.llRssSourceRow.applyStatusBarPadding(withInitialPadding = true)
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
         binding.swipeRefreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
@@ -338,11 +340,11 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 rssSources.clear()
                 rssSources.addAll(sources)
                 val keep = selectedRssSource?.sourceUrl?.let { key ->
-                    sources.firstOrNull { it.sourceUrl == key }
+                    sources.firstOrNull { it.sourceUrl == key && it.canRenderInModernPage() }
                 }
                 val remembered = if (keep == null && searchKey.isNullOrEmpty()) {
                     AppConfig.modernRssSourceUrl?.let { key ->
-                        sources.firstOrNull { it.sourceUrl == key }
+                        sources.firstOrNull { it.sourceUrl == key && it.canRenderInModernPage() }
                     }
                 } else {
                     null
@@ -350,7 +352,8 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 when {
                     keep != null -> selectSource(keep, reload = false)
                     remembered != null -> selectSource(remembered, reload = true)
-                    sources.isNotEmpty() -> selectSource(sources.first(), reload = true)
+                    sources.any { it.canRenderInModernPage() } ->
+                        selectSource(sources.first { it.canRenderInModernPage() }, reload = true)
                     else -> renderEmptyState()
                 }
             }
@@ -381,6 +384,11 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             binding.pbRssLoading.gone()
         } else {
             binding.pbRssLoading.visible()
+        }
+        if (!source.canRenderInModernPage()) {
+            binding.pbRssLoading.gone()
+            renderEmptyState()
+            return
         }
         binding.tvEmptyMsg.gone()
         sortHostViewModel.url = source.sourceUrl
@@ -443,6 +451,10 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun renderWebSource(source: RssSource) {
+        if (!source.canRenderInModernPage()) {
+            renderEmptyState()
+            return
+        }
         webSourceVersion += 1
         val currentVersion = webSourceVersion
         binding.swipeRefreshLayout.isRefreshing = false
@@ -478,29 +490,10 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
                 return@launchRssWithHtml
             }
-            if (source.singleUrl) {
-                viewModel.getSingleUrl(source) { url ->
-                    if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
-                        return@getSingleUrl
-                    }
-                    binding.pbRssLoading.gone()
-                    binding.swipeRefreshLayout.isRefreshing = false
-                    lastRenderedWebSourceUrl = source.sourceUrl
-                    if (url.startsWith("http", true)) {
-                        webView.loadUrl(url)
-                    } else {
-                        context?.openUrl(url)
-                    }
-                }
-            } else {
-                if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
-                    return@launchRssWithHtml
-                }
-                binding.pbRssLoading.gone()
-                binding.swipeRefreshLayout.isRefreshing = false
-                lastRenderedWebSourceUrl = source.sourceUrl
-                webView.loadUrl(source.sourceUrl)
-            }
+            binding.pbRssLoading.gone()
+            binding.swipeRefreshLayout.isRefreshing = false
+            lastRenderedWebSourceUrl = source.sourceUrl
+            webView.loadUrl(source.sourceUrl)
         }) { html ->
             if (currentVersion != webSourceVersion || selectedRssSource?.sourceUrl != source.sourceUrl) {
                 return@launchRssWithHtml
@@ -586,7 +579,11 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             },
             itemKey = { it.sourceUrl }
         ) {
-            selectSource(it, reload = true)
+            if (it.canRenderInModernPage()) {
+                selectSource(it, reload = true)
+            } else {
+                openRssLegacy(it)
+            }
         }
     }
 
@@ -604,6 +601,10 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     }
 
     override fun openRss(rssSource: RssSource) {
+        openRssLegacy(rssSource)
+    }
+
+    private fun openRssLegacy(rssSource: RssSource) {
         if (rssSource.singleUrl) {
             viewModel.getSingleUrl(rssSource) { url ->
                 if (url.startsWith("http", true)) {
@@ -633,6 +634,10 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 )
             }
         }
+    }
+
+    private fun RssSource.canRenderInModernPage(): Boolean {
+        return !singleUrl
     }
 
     override fun toTop(rssSource: RssSource) {

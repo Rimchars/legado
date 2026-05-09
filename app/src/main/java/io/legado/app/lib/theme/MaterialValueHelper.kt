@@ -4,12 +4,14 @@ package io.legado.app.lib.theme
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.ThemeConfig
 import io.legado.app.utils.dpToPx
 
 /**
@@ -67,7 +69,11 @@ val Context.accentColor: Int
     get() = ThemeStore.accentColor(this)
 
 val Context.backgroundColor: Int
-    get() = ThemeStore.backgroundColor(this)
+    get() = if (!AppConfig.isEInkMode && ThemeConfig.hasUsableBgImage(this)) {
+        Color.TRANSPARENT
+    } else {
+        ThemeStore.backgroundColor(this)
+    }
 
 val Context.bottomBackground: Int
     get() = ThemeStore.bottomBackground(this)
@@ -97,7 +103,7 @@ val Fragment.accentColor: Int
     get() = ThemeStore.accentColor(requireContext())
 
 val Fragment.backgroundColor: Int
-    get() = ThemeStore.backgroundColor(requireContext())
+    get() = requireContext().backgroundColor
 
 val Fragment.bottomBackground: Int
     get() = ThemeStore.bottomBackground(requireContext())

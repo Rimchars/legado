@@ -81,6 +81,7 @@ data class TextPage(
     val searchResult = hashSetOf<TextBaseColumn>()
     var isMsgPage: Boolean = false
     var canvasRecorder = CanvasRecorderFactory.create(true)
+    private var epubBackgroundRecorder = CanvasRecorderFactory.create(true)
     var doublePage = false
     var paddingTop = ChapterProvider.paddingTop
     var isCompleted = false
@@ -527,6 +528,9 @@ data class TextPage(
         if (AppConfig.optimizeRender) {
             render(view)
             canvas.withTranslation(0f, relativeOffset) {
+                if (hasEpubBackground()) {
+                    epubBackgroundRecorder.draw(this)
+                }
                 canvasRecorder.draw(this)
             }
         } else {
@@ -553,6 +557,10 @@ data class TextPage(
 
     private fun drawPage(view: ContentTextView, canvas: Canvas) {
         drawEpubBackground(view, canvas)
+        drawPageContent(view, canvas)
+    }
+
+    private fun drawPageContent(view: ContentTextView, canvas: Canvas) {
         drawEpubEmbeddedBlocks(view, canvas)
         drawEpubNativeCommands(view, canvas)
         drawEpubDecorations(canvas)
@@ -1136,9 +1144,6 @@ data class TextPage(
 
     fun render(view: ContentTextView): Boolean {
         if (!isCompleted) return false
-        if (hasEpubContent() && !canvasRecorder.needRecord()) {
-            return false
-        }
         val pageHeight = if (hasEpubContent()) {
             height.toInt().coerceAtLeast(renderHeight).coerceAtLeast(1)
         } else {
@@ -1149,13 +1154,38 @@ data class TextPage(
         } else {
             renderHeight + 10.dpToPx()
         }
-        return canvasRecorder.recordIfNeeded(view.width, recorderHeight) { //高度留余，避免图片过高时被截断 下划线最远10dp
-            drawPage(view, this)
+        var recorded = false
+        if (hasEpubBackground()) {
+            recorded = epubBackgroundRecorder.recordIfNeeded(view.width, recorderHeight) {
+                drawEpubBackground(view, this)
+            }
         }
+        recorded = canvasRecorder.recordIfNeeded(view.width, recorderHeight) { //高度留余，避免图片过高时被截断 下划线最远10dp
+            if (hasEpubBackground()) {
+                drawPageContent(view, this)
+            } else {
+                drawPage(view, this)
+            }
+        } || recorded
+        return recorded
+    }
+
+    fun invalidateEpubResource(src: String): Boolean {
+        var changed = false
+        if (epubBackgroundSrc == src) {
+            epubBackgroundRecorder.invalidate()
+            changed = true
+        }
+        if (epubNativeCommands.any { it is EpubImageBox && it.src == src }) {
+            canvasRecorder.invalidate()
+            changed = true
+        }
+        return changed
     }
 
     fun invalidate() {
         canvasRecorder.invalidate()
+        epubBackgroundRecorder.invalidate()
     }
 
     fun invalidateAll() {
@@ -1167,6 +1197,7 @@ data class TextPage(
 
     fun recycleRecorders() {
         canvasRecorder.recycle()
+        epubBackgroundRecorder.recycle()
         for (i in lines.indices) {
             lines[i].recycleRecorder()
         }

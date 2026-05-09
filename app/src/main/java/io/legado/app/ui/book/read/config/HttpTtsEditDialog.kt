@@ -15,7 +15,9 @@ import io.legado.app.base.BaseDialogFragment
 import io.legado.app.data.entities.HttpTTS
 import io.legado.app.databinding.DialogHttpTtsEditBinding
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.primaryColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.code.CodeEditActivity
 import io.legado.app.ui.login.SourceLoginActivity
@@ -51,6 +53,7 @@ class HttpTtsEditDialog() : BaseDialogFragment(R.layout.dialog_http_tts_edit, tr
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
+        binding.root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
         binding.toolBar.setBackgroundColor(primaryColor)
         binding.tvUrl.run {
             addLegadoPattern()

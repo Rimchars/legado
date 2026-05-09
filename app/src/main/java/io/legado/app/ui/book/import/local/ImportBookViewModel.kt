@@ -141,7 +141,21 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
             onProgress(initialProgress)
             bookList.forEach { item ->
                 kotlin.runCatching {
-                    val books = LocalBook.importFiles(item.file.uri)
+                    fun emitItemStage(message: String) {
+                        val progress = ImportProgress(
+                            total = total,
+                            processed = processed,
+                            imported = imported,
+                            failed = failed,
+                            message = message
+                        )
+                        importProgressFlow.value = progress
+                        onProgress(progress)
+                    }
+                    emitItemStage("读取文件信息 ${item.name}")
+                    val books = LocalBook.importFiles(item.file.uri) { stage ->
+                        emitItemStage("$stage ${item.name}")
+                    }
                     books.forEach { book ->
                         var lastEmitTime = 0L
                         LocalBook.prepareImportedBookCache(book) { stage, stageProcessed, stageTotal, title ->
@@ -150,16 +164,17 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
                             if (shouldEmit) {
                                 lastEmitTime = now
                                 val stageName = when (stage) {
+                                    "toc" -> "目录解析"
                                     "index" -> "索引构建"
                                     "layout" -> "排版缓存"
                                     else -> "正文解码"
                                 }
                                 val decodeProgress = ImportProgress(
-                                    total = max(stageTotal, 1),
-                                    processed = stageProcessed.coerceIn(0, max(stageTotal, 1)),
+                                    total = total,
+                                    processed = processed,
                                     imported = imported,
                                     failed = failed,
-                                    message = "$stageName ${book.name}: $title"
+                                    message = "$stageName ${book.name}: $title ($stageProcessed/${max(stageTotal, 1)})"
                                 )
                                 importProgressFlow.value = decodeProgress
                                 onProgress(decodeProgress)

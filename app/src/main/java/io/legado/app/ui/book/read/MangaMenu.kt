@@ -15,8 +15,10 @@ import io.legado.app.databinding.ViewMangaMenuBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.source.getSourceType
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.ReadBook
 import io.legado.app.model.ReadManga
 import io.legado.app.ui.browser.WebViewActivity
@@ -89,6 +91,7 @@ class MangaMenu @JvmOverloads constructor(
     }
 
     init {
+        binding.root.applyUiBodyTypefaceDeep(context.uiTypeface())
         initView()
         bindEvent()
     }

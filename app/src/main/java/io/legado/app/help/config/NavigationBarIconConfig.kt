@@ -56,6 +56,15 @@ object NavigationBarIconConfig {
     private const val activeNightKey = "navigationBarPackageNight"
     private const val legacyMigratedDayKey = "navigationBarLegacyMigratedDay"
     private const val legacyMigratedNightKey = "navigationBarLegacyMigratedNight"
+    private const val maxIconBitmapCacheSize = 24
+
+    private var currentDayEntryCache: CachedEntry? = null
+    private var currentNightEntryCache: CachedEntry? = null
+    private val iconBitmapCache = object : LinkedHashMap<String, Bitmap>(maxIconBitmapCacheSize, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>): Boolean {
+            return size > maxIconBitmapCacheSize
+        }
+    }
 
     val rootDir: File
         get() = appCtx.externalFiles.getFile("navigationBarPackages")
@@ -95,6 +104,12 @@ object NavigationBarIconConfig {
         val dirName: String,
         val localDir: File? = null,
         val remoteUpdatedAt: Long = 0L
+    )
+
+    private data class CachedEntry(
+        val dirName: String,
+        val lastModified: Long,
+        val entry: Entry
     )
 
     enum class Source { BUILTIN, LOCAL, REMOTE, BOTH }
@@ -157,7 +172,28 @@ object NavigationBarIconConfig {
     fun currentEntry(isNight: Boolean): Entry {
         val dirName = activeDirName(isNight)
         if (dirName == DEFAULT_DIR_NAME) return defaultEntry(isNight)
-        return readEntry(localDir(isNight, dirName)) ?: defaultEntry(isNight)
+        val dir = localDir(isNight, dirName)
+        val configFile = File(dir, packageFileName)
+        val lastModified = configFile.lastModified()
+        val cached = if (isNight) currentNightEntryCache else currentDayEntryCache
+        if (cached?.dirName == dirName && cached.lastModified == lastModified) {
+            return cached.entry
+        }
+        val entry = readEntry(dir) ?: defaultEntry(isNight)
+        val next = CachedEntry(dirName, lastModified, entry)
+        if (isNight) {
+            currentNightEntryCache = next
+        } else {
+            currentDayEntryCache = next
+        }
+        return entry
+    }
+
+    fun currentSignature(isNight: Boolean): String {
+        val dirName = activeDirName(isNight)
+        if (dirName == DEFAULT_DIR_NAME) return "$isNight|$DEFAULT_DIR_NAME"
+        val configFile = File(localDir(isNight, dirName), packageFileName)
+        return "$isNight|$dirName|${configFile.lastModified()}"
     }
 
     fun apply(entry: Entry) {
@@ -212,6 +248,7 @@ object NavigationBarIconConfig {
             icons = source.icons.toMutableMap()
         )
         File(dir, packageFileName).writeText(GSON.toJson(normalized))
+        clearRuntimeCache()
         return Entry(normalized, Source.LOCAL, dirName, localDir = dir)
     }
 
@@ -493,6 +530,7 @@ object NavigationBarIconConfig {
             targetDir.mkdirs()
             packageFile.parentFile?.copyRecursively(targetDir, overwrite = true)
             File(targetDir, packageFileName).writeText(GSON.toJson(config))
+            clearRuntimeCache()
             Entry(config, Source.LOCAL, dirName, localDir = targetDir, remoteUpdatedAt = remoteUpdatedAt)
         } finally {
             FileUtils.delete(unzipDir, deleteRootDir = true)
@@ -547,8 +585,22 @@ object NavigationBarIconConfig {
 
     private fun loadDrawable(context: Context, path: String?): Drawable? {
         if (path.isNullOrBlank()) return null
-        val bitmap = BitmapFactory.decodeFile(path) ?: return null
+        val file = File(path)
+        val cacheKey = "${file.absolutePath}|${file.lastModified()}|${file.length()}"
+        val bitmap = synchronized(iconBitmapCache) {
+            iconBitmapCache[cacheKey]?.takeIf { !it.isRecycled } ?: BitmapFactory.decodeFile(path)?.also {
+                iconBitmapCache[cacheKey] = it
+            }
+        } ?: return null
         return BitmapDrawable(context.resources, bitmap)
+    }
+
+    private fun clearRuntimeCache() {
+        currentDayEntryCache = null
+        currentNightEntryCache = null
+        synchronized(iconBitmapCache) {
+            iconBitmapCache.clear()
+        }
     }
 
     private fun decodeIconBitmap(context: Context, uri: Uri, targetSize: Int): Bitmap? {

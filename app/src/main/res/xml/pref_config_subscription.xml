@@ -8,7 +8,7 @@
         android:title="@string/show_rss"
         app:iconSpaceReserved="false" />
 
-    <Preference
+    <io.legado.app.lib.prefs.Preference
         android:key="search_jump_showRss"
         android:title="@string/show_rss"
         android:visible="false" />
@@ -22,7 +22,7 @@
         app:entryValues="@array/page_mode_values"
         app:iconSpaceReserved="false" />
 
-    <Preference
+    <io.legado.app.lib.prefs.Preference
         android:key="search_jump_modernRssMode"
         android:title="@string/modern_rss_page"
         android:visible="false" />

@@ -22,8 +22,10 @@ import io.legado.app.lib.prefs.NameListPreference
 import io.legado.app.lib.prefs.SwitchPreference
 import io.legado.app.lib.prefs.fragment.PreferenceFragment
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.service.WebService
 import io.legado.app.ui.about.AboutActivity
 import io.legado.app.ui.about.ReadRecordActivity
@@ -115,6 +117,7 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
     }
 
     private fun applySearchBarStyle() {
+        settingsSearchView.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
         val isNight = io.legado.app.help.config.AppConfig.isNightTheme
         val searchSurfaceColor = if (isNight) {
             ColorUtils.adjustAlpha(Color.rgb(52, 52, 56), 0.42f)

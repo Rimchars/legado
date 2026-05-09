@@ -555,6 +555,26 @@
         <receiver
             android:name=".ui.book.cache.AudioCacheActionReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".receiver.ReadGoalWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/read_goal_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".receiver.ReadRankWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/read_rank_widget_info" />
+        </receiver>
 
         <provider
             android:name=".api.ReaderProvider"

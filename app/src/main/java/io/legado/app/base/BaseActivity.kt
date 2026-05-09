@@ -25,6 +25,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiMenuTypefaceDeep
 import io.legado.app.ui.widget.TitleBar
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.applyOpenTint
@@ -70,13 +71,20 @@ abstract class BaseActivity<VB : ViewBinding>(
         context: Context,
         attrs: AttributeSet
     ): View? {
-        if (AppConst.menuViewNames.contains(name) && parent?.parent is FrameLayout) {
-            (parent.parent as View).background = UiCorner.opaqueRounded(
-                androidx.core.content.ContextCompat.getColor(context, R.color.background_card),
-                UiCorner.panelRadius(context)
-            )
+        val view = super.onCreateView(parent, name, context, attrs)
+        if (AppConst.menuViewNames.contains(name)) {
+            if (parent?.parent is FrameLayout) {
+                (parent.parent as View).background = UiCorner.opaqueRounded(
+                    androidx.core.content.ContextCompat.getColor(context, R.color.background_card),
+                    UiCorner.panelRadius(context)
+                )
+            }
+            val menuView = view ?: parent
+            menuView?.post {
+                menuView.applyUiMenuTypefaceDeep(context)
+            }
         }
-        return super.onCreateView(parent, name, context, attrs)
+        return view
     }
 
     @SuppressLint("ObsoleteSdkInt")
@@ -208,19 +216,33 @@ abstract class BaseActivity<VB : ViewBinding>(
             applyWindowBackgroundColor()
             return
         }
+        val hasBgImage = ThemeConfig.hasUsableBgImage(this)
         try {
             val drawable = ThemeConfig.getBgImage(this, windowManager.windowSize)
             if (drawable != null) {
                 ViewCompat.setBackgroundTintList(window.decorView, null)
                 window.decorView.background = drawable
+            } else if (hasBgImage) {
+                ViewCompat.setBackgroundTintList(window.decorView, null)
+                window.decorView.background = null
             } else {
                 applyWindowBackgroundColor()
             }
         } catch (_: OutOfMemoryError) {
-            applyWindowBackgroundColor()
+            if (hasBgImage) {
+                ViewCompat.setBackgroundTintList(window.decorView, null)
+                window.decorView.background = null
+            } else {
+                applyWindowBackgroundColor()
+            }
             toastOnUi(R.string.background_image_too_large)
         } catch (e: Exception) {
-            applyWindowBackgroundColor()
+            if (hasBgImage) {
+                ViewCompat.setBackgroundTintList(window.decorView, null)
+                window.decorView.background = null
+            } else {
+                applyWindowBackgroundColor()
+            }
             AppLog.put(getString(R.string.background_image_load_error, e.localizedMessage), e)
         }
     }

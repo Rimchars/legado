@@ -334,11 +334,21 @@ internal class EpubLayoutEngine(
         val oldFirstLineIndent = firstLineIndent
         val oldPageHasFullBackground = pageHasFullBackground
         val containingHeightSafe = containingHeight.coerceAtLeast(0f)
-        val positionedWidth = style.resolveHorizontalSize(containingWidth)
-            ?: style["width"]?.toCssLengthPx(containingWidth)
-            ?: containingWidth
         val leftOffset = style["left"]?.toCssLengthPx(containingWidth)
         val rightOffset = style["right"]?.toCssLengthPx(containingWidth)
+        val positionedWidth = style.resolveHorizontalSize(containingWidth)
+            ?: style["width"]?.toCssLengthPx(containingWidth)
+            ?: when {
+                leftOffset != null && rightOffset != null ->
+                    containingWidth - leftOffset - rightOffset
+                leftOffset != null ->
+                    containingWidth - leftOffset
+                rightOffset != null ->
+                    containingWidth - rightOffset
+                else -> containingWidth
+            }
+                .coerceAtLeast(1f)
+                .coerceAtMost(containingWidth)
         val topOffset = style.verticalPositionPx(
             "top",
             style.positionVerticalReference(viewportHeight.toFloat(), containingHeightSafe, pageHasFullBackground)
@@ -397,7 +407,7 @@ internal class EpubLayoutEngine(
         val requestedWidth = style.resolveHorizontalSize(width)
             ?: node.attributes["width"]?.toCssLengthPx(width)
             ?: intrinsicWidth
-                .takeIf { it > 0f && (rawMarginLeft.isAutoCssValue() || rawMarginRight.isAutoCssValue()) }
+                .takeIf { it > 0f }
             ?: (width - marginLeftValue - marginRightValue)
         val tableWidth = requestedWidth.coerceIn(1f, width)
         val remainingWidth = (width - tableWidth - marginLeftValue - marginRightValue).coerceAtLeast(0f)
@@ -603,6 +613,10 @@ internal class EpubLayoutEngine(
                     val ascent = -metrics.ascent
                     val descent = metrics.descent
                     normalized.forEach { char ->
+                        if (char == '\n') {
+                            flushLine(force = true)
+                            return@forEach
+                        }
                         val value = char.toString()
                         if (lineSegments.isEmpty() && value.isBlank()) {
                             return@forEach
@@ -1291,9 +1305,7 @@ internal class EpubLayoutEngine(
 
     private fun EpubComputedStyle.resolveTypeface(fontFaces: List<EpubFontFace>): Typeface? {
         val family = this["font-family"]
-            ?.split(',')
-            ?.map { it.trim().trim('\'', '"') }
-            ?.firstOrNull { it.isNotBlank() }
+            ?.takeIf { it.isNotBlank() }
             ?: return null
         return fontResolver(family, isBold(), isItalic(), fontFaces)
     }
@@ -2033,9 +2045,9 @@ internal class EpubLayoutEngine(
                 val cell = gridCell.node
                 val requestedWidth = cell.style.resolveHorizontalSize(tableWidth)
                     ?: cell.attributes["width"]?.toCssLengthPx(tableWidth)
-                    ?: 0f
-                if (requestedWidth <= 0f) return@forEach
-                val widthPerColumn = requestedWidth / gridCell.colSpan.coerceAtLeast(1)
+                val contentWidth = cell.intrinsicContentWidth(tableWidth) ?: 0f
+                val widthPerColumn = maxOf(requestedWidth ?: 0f, contentWidth) / gridCell.colSpan.coerceAtLeast(1)
+                if (widthPerColumn <= 0f) return@forEach
                 for (index in gridCell.column until (gridCell.column + gridCell.colSpan).coerceAtMost(widths.size)) {
                     if (widthPerColumn > widths[index]) {
                         widths[index] = widthPerColumn
@@ -2058,10 +2070,33 @@ internal class EpubLayoutEngine(
                 val cell = gridCell.node
                 val width = cell.style.resolveHorizontalSize(viewportWidth.toFloat())
                     ?: cell.attributes["width"]?.toCssLengthPx(viewportWidth.toFloat())
+                    ?: cell.intrinsicContentWidth(viewportWidth.toFloat())
                     ?: 0f
                 width.toDouble()
             }.toFloat()
         } ?: 0f
+    }
+
+    private fun EpubBlockNode.intrinsicContentWidth(relativeTo: Float): Float? {
+        val tableWidth = children
+            .filterIsInstance<EpubBlockNode>()
+            .filter { it.tagName == "table" }
+            .mapNotNull { table ->
+                val grid = table.tableRows().buildTableGrid()
+                table.intrinsicTableWidth(grid).takeIf { it > 0f }
+            }
+            .maxOrNull()
+        if (tableWidth != null) return tableWidth.coerceAtMost(relativeTo)
+        val text = plainText().trim()
+        if (text.isBlank()) return null
+        val paint = style.toTextPaint()
+        val width = text.lineSequence()
+            .flatMap { line -> line.split(Regex("\\s+")).asSequence() }
+            .filter { it.isNotBlank() }
+            .maxOfOrNull { paint.measureText(it) }
+            ?: paint.measureText(text.take(12))
+        return (width + style.boxPadding(relativeTo).let { it.left + it.right })
+            .coerceIn(basePaint.textSize * 2f, relativeTo)
     }
 
     private fun List<EpubBlockNode>.buildTableGrid(): TableGrid {

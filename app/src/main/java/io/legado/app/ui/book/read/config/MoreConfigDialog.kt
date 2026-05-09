@@ -234,7 +234,7 @@ class MoreConfigDialog : BasePrefDialogFragment() {
                         .setMinValue(35)
                         .setValue(AppConfig.readMenuAlpha)
                         .setCustomButton(R.string.btn_default_s) {
-                            AppConfig.readMenuAlpha = 75
+                            AppConfig.readMenuAlpha = 100
                             upPreferenceSummary(PreferKey.readMenuAlpha, AppConfig.readMenuAlpha.toString())
                             postEvent(EventBus.UPDATE_READ_ACTION_BAR, true)
                         }

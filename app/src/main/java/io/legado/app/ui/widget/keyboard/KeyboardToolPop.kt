@@ -24,6 +24,7 @@ import io.legado.app.databinding.PopupKeyboardToolBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.activity
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.windowSize
@@ -189,6 +190,7 @@ class KeyboardToolPop(
         ) {
             binding.run {
                 textView.text = item.key
+                textView.typeface = context.uiTypeface()
             }
         }
 

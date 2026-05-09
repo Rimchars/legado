@@ -335,6 +335,8 @@
     <string name="nb_file_add_succeed">成功添加 %1$d 本书</string>
     <string name="fonts_folder">请将字体文件放到存储根目录 Fonts 文件夹下后重新选择</string>
     <string name="default_font">默认字体</string>
+    <string name="ui_font">界面字体</string>
+    <string name="title_font">标题字体</string>
     <string name="select_font">选择字体</string>
     <string name="text_size">字号</string>
     <string name="line_size">行距</string>
@@ -886,6 +888,7 @@
     <string name="read_record_rank_empty">暂无阅读时长排行</string>
     <string name="read_record_rank_number">第%1$d名</string>
     <string name="read_record_goal_target_progress">今日目标 %1$s / %2$s</string>
+    <string name="read_goal_widget_description">阅读目标卡片</string>
     <string name="read_record_open_book_info">进入书籍详情</string>
     <string name="read_record_delete_entry">删除这条记录</string>
     <string name="local_tts">本地 TTS</string>
@@ -1175,8 +1178,8 @@
     <string name="tag_explore_disabled">标志:发现已禁用</string>
     <string name="show_read_title_addition">展示顶部工具栏附加区域</string>
     <string name="read_bar_style_follow_page">工具栏样式跟随页面</string>
-    <string name="read_menu_alpha">正文菜单透明度</string>
-    <string name="read_menu_alpha_summary">调整顶部与底部正文菜单的半透明程度</string>
+    <string name="read_menu_alpha">正文菜单不透明度</string>
+    <string name="read_menu_alpha_summary">调整顶部与底部正文菜单的不透明程度</string>
     <string name="rule_image_decode">图片解密（imageDecode）</string>
     <string name="like_source">赞</string>
     <string name="not_like_source">踩</string>
@@ -1738,6 +1741,7 @@
     <string name="image_crop_hint">拖动或双指缩放图片后确认裁剪</string>
     <string name="theme_image_selected">已选择</string>
     <string name="navigation_bar_sidebar_background">侧边栏壁纸</string>
+    <string name="read_rank_widget_description">阅读排行桌面组件</string>
     <string name="color_format_error">颜色格式不正确</string>
     <string name="unknown">未知</string>
     <string name="ai_read_prompt_template">你是阅读页里的问 AI 助手。请围绕当前书籍和选中文本回答，优先解释原文含义、上下文、人物关系、伏笔或用户提问，不要编造未给出的剧情。

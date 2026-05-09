@@ -32,6 +32,7 @@ import io.legado.app.service.BaseReadAloudService
 import io.legado.app.service.CacheBookService
 import io.legado.app.ui.about.ReadRecordWidgetStore
 import io.legado.app.ui.book.read.page.entities.TextChapter
+import io.legado.app.ui.book.read.page.entities.TextPage
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.ui.book.read.page.provider.LayoutProgressListener
 import io.legado.app.utils.postEvent
@@ -80,6 +81,7 @@ object ReadBook : CoroutineScope by MainScope() {
     private val loadingChapters = arrayListOf<Int>()
     private val readRecord = ReadRecord()
     private val chapterLoadingJobs = ConcurrentHashMap<Int, Coroutine<*>>()
+    private val chapterLayoutKeys = ConcurrentHashMap<Int, String>()
     private val prevChapterLoadingLock = Mutex()
     private val curChapterLoadingLock = Mutex()
     private val nextChapterLoadingLock = Mutex()
@@ -137,6 +139,7 @@ object ReadBook : CoroutineScope by MainScope() {
         TextFile.clear()
         synchronized(this) {
             loadingChapters.clear()
+            chapterLayoutKeys.clear()
             downloadedChapters.clear()
             downloadFailChapters.clear()
         }
@@ -169,6 +172,7 @@ object ReadBook : CoroutineScope by MainScope() {
         upWebBook(book)
         synchronized(this) {
             loadingChapters.clear()
+            chapterLayoutKeys.clear()
             downloadedChapters.clear()
             downloadFailChapters.clear()
         }
@@ -243,6 +247,7 @@ object ReadBook : CoroutineScope by MainScope() {
         prevTextChapter = null
         curTextChapter = null
         nextTextChapter = null
+        chapterLayoutKeys.clear()
     }
 
     fun clearSearchResult() {
@@ -299,7 +304,7 @@ object ReadBook : CoroutineScope by MainScope() {
         }
     }
 
-    fun upReadTime() {
+    fun upReadTime(forceWidgetUpdate: Boolean = false) {
         if (!AppConfig.enableReadRecord) {
             return
         }
@@ -310,7 +315,7 @@ object ReadBook : CoroutineScope by MainScope() {
             readStartTime = now
             readRecord.lastRead = now
             appDb.readRecordDao.insert(readRecord)
-            ReadRecordDailyHelper.record(delta, now)
+            ReadRecordDailyHelper.record(delta, now, forceWidgetUpdate)
         }
     }
 
@@ -555,11 +560,18 @@ object ReadBook : CoroutineScope by MainScope() {
         resetPageOffset: Boolean,
         success: (() -> Unit)? = null
     ) {
+        val isEpub = book?.isEpub == true
         loadContent(durChapterIndex, resetPageOffset = resetPageOffset) {
             success?.invoke()
+            if (isEpub) {
+                loadContent(durChapterIndex + 1, upContent = false, resetPageOffset = false)
+                loadContent(durChapterIndex - 1, upContent = false, resetPageOffset = false)
+            }
         }
-        loadContent(durChapterIndex + 1, resetPageOffset = resetPageOffset)
-        loadContent(durChapterIndex - 1, resetPageOffset = resetPageOffset)
+        if (!isEpub) {
+            loadContent(durChapterIndex + 1, resetPageOffset = resetPageOffset)
+            loadContent(durChapterIndex - 1, resetPageOffset = resetPageOffset)
+        }
     }
 
     fun loadOrUpContent(success: (() -> Unit)? = null) {
@@ -578,6 +590,23 @@ object ReadBook : CoroutineScope by MainScope() {
         }
     }
 
+    private fun currentChapterLayoutKey(): String {
+        val paint = ChapterProvider.contentPaint
+        val titlePaint = ChapterProvider.titlePaint
+        return buildString {
+            append(ChapterProvider.viewWidth).append('x').append(ChapterProvider.viewHeight)
+            append('|').append(ChapterProvider.visibleWidth).append('x').append(ChapterProvider.visibleHeight)
+            append('|').append(paint.textSize).append('|').append(paint.color)
+            append('|').append(paint.typeface?.style ?: 0)
+            append('|').append(titlePaint.textSize).append('|').append(titlePaint.color)
+            append('|').append(titlePaint.typeface?.style ?: 0)
+            append('|').append(ChapterProvider.contentPaintTextHeight)
+            append('|').append(ChapterProvider.titlePaintTextHeight)
+            append('|').append(ChapterProvider.lineSpacingExtra)
+            append('|').append(ChapterProvider.paragraphSpacing)
+        }
+    }
+
     /**
      * 加载章节内容
      * @param index 章节序号
@@ -591,6 +620,15 @@ object ReadBook : CoroutineScope by MainScope() {
         resetPageOffset: Boolean = false,
         success: (() -> Unit)? = null
     ) {
+        val layoutKey = currentChapterLayoutKey()
+        val cached = textChapter(index - durChapterIndex)
+        if (book?.isEpub == true && cached?.isCompleted == true && chapterLayoutKeys[index] == layoutKey) {
+            if (upContent) {
+                callBack?.upContent(index - durChapterIndex, resetPageOffset)
+            }
+            success?.invoke()
+            return
+        }
         Coroutine.async {
             val book = book!!
             val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, index) ?: return@async
@@ -737,23 +775,25 @@ object ReadBook : CoroutineScope by MainScope() {
             val textChapter = ChapterProvider.getTextChapterAsync(
                 this, book, chapter, displayTitle, contents, simulatedChapterSize
             )
+            val layoutKey = currentChapterLayoutKey()
             when (val offset = chapter.index - durChapterIndex) {
                 0 -> curChapterLoadingLock.withLock {
                     withContext(Main) {
                         ensureActive()
                         curTextChapter = textChapter
+                        chapterLayoutKeys[chapter.index] = layoutKey
                     }
                     callBack?.upMenuView()
                     var available = false
                     for (page in textChapter.layoutChannel) {
                         val index = page.index
                         if (!available && page.containPos(durChapterPos)) {
-                            if (upContent && !book.isEpub) {
+                            if (upContent) {
                                 callBack?.upContent(offset, resetPageOffset)
                             }
                             available = true
                         }
-                        if (upContent && isScroll && !book.isEpub) {
+                        if (upContent && isScroll) {
                             if (max(index - 3, 0) < durPageIndex) {
                                 callBack?.upContent(offset, false)
                             }
@@ -769,6 +809,7 @@ object ReadBook : CoroutineScope by MainScope() {
                     withContext(Main) {
                         ensureActive()
                         prevTextChapter = textChapter
+                        chapterLayoutKeys[chapter.index] = layoutKey
                     }
                     textChapter.layoutChannel.receiveAsFlow().collect()
                     if (upContent) callBack?.upContent(offset, resetPageOffset)
@@ -778,6 +819,7 @@ object ReadBook : CoroutineScope by MainScope() {
                     withContext(Main) {
                         ensureActive()
                         nextTextChapter = textChapter
+                        chapterLayoutKeys[chapter.index] = layoutKey
                     }
                     for (page in textChapter.layoutChannel) {
                         if (page.index > 1) {
@@ -825,23 +867,25 @@ object ReadBook : CoroutineScope by MainScope() {
             val textChapter = ChapterProvider.getTextChapterAsync(
                 this@ReadBook, book, chapter, displayTitle, contents, simulatedChapterSize
             )
+            val layoutKey = currentChapterLayoutKey()
             when (val offset = chapter.index - durChapterIndex) {
                 0 -> {
                     curTextChapter?.cancelLayout()
                     withContext(Main) {
                         curTextChapter = textChapter
+                        chapterLayoutKeys[chapter.index] = layoutKey
                     }
                     callBack?.upMenuView()
                     var available = false
                     for (page in textChapter.layoutChannel) {
                         val index = page.index
                         if (!available && page.containPos(durChapterPos)) {
-                            if (upContent && !book.isEpub) {
+                            if (upContent) {
                                 callBack?.upContent(offset, resetPageOffset)
                             }
                             available = true
                         }
-                        if (upContent && isScroll && !book.isEpub) {
+                        if (upContent && isScroll) {
                             if (max(index - 3, 0) < durPageIndex) {
                                 callBack?.upContent(offset, false)
                             }
@@ -857,6 +901,7 @@ object ReadBook : CoroutineScope by MainScope() {
                     prevTextChapter?.cancelLayout()
                     withContext(Main) {
                         prevTextChapter = textChapter
+                        chapterLayoutKeys[chapter.index] = layoutKey
                     }
                     textChapter.layoutChannel.receiveAsFlow().collect()
                     if (upContent) callBack?.upContent(offset, resetPageOffset)
@@ -866,6 +911,7 @@ object ReadBook : CoroutineScope by MainScope() {
                     nextTextChapter?.cancelLayout()
                     withContext(Main) {
                         nextTextChapter = textChapter
+                        chapterLayoutKeys[chapter.index] = layoutKey
                     }
                     for (page in textChapter.layoutChannel) {
                         if (page.index > 1) {
@@ -881,6 +927,22 @@ object ReadBook : CoroutineScope by MainScope() {
             }
             AppLog.put("ChapterProvider ERROR", it)
             appCtx.toastOnUi("ChapterProvider ERROR:\n${it.stackTraceStr}")
+        }
+    }
+
+    fun invalidateEpubResource(bookUrl: String, chapterIndex: Int, src: String) {
+        val currentBook = book ?: return
+        if (currentBook.bookUrl != bookUrl || !currentBook.isEpub) return
+        launch(Main) {
+            val changed = sequenceOf(prevTextChapter, curTextChapter, nextTextChapter)
+                .filterNotNull()
+                .filter { it.chapter.index == chapterIndex }
+                .flatMap { it.pages.asSequence() }
+                .filter { it.invalidateEpubResource(src) }
+                .any()
+            if (changed) {
+                callBack?.upContent(0, false)
+            }
         }
     }
 

@@ -12,6 +12,7 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.update
 import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.MD5Utils
@@ -44,6 +45,7 @@ import java.nio.charset.Charset
 import java.util.IdentityHashMap
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlin.system.measureTimeMillis
 import splitties.init.appCtx
 
 class EpubFile(var book: Book) {
@@ -59,9 +61,10 @@ class EpubFile(var book: Book) {
         const val NATIVE_CONTENT_FLAG = "<epub-native"
         const val NATIVE_LAYOUT_FLAG = "data-href="
         const val NATIVE_CONTENT_VERSION_FLAG = "data-native-ver=\"2\""
-        private const val NATIVE_LAYOUT_DISK_CACHE_VERSION = 2
+        private const val NATIVE_LAYOUT_DISK_CACHE_VERSION = 4
         private const val ENABLE_EPUB_DEBUG_DUMP = false
-        private const val SMALL_EPUB_TEXT_PRELOAD_LIMIT = 12L * 1024L * 1024L
+        private val scriptBlockRegex = Regex("(?is)<script\\b[^>]*>.*?</script>")
+        private val scriptSelfClosingRegex = Regex("(?is)<script\\b[^>]*/>")
         private val maxNativeDomCache: Int
             get() = if (Runtime.getRuntime().maxMemory() <= 256L * 1024L * 1024L) 160 else 320
         private val maxNativeLayoutCache: Int
@@ -83,6 +86,7 @@ class EpubFile(var book: Book) {
         @Synchronized
         private fun getEFile(book: Book): EpubFile {
             if (eFile == null || eFile?.book?.bookUrl != book.bookUrl) {
+                eFile?.close()
                 eFile = EpubFile(book)
                 //对于Epub文件默认不启用替换
                 //io.legado.app.data.entities.Book getUseReplaceRule
@@ -177,6 +181,7 @@ class EpubFile(var book: Book) {
         }
 
         fun clear() {
+            eFile?.close()
             eFile = null
             synchronized(preloadedNativeLayoutKeys) {
                 preloadedNativeLayoutKeys.clear()
@@ -191,6 +196,7 @@ class EpubFile(var book: Book) {
     private val nativeLayoutCache = linkedMapOf<String, EpubLayoutDocument>()
     private val imageSizeCache = linkedMapOf<String, Size>()
     private val fontTypefaceCache = linkedMapOf<String, Typeface?>()
+    private val fontFaceMatchCache = linkedMapOf<String, EpubFontFace?>()
     private val footnoteCache = linkedMapOf<String, EpubFootnote?>()
     private val footnoteSourceCache = linkedMapOf<String, FootnoteSource?>()
     private val footnoteDocumentCache = object : LinkedHashMap<String, Document>(32, 0.75f, true) {
@@ -210,12 +216,11 @@ class EpubFile(var book: Book) {
     )
     private var footnoteIndexBuilt = false
     private val scheduledNearbyPreloadKeys = linkedSetOf<String>()
-    private val scheduledSmallBookPreloadKeys = linkedSetOf<String>()
-    private var cachedReadableTextBytes: Long? = null
     private var nativeLayoutWidth = 0
     private var nativeLayoutHeight = 0
     private var nativeLayoutStyleKey = ""
     private var chapterResourceIndexByHref: Map<String, Int>? = null
+    private var coverLoadChecked = false
 
     /**
      *持有引用，避免被回收
@@ -247,32 +252,72 @@ class EpubFile(var book: Book) {
             return field
         }
 
-    init {
-        upBookCover(true)
-    }
-
     /**
      * 重写epub文件解析代码，直接读出压缩包文件生成Resources给epublib，这样的好处是可以逐一修改某些文件的格式错误
      */
     private fun readEpub(): EpubBook? {
+        invalidateBookCache(closeDescriptor = true)
         return kotlin.runCatching {
             //ContentScheme拷贝到私有文件夹采用懒加载防止OOM
             //val zipFile = BookHelp.getEpubFile(book)
-            BookHelp.getBookPFD(book)?.let {
-                fileDescriptor = it
-                val zipFile = AndroidZipFile(it, book.originName)
-                EpubReader().readEpubLazy(zipFile, "utf-8")
+            var result: EpubBook? = null
+            val cost = measureTimeMillis {
+                result = BookHelp.getBookPFD(book)?.let {
+                    fileDescriptor = it
+                    val zipFile = AndroidZipFile(it, book.originName)
+                    EpubReader().readEpubLazy(zipFile, "utf-8")
+                }
             }
-
-
+            AppLog.putDebug("EPUB readEpubLazy done: book=${book.name}, cost=${cost}ms")
+            result
         }.onFailure {
+            invalidateBookCache(closeDescriptor = true)
             AppLog.put("读取Epub文件失败\n${it.localizedMessage}", it)
             it.printOnDebug()
         }.getOrThrow()
     }
 
+    private fun invalidateBookCache(closeDescriptor: Boolean) {
+        if (closeDescriptor) {
+            runCatching { fileDescriptor?.close() }
+            fileDescriptor = null
+        }
+        epubBook = null
+        epubBookContents = null
+        epubSpineContents = null
+        chapterResourceIndexByHref = null
+        footnoteIndexBuilt = false
+        footnoteIdHrefIndex.clear()
+        footnoteCache.clear()
+        footnoteSourceCache.clear()
+        footnoteDocumentCache.clear()
+        cssTextCache.clear()
+        cssRuleCache.clear()
+        nativeDomCache.clear()
+        nativeLayoutCache.clear()
+        imageSizeCache.clear()
+        fontTypefaceCache.clear()
+        scheduledNearbyPreloadKeys.clear()
+        nativeLayoutWidth = 0
+        nativeLayoutHeight = 0
+        nativeLayoutStyleKey = ""
+        coverLoadChecked = false
+    }
+
     private fun getContent(chapter: BookChapter): String? {
         if (chapter.isVolume && chapter.url.startsWith("skip:")) return ""
+        var result: String? = null
+        val cost = measureTimeMillis {
+            result = getContentInternal(chapter)
+        }
+        AppLog.putDebug(
+            "EPUB getContent done: chapter=${chapter.index}:${chapter.title}, " +
+                "cost=${cost}ms, native=${result?.startsWith(NATIVE_CONTENT_FLAG) == true}"
+        )
+        return result
+    }
+
+    private fun getContentInternal(chapter: BookChapter): String? {
         /*获取当前章节文本*/
         val contents = epubSpineContents ?: epubBookContents ?: return null
         val nextChapterFirstResourceHref = chapter.getVariable("nextUrl").substringBeforeLast("#")
@@ -302,14 +347,19 @@ class EpubFile(var book: Book) {
         )
         chapterResources.forEachIndexed { index, res ->
             collectRawResource(res)
-            if (!ENABLE_EPUB_DEBUG_DUMP) return@forEachIndexed
-            val body = when {
-                index == 0 -> getBody(res, startFragmentId, endFragmentId)
-                index == chapterResources.lastIndex && includeNextChapterResource && !isLastChapter &&
-                    res.href == nextChapterFirstResourceHref -> getBody(res, null, endFragmentId)
-                else -> getBody(res, null, null)
+            // Native layout cache is keyed by href, so keep the cached DOM as the full resource.
+            // Fragment slicing would make chapters sharing one XHTML overwrite each other.
+            val body = getBody(res, null, null)
+            if (ENABLE_EPUB_DEBUG_DUMP) {
+                elements.add(
+                    when {
+                        index == 0 -> getBody(res, startFragmentId, endFragmentId)
+                        index == chapterResources.lastIndex && includeNextChapterResource && !isLastChapter &&
+                            res.href == nextChapterFirstResourceHref -> getBody(res, null, endFragmentId)
+                        else -> body
+                    }
+                )
             }
-            elements.add(body)
         }
         //title标签中的内容不需要显示在正文中，去除
         elements.select("title").remove()
@@ -381,9 +431,12 @@ class EpubFile(var book: Book) {
          * <image width="1038" height="670" xlink:href="..."/>
          * ...titlepage.xhtml
          * 大多数epub文件的封面页都会带有cover，可以一定程度上解决封面读取问题
-         */
+        */
         // Jsoup可能会修复不规范的xhtml文件 解析处理后再获取
-        var doc = Jsoup.parse(String(res.data, mCharset))
+        val rawHtml = String(res.data, mCharset)
+            .replace(scriptBlockRegex, "")
+            .replace(scriptSelfClosingRegex, "")
+        var doc = Jsoup.parse(rawHtml)
         var bodyElement = doc.body()
         doc.select("script").remove()
         doc.hideEpubFootnotes()
@@ -748,14 +801,20 @@ class EpubFile(var book: Book) {
                 "view=${width}x$height, styleKey=$styleKey"
         )
         val document = nativeDomCache[href] ?: rebuildNativeDom(href) ?: return null
+        var layoutCost = 0L
         return runCatching {
-            EpubLayoutEngine(
-                imageSizeResolver = ::getEpubImageSize,
-                fontResolver = ::getEpubTypeface,
-                viewportWidth = width,
-                viewportHeight = height
-            ).layout(document)
+            var layout: EpubLayoutDocument? = null
+            layoutCost = measureTimeMillis {
+                layout = EpubLayoutEngine(
+                    imageSizeResolver = ::getEpubImageSize,
+                    fontResolver = ::getEpubTypeface,
+                    viewportWidth = width,
+                    viewportHeight = height
+                ).layout(document)
+            }
+            layout
         }.onSuccess {
+            if (it == null) return@onSuccess
             nativeLayoutCache[href] = it
             synchronized(globalNativeLayoutCache) {
                 globalNativeLayoutCache[layoutCacheKey] = it
@@ -777,17 +836,30 @@ class EpubFile(var book: Book) {
             AppLog.putDebug(
                 "EPUB Native Layout built: href=$href, pages=${it.pages.size}, " +
                     "commands=${it.pages.sumOf { page -> page.commands.size }}, " +
-                    "linkAreas=$linkAreas, linkedImages=$linkedImages, linkedText=$linkedText"
+                    "linkAreas=$linkAreas, linkedImages=$linkedImages, linkedText=$linkedText, " +
+                    "cost=${layoutCost}ms"
             )
-            if (source == NativeLayoutRequestSource.FOREGROUND && viewport.exact) {
-                scheduleNearbyNativeLayoutPreload(width, height, styleKey, href)
+            if (viewport.exact) {
+                scheduleNearbyNativeLayoutPreload(
+                    width = width,
+                    height = height,
+                    styleKey = styleKey,
+                    currentHref = href,
+                    includePrevious = source == NativeLayoutRequestSource.FOREGROUND
+                )
             }
         }.onFailure {
             AppLog.putDebug("构建 EPUB 原生布局失败: $href\n${it.localizedMessage}", it)
         }.getOrNull()
     }
 
-    private fun scheduleNearbyNativeLayoutPreload(width: Int, height: Int, styleKey: String, currentHref: String) {
+    private fun scheduleNearbyNativeLayoutPreload(
+        width: Int,
+        height: Int,
+        styleKey: String,
+        currentHref: String,
+        includePrevious: Boolean
+    ) {
         val preloadKey = "${book.bookUrl}|$currentHref|${width}x$height|$styleKey"
         synchronized(scheduledNearbyPreloadKeys) {
             if (!scheduledNearbyPreloadKeys.add(preloadKey)) return
@@ -802,83 +874,19 @@ class EpubFile(var book: Book) {
             ?.toList()
             .orEmpty()
         val currentIndex = readableHrefs.indexOf(currentHref).takeIf { it >= 0 } ?: return
-        val priorityHrefs = readableHrefs.priorityEpubHrefs(currentHref)
-        val hrefs = if (isSmallTextEpub()) {
-            scheduleSmallBookPreload(width, height, styleKey, readableHrefs, currentHref)
-            priorityHrefs
-        } else {
-            priorityHrefs + readableHrefs
-                .asSequence()
-                .withIndex()
-                .filter { (index, href) ->
-                    href != currentHref && index in (currentIndex - 2)..(currentIndex + 8)
-                }
-                .map { it.value }
-                .toList()
-        }.distinct()
+        val startIndex = currentIndex - if (includePrevious) 1 else 0
+        val endIndex = currentIndex + 2
+        val hrefs = readableHrefs
+            .asSequence()
+            .withIndex()
+            .filter { (index, href) ->
+                href != currentHref && index in startIndex..endIndex
+            }
+            .map { it.value }
+            .toList()
         if (hrefs.isEmpty()) return
         AppLog.putDebug("EPUB Native Layout preload nearby: count=${hrefs.size}, current=$currentHref, view=${width}x$height")
         preloadNativeLayouts(book, hrefs)
-    }
-
-    private fun scheduleSmallBookPreload(
-        width: Int,
-        height: Int,
-        styleKey: String,
-        readableHrefs: List<String>,
-        currentHref: String
-    ) {
-        val preloadKey = "${book.bookUrl}|small|${width}x$height|$styleKey"
-        synchronized(scheduledSmallBookPreloadKeys) {
-            if (!scheduledSmallBookPreloadKeys.add(preloadKey)) return
-        }
-        val hrefs = readableHrefs
-            .filter { it != currentHref }
-            .let { hrefList ->
-                hrefList.priorityEpubHrefs(currentHref) +
-                    hrefList.filterNot { href -> href in hrefList.priorityEpubHrefs(currentHref) }
-            }
-            .distinct()
-        if (hrefs.isEmpty()) return
-        AppLog.putDebug(
-            "EPUB Native Layout preload small book: count=${hrefs.size}, " +
-                "textBytes=${cachedReadableTextBytes ?: -1}, view=${width}x$height"
-        )
-        preloadNativeLayouts(book, hrefs)
-    }
-
-    private fun List<String>.priorityEpubHrefs(currentHref: String): List<String> {
-        val priorities = linkedSetOf<String>()
-        fun addFirstMatching(predicate: (String) -> Boolean) {
-            firstOrNull(predicate)?.takeIf { it != currentHref }?.let { priorities.add(it) }
-        }
-        addFirstMatching { href -> href.contains("cover", ignoreCase = true) }
-        addFirstMatching { href ->
-            href.contains("intro", ignoreCase = true) ||
-                href.contains("Introduction", ignoreCase = true) ||
-                href.contains("summary", ignoreCase = true)
-        }
-        addFirstMatching { href -> href.contains("copyright", ignoreCase = true) }
-        return priorities.toList()
-    }
-
-    private fun isSmallTextEpub(): Boolean {
-        val cached = cachedReadableTextBytes
-        if (cached != null) return cached in 1..SMALL_EPUB_TEXT_PRELOAD_LIMIT
-        var total = 0L
-        epubSpineContents
-            ?.asSequence()
-            ?.filter { it.isReadableEpubResource() }
-            ?.filterNot { it.isEpubBookInfoResource() }
-            ?.forEach { resource ->
-                total += resource.data.size.toLong()
-                if (total > SMALL_EPUB_TEXT_PRELOAD_LIMIT) {
-                    cachedReadableTextBytes = total
-                    return false
-                }
-            }
-        cachedReadableTextBytes = total
-        return total in 1..SMALL_EPUB_TEXT_PRELOAD_LIMIT
     }
 
     private fun warmChapterSpanIndex() {
@@ -986,6 +994,11 @@ class EpubFile(var book: Book) {
             cleanHref == "cover.jpeg" -> epubBook?.coverImage?.data
             else -> findEpubResource(cleanHref)?.data
         } ?: return null
+        val cacheKey = epubImageSizeCacheKey(cleanHref, data.size)
+        readEpubImageSizeFromDisk(cacheKey)?.let {
+            imageSizeCache[cleanHref] = it
+            return it
+        }
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
         }
@@ -999,7 +1012,37 @@ class EpubFile(var book: Book) {
             return null
         }
         imageSizeCache[cleanHref] = size
+        writeEpubImageSizeToDisk(cacheKey, size)
         return size
+    }
+
+    private fun epubImageSizeCacheKey(href: String, byteSize: Int): String {
+        return MD5Utils.md5Encode16("${book.bookUrl}|${book.originName}|$href|$byteSize")
+    }
+
+    private fun epubImageSizeCacheFile(cacheKey: String): File {
+        return File(BookHelp.cachePath, "${book.getFolderName()}/epub_image_size/$cacheKey.txt")
+    }
+
+    private fun readEpubImageSizeFromDisk(cacheKey: String): Size? {
+        val file = epubImageSizeCacheFile(cacheKey)
+        if (!file.exists()) return null
+        return runCatching {
+            val parts = file.readText().split('x')
+            val width = parts.getOrNull(0)?.toIntOrNull() ?: return@runCatching null
+            val height = parts.getOrNull(1)?.toIntOrNull() ?: return@runCatching null
+            if (width > 0 && height > 0) Size(width, height) else null
+        }.getOrNull()
+    }
+
+    private fun writeEpubImageSizeToDisk(cacheKey: String, size: Size) {
+        runCatching {
+            val file = epubImageSizeCacheFile(cacheKey)
+            file.parentFile?.mkdirs()
+            file.writeText("${size.width}x${size.height}")
+        }.onFailure {
+            AppLog.putDebug("EPUB image size cache write failed: ${it.localizedMessage}", it)
+        }
     }
 
     private fun canRenderEpubImage(href: String): Boolean {
@@ -1013,23 +1056,29 @@ class EpubFile(var book: Book) {
         fontFaces: List<EpubFontFace>
     ): Typeface? {
         if (fontFaces.isEmpty()) return null
-        val normalizedFamily = family.trim().trim('\'', '"')
-        if (normalizedFamily.isBlank()) return null
-        val face = fontFaces
-            .filter { it.family.equals(normalizedFamily, ignoreCase = true) }
-            .minByOrNull { it.fontMatchScore(bold, italic) }
-            ?: return null
+        val families = family.split(',')
+            .map { it.trim().trim('\'', '"') }
+            .filter { it.isNotBlank() }
+        if (families.isEmpty()) return null
+        val matchKey = "${fontFaces.hashCode()}|${families.joinToString("|").lowercase(Locale.ROOT)}|$bold|$italic"
+        val face = fontFaceMatchCache.getOrPut(matchKey) {
+            families.firstNotNullOfOrNull { normalizedFamily ->
+                fontFaces
+                    .filter { it.family.equals(normalizedFamily, ignoreCase = true) }
+                    .minByOrNull { it.fontMatchScore(bold, italic) }
+            }
+        } ?: return null
         val cleanHref = face.src.stripUrlOptions()
         val cacheKey = "$cleanHref|$bold|$italic"
         return fontTypefaceCache.getOrPut(cacheKey) {
             runCatching {
-                val data = findEpubResource(cleanHref)?.data ?: return@getOrPut null
                 val dir = File(appCtx.cacheDir, "epub-fonts").apply { mkdirs() }
                 val suffix = cleanHref.substringAfterLast('.', "ttf")
                     .takeIf { it.length in 2..5 }
                     ?: "ttf"
                 val file = File(dir, "${book.bookUrl.hashCode()}_${cleanHref.hashCode()}.$suffix")
-                if (!file.exists() || file.length() != data.size.toLong()) {
+                if (!file.exists() || file.length() <= 0L) {
+                    val data = findEpubResource(cleanHref)?.data ?: return@getOrPut null
                     FileOutputStream(file).use { output -> output.write(data) }
                 }
                 val typeface = Typeface.createFromFile(file)
@@ -1478,21 +1527,17 @@ class EpubFile(var book: Book) {
         }
         elements.forEach { element ->
             val imageHref = element.backgroundImageHref(res.href) ?: return@forEach
+            if (element.normalName() != "body") return@forEach
             if (!canRenderEpubImage(imageHref)) {
                 AppLog.putDebug("EPUB skip invalid background image: href=$imageHref, source=${res.href}")
                 return@forEach
             }
-            if (element.normalName() != "body" && element.selectFirst("img") != null) return@forEach
             val img = Element("img")
             img.attr("src", imageHref)
             img.attr("data-legado-width", "100%")
             img.attr("data-legado-style", Book.imgStyleSingle)
             img.attr("data-epub-background", "true")
-            if (element.normalName() == "body") {
-                prependChild(img)
-            } else {
-                element.before(img)
-            }
+            prependChild(img)
         }
     }
 
@@ -1870,27 +1915,64 @@ class EpubFile(var book: Book) {
         return null
     }
 
-    private fun upBookCover(fastCheck: Boolean = false) {
-        try {
+    private fun upBookCover(fastCheck: Boolean = false): Boolean {
+        return try {
             epubBook?.let {
                 if (book.coverUrl.isNullOrEmpty()) {
                     book.coverUrl = LocalBook.getCoverPath(book)
                 }
                 if (fastCheck && File(book.coverUrl!!).exists()) {
-                    return
+                    return true
                 }
                 /*部分书籍DRM处理后，封面获取异常，待优化*/
-                it.coverImage?.inputStream?.use { input ->
-                    val cover = BitmapFactory.decodeStream(input)
-                    val out = FileOutputStream(FileUtils.createFileIfNotExist(book.coverUrl!!))
+                val cover = it.coverImage?.inputStream?.use { input ->
+                    BitmapFactory.decodeStream(input)
+                } ?: findFallbackCoverBitmap()
+                if (cover == null) {
+                    AppLog.putDebug("Epub: 封面获取为空. path: ${book.bookUrl}")
+                    return false
+                }
+                FileOutputStream(FileUtils.createFileIfNotExist(book.coverUrl!!)).use { out ->
                     cover.compress(Bitmap.CompressFormat.JPEG, 90, out)
                     out.flush()
-                    out.close()
-                } ?: AppLog.putDebug("Epub: 封面获取为空. path: ${book.bookUrl}")
+                }
+                return true
             }
+            false
         } catch (e: Exception) {
             AppLog.put("加载书籍封面失败\n${e.localizedMessage}", e)
             e.printOnDebug()
+            false
+        }
+    }
+
+    private fun ensureBookCoverLoaded() {
+        if (coverLoadChecked) return
+        val coverPath = book.coverUrl
+        if (!coverPath.isNullOrBlank() && File(coverPath).exists()) {
+            coverLoadChecked = true
+            return
+        }
+        if (upBookCover(fastCheck = true)) {
+            kotlin.runCatching { book.update() }
+        }
+        coverLoadChecked = true
+    }
+
+    private fun findFallbackCoverBitmap(): Bitmap? {
+        val resources = epubBook?.resources?.all.orEmpty()
+        val coverResource = resources.firstOrNull { resource ->
+            val href = resource.href.orEmpty().lowercase(Locale.ROOT)
+            val mediaType = resource.mediaType?.toString().orEmpty().lowercase(Locale.ROOT)
+            (mediaType.startsWith("image/") || href.endsWith(".jpg") || href.endsWith(".jpeg") || href.endsWith(".png")) &&
+                (href.contains("cover") || href.contains("titlepage") || href.contains("title"))
+        } ?: resources.firstOrNull { resource ->
+            val href = resource.href.orEmpty().lowercase(Locale.ROOT)
+            val mediaType = resource.mediaType?.toString().orEmpty().lowercase(Locale.ROOT)
+            mediaType.startsWith("image/") || href.endsWith(".jpg") || href.endsWith(".jpeg") || href.endsWith(".png")
+        }
+        return coverResource?.inputStream?.use { input ->
+            BitmapFactory.decodeStream(input)
         }
     }
 
@@ -1932,53 +2014,58 @@ class EpubFile(var book: Book) {
 
     private fun getChapterList(): ArrayList<BookChapter> {
         val chapterList = ArrayList<BookChapter>()
-        epubBook?.let { eBook ->
-            val refs = eBook.tableOfContents.tocReferences
-            if (refs == null || refs.isEmpty()) {
-                AppLog.putDebug("Epub: NCX file parse error, check the file: ${book.bookUrl}")
-                val spineReferences = eBook.spine.spineReferences
-                var i = 0
-                val size = spineReferences.size
-                while (i < size) {
-                    val resource = spineReferences[i].resource
-                    if (resource.isEpubBookInfoResource()) {
-                        i++
-                        continue
-                    }
-                    var title = resource.title
-                    if (TextUtils.isEmpty(title)) {
-                        try {
-                            val doc =
-                                Jsoup.parse(String(resource.data, mCharset))
-                            val elements = doc.getElementsByTag("title")
-                            if (elements.isNotEmpty()) {
-                                title = elements[0].text()
-                            }
-                        } catch (e: IOException) {
-                            e.printStackTrace()
+        val cost = measureTimeMillis {
+            epubBook?.let { eBook ->
+                ensureBookCoverLoaded()
+                warmChapterSpanIndex()
+                val refs = eBook.tableOfContents.tocReferences
+                if (refs == null || refs.isEmpty()) {
+                    AppLog.putDebug("Epub: NCX file parse error, check the file: ${book.bookUrl}")
+                    val spineReferences = eBook.spine.spineReferences
+                    var i = 0
+                    val size = spineReferences.size
+                    while (i < size) {
+                        val resource = spineReferences[i].resource
+                        if (resource.isEpubBookInfoResource()) {
+                            i++
+                            continue
                         }
+                        var title = resource.title
+                        if (TextUtils.isEmpty(title)) {
+                            try {
+                                val doc =
+                                    Jsoup.parse(String(resource.data, mCharset))
+                                val elements = doc.getElementsByTag("title")
+                                if (elements.isNotEmpty()) {
+                                    title = elements[0].text()
+                                }
+                            } catch (e: IOException) {
+                                e.printStackTrace()
+                            }
+                        }
+                        val chapter = BookChapter()
+                        chapter.index = i
+                        chapter.bookUrl = book.bookUrl
+                        chapter.url = resource.href
+                        if (i == 0 && title.isEmpty()) {
+                            chapter.title = "封面"
+                        } else {
+                            chapter.title = title.cleanEpubChapterTitle(resource, i)
+                        }
+                        chapterList.lastOrNull()?.putVariable("nextUrl", chapter.url)
+                        chapterList.add(chapter)
+                        i++
                     }
-                    val chapter = BookChapter()
-                    chapter.index = i
-                    chapter.bookUrl = book.bookUrl
-                    chapter.url = resource.href
-                    if (i == 0 && title.isEmpty()) {
-                        chapter.title = "封面"
-                    } else {
-                        chapter.title = title.cleanEpubChapterTitle(resource, i)
-                    }
-                    chapterList.lastOrNull()?.putVariable("nextUrl", chapter.url)
-                    chapterList.add(chapter)
-                    i++
+                } else {
+                    parseFirstPage(chapterList, refs)
+                    parseMenu(chapterList, refs, 0)
                 }
-            } else {
-                parseFirstPage(chapterList, refs)
-                parseMenu(chapterList, refs, 0)
             }
+            mergeMissingSpineChapters(chapterList)
+            normalizeChapterList(chapterList)
+            getWordCount(chapterList, book)
         }
-        mergeMissingSpineChapters(chapterList)
-        normalizeChapterList(chapterList)
-        getWordCount(chapterList, book)
+        AppLog.putDebug("EPUB getChapterList done: chapters=${chapterList.size}, cost=${cost}ms")
         return chapterList
     }
 
@@ -2336,7 +2423,11 @@ class EpubFile(var book: Book) {
 
 
     protected fun finalize() {
-        fileDescriptor?.close()
+        close()
+    }
+
+    private fun close() {
+        invalidateBookCache(closeDescriptor = true)
     }
 
     private fun getWordCount(list: ArrayList<BookChapter>, book: Book) {

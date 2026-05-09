@@ -2,6 +2,9 @@ package io.legado.app.help
 
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.ReadRecordDaily
+import io.legado.app.receiver.ReadGoalWidgetProvider
+import io.legado.app.receiver.ReadRankWidgetProvider
+import splitties.init.appCtx
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -10,7 +13,11 @@ object ReadRecordDailyHelper {
 
     private val dateFormatter: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
-    fun record(readTime: Long, timestamp: Long = System.currentTimeMillis()) {
+    fun record(
+        readTime: Long,
+        timestamp: Long = System.currentTimeMillis(),
+        forceWidgetUpdate: Boolean = false
+    ) {
         if (readTime <= 0L) return
         val dateKey = Instant.ofEpochMilli(timestamp)
             .atZone(ZoneId.systemDefault())
@@ -30,5 +37,7 @@ object ReadRecordDailyHelper {
             )
         }
         appDb.readRecordDailyDao.insert(record)
+        ReadGoalWidgetProvider.updateAll(appCtx, force = forceWidgetUpdate)
+        ReadRankWidgetProvider.updateAll(appCtx, force = forceWidgetUpdate)
     }
 }

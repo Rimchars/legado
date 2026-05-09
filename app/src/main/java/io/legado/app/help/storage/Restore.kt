@@ -4,6 +4,9 @@ import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import io.legado.app.BuildConfig
 import io.legado.app.R
 import io.legado.app.constant.AppConst.androidId
@@ -72,7 +75,7 @@ object Restore {
 
     private const val TAG = "Restore"
 
-    private val backgroundAssetDirNames = arrayOf(
+    internal val backgroundAssetDirNames = arrayOf(
         PreferKey.bgImage,
         PreferKey.bgImageN,
         PreferKey.bookInfoBgImage,
@@ -105,13 +108,20 @@ object Restore {
 
     suspend fun restoreLocked(path: String) {
         mutex.withLock {
-            restore(path)
+            RestoreJournal.begin(RestoreJournal.buildSnapshotTargets(path))
+            try {
+                restore(path)
+                RestoreJournal.markPendingValidation()
+            } catch (e: Throwable) {
+                RestoreJournal.rollbackNow("恢复过程异常: ${e.localizedMessage}")
+                throw e
+            }
         }
     }
 
     private suspend fun restore(path: String) {
         val aes = BackupAES()
-        fileToListT<Book>(path, "bookshelf.json")?.let {
+        fileToBookList(path)?.let {
             it.forEach { book ->
                 book.upType()
             }
@@ -291,6 +301,7 @@ object Restore {
             edit.commit()
         }
         normalizeBackgroundPrefs()
+        normalizeStringPrefs()
         kotlin.runCatching {
             ThemePackageManager.ensureLocalAppliedTheme(appCtx, false)
             ThemePackageManager.ensureLocalAppliedTheme(appCtx, true)
@@ -350,6 +361,82 @@ object Restore {
         return null
     }
 
+    private fun fileToBookList(path: String): List<Book>? {
+        val fileName = "bookshelf.json"
+        try {
+            val file = File(path, fileName)
+            if (file.exists()) {
+                LogUtils.d(TAG, "阅读恢复备份 $fileName 文件大小 ${file.length()}")
+                val list = arrayListOf<Book>()
+                file.reader().use { reader ->
+                    val jsonArray = JsonParser.parseReader(reader).asJsonArray
+                    jsonArray.forEachIndexed { index, element ->
+                        val bookJson = element.deepCopy()
+                        sanitizeBookJson(bookJson)
+                        runCatching {
+                            GSON.fromJson(bookJson, Book::class.java)
+                        }.onSuccess { book ->
+                            if (book != null) {
+                                list.add(book)
+                            }
+                        }.onFailure {
+                            AppLog.put("$fileName 第${index + 1}项读取失败\n${it.localizedMessage}", it)
+                        }
+                    }
+                }
+                LogUtils.d(TAG, "阅读恢复备份 $fileName 列表大小 ${list.size}")
+                return list
+            } else {
+                LogUtils.d(TAG, "阅读恢复备份 $fileName 文件不存在")
+            }
+        } catch (e: Exception) {
+            AppLog.put("$fileName\n读取解析出错\n${e.localizedMessage}", e)
+            appCtx.toastOnUi("$fileName\n读取文件出错\n${e.localizedMessage}")
+        }
+        return null
+    }
+
+    private fun sanitizeBookJson(element: JsonElement) {
+        if (!element.isJsonObject) {
+            return
+        }
+        val bookJson = element.asJsonObject
+        val readConfig = bookJson.get("readConfig") ?: return
+        if (!readConfig.isJsonObject) {
+            bookJson.remove("readConfig")
+            return
+        }
+        sanitizeReadConfigJson(readConfig.asJsonObject)
+    }
+
+    private fun sanitizeReadConfigJson(readConfig: JsonObject) {
+        val startDate = readConfig.get("startDate") ?: return
+        if (startDate.isJsonPrimitive && startDate.asJsonPrimitive.isString) {
+            val legacyStartDate = runCatching {
+                JsonParser.parseString(startDate.asString)
+            }.getOrNull()
+            if (legacyStartDate?.isJsonObject == true && legacyStartDate.asJsonObject.isValidLocalDateJson()) {
+                readConfig.add("startDate", legacyStartDate)
+            } else {
+                readConfig.remove("startDate")
+            }
+        } else if (startDate.isJsonObject && !startDate.asJsonObject.isValidLocalDateJson()) {
+            readConfig.remove("startDate")
+        }
+    }
+
+    private fun JsonObject.isValidLocalDateJson(): Boolean {
+        val year = getIntOrNull("year") ?: return true
+        val month = getIntOrNull("month") ?: return true
+        val day = getIntOrNull("day") ?: return true
+        return year > 0 && month in 1..12 && day in 1..31
+    }
+
+    private fun JsonObject.getIntOrNull(name: String): Int? {
+        val value = get(name)?.takeIf { it.isJsonPrimitive } ?: return null
+        return runCatching { value.asInt }.getOrNull()
+    }
+
     private fun restoreBackgroundAssets(path: String) {
         backgroundAssetDirNames.forEach { dirName ->
             val sourceDir = File(path, dirName)
@@ -399,6 +486,114 @@ object Restore {
             val restoredFile = appCtx.externalFiles.getFile(key, fileName)
             if (restoredFile.exists()) {
                 edit.putString(key, restoredFile.absolutePath)
+                changed = true
+            }
+        }
+        if (changed) {
+            edit.commit()
+        }
+    }
+
+    private fun normalizeStringPrefs() {
+        val stringKeys = setOf(
+            PreferKey.language,
+            PreferKey.themeMode,
+            PreferKey.userAgent,
+            PreferKey.customHosts,
+            PreferKey.bookGroupStyle,
+            PreferKey.bookshelfHiddenTags,
+            PreferKey.bookshelfGroupTags,
+            PreferKey.ttsEngine,
+            PreferKey.prevKeys,
+            PreferKey.nextKeys,
+            PreferKey.mergedDiscoveryRssTarget,
+            PreferKey.modernDiscoverySourceUrl,
+            PreferKey.modernRssSourceUrl,
+            PreferKey.aiProviderList,
+            PreferKey.aiCurrentProviderId,
+            PreferKey.aiModelConfigList,
+            PreferKey.aiCurrentModelId,
+            PreferKey.aiMcpServerList,
+            PreferKey.aiChatSessionList,
+            PreferKey.aiReadHistoryList,
+            PreferKey.themePackageSyncTasks,
+            PreferKey.aiCurrentChatSessionId,
+            PreferKey.aiSystemPrompt,
+            PreferKey.aiSkillPrompt,
+            PreferKey.aiSkillList,
+            PreferKey.aiTavilyApiKey,
+            PreferKey.aiTavilyBaseUrl,
+            PreferKey.aiTavilySearchDepth,
+            PreferKey.aiTavilyTopic,
+            PreferKey.aiBaseUrl,
+            PreferKey.aiApiKey,
+            PreferKey.aiCurrentModel,
+            PreferKey.aiModelList,
+            PreferKey.bookshelfLayout,
+            PreferKey.bookshelfSort,
+            PreferKey.bookExportFileName,
+            PreferKey.bookImportFileName,
+            PreferKey.episodeExportFileName,
+            PreferKey.fontFolder,
+            PreferKey.backupPath,
+            PreferKey.webDavUrl,
+            PreferKey.webDavAccount,
+            PreferKey.webDavPassword,
+            PreferKey.webDavDir,
+            PreferKey.exportType,
+            PreferKey.chineseConverterType,
+            PreferKey.launcherIcon,
+            PreferKey.systemTypefaces,
+            PreferKey.uiFontPath,
+            PreferKey.titleFontPath,
+            PreferKey.bottomBarEffectMode,
+            PreferKey.bottomBarLayoutMode,
+            PreferKey.bottomBarSidebarGravity,
+            PreferKey.uiCornerScale,
+            PreferKey.uiCornerEffectMode,
+            PreferKey.defaultCover,
+            PreferKey.defaultCoverDark,
+            PreferKey.screenOrientation,
+            PreferKey.exportCharset,
+            PreferKey.mangaFooterConfig,
+            PreferKey.mangaColorFilter,
+            PreferKey.contentSelectMenuConfig,
+            PreferKey.contentSelectActions,
+            PreferKey.contentSelectDefaultOpen,
+            PreferKey.advancedTitleConfig,
+            PreferKey.advancedTitleLottieJson,
+            PreferKey.advancedTitleLottiePath,
+            PreferKey.doublePageHorizontal,
+            PreferKey.defaultBookTreeUri,
+            PreferKey.readRecordComponents,
+            PreferKey.readRecordRecentSnapshots,
+            PreferKey.readRecordGoalConfig,
+            PreferKey.localBookImportSort,
+            PreferKey.welcomeImage,
+            PreferKey.welcomeImageDark,
+            PreferKey.welcomeShowText,
+            PreferKey.welcomeShowTextDark,
+            PreferKey.progressBarBehavior,
+            PreferKey.webDavDeviceName,
+            PreferKey.defaultHomePage,
+            PreferKey.clickImgWay,
+            PreferKey.updateToVariant,
+            PreferKey.dThemeName,
+            PreferKey.dNThemeName,
+            PreferKey.bgImage,
+            PreferKey.bookInfoBgImage,
+            PreferKey.bgImageN,
+            PreferKey.bookInfoBgImageN,
+            "navigationBarPackageDay",
+            "navigationBarPackageNight"
+        )
+        val all = appCtx.defaultSharedPreferences.all
+        val edit = appCtx.defaultSharedPreferences.edit()
+        var changed = false
+        stringKeys.forEach { key ->
+            val value = all[key] ?: return@forEach
+            if (value !is String) {
+                edit.putString(key, value.toString())
                 changed = true
             }
         }

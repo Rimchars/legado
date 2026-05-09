@@ -42,25 +42,25 @@ fun Fragment.showDialogFragment(dialogFragment: DialogFragment) {
 }
 
 fun Fragment.getPrefBoolean(key: String, defValue: Boolean = false) =
-    requireContext().defaultSharedPreferences.getBoolean(key, defValue)
+    requireContext().getPrefBoolean(key, defValue)
 
 fun Fragment.putPrefBoolean(key: String, value: Boolean = false) =
     requireContext().defaultSharedPreferences.edit { putBoolean(key, value) }
 
 fun Fragment.getPrefInt(key: String, defValue: Int = 0) =
-    requireContext().defaultSharedPreferences.getInt(key, defValue)
+    requireContext().getPrefInt(key, defValue)
 
 fun Fragment.putPrefInt(key: String, value: Int) =
     requireContext().defaultSharedPreferences.edit { putInt(key, value) }
 
 fun Fragment.getPrefLong(key: String, defValue: Long = 0L) =
-    requireContext().defaultSharedPreferences.getLong(key, defValue)
+    requireContext().getPrefLong(key, defValue)
 
 fun Fragment.putPrefLong(key: String, value: Long) =
     requireContext().defaultSharedPreferences.edit { putLong(key, value) }
 
 fun Fragment.getPrefString(key: String, defValue: String? = null) =
-    requireContext().defaultSharedPreferences.getString(key, defValue)
+    requireContext().getPrefString(key, defValue)
 
 fun Fragment.putPrefString(key: String, value: String) =
     requireContext().defaultSharedPreferences.edit { putString(key, value) }

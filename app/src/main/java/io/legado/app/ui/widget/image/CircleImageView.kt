@@ -42,6 +42,7 @@ class CircleImageView @JvmOverloads constructor(
         textPaint.textAlign = Paint.Align.CENTER
         textPaint
     }
+    private var textTypeface: Typeface? = null
 
     private var mBorderColor = DEFAULT_BORDER_COLOR
     private var mBorderWidth = DEFAULT_BORDER_WIDTH
@@ -198,6 +199,7 @@ class CircleImageView @JvmOverloads constructor(
         text?.let {
             textPaint.color = textColor
             textPaint.isFakeBoldText = textBold
+            textPaint.typeface = textTypeface
             textPaint.textSize = 15f.spToPx()
             val fm = textPaint.fontMetrics
             canvas.drawText(
@@ -217,6 +219,11 @@ class CircleImageView @JvmOverloads constructor(
 
     fun setTextColor(@ColorInt textColor: Int) {
         this.textColor = textColor
+        invalidate()
+    }
+
+    fun setTypeface(typeface: Typeface?) {
+        textTypeface = typeface
         invalidate()
     }
 

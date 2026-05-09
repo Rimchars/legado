@@ -24,7 +24,9 @@ import io.legado.app.help.DirectLinkUpload
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.primaryColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.ReadAloud
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.association.ImportHttpTtsDialog
@@ -82,6 +84,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
                 val alertBinding = DialogEditTextBinding.inflate(layoutInflater).apply {
                     editView.hint = getString(R.string.path)
                     editView.setText(uri.toString())
+                    root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
                 }
                 customView { alertBinding.root }
                 okButton {
@@ -103,6 +106,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
     }
 
     private fun initView() = binding.run {
+        root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
         toolBar.setBackgroundColor(primaryColor)
         toolBar.setTitle(R.string.speak_engine)
         recyclerView.setEdgeEffectColor(primaryColor)
@@ -110,6 +114,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
         recyclerView.adapter = adapter
         adapter.addHeaderView {
             ItemHttpTtsBinding.inflate(layoutInflater, recyclerView, false).apply {
+                root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
                 sysTtsViews.add(cbName)
                 ivEdit.gone()
                 ivMenuDelete.gone()
@@ -127,6 +132,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
         viewModel.sysEngines.forEach { engine ->
             adapter.addHeaderView {
                 ItemHttpTtsBinding.inflate(layoutInflater, recyclerView, false).apply {
+                    root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
                     sysTtsViews.add(cbName)
                     ivEdit.gone()
                     ivMenuDelete.gone()
@@ -142,6 +148,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
             }
         }
         tvFooterLeft.setText(R.string.book)
+        tvFooterLeft.typeface = requireContext().uiTypeface()
         tvFooterLeft.visible()
         tvFooterLeft.setOnClickListener {
             ReadBook.book?.setTtsEngine(ttsEngine)
@@ -150,6 +157,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
             dismissAllowingStateLoss()
         }
         tvOk.setText(R.string.general)
+        tvOk.typeface = requireContext().uiTypeface()
         tvOk.visible()
         tvOk.setOnClickListener {
             ReadBook.book?.setTtsEngine(null)
@@ -159,6 +167,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
             dismissAllowingStateLoss()
         }
         tvCancel.visible()
+        tvCancel.typeface = requireContext().uiTypeface()
         tvCancel.setOnClickListener {
             dismissAllowingStateLoss()
         }
@@ -243,6 +252,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
                     cacheUrls.remove(it)
                     aCache.put(ttsUrlKey, cacheUrls.joinToString(","))
                 }
+                root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
             }
             customView { alertBinding.root }
             okButton {
@@ -285,6 +295,7 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
         ) {
             binding.apply {
                 cbName.text = item.name
+                cbName.typeface = context.uiTypeface()
                 val isChecked = item.id.toString() == ttsEngine
                 if (isChecked) {
                     currentSelect = holder.layoutPosition - getHeaderCount()

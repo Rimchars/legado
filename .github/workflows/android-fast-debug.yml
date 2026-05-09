@@ -54,12 +54,29 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
+
+      - name: Install AAPT2 runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libc6-i386 lib32stdc++6 lib32z1 libncurses6 libtinfo6
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
+      - name: Sanitize Gradle AAPT2 caches
+        run: |
+          rm -rf ~/.gradle/caches
+          rm -rf ~/.gradle/daemon
+          rm -rf ~/.gradle/native
+          rm -rf ~/.gradle/caches/*/transforms
+          rm -rf ~/.gradle/caches/*/transforms-*
+          rm -rf ~/.gradle/caches/modules-2/files-2.1/com.android.tools.build/aapt2
+
       - name: Build arm64 debug APK
+        env:
+          GRADLE_OPTS: >-
+            -Dorg.gradle.jvmargs=-XX:+UseParallelGC\ -Xmx4g\ -Xms256m\ -XX:MaxMetaspaceSize=768m\ -Dfile.encoding=UTF-8
+            -Dorg.gradle.workers.max=2
         run: |
           VERSION_CODE=$(($(date -u +%s) / 60))
           ./gradlew :app:assembleAppDebug \
@@ -69,6 +86,8 @@ jobs:
             -PRELEASE_STORE_PASSWORD=legado-ci-debug \
             -PRELEASE_KEY_ALIAS=legado-ci-debug \
             -PRELEASE_KEY_PASSWORD=legado-ci-debug \
+            --no-daemon \
+            --max-workers=2 \
             --stacktrace
 
       - name: Resolve APK

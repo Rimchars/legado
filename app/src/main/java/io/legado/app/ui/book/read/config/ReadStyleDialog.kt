@@ -20,8 +20,10 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.font.FontSelectDialog
@@ -73,6 +75,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
         val textColor = requireContext().getPrimaryTextColor(isLight)
         val palette = ReaderSheetStyle.resolve(requireContext())
         rootView.background = ReaderSheetStyle.topSheetDrawable(palette)
+        rootView.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
         panelTextTools.background = null
         panelPageAnim.background = null
         panelStyleLibrary.background = null
@@ -91,6 +94,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
         rvStyle.adapter = styleAdapter
         styleAdapter.addFooterView {
             ItemReadStyleBinding.inflate(layoutInflater, it, false).apply {
+                root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
                 ivStyle.setPadding(6.dpToPx(), 6.dpToPx(), 6.dpToPx(), 6.dpToPx())
                 ivStyle.setText(null)
                 ivStyle.setColorFilter(textColor)
@@ -249,6 +253,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
         ) {
             binding.apply {
                 ivStyle.setText(item.name.ifBlank { "文字" })
+                ivStyle.setTypeface(requireContext().uiTypeface())
                 ivStyle.setTextColor(item.curTextColor())
                 ivStyle.setImageDrawable(item.curBgDrawable(100, 150))
                 if (ReadBookConfig.styleSelect == holder.layoutPosition) {

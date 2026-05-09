@@ -35,10 +35,18 @@ import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiLabelStyle
+import io.legado.app.lib.theme.applyUiSectionTitleStyle
+import io.legado.app.lib.theme.applyUiTitleTypeface
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.loadUiTypeface
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
+import io.legado.app.lib.theme.titleTypeface
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.file.HandleFileContract
+import io.legado.app.ui.font.FontSelectDialog
 import io.legado.app.ui.image.ImageCropContract
 import io.legado.app.ui.widget.number.NumberPickerDialog
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
@@ -55,6 +63,7 @@ import io.legado.app.utils.getPrefString
 import io.legado.app.utils.hexString
 import io.legado.app.utils.putPrefString
 import io.legado.app.utils.removePref
+import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CancellationException
@@ -65,12 +74,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URLDecoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
-    ColorPickerDialogListener {
+    ColorPickerDialogListener,
+    FontSelectDialog.CallBack {
 
     override val binding by viewBinding(ActivityThemeManageBinding::inflate)
 
@@ -86,6 +97,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private var pendingFontScale = 0
     private var pendingUiCornerSearchFollow = false
     private var pendingUiCornerReplyFollow = false
+    private var pendingUiFontPath: String? = null
+    private var pendingTitleFontPath: String? = null
+    private var pendingFontTarget = FontTarget.UI
     private var loadVersion = 0
     private val pendingRemoteSyncTasks = linkedMapOf<String, RemoteSyncTask>()
     @Volatile
@@ -175,6 +189,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         btnAdd.setOnClickListener {
             showAddDialog()
         }
+        root.applyUiBodyTypefaceDeep(this@ThemeManageActivity.uiTypeface())
+        binding.tvSummary.applyUiLabelStyle(this@ThemeManageActivity)
+        binding.tvSummary.setTextColor(secondaryTextColor)
         updateTabs()
     }
 
@@ -264,11 +281,12 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     }
 
     private fun showManualAddDialog() {
-        alert(getString(R.string.theme_manual_add)) {
+        val dialog = alert(getString(R.string.theme_manual_add)) {
             val dialogBinding = createEditBinding(currentConfig(), null)
             editDialogBinding = dialogBinding
             editingEntry = null
             customView { dialogBinding.root }
+            applyThemeEditFonts(dialogBinding)
             okButton { saveTheme(dialogBinding) }
             onDismiss {
                 editDialogBinding = null
@@ -276,6 +294,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }
             cancelButton()
         }
+        applyThemeEditDialogSize(dialog)
     }
 
     private fun showEditDialog(entry: ThemePackageManager.Entry) {
@@ -287,11 +306,12 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     entry
                 }
             }.onSuccess { localEntry ->
-                alert(getString(R.string.theme_edit)) {
+                val dialog = alert(getString(R.string.theme_edit)) {
                     val dialogBinding = createEditBinding(ThemePackageManager.getConfig(localEntry), localEntry)
                     editDialogBinding = dialogBinding
                     editingEntry = localEntry
                     customView { dialogBinding.root }
+                    applyThemeEditFonts(dialogBinding)
                     okButton {
                         saveTheme(dialogBinding)
                         editDialogBinding = null
@@ -303,6 +323,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     }
                     cancelButton()
                 }
+                applyThemeEditDialogSize(dialog)
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(getString(R.string.theme_package_read_failed, it.localizedMessage))
@@ -320,6 +341,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         pendingUiCornerScale = current.uiCornerScale ?: AppConfig.uiCornerScale
         pendingUiLayoutAlpha = current.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha
         pendingFontScale = current.fontScale ?: getPrefInt(PreferKey.fontScale, 0)
+        pendingUiFontPath = current.uiFontPath ?: AppConfig.uiFontPath
+        pendingTitleFontPath = current.titleFontPath ?: AppConfig.titleFontPath
         pendingUiCornerSearchFollow = current.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow
         pendingUiCornerReplyFollow = current.uiCornerReplyFollow ?: AppConfig.uiCornerReplyFollow
         return DialogThemePackageEditBinding.inflate(layoutInflater).apply {
@@ -339,6 +362,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         setupCornerScaleRow(rowCornerScale)
         setupLayoutAlphaRow(rowLayoutAlpha)
         setupFontScaleRow(rowFontScale)
+        setupUiFontRow(rowUiFont)
+        setupTitleFontRow(rowTitleFont)
         setupSwitchRow(rowSearchFollow, R.string.ui_corner_search_follow) {
             pendingUiCornerSearchFollow = !pendingUiCornerSearchFollow
             updateSwitchRow(rowSearchFollow, pendingUiCornerSearchFollow)
@@ -349,6 +374,39 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
         updateSwitchRow(rowSearchFollow, pendingUiCornerSearchFollow)
         updateSwitchRow(rowReplyFollow, pendingUiCornerReplyFollow)
+        applyThemeEditFonts(this)
+    }
+
+    private fun applyThemeEditDialogSize(dialog: androidx.appcompat.app.AlertDialog) {
+        val metrics = resources.displayMetrics
+        dialog.window?.setLayout(
+            (metrics.widthPixels * EDIT_DIALOG_WIDTH_RATIO).toInt(),
+            (metrics.heightPixels * EDIT_DIALOG_HEIGHT_RATIO).toInt()
+        )
+    }
+
+    private fun applyThemeEditFonts(binding: DialogThemePackageEditBinding) {
+        val uiTf = loadUiTypeface(pendingUiFontPath.orEmpty()) ?: uiTypeface()
+        binding.root.applyUiBodyTypefaceDeep(uiTf)
+        val titleTf = loadUiTypeface(pendingTitleFontPath.orEmpty()) ?: titleTypeface()
+        listOf(
+            binding.rowPrimary.tvTitle,
+            binding.rowAccent.tvTitle,
+            binding.rowBackground.tvTitle,
+            binding.rowBottomBackground.tvTitle,
+            binding.rowMainBackground.tvTitle,
+            binding.rowBookInfoBackground.tvTitle,
+            binding.rowCornerScale.tvTitle,
+            binding.rowLayoutAlpha.tvTitle,
+            binding.rowFontScale.tvTitle,
+            binding.rowUiFont.tvTitle,
+            binding.rowTitleFont.tvTitle,
+            binding.rowSearchFollow.tvTitle,
+            binding.rowReplyFollow.tvTitle
+        ).forEach {
+            it.applyUiTitleTypeface(this)
+            it.typeface = titleTf
+        }
     }
 
     private fun setupCornerScaleRow(row: ItemThemePackageOptionBinding) {
@@ -410,11 +468,33 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 .setCustomButton(R.string.btn_default_s) {
                     pendingFontScale = 0
                     setupFontScaleRow(row)
+                    editDialogBinding?.let { applyThemeEditFonts(it) }
                 }
                 .show {
                     pendingFontScale = it.coerceIn(8, 16)
                     setupFontScaleRow(row)
+                    editDialogBinding?.let { applyThemeEditFonts(it) }
                 }
+        }
+    }
+
+    private fun setupUiFontRow(row: ItemThemePackageOptionBinding) {
+        row.tvTitle.text = getString(R.string.ui_font)
+        row.viewSwatch.visibility = View.INVISIBLE
+        row.tvValue.text = uiFontDisplayName(pendingUiFontPath)
+        row.root.setOnClickListener {
+            pendingFontTarget = FontTarget.UI
+            showDialogFragment<FontSelectDialog>()
+        }
+    }
+
+    private fun setupTitleFontRow(row: ItemThemePackageOptionBinding) {
+        row.tvTitle.text = getString(R.string.title_font)
+        row.viewSwatch.visibility = View.INVISIBLE
+        row.tvValue.text = uiFontDisplayName(pendingTitleFontPath)
+        row.root.setOnClickListener {
+            pendingFontTarget = FontTarget.TITLE
+            showDialogFragment<FontSelectDialog>()
         }
     }
 
@@ -533,8 +613,11 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private fun saveTheme(dialogBinding: DialogThemePackageEditBinding) {
         val name = dialogBinding.etName.text?.toString()?.trim().orEmpty()
             .ifBlank { getString(if (isNightTheme) R.string.theme_night else R.string.theme_day) }
+        val baseConfig = editingEntry?.let {
+            kotlin.runCatching { ThemePackageManager.getConfig(it) }.getOrNull()
+        } ?: currentConfig()
         val config = kotlin.runCatching {
-            ThemeConfig.Config(
+            baseConfig.copy(
                 themeName = name,
                 isNightTheme = isNightTheme,
                 primaryColor = normalizeColor(dialogBinding.rowPrimary.tvValue.text?.toString()),
@@ -549,7 +632,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 uiLayoutAlpha = pendingUiLayoutAlpha,
                 uiCornerSearchFollow = pendingUiCornerSearchFollow,
                 uiCornerReplyFollow = pendingUiCornerReplyFollow,
-                fontScale = pendingFontScale
+                fontScale = pendingFontScale,
+                uiFontPath = pendingUiFontPath,
+                titleFontPath = pendingTitleFontPath
             )
         }.onFailure {
             toastOnUi(R.string.color_format_error)
@@ -639,8 +724,75 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             uiLayoutAlpha = AppConfig.uiLayoutAlpha,
             uiCornerSearchFollow = AppConfig.uiCornerSearchFollow,
             uiCornerReplyFollow = AppConfig.uiCornerReplyFollow,
-            fontScale = getPrefInt(PreferKey.fontScale, 0)
+            fontScale = getPrefInt(PreferKey.fontScale, 0),
+            uiFontPath = AppConfig.uiFontPath,
+            titleFontPath = AppConfig.titleFontPath
         )
+    }
+
+    override val curFontPath: String
+        get() = when (pendingFontTarget) {
+            FontTarget.TITLE -> pendingTitleFontPath
+            FontTarget.UI -> pendingUiFontPath
+        }.orEmpty()
+
+    override val applySystemTypefaceOnDefault: Boolean
+        get() = false
+
+    override fun selectFont(path: String) {
+        when (pendingFontTarget) {
+            FontTarget.UI -> {
+                pendingUiFontPath = path
+                editDialogBinding?.let {
+                    setupUiFontRow(it.rowUiFont)
+                    applyThemeEditFonts(it)
+                }
+            }
+
+            FontTarget.TITLE -> {
+                pendingTitleFontPath = path
+                editDialogBinding?.let {
+                    setupTitleFontRow(it.rowTitleFont)
+                    applyThemeEditFonts(it)
+                }
+            }
+        }
+    }
+
+    private fun uiFontDisplayName(path: String?): String {
+        if (path.isNullOrBlank()) {
+            return getString(R.string.default_font)
+        }
+        val rawName = runCatching {
+            val uri = Uri.parse(path)
+            when {
+                uri.scheme == "content" -> androidx.documentfile.provider.DocumentFile
+                    .fromSingleUri(this, uri)
+                    ?.name
+                uri.scheme == "file" -> File(uri.path.orEmpty()).name
+                else -> null
+            }
+        }.getOrNull()
+            ?: path.substringAfterLast(File.separator)
+                .substringAfterLast("/")
+                .substringAfterLast(":")
+        val displayName = when {
+            rawName.startsWith("ui_font.") -> rawName.replaceFirst("ui_font", getString(R.string.ui_font))
+            rawName.startsWith("title_font.") -> rawName.replaceFirst("title_font", getString(R.string.title_font))
+            else -> rawName
+                .removePrefix("ui_font_")
+                .removePrefix("title_font_")
+        }
+        return runCatching {
+            URLDecoder.decode(displayName, "utf-8")
+        }.getOrDefault(displayName).ifBlank {
+            getString(R.string.default_font)
+        }
+    }
+
+    private enum class FontTarget {
+        UI,
+        TITLE
     }
 
     private fun Float.toScaleText(): String {
@@ -994,7 +1146,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     val time = maxOf(pkg.updatedAt, entry.remoteUpdatedAt)
                     append(if (time > 0) dateFormat.format(Date(time)) else getString(R.string.theme_time_unknown))
                 }
-                tvName.setTextColor(primaryTextColor)
+                tvName.applyUiSectionTitleStyle(this@ThemeManageActivity)
+                tvInfo.applyUiLabelStyle(this@ThemeManageActivity)
                 tvInfo.setTextColor(secondaryTextColor)
                 listOf(btnApply, btnEdit, btnMore).forEach {
                     it.background = UiCorner.actionSelector(
@@ -1007,6 +1160,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 btnApply.text = getString(if (isApplied(entry)) R.string.theme_applied_state else R.string.theme_apply)
                 btnEdit.setTextColor(primaryTextColor)
                 btnMore.setTextColor(primaryTextColor)
+                listOf(btnApply, btnEdit, btnMore).forEach {
+                    it.typeface = this@ThemeManageActivity.uiTypeface()
+                }
                 bindPreview(entry)
                 btnApply.setOnClickListener { applyTheme(entry) }
                 btnEdit.setOnClickListener { showEditDialog(entry) }
@@ -1074,6 +1230,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
     companion object {
         private val themeRemoteSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private const val EDIT_DIALOG_WIDTH_RATIO = 0.94f
+        private const val EDIT_DIALOG_HEIGHT_RATIO = 0.82f
         private const val requestMainBackground = 301
         private const val requestBookInfoBackground = 302
         private const val colorPrimary = 401

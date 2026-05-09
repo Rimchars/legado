@@ -37,6 +37,8 @@ import io.legado.app.ui.book.read.config.ReaderSheetStyle
 import io.legado.app.ui.browser.WebViewActivity
 import io.legado.app.ui.widget.ModernActionPopup
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.activity
 import io.legado.app.utils.applyStatusBarPadding
@@ -149,6 +151,7 @@ class ReadMenu @JvmOverloads constructor(
 
     init {
         binding.titleBar.applyStatusBarPadding(withInitialPadding = true)
+        binding.root.applyUiBodyTypefaceDeep(context.uiTypeface())
         initView()
         upBrightnessState()
         bindEvent()

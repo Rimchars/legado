@@ -15,9 +15,11 @@ import io.legado.app.databinding.ViewSearchMenuBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.Selector
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.searchContent.SearchResult
 import io.legado.app.utils.ColorUtils
@@ -63,6 +65,7 @@ class SearchMenu @JvmOverloads constructor(
     val bottomMenuVisible get() = isVisible && binding.llBottomMenu.isVisible
 
     init {
+        binding.root.applyUiBodyTypefaceDeep(context.uiTypeface())
         initAnimation()
         initView()
         bindEvent()

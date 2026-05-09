@@ -12,6 +12,8 @@ import io.legado.app.databinding.DialogTipConfigBinding
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
 import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.checkByIndex
 import io.legado.app.utils.getIndexById
 import io.legado.app.utils.hexString
@@ -36,6 +38,7 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
+        binding.root.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
         initView()
         initEvent()
         observeEvent<String>(EventBus.TIP_COLOR) {

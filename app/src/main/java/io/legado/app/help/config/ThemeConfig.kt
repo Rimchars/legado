@@ -48,6 +48,9 @@ import java.util.Locale
 
 @Keep
 object ThemeConfig {
+
+    private var usableBgImageCacheKey: String? = null
+    private var usableBgImageCacheValue: Boolean = false
     const val configFileName = "themeConfig.json"
     val configFilePath = FileUtils.getPath(appCtx.filesDir, configFileName)
 
@@ -144,11 +147,21 @@ object ThemeConfig {
             else -> return false
         }
         val path = context.getPrefString(preferenceKey)?.takeIf { it.isNotBlank() } ?: return false
+        val cacheKey = "$preferenceKey|$path"
+        if (usableBgImageCacheKey == cacheKey) {
+            return usableBgImageCacheValue
+        }
         if (path.startsWith("http", ignoreCase = true)) {
             val filePath = FileUtils.getPath(context.externalFiles, preferenceKey, getUrlToFile(path))
-            return FileUtils.exist(filePath)
+            return FileUtils.exist(filePath).also {
+                usableBgImageCacheKey = cacheKey
+                usableBgImageCacheValue = it
+            }
         }
-        return File(path).exists()
+        return File(path).exists().also {
+            usableBgImageCacheKey = cacheKey
+            usableBgImageCacheValue = it
+        }
     }
 
     fun getFallbackBackgroundColor(context: Context): Int {
@@ -285,6 +298,8 @@ object ThemeConfig {
             config.fontScale?.let {
                 context.putPrefInt(PreferKey.fontScale, it.coerceIn(0, 16))
             }
+            context.putPrefString(PreferKey.uiFontPath, config.uiFontPath.orEmpty())
+            context.putPrefString(PreferKey.titleFontPath, config.titleFontPath.orEmpty())
             if (backgroundPath != null && backgroundPath.startsWith("http")) {
                 val fileRoot = context.externalFiles
                 val preferenceKey = if (isNightTheme) {
@@ -423,7 +438,9 @@ object ThemeConfig {
                 uiLayoutAlpha = stored?.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha,
                 uiCornerSearchFollow = stored?.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow,
                 uiCornerReplyFollow = stored?.uiCornerReplyFollow ?: AppConfig.uiCornerReplyFollow,
-                fontScale = stored?.fontScale ?: appCtx.getPrefInt(PreferKey.fontScale, 0)
+                fontScale = stored?.fontScale ?: appCtx.getPrefInt(PreferKey.fontScale, 0),
+                uiFontPath = stored?.uiFontPath ?: AppConfig.uiFontPath,
+                titleFontPath = stored?.titleFontPath ?: AppConfig.titleFontPath
             )
         )
     }
@@ -473,7 +490,9 @@ object ThemeConfig {
                 uiLayoutAlpha = stored?.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha,
                 uiCornerSearchFollow = stored?.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow,
                 uiCornerReplyFollow = stored?.uiCornerReplyFollow ?: AppConfig.uiCornerReplyFollow,
-                fontScale = stored?.fontScale ?: appCtx.getPrefInt(PreferKey.fontScale, 0)
+                fontScale = stored?.fontScale ?: appCtx.getPrefInt(PreferKey.fontScale, 0),
+                uiFontPath = stored?.uiFontPath ?: AppConfig.uiFontPath,
+                titleFontPath = stored?.titleFontPath ?: AppConfig.titleFontPath
             )
         )
     }
@@ -498,7 +517,9 @@ object ThemeConfig {
             uiLayoutAlpha = config.uiLayoutAlpha ?: stored.uiLayoutAlpha,
             uiCornerSearchFollow = config.uiCornerSearchFollow ?: stored.uiCornerSearchFollow,
             uiCornerReplyFollow = config.uiCornerReplyFollow ?: stored.uiCornerReplyFollow,
-            fontScale = config.fontScale ?: stored.fontScale
+            fontScale = config.fontScale ?: stored.fontScale,
+            uiFontPath = config.uiFontPath ?: stored.uiFontPath,
+            titleFontPath = config.titleFontPath ?: stored.titleFontPath
         )
     }
 
@@ -631,7 +652,9 @@ object ThemeConfig {
         var uiLayoutAlpha: Int? = null,
         var uiCornerSearchFollow: Boolean? = null,
         var uiCornerReplyFollow: Boolean? = null,
-        var fontScale: Int? = null
+        var fontScale: Int? = null,
+        var uiFontPath: String? = null,
+        var titleFontPath: String? = null
     ) {
 
         override fun hashCode(): Int {
@@ -656,6 +679,8 @@ object ThemeConfig {
                         && other.uiCornerSearchFollow == uiCornerSearchFollow
                         && other.uiCornerReplyFollow == uiCornerReplyFollow
                         && other.fontScale == fontScale
+                        && other.uiFontPath == uiFontPath
+                        && other.titleFontPath == titleFontPath
             }
             return false
         }
@@ -675,7 +700,9 @@ object ThemeConfig {
             "uiLayoutAlpha" to uiLayoutAlpha,
             "uiCornerSearchFollow" to uiCornerSearchFollow,
             "uiCornerReplyFollow" to uiCornerReplyFollow,
-            "fontScale" to fontScale
+            "fontScale" to fontScale,
+            "uiFontPath" to uiFontPath,
+            "titleFontPath" to titleFontPath
         )
 
     }

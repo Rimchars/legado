@@ -13,6 +13,10 @@ import io.legado.app.R
 import io.legado.app.databinding.DialogReadRecordComponentsBinding
 import io.legado.app.databinding.ItemReadRecordComponentBinding
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiLabelStyle
+import io.legado.app.lib.theme.applyUiSectionTitleStyle
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.widget.recycler.ItemTouchCallback
 import io.legado.app.utils.applyTint
 import io.legado.app.utils.dpToPx
@@ -26,6 +30,7 @@ object ReadRecordComponentConfigDialog {
         onSaved: (List<ReadRecordComponentItem>) -> Unit
     ) {
         val binding = DialogReadRecordComponentsBinding.inflate(LayoutInflater.from(context))
+        binding.root.applyUiBodyTypefaceDeep(context.uiTypeface())
         val adapter = ComponentAdapter(context, initialItems.map { it.copy() }.toMutableList())
         binding.root.layoutParams = ViewGroup.LayoutParams(
             (context.resources.displayMetrics.widthPixels * 0.9f).toInt(),
@@ -105,6 +110,8 @@ object ReadRecordComponentConfigDialog {
                 )
                 tvTitle.text = context.getString(item.type.titleRes)
                 tvSubtitle.text = context.getString(item.type.hintRes)
+                tvTitle.applyUiSectionTitleStyle(context)
+                tvSubtitle.applyUiLabelStyle(context)
                 cbEnabled.setOnCheckedChangeListener(null)
                 cbEnabled.isChecked = item.enabled
                 cbEnabled.setOnCheckedChangeListener { _, checked ->

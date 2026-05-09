@@ -8,7 +8,9 @@ import android.view.View
 import androidx.appcompat.app.AlertDialog
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.dialogSurfaceBackground
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.applyTint
 
 internal class AndroidAlertBuilder(override val ctx: Context) : AlertBuilder<AlertDialog> {
@@ -39,10 +41,12 @@ internal class AndroidAlertBuilder(override val ctx: Context) : AlertBuilder<Ale
     }
 
     override fun setCustomTitle(customTitle: View) {
+        customTitle.applyUiBodyTypefaceDeep(ctx.uiTypeface())
         builder.setCustomTitle(customTitle)
     }
 
     override fun setCustomView(customView: View) {
+        customView.applyUiBodyTypefaceDeep(ctx.uiTypeface())
         builder.setView(customView)
     }
 

@@ -310,6 +310,8 @@
     <string name="nb_file_add_succeed">成功新增%1$d本書</string>
     <string name="fonts_folder">請將字體檔案放到SD根目錄Fonts資料夾下重新選擇</string>
     <string name="default_font">預設字體</string>
+    <string name="ui_font">介面字體</string>
+    <string name="title_font">標題字體</string>
     <string name="select_font">選擇字體</string>
     <string name="text_size">字號</string>
     <string name="line_size">行距</string>

@@ -19,6 +19,7 @@ import androidx.annotation.MenuRes
 import androidx.core.content.ContextCompat
 import io.legado.app.R
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiMenuItemTypeface
 import io.legado.app.utils.dpToPx
 
 object ModernActionPopup {
@@ -125,6 +126,7 @@ object ModernActionPopup {
             minHeight = 42.dpToPx()
             setTextColor(textColor)
             textSize = 14f
+            applyUiMenuItemTypeface(context)
             includeFontPadding = false
             setPadding(16.dpToPx(), 0, 16.dpToPx(), 0)
             background = UiCorner.actionSelector(
