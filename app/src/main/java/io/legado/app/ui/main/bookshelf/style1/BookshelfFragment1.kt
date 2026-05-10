@@ -24,6 +24,7 @@ import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.legado.app.ui.main.bookshelf.style1.books.BooksFragment
+import io.legado.app.ui.widget.MainTopBarView
 import io.legado.app.ui.widget.ModernActionPopup
 import io.legado.app.ui.widget.RoundedTagBarView
 import io.legado.app.utils.applyStatusBarPadding
@@ -77,22 +78,15 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
     private fun initView() {
         binding.root.applyStatusBarPadding()
         binding.viewPagerBookshelf.setEdgeEffectColor(primaryColor)
-        binding.btnMore.setOnClickListener {
+        binding.topBar.setMode(MainTopBarView.Mode.BOOKSHELF)
+        binding.topBar.moreButton.setOnClickListener {
             showModernBookshelfMenu(it)
         }
-        binding.llTitleSelect.setOnClickListener {
+        binding.topBar.titleSelect.setOnClickListener {
             showGroupSwitchMenu(it)
         }
-        binding.tabBarGlassView.visibility = View.GONE
-        binding.tabBarShellOverlay.visibility = View.GONE
-        binding.tabIndicatorContainer.visibility = View.GONE
-        binding.btnMoreGlassView.visibility = View.GONE
-        binding.btnMoreShellOverlay.visibility = View.GONE
-        binding.btnMore.setBackgroundResource(R.drawable.bg_more_icon_button_clear)
-        val iconColor = ContextCompat.getColor(requireContext(), R.color.primaryText)
-        binding.btnMore.setColorFilter(iconColor)
-        binding.ivBookshelfTitleArrow.setColorFilter(iconColor)
-        binding.tabLayout.setOnTagClickListener { index ->
+        binding.topBar.showTags(true)
+        binding.topBar.tagsBar.setOnTagClickListener { index ->
             val tag = bookTags.getOrNull(index).orEmpty()
             if (tag == selectedBookTag) {
                 selectedGroup?.let { group ->
@@ -103,11 +97,11 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
                 }
             } else {
                 selectedBookTag = tag
-                binding.tabLayout.setSelectedIndex(index, smooth = true)
+                binding.topBar.tagsBar.setSelectedIndex(index, smooth = true)
                 fragmentMap[groupId]?.setBookTagFilter(tag)
             }
         }
-        binding.tabLayout.setOnTagLongClickListener { index ->
+        binding.topBar.tagsBar.setOnTagLongClickListener { index ->
             selectedBookTag = bookTags.getOrNull(index).orEmpty()
             fragmentMap[groupId]?.setBookTagFilter(selectedBookTag)
             true
@@ -158,7 +152,7 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
     private fun selectSavedGroup() {
         binding.viewPagerBookshelf.post {
             if (bookGroups.isEmpty()) {
-                binding.tabLayout.submitItems(emptyList(), -1)
+                binding.topBar.tagsBar.submitItems(emptyList(), -1)
                 updateHeaderTitle()
                 return@post
             }
@@ -176,8 +170,7 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
     }
 
     private fun updateHeaderTitle() {
-        binding.tvBookshelfTitle.text = selectedGroup?.groupName ?: getString(R.string.bookshelf)
-        binding.tvBookshelfTitle.applyUiTitleTypeface(requireContext())
+        binding.topBar.setTitle(selectedGroup?.groupName ?: getString(R.string.bookshelf))
     }
 
     fun onBooksChanged(groupId: Long, books: List<Book>) {
@@ -209,7 +202,7 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
             selectedBookTag = ""
             fragmentMap[groupId]?.setBookTagFilter("")
         }
-        binding.tabLayout.submitItems(
+        binding.topBar.tagsBar.submitItems(
             bookTags.map { RoundedTagBarView.Item(it.ifBlank { allText }) },
             bookTags.indexOf(selectedBookTag).takeIf { it >= 0 } ?: 0
         )

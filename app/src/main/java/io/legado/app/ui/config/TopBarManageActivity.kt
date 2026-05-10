@@ -172,7 +172,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
             TopBarConfig.Source.LOCAL,
             ""
         )
-        if (base.dirName == TopBarConfig.DEFAULT_DIR_NAME) {
+        if (entry != null && base.dirName == TopBarConfig.DEFAULT_DIR_NAME) {
             toastOnUi(R.string.navigation_bar_default_readonly)
             return
         }
@@ -295,8 +295,8 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
     private fun showActions(entry: TopBarConfig.Entry) {
         val actions = buildList {
             add(Action.APPLY)
+            add(Action.EDIT)
             if (entry.dirName != TopBarConfig.DEFAULT_DIR_NAME) {
-                add(Action.EDIT)
                 add(Action.EXPORT)
                 if (AppConfig.syncThemePackages) add(Action.UPLOAD)
                 if (entry.source != TopBarConfig.Source.LOCAL) add(Action.DOWNLOAD)
@@ -499,7 +499,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                 cardPreview.visibility = View.GONE
                 btnApply.text = getString(if (entry.dirName == activeDirName) R.string.theme_applied_state else R.string.theme_apply)
                 btnEdit.text = getString(R.string.edit)
-                btnEdit.visibility = if (entry.dirName == TopBarConfig.DEFAULT_DIR_NAME) View.GONE else View.VISIBLE
+                btnEdit.visibility = View.VISIBLE
                 btnApply.setOnClickListener { applyPackage(entry) }
                 btnEdit.setOnClickListener { showEditDialog(entry) }
                 btnMore.setOnClickListener { showActions(entry) }

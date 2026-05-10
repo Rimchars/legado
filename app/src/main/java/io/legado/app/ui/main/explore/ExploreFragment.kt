@@ -159,7 +159,8 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 upExploreData(searchView?.query?.toString())
             }
         }
-        binding.llDiscoverSourceRow.applyStatusBarPadding(withInitialPadding = true)
+        binding.topBar.setMode(io.legado.app.ui.widget.MainTopBarView.Mode.DISCOVERY)
+        binding.topBar.applyStatusBarPadding(withInitialPadding = true)
         binding.rvFind.clipToPadding = false
         binding.rvFind.applyMainBottomBarPadding()
         binding.rvDiscoverBooks.clipToPadding = false
@@ -287,7 +288,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun initDiscoverRecycler() {
-        binding.rvDiscoverTags.setOnTagClickListener { index ->
+        binding.topBar.tagsBar.setOnTagClickListener { index ->
             val item = discoverTagItems.getOrNull(index) ?: return@setOnTagClickListener
             if (item.isButton) {
                 handleDiscoverButtonTag(item)
@@ -295,7 +296,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             }
             selectDiscoverTag(index, item, selectTab = true)
         }
-        binding.rvDiscoverSelects.setOnTagClickListener { index ->
+        binding.topBar.selectsBar.setOnTagClickListener { index ->
             val item = discoverSelectItems.getOrNull(index) ?: return@setOnTagClickListener
             showDiscoverSelectDialog(item)
         }
@@ -333,22 +334,22 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun bindDiscoverSourceSelector() {
-        binding.tvDiscoverSourceSelect.applyUiTitleTypeface(requireContext())
+        binding.topBar.titleText.applyUiTitleTypeface(requireContext())
         val updateSourceNameWidth = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateDiscoverSourceNameWidth()
         }
-        binding.llDiscoverSourceRow.addOnLayoutChangeListener(updateSourceNameWidth)
-        binding.llDiscoverSourceRow.post(::updateDiscoverSourceNameWidth)
-        binding.llDiscoverSourceSelect.setOnClickListener {
+        binding.topBar.addOnLayoutChangeListener(updateSourceNameWidth)
+        binding.topBar.post(::updateDiscoverSourceNameWidth)
+        binding.topBar.titleSelect.setOnClickListener {
             showDiscoverSourceMenu()
         }
-        binding.btnDiscoverSourceLogin.setOnClickListener {
+        binding.topBar.loginButton.setOnClickListener {
             openSelectedSourceLogin()
         }
-        binding.btnDiscoverSourceSearch.setOnClickListener {
+        binding.topBar.searchButton.setOnClickListener {
             openDiscoverSearch()
         }
-        binding.btnDiscoverTagFilter.setOnClickListener {
+        binding.topBar.filterButton.setOnClickListener {
             showDiscoverTagFilterMenu()
         }
         updateDiscoverTagFilterButtonState()
@@ -356,16 +357,16 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun updateDiscoverSourceNameWidth() {
-        val rowWidth = binding.llDiscoverSourceRow.width
+        val rowWidth = binding.topBar.width
         if (rowWidth <= 0) return
         val actionsWidth = listOf(
-            binding.btnDiscoverSourceSearch,
-            binding.btnDiscoverTagFilter,
-            binding.btnDiscoverSourceLogin
+            binding.topBar.searchButton,
+            binding.topBar.filterButton,
+            binding.topBar.loginButton
         ).filter { it.isVisible }.sumOf { it.measuredWidth.takeIf { width -> width > 0 } ?: it.layoutParams.width }
         val spacing = 36.dpToPx()
         val maxWidth = (rowWidth - actionsWidth - spacing).coerceIn(96.dpToPx(), 190.dpToPx())
-        binding.tvDiscoverSourceSelect.maxWidth = maxWidth
+        binding.topBar.titleText.maxWidth = maxWidth
     }
 
     private fun openSelectedSourceLogin() {
@@ -382,16 +383,16 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
     private fun updateDiscoverLoginButtonState() {
         val canLogin = selectedDiscoverSourcePart?.hasLoginUrl == true
-        binding.btnDiscoverSourceLogin.isEnabled = canLogin
-        binding.btnDiscoverSourceLogin.alpha = if (canLogin) 1f else 0.45f
+        binding.topBar.loginButton.isEnabled = canLogin
+        binding.topBar.loginButton.alpha = if (canLogin) 1f else 0.45f
     }
 
     private fun updateDiscoverSearchButtonState() {
         val canSearch = !selectedDiscoverSource?.searchUrl.isNullOrBlank()
-        binding.btnDiscoverSourceSearch.isVisible = canSearch
-        binding.btnDiscoverSourceSearch.isEnabled = canSearch
-        binding.btnDiscoverSourceSearch.alpha = if (canSearch) 1f else 0.45f
-        binding.llDiscoverSourceRow.post(::updateDiscoverSourceNameWidth)
+        binding.topBar.searchButton.isVisible = canSearch
+        binding.topBar.searchButton.isEnabled = canSearch
+        binding.topBar.searchButton.alpha = if (canSearch) 1f else 0.45f
+        binding.topBar.post(::updateDiscoverSourceNameWidth)
     }
 
     private fun openDiscoverSearch() {
@@ -429,7 +430,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         selectedDiscoverMajorGroup = null
                         clearDiscoverBooksToEmpty(getString(R.string.explore_empty))
                         renderDiscoverTags(emptyList(), -1)
-                        binding.tvDiscoverSourceSelect.text = getString(R.string.explore_empty)
+                        binding.topBar.setTitle(getString(R.string.explore_empty))
                         updateDiscoverLoginButtonState()
                         updateDiscoverSearchButtonState()
                         updateDiscoverTagFilterButtonState()
@@ -542,8 +543,8 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private fun updateDiscoverSourceTitle() {
         val name = selectedDiscoverSourcePart?.bookSourceName
             ?: getString(R.string.discovery)
-        binding.tvDiscoverSourceSelect.text = name
-        binding.llDiscoverSourceRow.post(::updateDiscoverSourceNameWidth)
+        binding.topBar.setTitle(name)
+        binding.topBar.post(::updateDiscoverSourceNameWidth)
     }
 
     private suspend fun loadDiscoverKindsAndDefault() {
@@ -795,9 +796,9 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
     private fun updateDiscoverTagFilterButtonState() {
         val enabled = discoverMajorGroups.size > 1
-        binding.btnDiscoverTagFilter.isVisible = enabled
-        binding.btnDiscoverTagFilter.isEnabled = enabled
-        binding.btnDiscoverTagFilter.alpha = if (enabled) 1f else 0.45f
+        binding.topBar.filterButton.isVisible = enabled
+        binding.topBar.filterButton.isEnabled = enabled
+        binding.topBar.filterButton.alpha = if (enabled) 1f else 0.45f
     }
 
     private fun showDiscoverTagFilterMenu() {
@@ -816,7 +817,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             }
         }
         tagFilterPopup = ModernActionPopup.show(
-            binding.btnDiscoverTagFilter,
+            binding.topBar.filterButton,
             actions,
             tagFilterPopup
         )
@@ -826,20 +827,20 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         discoverTagItems.clear()
         discoverTagItems.addAll(items)
         if (items.isEmpty()) {
-            binding.rvDiscoverTags.gone()
+            binding.topBar.showTags(false)
             selectedDiscoverTagIndex = -1
             selectedDiscoverUrlIndex = -1
-            binding.rvDiscoverTags.submitItems(emptyList(), -1)
+            binding.topBar.tagsBar.submitItems(emptyList(), -1)
             return
         }
-        binding.rvDiscoverTags.visible()
+        binding.topBar.showTags(true)
         selectedDiscoverTagIndex = selectedIndex.coerceIn(-1, items.lastIndex)
         selectedDiscoverUrlIndex = if (selectedDiscoverTagIndex in items.indices && !items[selectedDiscoverTagIndex].isButton) {
             selectedDiscoverTagIndex
         } else {
             items.indexOfFirst { !it.isButton && !it.kind.url.isNullOrBlank() }
         }
-        binding.rvDiscoverTags.submitItems(
+        binding.topBar.tagsBar.submitItems(
             items.map { RoundedTagBarView.Item(it.text, if (it.isButton) 0.9f else 1f) },
             selectedDiscoverTagIndex
         )
@@ -849,12 +850,12 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         discoverSelectItems.clear()
         discoverSelectItems.addAll(items)
         if (items.isEmpty()) {
-            binding.rvDiscoverSelects.gone()
-            binding.rvDiscoverSelects.submitItems(emptyList(), -1)
+            binding.topBar.showSelects(false)
+            binding.topBar.selectsBar.submitItems(emptyList(), -1)
             return
         }
-        binding.rvDiscoverSelects.visible()
-        binding.rvDiscoverSelects.submitItems(
+        binding.topBar.showSelects(true)
+        binding.topBar.selectsBar.submitItems(
             items.map {
                 val value = currentDiscoverSelectValue(it)
                 RoundedTagBarView.Item("${it.text}：${value}", 1f)
@@ -903,7 +904,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
     private fun selectDiscoverTabByCode(index: Int, smooth: Boolean) {
         if (index !in discoverTagItems.indices) return
-        binding.rvDiscoverTags.setSelectedIndex(index, smooth)
+        binding.topBar.tagsBar.setSelectedIndex(index, smooth)
     }
 
     private fun selectDiscoverTag(index: Int, item: DiscoverTagItem, selectTab: Boolean) {

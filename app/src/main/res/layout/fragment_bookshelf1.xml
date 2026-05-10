@@ -6,149 +6,13 @@
     android:clipChildren="false"
     android:clipToPadding="false">
 
-    <FrameLayout
-        android:id="@+id/btn_more_container"
-        android:layout_width="@dimen/bookshelf_action_button_size"
-        android:layout_height="@dimen/bookshelf_action_button_size"
-        android:layout_marginEnd="@dimen/bookshelf_action_button_margin_end"
-        app:layout_constraintBottom_toBottomOf="@id/title_row"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/title_row">
-
-        <com.qmdeve.liquidglass.widget.LiquidGlassView
-            android:id="@+id/btn_more_glass_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clickable="false"
-            android:focusable="false"
-            android:visibility="gone" />
-
-        <View
-            android:id="@+id/btn_more_shell_overlay"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_liquid_glass_circle_shell_overlay"
-            android:clickable="false"
-            android:focusable="false"
-            android:visibility="gone" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btn_more"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_more_icon_button_clear"
-            android:contentDescription="@string/menu"
-            android:padding="@dimen/bookshelf_action_button_padding"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_more_vert"
-            android:tint="@color/primaryText" />
-
-    </FrameLayout>
-
-    <LinearLayout
-        android:id="@+id/title_row"
+    <io.legado.app.ui.widget.MainTopBarView
+        android:id="@+id/top_bar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/bookshelf_title_row_margin_start"
-        android:layout_marginTop="@dimen/bookshelf_title_row_margin_top"
-        android:layout_marginEnd="@dimen/bookshelf_title_row_margin_end"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toStartOf="@id/btn_more_container"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <LinearLayout
-            android:id="@+id/ll_title_select"
-            android:layout_width="wrap_content"
-            android:layout_height="@dimen/bookshelf_title_select_height"
-            android:background="@drawable/bg_discover_embedded_action"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="0dp"
-            android:paddingEnd="0dp">
-
-            <TextView
-                android:id="@+id/tv_bookshelf_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:includeFontPadding="false"
-                android:text="@string/bookshelf"
-                android:textColor="@color/primaryText"
-                android:textSize="24sp"
-                android:textStyle="bold" />
-
-            <androidx.appcompat.widget.AppCompatImageView
-                android:id="@+id/iv_bookshelf_title_arrow"
-                android:layout_width="@dimen/bookshelf_title_arrow_size"
-                android:layout_height="@dimen/bookshelf_title_arrow_size"
-                android:contentDescription="@string/bookshelf"
-                android:src="@drawable/ic_arrow_drop_down"
-                app:tint="@color/primaryText" />
-
-        </LinearLayout>
-
-    </LinearLayout>
-
-    <FrameLayout
-        android:id="@+id/tab_bar_container"
-        android:layout_width="0dp"
-        android:layout_height="@dimen/bookshelf_tag_bar_height"
-        android:layout_marginStart="@dimen/bookshelf_tag_bar_margin_horizontal"
-        android:layout_marginTop="@dimen/bookshelf_tag_bar_margin_top"
-        android:layout_marginEnd="@dimen/bookshelf_tag_bar_margin_horizontal"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/title_row">
-
-        <com.qmdeve.liquidglass.widget.LiquidGlassView
-            android:id="@+id/tab_bar_glass_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clickable="false"
-            android:focusable="false" />
-
-        <View
-            android:id="@+id/tab_bar_shell_overlay"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_liquid_glass_shell_overlay"
-            android:clickable="false"
-            android:focusable="false" />
-
-        <FrameLayout
-            android:id="@+id/tab_indicator_container"
-            android:layout_width="@dimen/bookshelf_tag_indicator_width"
-            android:layout_height="@dimen/bookshelf_tag_bar_height"
-            android:layout_gravity="start|center_vertical"
-            android:clickable="false"
-            android:focusable="false">
-
-            <com.qmdeve.liquidglass.widget.LiquidGlassView
-                android:id="@+id/tab_indicator_glass_view"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clickable="false"
-                android:focusable="false" />
-
-            <View
-                android:id="@+id/tab_indicator_overlay"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/bg_liquid_glass_indicator_overlay"
-                android:clickable="false"
-                android:focusable="false" />
-
-        </FrameLayout>
-
-        <io.legado.app.ui.widget.RoundedTagBarView
-            android:id="@+id/tab_layout"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-    </FrameLayout>
+        app:layout_constraintTop_toTopOf="parent" />
 
     <io.legado.app.ui.widget.LockableViewPager
         android:id="@+id/view_pager_bookshelf"
@@ -158,6 +22,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tab_bar_container" />
+        app:layout_constraintTop_toBottomOf="@id/top_bar" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
