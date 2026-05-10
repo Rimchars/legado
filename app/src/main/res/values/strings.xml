@@ -1861,7 +1861,6 @@
     <string name="top_bar_style">Top bar style</string>
     <string name="top_bar_style_default">Default</string>
     <string name="top_bar_style_immersive">Immersive</string>
-    <string name="top_bar_style_flow">Flow</string>
     <string name="top_bar_corner_scale">Top bar corner scale</string>
     <string name="top_bar_background_color">Top bar background color</string>
     <string name="top_bar_tag_bar_color">Tag bar background</string>

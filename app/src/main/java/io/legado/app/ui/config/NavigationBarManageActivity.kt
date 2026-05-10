@@ -734,6 +734,9 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 btnApply.setTextColor(accentColor)
                 btnEdit.setTextColor(primaryTextColor)
                 btnMore.setTextColor(primaryTextColor)
+                listOf(btnApply, btnEdit, btnMore).forEach {
+                    it.typeface = this@NavigationBarManageActivity.uiTypeface()
+                }
                 btnApply.setOnClickListener { applyPackage(entry) }
                 btnEdit.setOnClickListener { showEditDialog(entry) }
                 btnMore.setOnClickListener { showActions(entry) }

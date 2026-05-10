@@ -224,16 +224,14 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                     getString(R.string.top_bar_style),
                     listOf(
                         getString(R.string.top_bar_style_default),
-                        getString(R.string.top_bar_style_immersive),
-                        getString(R.string.top_bar_style_flow)
+                        getString(R.string.top_bar_style_immersive)
                     )
                 ) { _, index ->
                     config.style = when (index) {
                         1 -> TopBarConfig.STYLE_IMMERSIVE
-                        2 -> TopBarConfig.STYLE_FLOW
                         else -> TopBarConfig.STYLE_DEFAULT
                     }
-                    if (config.style == TopBarConfig.STYLE_IMMERSIVE || config.style == TopBarConfig.STYLE_FLOW) {
+                    if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
                         if (config.backgroundColor == null) {
                             config.backgroundColor = TopBarConfig.defaultBackgroundColor(config.isNightMode)
                         }
@@ -250,7 +248,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                     refreshEditDialog()
                 }
             })
-            if (config.style == TopBarConfig.STYLE_IMMERSIVE || config.style == TopBarConfig.STYLE_FLOW) {
+            if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
                 addView(optionRow(getString(R.string.top_bar_corner_scale), cornerScaleLabel(config.cornerScale)) {
                     showCornerScalePicker(config.cornerScale ?: 1f) {
                         config.cornerScale = it
@@ -555,7 +553,6 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
         return getString(
             when (style) {
                 TopBarConfig.STYLE_IMMERSIVE -> R.string.top_bar_style_immersive
-                TopBarConfig.STYLE_FLOW -> R.string.top_bar_style_flow
                 else -> R.string.top_bar_style_default
             }
         )
@@ -676,6 +673,9 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                 btnApply.setTextColor(accentColor)
                 btnEdit.setTextColor(primaryTextColor)
                 btnMore.setTextColor(primaryTextColor)
+                listOf(btnApply, btnEdit, btnMore).forEach {
+                    it.typeface = this@TopBarManageActivity.uiTypeface()
+                }
                 btnApply.setOnClickListener { applyPackage(entry) }
                 btnEdit.setOnClickListener { showEditDialog(entry) }
                 btnMore.setOnClickListener { showActions(entry) }

@@ -73,7 +73,7 @@ class RoundedTagBarView @JvmOverloads constructor(
         styleSignature = signature
         val config = TopBarConfig.currentConfig(context, AppConfig.isNightTheme)
         val tagBarColor = config.tagBarColor
-            ?: if (config.style == TopBarConfig.STYLE_IMMERSIVE || config.style == TopBarConfig.STYLE_FLOW) {
+            ?: if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
                 Color.WHITE
             } else {
                 ContextCompat.getColor(context, R.color.background_menu)
