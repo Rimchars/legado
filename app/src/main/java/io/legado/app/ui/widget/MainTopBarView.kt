@@ -57,7 +57,8 @@ class MainTopBarView @JvmOverloads constructor(
     val primaryBar = RoundedTagBarView(context)
     val selectsBar = RoundedTagBarView(context)
     val tagsBar = RoundedTagBarView(context)
-    private val filterToggleBar = RoundedTagBarView(context)
+    private val primaryFilterRow = LinearLayout(context)
+    private val filterToggleButton = actionButton(R.drawable.ic_expand_more, R.string.screen)
     private val titleSpacer = Space(context)
     private val titleRow = buildTitleRow()
     private var mode = Mode.BOOKSHELF
@@ -78,11 +79,13 @@ class MainTopBarView @JvmOverloads constructor(
         val horizontal = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_horizontal)
         setPadding(horizontal, paddingTop, horizontal, 0)
         addView(titleRow)
-        addView(primaryBar, tagLayoutParams().apply {
+        addView(primaryFilterRow.apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(primaryBar, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+            addView(filterToggleButton)
+        }, tagLayoutParams().apply {
             topMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_top)
-        })
-        addView(filterToggleBar, compactFilterLayoutParams().apply {
-            topMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_top) / 2
         })
         addView(selectsBar, tagLayoutParams().apply {
             topMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_top)
@@ -91,10 +94,11 @@ class MainTopBarView @JvmOverloads constructor(
             topMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_top)
         })
         primaryBar.isVisible = false
-        filterToggleBar.isVisible = false
+        primaryFilterRow.isVisible = false
+        filterToggleButton.isVisible = false
         selectsBar.isVisible = false
         tagsBar.isVisible = false
-        filterToggleBar.setOnTagClickListener {
+        filterToggleButton.setOnClickListener {
             filtersExpanded = !filtersExpanded
             updateFilterBarsVisibility()
         }
@@ -220,7 +224,7 @@ class MainTopBarView @JvmOverloads constructor(
         titleSelect.isVisible = true
         titleSpacer.isVisible = true
         titleSelect.background = ContextCompat.getDrawable(context, R.drawable.bg_discover_embedded_action)
-        listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
+        listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton, filterToggleButton).forEach {
             it.background = ContextCompat.getDrawable(context, R.drawable.bg_discover_embedded_action)
             it.layoutParams = (it.layoutParams as LayoutParams).apply {
                 width = resources.getDimensionPixelSize(R.dimen.bookshelf_action_button_size)
@@ -236,13 +240,10 @@ class MainTopBarView @JvmOverloads constructor(
         primaryBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
         selectsBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
         tagsBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
-        filterToggleBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
         primaryBar.setBackgroundOverrideColor(null)
-        filterToggleBar.setBackgroundOverrideColor(null)
         selectsBar.setBackgroundOverrideColor(null)
         tagsBar.setBackgroundOverrideColor(null)
         primaryBar.setSelectedBackgroundVisible(true)
-        filterToggleBar.setSelectedBackgroundVisible(true)
         selectsBar.setSelectedBackgroundVisible(true)
         tagsBar.setSelectedBackgroundVisible(true)
     }
@@ -262,7 +263,7 @@ class MainTopBarView @JvmOverloads constructor(
         searchEntry.background = TopBarSearchStyle.actionBackground(context)
         searchEntry.setPadding(14.dp, 0, 14.dp, 0)
         titleSelect.setPadding(12.dp, 0, 8.dp, 0)
-        listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
+        listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton, filterToggleButton).forEach {
             it.background = null
             it.layoutParams = (it.layoutParams as LayoutParams).apply {
                 width = resources.getDimensionPixelSize(R.dimen.top_bar_immersive_action_size)
@@ -276,15 +277,12 @@ class MainTopBarView @JvmOverloads constructor(
         titleText.setTextColor(context.primaryTextColor)
         searchEntryText.setTextColor(context.primaryTextColor)
         primaryBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
-        filterToggleBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
         selectsBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
         tagsBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
         primaryBar.setBackgroundOverrideColor(null)
-        filterToggleBar.setBackgroundOverrideColor(null)
         selectsBar.setBackgroundOverrideColor(null)
         tagsBar.setBackgroundOverrideColor(null)
         primaryBar.setSelectedBackgroundVisible(true)
-        filterToggleBar.setSelectedBackgroundVisible(true)
         selectsBar.setSelectedBackgroundVisible(true)
         tagsBar.setSelectedBackgroundVisible(false)
     }
@@ -384,50 +382,40 @@ class MainTopBarView @JvmOverloads constructor(
         )
     }
 
-    private fun compactFilterLayoutParams(): LayoutParams {
-        return LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            resources.getDimensionPixelSize(R.dimen.bookshelf_tag_item_height) + 2.dp
-        )
-    }
-
     private fun updateIconColors() {
         val color = ContextCompat.getColor(context, R.color.primaryText)
         titleArrow.setColorFilter(color)
         searchEntryIcon.setColorFilter(color)
-        listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
+        listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton, filterToggleButton).forEach {
             it.setColorFilter(color)
         }
     }
 
     private fun updatePrimaryBarVisibility() {
         primaryBar.isVisible = isImmersiveStyle() && primaryBarRequested
+        primaryFilterRow.isVisible = primaryBar.isVisible || filterToggleButton.isVisible
     }
 
     private fun updateFilterBarsVisibility() {
         val hasFilters = selectsBarRequested || tagsBarRequested
-        val oldToggleVisible = filterToggleBar.isVisible
+        val oldRowVisible = primaryFilterRow.isVisible
+        val oldToggleVisible = filterToggleButton.isVisible
         val oldSelectsVisible = selectsBar.isVisible
         val oldTagsVisible = tagsBar.isVisible
         if (isImmersiveStyle()) {
-            filterToggleBar.isVisible = hasFilters
-            filterToggleBar.submitItems(
-                listOf(
-                    RoundedTagBarView.Item(
-                        context.getString(if (filtersExpanded) R.string.collapse else R.string.screen)
-                    )
-                ),
-                0
-            )
+            filterToggleButton.isVisible = hasFilters
+            filterToggleButton.setImageResource(if (filtersExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more)
             selectsBar.isVisible = filtersExpanded && selectsBarRequested
             tagsBar.isVisible = filtersExpanded && tagsBarRequested
         } else {
-            filterToggleBar.isVisible = false
+            filterToggleButton.isVisible = false
             selectsBar.isVisible = selectsBarRequested
             tagsBar.isVisible = tagsBarRequested
         }
+        primaryFilterRow.isVisible = (isImmersiveStyle() && primaryBarRequested) || filterToggleButton.isVisible
         if (
-            oldToggleVisible != filterToggleBar.isVisible ||
+            oldRowVisible != primaryFilterRow.isVisible ||
+            oldToggleVisible != filterToggleButton.isVisible ||
             oldSelectsVisible != selectsBar.isVisible ||
             oldTagsVisible != tagsBar.isVisible
         ) {
