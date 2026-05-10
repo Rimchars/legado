@@ -14,6 +14,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 import androidx.core.view.forEach
 import androidx.fragment.app.DialogFragment
+import io.legado.app.R
+import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.Selector
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.lib.theme.accentColor
@@ -21,7 +23,7 @@ import io.legado.app.lib.theme.dialogSurfaceBackground
 import splitties.systemservices.windowManager
 
 fun AlertDialog.applyTint(): AlertDialog {
-    window?.setBackgroundDrawable(context.dialogSurfaceBackground)
+    applyModernWindowStyle()
     val colorStateList = Selector.colorBuild()
         .setDefaultColor(ThemeStore.accentColor(context))
         .setPressedColor(ColorUtils.darkenColor(ThemeStore.accentColor(context)))
@@ -35,13 +37,23 @@ fun AlertDialog.applyTint(): AlertDialog {
     if (getButton(AlertDialog.BUTTON_NEUTRAL) != null) {
         getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(colorStateList)
     }
+    applyMaxWidthIfFloating()
     window?.decorView?.post {
         listView?.forEach {
             it.applyTint(context.accentColor)
         }
-        applyMaxWidthIfFloating()
     }
     return this
+}
+
+fun Dialog.applyModernWindowStyle() {
+    if (AppConfig.isEInkMode) return
+    window?.let { window ->
+        val attr = window.attributes
+        attr.windowAnimations = R.style.AnimDialogCenter
+        window.attributes = attr
+        window.setBackgroundDrawable(context.dialogSurfaceBackground)
+    }
 }
 
 fun AlertDialog.requestInputMethod() {

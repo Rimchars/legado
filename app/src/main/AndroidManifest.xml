@@ -238,6 +238,9 @@
             android:name=".ui.config.NavigationBarManageActivity"
             android:launchMode="standard" />
         <activity
+            android:name=".ui.config.TopBarManageActivity"
+            android:launchMode="standard" />
+        <activity
             android:name=".ui.config.BookInfoManageActivity"
             android:launchMode="standard" />
         <activity

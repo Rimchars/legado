@@ -32,6 +32,12 @@
         app:iconSpaceReserved="false" />
 
     <io.legado.app.lib.prefs.Preference
+        android:key="top_bar_manage"
+        android:summary="@string/top_bar_manage_summary"
+        android:title="@string/top_bar_manage"
+        app:iconSpaceReserved="false" />
+
+    <io.legado.app.lib.prefs.Preference
         android:key="book_info_manage"
         android:summary="@string/book_info_manage_summary"
         android:title="@string/book_info_manage"

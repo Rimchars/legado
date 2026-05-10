@@ -16,6 +16,7 @@ import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
 import io.legado.app.help.config.NavigationBarIconConfig
+import io.legado.app.help.config.TopBarConfig
 import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.model.BookCover
@@ -245,6 +246,7 @@ object Backup {
         }
         paths.add(ThemePackageManager.rootDir.absolutePath)
         paths.add(NavigationBarIconConfig.rootDir.absolutePath)
+        paths.add(TopBarConfig.rootDir.absolutePath)
         paths.add(CoverCollectionManager.rootDir.absolutePath)
         FileUtils.delete(zipFilePath)
         FileUtils.delete(zipFilePath.replace("tmp_", ""))

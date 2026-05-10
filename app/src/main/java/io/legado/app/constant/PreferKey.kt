@@ -132,6 +132,8 @@ object PreferKey {
     const val bottomBarSidebarGravity = "bottomBarSidebarGravity"
     const val navigationBarPackageDay = "navigationBarPackageDay"
     const val navigationBarPackageNight = "navigationBarPackageNight"
+    const val topBarPackageDay = "topBarPackageDay"
+    const val topBarPackageNight = "topBarPackageNight"
     const val liquidGlassLevel = "liquidGlassLevel"
     const val frostedGlassLevel = "frostedGlassLevel"
     const val uiCornerScale = "uiCornerScale"

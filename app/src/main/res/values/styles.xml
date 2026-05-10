@@ -69,6 +69,17 @@
 
     <style name="Style.PopupMenu" parent="Widget.AppCompat.PopupMenu">
         <item name="android:popupBackground">@drawable/bg_popup_action_modern</item>
+        <item name="android:popupAnimationStyle">@style/AnimPopupMenu</item>
+    </style>
+
+    <style name="AnimPopupMenu">
+        <item name="android:windowEnterAnimation">@anim/popup_menu_enter</item>
+        <item name="android:windowExitAnimation">@anim/popup_menu_exit</item>
+    </style>
+
+    <style name="AnimDialogCenter">
+        <item name="android:windowEnterAnimation">@anim/dialog_center_enter</item>
+        <item name="android:windowExitAnimation">@anim/dialog_center_exit</item>
     </style>
 
 

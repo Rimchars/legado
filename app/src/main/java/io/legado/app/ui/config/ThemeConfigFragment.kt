@@ -221,6 +221,7 @@ class ThemeConfigFragment : PreferenceFragment(),
             "themeList" -> startActivity<ThemeManageActivity>()
             "theme_manage" -> startActivity<ThemeManageActivity>()
             "navigation_bar_manage" -> startActivity<NavigationBarManageActivity>()
+            "top_bar_manage" -> startActivity<TopBarManageActivity>()
             "book_info_manage" -> startActivity<BookInfoManageActivity>()
             "saveDayTheme",
             "saveNightTheme" -> alertSaveTheme(key)

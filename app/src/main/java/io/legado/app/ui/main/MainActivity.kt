@@ -1654,6 +1654,11 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 refreshBottomNavigationConfig()
             }
         }
+        observeEvent<Boolean>(EventBus.TOP_BAR_CHANGED) {
+            if (it == AppConfig.isNightTheme) {
+                recreate()
+            }
+        }
         observeEvent<Boolean>(EventBus.NOTIFY_MAIN) {
             binding.apply {
                 if (it) {

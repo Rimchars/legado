@@ -31,6 +31,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
 import io.legado.app.help.glide.ImageLoader
+import io.legado.app.lib.dialogs.AndroidAlertBuilder
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.ThemeStore
@@ -53,6 +54,7 @@ import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.ImageCropHelper
+import io.legado.app.utils.applyTint
 import io.legado.app.utils.externalFiles
 import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.getCompatColor
@@ -63,6 +65,7 @@ import io.legado.app.utils.getPrefString
 import io.legado.app.utils.hexString
 import io.legado.app.utils.putPrefString
 import io.legado.app.utils.removePref
+import io.legado.app.utils.setLayout
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -293,16 +296,21 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         val dialogBinding = createEditBinding(currentConfig(), null)
         editDialogBinding = dialogBinding
         editingEntry = null
-        val dialog = alert(getString(R.string.theme_manual_add)) {
+        val dialog = AndroidAlertBuilder(this).apply {
+            setTitle(getString(R.string.theme_manual_add))
             customView { dialogBinding.root }
-            applyThemeEditFonts(dialogBinding)
             onDismiss {
                 editDialogBinding = null
                 editingEntry = null
             }
+        }.build()
+        dialog.setOnShowListener {
+            dialog.applyTint()
+            applyThemeEditDialogSize(dialog)
         }
+        applyThemeEditFonts(dialogBinding)
         bindThemeEditDialogActions(dialog, dialogBinding)
-        applyThemeEditDialogSize(dialog)
+        dialog.show()
     }
 
     private fun showEditDialog(entry: ThemePackageManager.Entry) {
@@ -317,16 +325,21 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 val dialogBinding = createEditBinding(ThemePackageManager.getConfig(localEntry), localEntry)
                 editDialogBinding = dialogBinding
                 editingEntry = localEntry
-                val dialog = alert(getString(R.string.theme_edit)) {
+                val dialog = AndroidAlertBuilder(this@ThemeManageActivity).apply {
+                    setTitle(getString(R.string.theme_edit))
                     customView { dialogBinding.root }
-                    applyThemeEditFonts(dialogBinding)
                     onDismiss {
                         editDialogBinding = null
                         editingEntry = null
                     }
+                }.build()
+                dialog.setOnShowListener {
+                    dialog.applyTint()
+                    applyThemeEditDialogSize(dialog)
                 }
+                applyThemeEditFonts(dialogBinding)
                 bindThemeEditDialogActions(dialog, dialogBinding)
-                applyThemeEditDialogSize(dialog)
+                dialog.show()
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(getString(R.string.theme_package_read_failed, it.localizedMessage))
@@ -430,9 +443,14 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
     private fun applyThemeEditDialogSize(dialog: androidx.appcompat.app.AlertDialog) {
         val metrics = resources.displayMetrics
-        dialog.window?.setLayout(
+        val heightRatio = if (metrics.heightPixels < 1600) {
+            EDIT_DIALOG_HEIGHT_RATIO_COMPACT
+        } else {
+            EDIT_DIALOG_HEIGHT_RATIO
+        }
+        dialog.setLayout(
             (metrics.widthPixels * EDIT_DIALOG_WIDTH_RATIO).toInt(),
-            (metrics.heightPixels * EDIT_DIALOG_HEIGHT_RATIO).toInt()
+            (metrics.heightPixels * heightRatio).toInt()
         )
     }
 
@@ -1378,8 +1396,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
     companion object {
         private val themeRemoteSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        private const val EDIT_DIALOG_WIDTH_RATIO = 0.92f
-        private const val EDIT_DIALOG_HEIGHT_RATIO = 0.62f
+        private const val EDIT_DIALOG_WIDTH_RATIO = 0.94f
+        private const val EDIT_DIALOG_HEIGHT_RATIO = 0.68f
+        private const val EDIT_DIALOG_HEIGHT_RATIO_COMPACT = 0.74f
         private const val requestMainBackground = 301
         private const val requestBookInfoBackground = 302
         private const val requestPanelBackground = 303

@@ -156,6 +156,9 @@ internal class AndroidAlertBuilder(override val ctx: Context) : AlertBuilder<Ale
                 attributes = attr
                 setBackgroundDrawableResource(R.drawable.bg_eink_border_dialog)
             } else {
+                val attr = attributes
+                attr.windowAnimations = R.style.AnimDialogCenter
+                attributes = attr
                 setBackgroundDrawable(ctx.dialogSurfaceBackground)
             }
         }
@@ -172,6 +175,9 @@ internal class AndroidAlertBuilder(override val ctx: Context) : AlertBuilder<Ale
                 attributes = attr
                 setBackgroundDrawableResource(R.drawable.bg_eink_border_dialog)
             } else {
+                val attr = attributes
+                attr.windowAnimations = R.style.AnimDialogCenter
+                attributes = attr
                 setBackgroundDrawable(ctx.dialogSurfaceBackground)
             }
         }

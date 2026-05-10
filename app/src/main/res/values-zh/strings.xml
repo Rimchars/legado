@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <!--App-->
     <string name="app_name">阅读Archive</string>
     <string name="app_name_a">阅读Archive·A</string>
@@ -1793,4 +1793,19 @@
     <string name="cover_collection_mode_random">随机</string>
     <string name="cover_collection_mode_sequence">顺序</string>
     <string name="cover_collection_name">图集名称</string>
-</resources>
+    <string name="top_bar_manage">顶栏管理</string>
+    <string name="top_bar_manage_summary">管理主页面顶栏的日间和夜间样式</string>
+    <string name="top_bar_edit">编辑顶栏</string>
+    <string name="top_bar_name">顶栏名称</string>
+    <string name="top_bar_custom_name">自定义顶栏</string>
+    <string name="top_bar_day_default_name">默认日间顶栏</string>
+    <string name="top_bar_night_default_name">默认夜间顶栏</string>
+    <string name="top_bar_name_exists">顶栏名称已存在</string>
+    <string name="top_bar_config_missing">缺少顶栏配置</string>
+    <string name="top_bar_style">顶栏样式</string>
+    <string name="top_bar_style_default">默认</string>
+    <string name="top_bar_tag_bar_color">标签栏背景色</string>
+    <string name="top_bar_tag_bar_alpha">标签栏不透明度</string>
+    <string name="top_bar_tag_selected_color">选中标签背景色</string>
+    <string name="top_bar_tag_selected_alpha">选中标签不透明度</string>
+    <string name="top_bar_follow_theme">跟随主题</string></resources>
