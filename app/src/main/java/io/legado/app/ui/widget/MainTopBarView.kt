@@ -170,12 +170,22 @@ class MainTopBarView @JvmOverloads constructor(
         updateIconColors()
     }
 
+    private fun updateTitleRowControlHeight(height: Int) {
+        searchEntry.layoutParams = (searchEntry.layoutParams as? LayoutParams ?: LayoutParams(0, height, 1f)).apply {
+            this.height = height
+        }
+        titleSelect.layoutParams = (titleSelect.layoutParams as? LayoutParams ?: LayoutParams(LayoutParams.WRAP_CONTENT, height)).apply {
+            this.height = height
+        }
+    }
+
     private fun applyDefaultStyle() {
         val horizontal = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_horizontal)
         setPadding(horizontal, 0, horizontal, 0)
         background = null
         titleRow.background = null
         titleRow.setPadding(0, resources.getDimensionPixelSize(R.dimen.bookshelf_title_row_margin_top), 0, 0)
+        updateTitleRowControlHeight(resources.getDimensionPixelSize(R.dimen.bookshelf_title_select_height))
         searchEntry.isVisible = false
         titleSelect.isVisible = true
         titleSpacer.isVisible = true
@@ -204,6 +214,7 @@ class MainTopBarView @JvmOverloads constructor(
         background = immersiveBackground(config)
         titleRow.background = null
         titleRow.setPadding(0, 0, 0, 0)
+        updateTitleRowControlHeight(resources.getDimensionPixelSize(R.dimen.top_bar_immersive_action_size))
         titleSelect.isVisible = !searchEntryRequested
         searchEntry.isVisible = searchEntryRequested
         titleSpacer.isVisible = !searchEntryRequested
@@ -214,8 +225,8 @@ class MainTopBarView @JvmOverloads constructor(
         listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
             it.background = null
             it.layoutParams = (it.layoutParams as LayoutParams).apply {
-                width = 36.dp
-                height = 36.dp
+                width = resources.getDimensionPixelSize(R.dimen.top_bar_immersive_action_size)
+                height = resources.getDimensionPixelSize(R.dimen.top_bar_immersive_action_size)
                 marginStart = 6.dp
             }
             val padding = 8.dp

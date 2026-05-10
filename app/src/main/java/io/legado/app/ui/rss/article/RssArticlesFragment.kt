@@ -13,7 +13,6 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import io.legado.app.R
 import io.legado.app.base.VMBaseFragment
 import io.legado.app.constant.AppLog
@@ -106,15 +105,15 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                         parent: RecyclerView,
                         state: RecyclerView.State
                     ) {
-                        val space = 8
+                        val space = resources.getDimensionPixelSize(R.dimen.waterfall_card_gap)
                         outRect.set(space, space, space, space)
                     }
                 })
                 recyclerView.itemAnimator = null
                 if (orientation == Configuration.ORIENTATION_LANDSCAPE) { //横屏三列
-                    StaggeredGridLayoutManager(3, StaggeredGridLayoutManager.VERTICAL)
+                    GridLayoutManager(requireContext(), 3)
                 } else {
-                    StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
+                    GridLayoutManager(requireContext(), 2)
                 }
             }
             2 -> {
@@ -146,11 +145,10 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                     scrollToBottom()
                     return
                 }
-                if (layoutManager is StaggeredGridLayoutManager) {
+                if (layoutManager is GridLayoutManager) {
                     val visibleItemCount = layoutManager.childCount
                     val totalItemCount = layoutManager.itemCount
-                    val firstVisibleItemPositions = layoutManager.findFirstVisibleItemPositions(null)
-                    val firstVisibleItemPosition = firstVisibleItemPositions?.minOrNull() ?: 0
+                    val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
                     if (isPreload  && (visibleItemCount + firstVisibleItemPosition) >= (totalItemCount - 5)) {
                         scrollToBottom()
                     }

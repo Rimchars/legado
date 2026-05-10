@@ -101,6 +101,11 @@
     <dimen name="bookshelf_tag_item_max_width">96dp</dimen>
     <dimen name="bookshelf_tag_item_padding_horizontal">12dp</dimen>
     <dimen name="bookshelf_content_margin_top">12dp</dimen>
+    <dimen name="top_bar_immersive_action_size">36dp</dimen>
+    <dimen name="waterfall_card_gap">8dp</dimen>
+    <dimen name="waterfall_card_min_width">82dp</dimen>
+    <dimen name="waterfall_card_min_height">260dp</dimen>
+    <dimen name="waterfall_cover_min_height">108dp</dimen>
 
     <!-- Shared modern UI shape tokens -->
     <dimen name="ui_panel_radius">10dp</dimen>
