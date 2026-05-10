@@ -56,7 +56,8 @@ class CacheManageAdapter(
             return@run
         }
         val book = item.book
-        root.background = UiCorner.rounded(
+        root.background = UiCorner.panelRounded(
+            context,
             ContextCompat.getColor(context, R.color.background_card),
             UiCorner.panelRadius(context)
         )
@@ -79,6 +80,7 @@ class CacheManageAdapter(
         } else {
             context.getString(R.string.cache_manage_source_deleted_chip, item.sourceName)
         }
+        btnUpload.setText(if (item.shouldDownloadRemote()) R.string.action_download else R.string.cache_manage_upload)
         btnSource.isEnabled = item.sourceVariants.size > 1
         btnSource.alpha = if (item.sourceVariants.size > 1) 1f else 0.72f
         tvCache.text = context.getString(
@@ -90,7 +92,9 @@ class CacheManageAdapter(
             if (item.inBookshelf) R.string.cache_manage_use_cache
             else R.string.cache_manage_add_bookshelf
         )
-        if (item.manifest != null) btnBookshelf.visible() else btnBookshelf.gone()
+        if (item.manifest != null && item.hasLocalCache()) btnBookshelf.visible() else btnBookshelf.gone()
+        btnChapters.isEnabled = item.hasLocalCache()
+        btnChapters.alpha = if (item.hasLocalCache()) 1f else 0.45f
         updateTaskViews(this, item)
     }
 
@@ -113,11 +117,11 @@ class CacheManageAdapter(
             }
             btnStop.gone()
         }
-        val hasCache = item.cachedCount > 0
+        val hasCache = item.hasLocalCache()
         val taskLocked = isCaching || isPaused
-        btnUpload.isEnabled = hasCache && !taskLocked
+        btnUpload.isEnabled = (hasCache || item.shouldDownloadRemote()) && !taskLocked
         btnDelete.isEnabled = hasCache && !taskLocked
-        btnUpload.alpha = if (hasCache && !taskLocked) 1f else 0.45f
+        btnUpload.alpha = if ((hasCache || item.shouldDownloadRemote()) && !taskLocked) 1f else 0.45f
         btnDelete.alpha = if (hasCache && !taskLocked) 1f else 0.45f
     }
 
@@ -129,7 +133,9 @@ class CacheManageAdapter(
             getItem(holder.layoutPosition)?.let(callback::openChapters)
         }
         binding.btnUpload.setOnClickListener {
-            getItem(holder.layoutPosition)?.let(callback::upload)
+            getItem(holder.layoutPosition)?.let {
+                if (it.shouldDownloadRemote()) callback.download(it) else callback.upload(it)
+            }
         }
         binding.btnBookshelf.setOnClickListener {
             getItem(holder.layoutPosition)?.let(callback::restoreToBookshelf)
@@ -160,6 +166,7 @@ class CacheManageAdapter(
     interface Callback {
         fun openChapters(item: CacheBookItem)
         fun upload(item: CacheBookItem)
+        fun download(item: CacheBookItem)
         fun restoreToBookshelf(item: CacheBookItem)
         fun deleteBookCache(item: CacheBookItem)
         fun stopAudioCache(item: CacheBookItem)
@@ -182,4 +189,10 @@ class CacheManageAdapter(
     private companion object {
         private val PAYLOAD_TASK_STATE = Any()
     }
+}
+
+private fun CacheBookItem.hasLocalCache(): Boolean = localCachedCount > 0
+
+private fun CacheBookItem.shouldDownloadRemote(): Boolean {
+    return remoteAvailable && localCachedCount <= 0 && !remoteZipFileName.isNullOrBlank()
 }

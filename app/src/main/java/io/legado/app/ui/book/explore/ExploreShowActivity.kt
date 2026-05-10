@@ -8,11 +8,14 @@ import androidx.core.os.bundleOf
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import io.legado.app.R
+import io.legado.app.base.adapter.RecyclerAdapter
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.data.entities.SearchBook
 import io.legado.app.databinding.ActivityExploreShowBinding
 import io.legado.app.databinding.ViewLoadMoreBinding
+import io.legado.app.help.config.AppConfig
 import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.ui.widget.number.NumberPickerDialog
 import io.legado.app.ui.widget.recycler.LoadMoreView
@@ -31,7 +34,7 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
     override val binding by viewBinding(ActivityExploreShowBinding::inflate)
     override val viewModel by viewModels<ExploreShowViewModel>()
 
-    private val adapter by lazy { ExploreShowAdapter(this, this) }
+    private lateinit var adapter: RecyclerAdapter<SearchBook, *>
     private val loadMoreView by lazy { LoadMoreView(this) }
     private val loadMoreViewTop by lazy { LoadMoreView(this) }
     private var oldPage = -1
@@ -94,7 +97,18 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
     }
 
     private fun initRecyclerView() {
-        binding.recyclerView.addItemDecoration(VerticalDivider(this))
+        val columns = if (AppConfig.discoveryPageLayout == 2) 2 else 1
+        adapter = if (columns == 1) {
+            binding.recyclerView.addItemDecoration(VerticalDivider(this))
+            ExploreShowAdapter(this, this)
+        } else {
+            ExploreShowWaterfallAdapter(this, this, columns)
+        }
+        binding.recyclerView.layoutManager = if (columns == 1) {
+            LinearLayoutManager(this)
+        } else {
+            StaggeredGridLayoutManager(columns, StaggeredGridLayoutManager.VERTICAL)
+        }
         binding.recyclerView.adapter = adapter
         binding.recyclerView.applyNavigationBarPadding()
         adapter.addFooterView {
@@ -142,8 +156,7 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
         } else {
             adapter.setItems(books)
             if (isClearAll) { //全清空后,加了头,位置下移一个
-                val layoutManager = binding.recyclerView.layoutManager as LinearLayoutManager
-                layoutManager.scrollToPositionWithOffset(1, 0)
+                scrollToPositionWithOffset(1)
                 isClearAll = false
             }
         }
@@ -152,9 +165,8 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
     private fun upDataTop(books: List<SearchBook>) {
         loadMoreViewTop.stopLoad()
         adapter.addItems(0, books)
-        val layoutManager = binding.recyclerView.layoutManager as LinearLayoutManager
-        if (layoutManager.findFirstVisibleItemPosition() <= 1) { //顶部刷新,未滚动，矫正位置
-            layoutManager.scrollToPositionWithOffset(books.size, 0)
+        if (findFirstVisibleItemPosition() <= 1) {
+            scrollToPositionWithOffset(books.size)
         }
         if (oldPage <= 1) { //已到顶,隐藏头
             val layoutParams = loadMoreViewTop.layoutParams
@@ -162,6 +174,21 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
                 layoutParams.height = 0
                 loadMoreViewTop.layoutParams = layoutParams
             }
+        }
+    }
+
+    private fun scrollToPositionWithOffset(position: Int) {
+        when (val layoutManager = binding.recyclerView.layoutManager) {
+            is LinearLayoutManager -> layoutManager.scrollToPositionWithOffset(position, 0)
+            is StaggeredGridLayoutManager -> layoutManager.scrollToPositionWithOffset(position, 0)
+        }
+    }
+
+    private fun findFirstVisibleItemPosition(): Int {
+        return when (val layoutManager = binding.recyclerView.layoutManager) {
+            is LinearLayoutManager -> layoutManager.findFirstVisibleItemPosition()
+            is StaggeredGridLayoutManager -> layoutManager.findFirstVisibleItemPositions(null).minOrNull() ?: 0
+            else -> 0
         }
     }
 

@@ -9,7 +9,7 @@
     <color name="background">#111113</color>
     <color name="background_card">#1C1C1E</color>
     <color name="background_menu">#252528</color>
-    <color name="dialog_surface">#000000</color>
+    <color name="dialog_surface">#1C1C1E</color>
     <color name="book_info_frost">#DD252528</color>
     <color name="background_prefs">#241C1C1E</color>
     <color name="glass_bar">#A81F242C</color>

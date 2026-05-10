@@ -9,6 +9,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.view.setPadding
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
@@ -22,10 +23,10 @@ import io.legado.app.help.book.BookTagHelper
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.UiCorner
-import io.legado.app.lib.theme.backgroundColor
+import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
-import io.legado.app.utils.ColorUtils
+import io.legado.app.utils.applyTint
 import io.legado.app.utils.applyNavigationBarPadding
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.postEvent
@@ -120,7 +121,7 @@ class BookshelfTagManageActivity : BaseActivity<ActivityBookshelfTagManageBindin
             setTextColor(primaryTextColor)
             gravity = Gravity.CENTER
             setPadding(10.dpToPx(), 4.dpToPx(), 10.dpToPx(), 4.dpToPx())
-            background = cardBackground()
+            background = actionBackground()
             setOnClickListener { showAddTagDialog(groupTags.group.groupId) }
         })
         card.addView(header)
@@ -141,6 +142,7 @@ class BookshelfTagManageActivity : BaseActivity<ActivityBookshelfTagManageBindin
                 text = "$tag (${groupTags.books.count { BookTagHelper.has(it.customTag, tag) }})"
                 isChecked = tag !in hiddenTags
                 setTextColor(primaryTextColor)
+                applyTint(accentColor)
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 setOnCheckedChangeListener { _, isChecked ->
                     setTagVisible(groupTags.group.groupId, tag, isChecked)
@@ -278,24 +280,22 @@ class BookshelfTagManageActivity : BaseActivity<ActivityBookshelfTagManageBindin
     }
 
     private fun cardBackground(): GradientDrawable {
-        val fill = ColorUtils.blendColors(
-            backgroundColor,
-            if (ColorUtils.isColorLight(backgroundColor)) 0xffffffff.toInt() else primaryTextColor,
-            if (ColorUtils.isColorLight(backgroundColor)) 0.58f else 0.08f
-        )
+        val fill = ContextCompat.getColor(this, R.color.background_card)
         return GradientDrawable().apply {
-            cornerRadius = UiCorner.scaledDp(12f)
+            cornerRadius = UiCorner.panelRadius(this@BookshelfTagManageActivity)
             setColor(UiCorner.surfaceColor(fill))
             setStroke(
                 1.dpToPx(),
-                if (UiCorner.effectMode() == "solid") {
-                    ColorUtils.adjustAlpha(primaryTextColor, 0.08f)
-                } else {
-                    UiCorner.effectStrokeColor(fill)
-                }
+                ContextCompat.getColor(this@BookshelfTagManageActivity, R.color.bg_divider_line)
             )
         }
     }
+
+    private fun actionBackground() = UiCorner.actionSelector(
+        ContextCompat.getColor(this, R.color.background_card),
+        ContextCompat.getColor(this, R.color.background_menu),
+        UiCorner.actionRadius(this)
+    )
 
     private fun booksInGroup(group: BookGroup, books: List<Book>): List<Book> {
         return when (group.groupId) {

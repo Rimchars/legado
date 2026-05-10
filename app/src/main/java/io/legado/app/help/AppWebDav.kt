@@ -8,6 +8,8 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookProgress
 import io.legado.app.exception.NoStackTraceException
+import io.legado.app.help.book.CacheCloudIndex
+import io.legado.app.help.book.CacheCloudIndexStore
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.storage.Backup
 import io.legado.app.help.storage.Restore
@@ -35,7 +37,7 @@ import splitties.init.appCtx
 import java.io.File
 
 /**
- * webDav初始化会访问网络,不要放到主线程
+ * webDav初始化会访问网络,不要放到主线�?
  */
 object AppWebDav {
     private const val defaultWebDavUrl = "https://dav.jianguoyun.com/dav/"
@@ -161,7 +163,7 @@ object AppWebDav {
 
     /**
      * webDav备份
-     * @param fileName 备份文件名
+     * @param fileName 备份文件�?
      */
     @Throws(Exception::class)
     suspend fun backUpWebDav(fileName: String) {
@@ -182,8 +184,8 @@ object AppWebDav {
     }
 
     suspend fun uploadThemePackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
-        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
-        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         val typeUrl = getThemeTypeUrl(isNightTheme)
         WebDav(typeUrl, authorization).makeAsDir()
@@ -191,19 +193,51 @@ object AppWebDav {
     }
 
     suspend fun uploadCachePackage(fileName: String, zipFile: File) {
-        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
-        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
-        val safeFileName = UrlUtil.replaceReservedChar(
-            fileName.trimEnd('/').removeSuffix(".zip").normalizeFileName()
-        ).ifBlank { "cache_${System.currentTimeMillis()}" }
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        val safeFileName = normalizeCachePackageFileName(fileName)
         WebDav(exportsWebDavUrl, authorization).makeAsDir()
-        WebDav(exportsWebDavUrl + safeFileName + ".zip", authorization)
+        WebDav(exportsWebDavUrl + safeFileName, authorization)
             .upload(zipFile, "application/zip")
     }
 
+    suspend fun downloadCachePackage(fileName: String, zipFile: File) {
+        val currentAuthorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        zipFile.parentFile?.mkdirs()
+        WebDav(exportsWebDavUrl + normalizeCachePackageFileName(fileName), currentAuthorization)
+            .downloadTo(zipFile.absolutePath, true)
+    }
+
+    suspend fun deleteCachePackage(fileName: String) {
+        val currentAuthorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        WebDav(exportsWebDavUrl + normalizeCachePackageFileName(fileName), currentAuthorization).delete()
+    }
+
+    suspend fun downloadCacheIndex(): CacheCloudIndex {
+        val authorization = authorization ?: return CacheCloudIndex()
+        if (!NetworkUtils.isAvailable()) return CacheCloudIndex()
+        return kotlin.runCatching {
+            val bytes = WebDav(
+                exportsWebDavUrl + CacheCloudIndexStore.remoteFileName(),
+                authorization
+            ).download()
+            GSON.fromJsonObject<CacheCloudIndex>(String(bytes)).getOrNull() ?: CacheCloudIndex()
+        }.getOrElse { CacheCloudIndex() }
+    }
+
+    suspend fun uploadCacheIndex(index: CacheCloudIndex) {
+        val currentAuthorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        WebDav(exportsWebDavUrl, currentAuthorization).makeAsDir()
+        WebDav(exportsWebDavUrl + CacheCloudIndexStore.remoteFileName(), currentAuthorization)
+            .upload(GSON.toJson(index).toByteArray(), "application/json")
+    }
+
     suspend fun downloadThemePackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
-        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
-        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         zipFile.parentFile?.mkdirs()
         WebDav(getThemeTypeUrl(isNightTheme) + fileName, authorization)
@@ -211,8 +245,8 @@ object AppWebDav {
     }
 
     suspend fun deleteThemePackage(isNightTheme: Boolean, remoteDirName: String) {
-        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
-        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         WebDav(getThemeTypeUrl(isNightTheme) + fileName, authorization).delete()
     }
@@ -227,8 +261,8 @@ object AppWebDav {
     }
 
     suspend fun uploadNavigationBarPackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
-        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
-        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         val typeUrl = getNavigationBarTypeUrl(isNightTheme)
         WebDav(typeUrl, authorization).makeAsDir()
@@ -236,8 +270,8 @@ object AppWebDav {
     }
 
     suspend fun downloadNavigationBarPackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
-        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
-        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         zipFile.parentFile?.mkdirs()
         WebDav(getNavigationBarTypeUrl(isNightTheme) + fileName, authorization)
@@ -245,8 +279,8 @@ object AppWebDav {
     }
 
     suspend fun deleteNavigationBarPackage(isNightTheme: Boolean, remoteDirName: String) {
-        val authorization = authorization ?: throw NoStackTraceException("webDav未配置")
-        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
         WebDav(getNavigationBarTypeUrl(isNightTheme) + fileName, authorization).delete()
     }
@@ -260,14 +294,14 @@ object AppWebDav {
     }
 
     /**
-     * 获取云端所有背景名称
+     * 获取云端所有背景名�?
      */
     private suspend fun getAllBgWebDavFiles(): Result<List<WebDavFile>> {
         return kotlin.runCatching {
             if (!NetworkUtils.isAvailable())
-                throw NoStackTraceException("网络未连接")
+                throw NoStackTraceException("Network unavailable")
             authorization.let {
-                it ?: throw NoStackTraceException("webDav未配置")
+                it ?: throw NoStackTraceException("WebDAV not configured")
                 WebDav(bgWebDavUrl, it).listFiles()
             }
         }
@@ -306,7 +340,7 @@ object AppWebDav {
         if (!NetworkUtils.isAvailable()) return
         try {
             authorization?.let {
-                // 如果导出的本地文件存在,开始上传
+                // 如果导出的本地文件存�?开始上�?
                 val putUrl = exportsWebDavUrl + fileName
                 WebDav(putUrl, it).upload(byteArray, "text/plain")
             }
@@ -320,7 +354,7 @@ object AppWebDav {
         if (!NetworkUtils.isAvailable()) return
         try {
             authorization?.let {
-                // 如果导出的本地文件存在,开始上传
+                // 如果导出的本地文件存�?开始上�?
                 val putUrl = exportsWebDavUrl + fileName
                 WebDav(putUrl, it).upload(uri, "text/plain")
             }
@@ -426,4 +460,10 @@ object AppWebDav {
         }
     }
 
+    private fun normalizeCachePackageFileName(fileName: String): String {
+        val safeFileName = UrlUtil.replaceReservedChar(
+            fileName.trimEnd('/').removeSuffix(".zip").normalizeFileName()
+        ).ifBlank { "cache_${System.currentTimeMillis()}" }
+        return "$safeFileName.zip"
+    }
 }

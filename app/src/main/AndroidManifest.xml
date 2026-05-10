@@ -238,6 +238,15 @@
             android:name=".ui.config.NavigationBarManageActivity"
             android:launchMode="standard" />
         <activity
+            android:name=".ui.config.BookInfoManageActivity"
+            android:launchMode="standard" />
+        <activity
+            android:name=".ui.config.CoverCollectionManageActivity"
+            android:launchMode="standard" />
+        <activity
+            android:name=".ui.config.CoverCollectionDetailActivity"
+            android:launchMode="standard" />
+        <activity
             android:name=".ui.image.ImageCropActivity"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme.Light" />

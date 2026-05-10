@@ -10,10 +10,18 @@ import io.legado.app.constant.BookType
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
+import io.legado.app.help.AppWebDav
+import io.legado.app.help.book.CacheCloudIndex
+import io.legado.app.help.book.CacheCloudIndexItem
+import io.legado.app.help.book.CacheCloudIndexStore
 import io.legado.app.help.exoplayer.ExoPlayerHelper
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.CacheBookManifest
 import io.legado.app.help.book.CacheManifestHelper
+import io.legado.app.help.book.cacheGroupKey
+import io.legado.app.help.book.cacheRemoteKey
+import io.legado.app.help.book.cacheSourceKey
+import io.legado.app.help.book.cacheSourceName
 import io.legado.app.help.book.getBookSource
 import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isImage
@@ -24,6 +32,8 @@ import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.getMediaRequest
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.utils.GSON
 import io.legado.app.utils.externalCache
+import io.legado.app.utils.NetworkUtils
+import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.normalizeFileName
 import io.legado.app.utils.compress.ZipUtils
 import io.legado.app.utils.isJsonArray
@@ -81,16 +91,16 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
                     .filterNot { currentBookUrls.contains(it.bookUrl) }
                     .mapNotNull { manifest -> buildCacheBookItem(manifest, mode) }
                     .toList()
-                val items = groupByBook(currentItems + manifestItems)
+                val localItems = groupByBook(currentItems + manifestItems)
                 ensureActive()
-                itemsLiveData.postValue(items)
-                summaryLiveData.postValue(
-                    CacheSummary(
-                        bookCount = items.size,
-                        cachedChapterCount = items.sumOf { it.cachedCount },
-                        mode = mode
-                    )
-                )
+                val mirrorItems = mergeRemoteItems(localItems, CacheCloudIndexStore.readLocal())
+                postItems(mirrorItems, mode)
+                if (AppWebDav.isOk && NetworkUtils.isAvailable()) {
+                    val remoteIndex = AppWebDav.downloadCacheIndex().items
+                    val mergedIndex = CacheCloudIndexStore.mergeRemote(remoteIndex)
+                    ensureActive()
+                    postItems(mergeRemoteItems(localItems, mergedIndex), mode)
+                }
             } catch (e: CancellationException) {
                 throw e
             } finally {
@@ -103,9 +113,85 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         job.start()
     }
 
+    private fun postItems(items: List<CacheBookItem>, mode: CacheManageMode) {
+        itemsLiveData.postValue(items)
+        summaryLiveData.postValue(
+            CacheSummary(
+                bookCount = items.size,
+                cachedChapterCount = items.sumOf { it.cachedCount },
+                mode = mode
+            )
+        )
+    }
+
     fun selectSource(groupKey: String, sourceKey: String) {
         selectedSourceKeys[groupKey] = sourceKey
         load()
+    }
+
+    private fun mergeRemoteItems(
+        localItems: List<CacheBookItem>,
+        remoteIndex: List<CacheCloudIndexItem>
+    ): List<CacheBookItem> {
+        val localByKey = localItems.associateBy { it.cacheKey }
+        val merged = arrayListOf<CacheBookItem>()
+        localItems.forEach { item ->
+            val remote = remoteIndex.firstOrNull { it.cacheKey == item.cacheKey }
+            merged += if (remote != null) {
+                item.copy(
+                    remoteAvailable = true,
+                    remoteUpdatedAt = remote.updatedAt,
+                    remoteZipFileName = remote.zipFileName,
+                    remoteCachedCount = remote.cachedChapterCount
+                )
+            } else {
+                item
+            }
+        }
+        remoteIndex
+            .asSequence()
+            .filter { it.mode == mode.name }
+            .filterNot { localByKey.containsKey(it.cacheKey) }
+            .mapNotNull { buildRemoteCacheBookItem(it, mode) }
+            .forEach { merged += it }
+        return groupByBook(merged)
+    }
+
+    private fun buildRemoteCacheBookItem(
+        remote: CacheCloudIndexItem,
+        mode: CacheManageMode
+    ): CacheBookItem? {
+        if (remote.mode != mode.name) return null
+        val book = Book(
+            bookUrl = remote.bookUrl,
+            origin = remote.origin,
+            originName = remote.originName,
+            name = remote.name,
+            author = remote.author,
+            coverUrl = remote.coverUrl,
+            intro = remote.intro,
+            type = remote.type,
+            latestChapterTitle = remote.latestChapterTitle,
+            totalChapterNum = remote.totalChapterCount,
+            canUpdate = false
+        )
+        return CacheBookItem(
+            book = book,
+            mode = mode,
+            cacheKey = remote.cacheKey,
+            groupKey = remote.groupKey,
+            sourceKey = remote.sourceKey,
+            sourceName = book.cacheSourceName(),
+            cachedCount = remote.cachedChapterCount.coerceAtMost(remote.totalChapterCount),
+            totalChapterCount = remote.totalChapterCount,
+            localCachedCount = 0,
+            remoteCachedCount = remote.cachedChapterCount,
+            inBookshelf = appDb.bookDao.has(remote.bookUrl),
+            sourceAvailable = book.isLocal || book.getBookSource() != null,
+            remoteAvailable = true,
+            remoteUpdatedAt = remote.updatedAt,
+            remoteZipFileName = remote.zipFileName
+        )
     }
 
     fun deleteBookCache(book: Book, onDone: () -> Unit) {
@@ -259,31 +345,40 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
             val manifest = item.manifest ?: CacheManifestHelper.read(item.book) ?: return@withContext false
             val sameUrlBook = appDb.bookDao.getBook(manifest.bookUrl)
             val sameNameBook = appDb.bookDao.getBook(manifest.name, manifest.author)
-            val cacheBook = CacheManifestHelper.toBook(manifest).apply {
-                sameUrlBook?.let {
-                    group = it.group
-                    order = it.order
-                    durChapterIndex = it.durChapterIndex
-                    durChapterTitle = it.durChapterTitle
-                    durChapterPos = it.durChapterPos
-                    readConfig = it.readConfig
-                } ?: sameNameBook?.let {
-                    group = it.group
-                    order = it.order
-                    durChapterIndex = it.durChapterIndex
-                    durChapterTitle = it.durChapterTitle
-                    durChapterPos = it.durChapterPos
-                    readConfig = it.readConfig
+            val targetBook = when {
+                sameUrlBook != null -> sameUrlBook.apply {
+                    tocUrl = manifest.tocUrl
+                    origin = manifest.origin
+                    originName = manifest.originName
+                    name = manifest.name
+                    author = manifest.author
+                    kind = manifest.kind
+                    coverUrl = manifest.coverUrl
+                    intro = manifest.intro
+                    type = manifest.type
+                    latestChapterTitle = manifest.latestChapterTitle
+                    totalChapterNum = manifest.totalChapterNum
+                    canUpdate = false
+                }.also {
+                    appDb.bookDao.update(it)
+                }
+                sameNameBook != null -> CacheManifestHelper.toBook(manifest).apply {
+                    group = sameNameBook.group
+                    order = sameNameBook.order
+                    durChapterIndex = sameNameBook.durChapterIndex
+                    durChapterTitle = sameNameBook.durChapterTitle
+                    durChapterPos = sameNameBook.durChapterPos
+                    readConfig = sameNameBook.readConfig
+                }.also {
+                    appDb.bookDao.replace(sameNameBook, it)
+                }
+                else -> CacheManifestHelper.toBook(manifest).also {
+                    appDb.bookDao.insert(it)
                 }
             }
-            when {
-                sameUrlBook != null -> appDb.bookDao.update(cacheBook)
-                sameNameBook != null -> appDb.bookDao.replace(sameNameBook, cacheBook)
-                else -> appDb.bookDao.insert(cacheBook)
-            }
-            val chapters = CacheManifestHelper.toChapters(manifest, cacheBook.bookUrl)
+            val chapters = CacheManifestHelper.toChapters(manifest, targetBook.bookUrl)
             if (chapters.isNotEmpty()) {
-                appDb.bookChapterDao.delByBook(cacheBook.bookUrl)
+                appDb.bookChapterDao.delByBook(targetBook.bookUrl)
                 appDb.bookChapterDao.insert(*chapters.toTypedArray())
             }
             true
@@ -313,6 +408,78 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
             }
             zipFile
         }
+    }
+
+    suspend fun uploadCacheItem(item: CacheBookItem) {
+        withContext(Dispatchers.IO) {
+            val zipFile = createCachePackage(item.book)
+            val indexItem = createCacheIndexItem(item)
+            AppWebDav.uploadCachePackage(indexItem.zipFileName, zipFile)
+            val remoteIndex = AppWebDav.downloadCacheIndex().items
+            val merged = linkedMapOf<String, CacheCloudIndexItem>()
+            remoteIndex.forEach { merged[it.cacheKey] = it }
+            merged[indexItem.cacheKey] = indexItem
+            val finalItems = merged.values.sortedByDescending { it.updatedAt }
+            AppWebDav.uploadCacheIndex(CacheCloudIndex(items = finalItems))
+            CacheCloudIndexStore.upsertLocal(indexItem)
+        }
+    }
+
+    suspend fun downloadRemoteCache(item: CacheBookItem): Boolean {
+        val zipFileName = item.remoteZipFileName ?: return false
+        return withContext(Dispatchers.IO) {
+            val tempDir = File(appCtx.externalCache, "cache_remote_import").apply { mkdirs() }
+            val zipFile = File(tempDir, "${zipFileName.removeSuffix(".zip")}.zip").apply {
+                if (exists()) delete()
+            }
+            val unzipDir = File(tempDir, "${zipFileName.removeSuffix(".zip")}_unzipped").apply {
+                if (exists()) deleteRecursively()
+                mkdirs()
+            }
+            try {
+                AppWebDav.downloadCachePackage(zipFileName, zipFile)
+                ZipUtils.unZipToPath(zipFile, unzipDir)
+                if (item.mode == CacheManageMode.AUDIO) {
+                    restoreAudioCachePackage(item.book, unzipDir)
+                } else {
+                    restoreChapterCachePackage(item.book, unzipDir)
+                }
+                hasRestoredLocalCache(item.book, item.mode)
+            } finally {
+                zipFile.delete()
+                unzipDir.deleteRecursively()
+            }
+        }
+    }
+
+    private fun createCacheIndexItem(item: CacheBookItem): CacheCloudIndexItem {
+        val book = item.book
+        val modeName = item.mode.name
+        val remoteFileName = listOf(
+            modeName.lowercase(),
+            book.origin.ifBlank { book.originName },
+            book.name,
+            book.author
+        ).joinToString("_").normalizeFileName().ifBlank { item.cacheKey.normalizeFileName() }
+        return CacheCloudIndexItem(
+            cacheKey = book.cacheRemoteKey(modeName),
+            groupKey = book.cacheGroupKey(modeName),
+            sourceKey = book.cacheSourceKey(),
+            mode = modeName,
+            bookUrl = book.bookUrl,
+            origin = book.origin,
+            originName = book.originName,
+            name = book.name,
+            author = book.author,
+            coverUrl = book.coverUrl,
+            intro = book.intro,
+            latestChapterTitle = book.latestChapterTitle,
+            type = book.type,
+            totalChapterCount = item.totalChapterCount,
+            cachedChapterCount = item.localCachedCount.coerceAtLeast(item.cachedCount),
+            zipFileName = remoteFileName,
+            updatedAt = System.currentTimeMillis()
+        )
     }
 
     private fun createAudioCachePackage(
@@ -426,7 +593,7 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         }
         val cacheNames = getCacheFileNames(book)
         val needsChapterList = book.totalChapterNum <= 0
-        val manifest = if (needsChapterList) CacheManifestHelper.read(book) else null
+        val manifest = knownManifest ?: CacheManifestHelper.read(book)
         val dbChapters = if (needsChapterList) {
             appDb.bookChapterDao.getChapterList(book.bookUrl)
         } else {
@@ -447,11 +614,13 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         return CacheBookItem(
             book = book,
             mode = mode,
-            groupKey = book.cacheGroupKey(mode),
+            cacheKey = book.cacheRemoteKey(mode.name),
+            groupKey = book.cacheGroupKey(mode.name),
             sourceKey = book.cacheSourceKey(),
             sourceName = book.cacheSourceName(),
             cachedCount = cachedCount,
             totalChapterCount = totalChapterCount,
+            localCachedCount = cachedCount,
             taskState = taskState,
             manifest = manifest,
             inBookshelf = true,
@@ -484,11 +653,13 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         return CacheBookItem(
             book = book,
             mode = CacheManageMode.AUDIO,
-            groupKey = book.cacheGroupKey(CacheManageMode.AUDIO),
+            cacheKey = book.cacheRemoteKey(CacheManageMode.AUDIO.name),
+            groupKey = book.cacheGroupKey(CacheManageMode.AUDIO.name),
             sourceKey = book.cacheSourceKey(),
             sourceName = book.cacheSourceName(),
             cachedCount = cachedCount,
             totalChapterCount = totalChapterCount,
+            localCachedCount = cachedCount,
             taskState = taskState,
             manifest = manifest,
             inBookshelf = true,
@@ -522,11 +693,13 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         return CacheBookItem(
             book = book,
             mode = mode,
-            groupKey = book.cacheGroupKey(mode),
+            cacheKey = book.cacheRemoteKey(mode.name),
+            groupKey = book.cacheGroupKey(mode.name),
             sourceKey = book.cacheSourceKey(),
             sourceName = book.cacheSourceName(),
             cachedCount = rawCachedCount.coerceAtMost(totalChapterCount),
             totalChapterCount = totalChapterCount,
+            localCachedCount = rawCachedCount.coerceAtMost(totalChapterCount),
             manifest = manifest,
             inBookshelf = false,
             sourceAvailable = book.isLocal || book.getBookSource() != null
@@ -653,41 +826,102 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
         )
     }
 
-    private fun Book.cacheGroupKey(mode: CacheManageMode): String {
-        return listOf(
-            mode.name,
-            name.trim(),
-            getRealAuthor().trim()
-        ).joinToString(separator = "\u001F")
-    }
-
-    private fun Book.cacheSourceKey(): String {
-        return listOf(
-            origin.ifBlank { originName },
-            bookUrl
-        ).joinToString(separator = "\u001F")
-    }
-
-    private fun Book.cacheSourceName(): String {
-        return when {
-            isLocal -> context.getString(R.string.local)
-            originName.isNotBlank() -> originName
-            origin.isNotBlank() -> origin
-            else -> context.getString(R.string.unknown)
+    private fun restoreChapterCachePackage(book: Book, unzipDir: File) {
+        val payloadDir = resolveCachePayloadDir(unzipDir, CacheManifestHelper.MANIFEST_FILE_NAME)
+        val cacheDir = BookHelp.getCacheDir(book)
+        if (cacheDir.exists()) {
+            cacheDir.deleteRecursively()
         }
+        cacheDir.mkdirs()
+        payloadDir.listFiles()?.forEach { file ->
+            val target = File(cacheDir, file.name)
+            if (file.isDirectory) {
+                file.copyRecursively(target, overwrite = true)
+            } else {
+                file.copyTo(target, overwrite = true)
+            }
+        }
+        CacheManifestHelper.read(book)?.let { manifest ->
+            val chapters = CacheManifestHelper.toChapters(manifest, book.bookUrl)
+            if (chapters.isNotEmpty() && appDb.bookDao.has(book.bookUrl)) {
+                appDb.bookChapterDao.delByBook(book.bookUrl)
+                appDb.bookChapterDao.insert(*chapters.toTypedArray())
+            }
+        }
+    }
+
+    private fun restoreAudioCachePackage(book: Book, unzipDir: File) {
+        val payloadDir = resolveCachePayloadDir(unzipDir, "manifest.json")
+        val chapterCacheDir = File(payloadDir, "chapter_cache")
+        if (chapterCacheDir.exists()) {
+            val cacheDir = BookHelp.getCacheDir(book)
+            if (cacheDir.exists()) {
+                cacheDir.deleteRecursively()
+            }
+            chapterCacheDir.copyRecursively(cacheDir, overwrite = true)
+        }
+        val manifestFile = File(payloadDir, "manifest.json")
+        if (!manifestFile.isFile) return
+        val audioManifest = GSON.fromJsonObject<AudioCacheManifest>(manifestFile.readText()).getOrNull()
+            ?: return
+        val chapters = audioManifest.chapters.map { chapter ->
+            BookChapter(
+                url = chapter.url,
+                title = chapter.title,
+                bookUrl = book.bookUrl,
+                index = chapter.index,
+                resourceUrl = chapter.resourceUrl
+            )
+        }
+        val audioDir = File(payloadDir, "audio_cache")
+        audioManifest.chapters.forEach { chapter ->
+            val resourceUrl = chapter.resourceUrl ?: return@forEach
+            val sourceDir = File(audioDir, chapter.index.toString())
+            ExoPlayerHelper.importMediaCache(resourceUrl, sourceDir)
+        }
+        if (chapters.isNotEmpty() && appDb.bookDao.has(book.bookUrl)) {
+            appDb.bookChapterDao.delByBook(book.bookUrl)
+            appDb.bookChapterDao.insert(*chapters.toTypedArray())
+        }
+    }
+
+    private fun resolveCachePayloadDir(unzipDir: File, markerName: String): File {
+        if (File(unzipDir, markerName).exists()) return unzipDir
+        val childDirs = unzipDir.listFiles()
+            ?.filter { it.isDirectory }
+            .orEmpty()
+        return childDirs.firstOrNull { File(it, markerName).exists() }
+            ?: childDirs.singleOrNull()
+            ?: unzipDir
+    }
+
+    private fun hasRestoredLocalCache(book: Book, mode: CacheManageMode): Boolean {
+        val manifest = CacheManifestHelper.read(book) ?: return false
+        val chapters = CacheManifestHelper.toChapters(manifest)
+        if (mode == CacheManageMode.AUDIO) {
+            return getAudioCachedCount(chapters, manifest.cachedIndexes()) > 0
+        }
+        val cacheNames = getCacheFileNames(book)
+        return chapters.any { isChapterCached(book, it, cacheNames, validateImageContent = false) }
     }
 
     private fun CacheBookItem.toSourceVariant(): CacheBookSourceVariant {
         return CacheBookSourceVariant(
+            cacheKey = cacheKey,
             sourceKey = sourceKey,
             sourceName = sourceName,
             book = book,
             cachedCount = cachedCount,
             totalChapterCount = totalChapterCount,
+            localCachedCount = localCachedCount,
+            remoteCachedCount = remoteCachedCount,
             taskState = taskState,
             manifest = manifest,
             inBookshelf = inBookshelf,
-            sourceAvailable = sourceAvailable
+            sourceAvailable = sourceAvailable,
+            remoteAvailable = remoteAvailable,
+            remoteUpdatedAt = remoteUpdatedAt,
+            remoteZipFileName = remoteZipFileName
         )
     }
 }
@@ -707,28 +941,40 @@ enum class CacheChapterFilter {
 data class CacheBookItem(
     val book: Book,
     val mode: CacheManageMode,
+    val cacheKey: String,
     val groupKey: String,
     val sourceKey: String,
     val sourceName: String,
     val cachedCount: Int,
     val totalChapterCount: Int,
+    val localCachedCount: Int,
+    val remoteCachedCount: Int = 0,
     val taskState: AudioCacheTaskState? = null,
     val manifest: CacheBookManifest? = null,
     val inBookshelf: Boolean = true,
     val sourceAvailable: Boolean = true,
+    val remoteAvailable: Boolean = false,
+    val remoteUpdatedAt: Long = 0L,
+    val remoteZipFileName: String? = null,
     val sourceVariants: List<CacheBookSourceVariant> = emptyList()
 )
 
 data class CacheBookSourceVariant(
+    val cacheKey: String,
     val sourceKey: String,
     val sourceName: String,
     val book: Book,
     val cachedCount: Int,
     val totalChapterCount: Int,
+    val localCachedCount: Int,
+    val remoteCachedCount: Int = 0,
     val taskState: AudioCacheTaskState? = null,
     val manifest: CacheBookManifest? = null,
     val inBookshelf: Boolean = true,
-    val sourceAvailable: Boolean = true
+    val sourceAvailable: Boolean = true,
+    val remoteAvailable: Boolean = false,
+    val remoteUpdatedAt: Long = 0L,
+    val remoteZipFileName: String? = null
 )
 
 data class CacheChapterItem(

@@ -170,6 +170,10 @@ class CacheManageActivity :
     }
 
     override fun openChapters(item: CacheBookItem) {
+        if (item.localCachedCount <= 0) {
+            toastOnUi(R.string.cache_manage_download_first)
+            return
+        }
         showDialogFragment(CacheChapterDialog.newInstance(item.book))
     }
 
@@ -177,14 +181,30 @@ class CacheManageActivity :
         lifecycleScope.launch {
             toastOnUi(R.string.cache_manage_uploading)
             kotlin.runCatching {
-                val zipFile = viewModel.createCachePackage(item.book)
-                withContext(Dispatchers.IO) {
-                    AppWebDav.uploadCachePackage(zipFile.name, zipFile)
-                }
+                viewModel.uploadCacheItem(item)
             }.onSuccess {
                 toastOnUi(R.string.cache_manage_upload_success)
+                viewModel.load()
             }.onFailure {
                 toastOnUi(getString(R.string.cache_manage_upload_failed, it.localizedMessage))
+            }
+        }
+    }
+
+    override fun download(item: CacheBookItem) {
+        lifecycleScope.launch {
+            toastOnUi(R.string.cache_manage_downloading)
+            kotlin.runCatching {
+                viewModel.downloadRemoteCache(item)
+            }.onSuccess { success ->
+                if (success) {
+                    toastOnUi(R.string.cache_manage_download_success)
+                    viewModel.load()
+                } else {
+                    toastOnUi(R.string.cache_manage_download_failed_simple)
+                }
+            }.onFailure {
+                toastOnUi(getString(R.string.cache_manage_download_failed, it.localizedMessage))
             }
         }
     }
@@ -264,10 +284,7 @@ class CacheManageActivity :
             var failed = 0
             items.forEach { item ->
                 kotlin.runCatching {
-                    val zipFile = viewModel.createCachePackage(item.book)
-                    withContext(Dispatchers.IO) {
-                        AppWebDav.uploadCachePackage(zipFile.name, zipFile)
-                    }
+                    viewModel.uploadCacheItem(item)
                 }.onSuccess {
                     success++
                 }.onFailure {

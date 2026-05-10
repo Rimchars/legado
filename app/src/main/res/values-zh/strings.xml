@@ -1753,4 +1753,44 @@
 
 用户选中或追问：
 %6$s</string>
+
+    <string name="source_runtime_backup">忽略书源登录与变量</string>
+    <string name="book_info_manage">详情页管理</string>
+    <string name="book_info_manage_summary">管理详情页组件与显示顺序</string>
+    <string name="book_info_components_hint">勾选启用组件，拖动调整顺序。重新打开详情页后生效。</string>
+    <string name="book_info_component_header">书籍主卡片</string>
+    <string name="book_info_component_header_hint">封面、书名、作者、最新章节与标签。</string>
+    <string name="book_info_component_meta">分组与书源卡片</string>
+    <string name="book_info_component_meta_hint">分组、书源、换源和目录入口。</string>
+    <string name="book_info_component_detail">简介与目录卡片</string>
+    <string name="book_info_component_detail_hint">简介、章节预览和展开目录入口。</string>
+    <string name="book_info_component_keep_one">至少保留一个详情组件。</string>
+    <string name="discovery_page_layout">发现页布局</string>
+    <string name="discovery_page_layout_summary">当前：%1$s</string>
+    <string name="discovery_page_layout_list">列表</string>
+    <string name="discovery_page_layout_waterfall">瀑布流</string>
+    <string name="cache_manage_downloading">正在下载云端缓存...</string>
+    <string name="cache_manage_download_success">云端缓存已下载</string>
+    <string name="cache_manage_download_failed">下载失败：%1$s</string>
+    <string name="cache_manage_download_failed_simple">下载失败</string>
+    <string name="cache_manage_download_first">请先下载云端缓存到本地</string>
+    <string name="theme_image_panel_background">界面卡片壁纸</string>
+    <string name="theme_image_panel_background_mode">卡片壁纸显示</string>
+    <string name="theme_image_mode_crop">裁切填充</string>
+    <string name="theme_image_mode_fit">适应显示</string>
+    <string name="theme_group_color">颜色</string>
+    <string name="theme_group_image">图片</string>
+    <string name="theme_group_interface">界面</string>
+    <string name="theme_group_font">字体</string>
+    <string name="cover_collection_manage">封面图集</string>
+    <string name="cover_collection_select">选用图集</string>
+    <string name="cover_collection_none">无</string>
+    <string name="cover_collection_add">创建图集</string>
+    <string name="cover_collection_import_zip">导入 ZIP</string>
+    <string name="cover_collection_import_images">导入图片</string>
+    <string name="cover_collection_images_count">%d 张图片</string>
+    <string name="cover_collection_mode">封面模式</string>
+    <string name="cover_collection_mode_random">随机</string>
+    <string name="cover_collection_mode_sequence">顺序</string>
+    <string name="cover_collection_name">图集名称</string>
 </resources>

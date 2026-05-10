@@ -25,6 +25,58 @@
             android:textSize="15sp" />
 
         <LinearLayout
+            android:id="@+id/tab_group"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_bookshelf_tag_track"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="4dp">
+
+            <TextView
+                android:id="@+id/btn_color_group"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:singleLine="true"
+                android:text="@string/theme_group_color"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/btn_image_group"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:singleLine="true"
+                android:text="@string/theme_group_image"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/btn_interface_group"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:singleLine="true"
+                android:text="@string/theme_group_interface"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/btn_font_group"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:singleLine="true"
+                android:text="@string/theme_group_font"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/ll_color_group"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -66,6 +118,14 @@
                 android:id="@+id/row_book_info_background"
                 layout="@layout/item_theme_package_option" />
 
+            <include
+                android:id="@+id/row_panel_background"
+                layout="@layout/item_theme_package_option" />
+
+            <include
+                android:id="@+id/row_panel_background_mode"
+                layout="@layout/item_theme_package_option" />
+
         </LinearLayout>
 
         <LinearLayout
@@ -85,6 +145,24 @@
                 layout="@layout/item_theme_package_option" />
 
             <include
+                android:id="@+id/row_search_follow"
+                layout="@layout/item_theme_package_option" />
+
+            <include
+                android:id="@+id/row_reply_follow"
+                layout="@layout/item_theme_package_option" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_font_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical"
+            android:padding="0dp">
+
+            <include
                 android:id="@+id/row_font_scale"
                 layout="@layout/item_theme_package_option" />
 
@@ -94,14 +172,6 @@
 
             <include
                 android:id="@+id/row_title_font"
-                layout="@layout/item_theme_package_option" />
-
-            <include
-                android:id="@+id/row_search_follow"
-                layout="@layout/item_theme_package_option" />
-
-            <include
-                android:id="@+id/row_reply_follow"
                 layout="@layout/item_theme_package_option" />
 
         </LinearLayout>

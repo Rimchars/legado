@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Drawable
 import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -147,9 +148,9 @@ val Context.elevation: Float
         }
     }
 
-val Context.filletBackground: GradientDrawable
+val Context.filletBackground: Drawable
     get() {
-        return UiCorner.rounded(backgroundColor, UiCorner.panelRadius(this))
+        return UiCorner.panelRounded(this, backgroundColor, UiCorner.panelRadius(this))
     }
 
 val Context.dialogSurfaceBackground: GradientDrawable
@@ -158,9 +159,9 @@ val Context.dialogSurfaceBackground: GradientDrawable
     }
 
 fun Context.filletTopBackground(@ColorInt color: Int): GradientDrawable {
-    val radius = UiCorner.scaledDp(16f)
+    val radius = UiCorner.panelRadius(this)
     return GradientDrawable().apply {
         cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
-        setColor(UiCorner.surfaceColor(color))
+        setColor(color)
     }
 }

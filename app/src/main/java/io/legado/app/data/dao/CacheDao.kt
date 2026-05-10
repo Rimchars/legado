@@ -18,6 +18,14 @@ interface CacheDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(vararg cache: Cache)
 
+    @Query(
+        """select * from caches
+        where `key` like 'userInfo_%'
+        or `key` like 'sourceVariable_%'
+        or `key` like 'v_%'"""
+    )
+    fun getSourceRuntimeCaches(): List<Cache>
+
     @Query("delete from caches where `key` = :key")
     fun delete(key: String)
 

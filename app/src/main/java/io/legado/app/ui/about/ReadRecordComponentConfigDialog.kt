@@ -103,9 +103,9 @@ object ReadRecordComponentConfigDialog {
         ) : RecyclerView.ViewHolder(binding.root) {
 
             fun bind(item: ReadRecordComponentItem) = with(binding) {
-                root.background = UiCorner.actionSelector(
+                root.background = UiCorner.panelRounded(
+                    context,
                     panelColor,
-                    pressedColor,
                     UiCorner.panelRadius(context)
                 )
                 tvTitle.text = context.getString(item.type.titleRes)

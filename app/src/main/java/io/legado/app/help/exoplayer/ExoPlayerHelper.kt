@@ -267,6 +267,36 @@ object ExoPlayerHelper {
         return count
     }
 
+    fun importMediaCache(url: String?, sourceDir: File): Int {
+        if (url.isNullOrBlank() || !sourceDir.exists() || !sourceDir.isDirectory) return 0
+        val urls = getMediaUrls(url)
+        if (urls.isEmpty()) return 0
+        var count = 0
+        sourceDir.listFiles()
+            ?.filter { it.isFile }
+            ?.forEach { source ->
+                val prefix = source.name.substringBefore('_', "")
+                val urlIndex = prefix.toIntOrNull() ?: return@forEach
+                val targetUrl = urls.getOrNull(urlIndex) ?: return@forEach
+                val remain = source.name.substringAfter('_', "")
+                val position = remain.substringBefore('_', "").toLongOrNull() ?: return@forEach
+                val lengthPart = remain.substringAfter("${position}_", "")
+                val expectedLength = lengthPart.substringBefore('_', "").toLongOrNull()
+                    ?: source.length()
+                val cacheFile = audioCache.startFile(targetUrl, position, expectedLength)
+                cacheFile.parentFile?.mkdirs()
+                source.inputStream().use { input ->
+                    cacheFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                audioCache.commitFile(cacheFile, source.length())
+                markMediaUrlComplete(targetUrl)
+                count++
+            }
+        return count
+    }
+
     private fun isMediaUrlCached(url: String): Boolean {
         val contentLength = ContentMetadata.getContentLength(audioCache.getContentMetadata(url))
         return if (contentLength > 0) {

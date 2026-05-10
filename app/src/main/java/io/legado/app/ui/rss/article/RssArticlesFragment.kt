@@ -103,7 +103,8 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                         parent: RecyclerView,
                         state: RecyclerView.State
                     ) {
-                        outRect.set(12, 30, 12, 30)
+                        val space = 8
+                        outRect.set(space, space, space, space)
                     }
                 })
                 recyclerView.itemAnimator = null

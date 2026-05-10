@@ -63,6 +63,8 @@ import io.legado.app.help.book.isVideo
 import io.legado.app.help.book.isWebFile
 import io.legado.app.help.book.removeType
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.BookInfoComponentConfig
+import io.legado.app.help.config.BookInfoComponentType
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.webView.PooledWebView
 import io.legado.app.help.webView.WebJsExtensions
@@ -278,6 +280,7 @@ class BookInfoActivity :
         binding.ivCoverC.setCardBackgroundColor(backgroundColor)
         applyUiCorners()
         applyBookInfoTypography()
+        applyBookInfoComponents()
         binding.flAction.setBackgroundResource(R.color.transparent)
         binding.vwBg.applyNavigationBarPadding()
         binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
@@ -303,7 +306,7 @@ class BookInfoActivity :
         val transparent = Color.TRANSPARENT
         ivCoverC.radius = UiCorner.panelRadius(this@BookInfoActivity)
         listOfNotNull(llDetailPanel, llInfoPage, llDetailContentPanel).forEach {
-            it.background = UiCorner.rounded(panelColor, UiCorner.panelRadius(this@BookInfoActivity))
+            it.background = UiCorner.panelRounded(this@BookInfoActivity, panelColor, UiCorner.panelRadius(this@BookInfoActivity))
         }
         listOfNotNull(tvTabIntro, tvTabToc, tvTabInfo, tvIntroToggle).forEach {
             it.background = UiCorner.actionSelector(
@@ -337,6 +340,24 @@ class BookInfoActivity :
             it.applyUiTitleTypeface(this@BookInfoActivity)
             it.typeface = titleTf
         }
+    }
+
+    private fun applyBookInfoComponents() = binding.run {
+        val componentViews = mapOf(
+            BookInfoComponentType.HEADER to llDetailPanel,
+            BookInfoComponentType.META to llInfoPage,
+            BookInfoComponentType.DETAIL to llDetailContentPanel
+        )
+        val orderedComponents = BookInfoComponentConfig.load()
+        orderedComponents.forEach { item ->
+            val componentView = componentViews[item.type] ?: return@forEach
+            componentView.visibility = if (item.enabled) View.VISIBLE else View.GONE
+            if (componentView.parent === llInfo) {
+                llInfo.removeView(componentView)
+            }
+            llInfo.addView(componentView)
+        }
+        updateDetailContentPanelHeight()
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {

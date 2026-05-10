@@ -23,6 +23,11 @@
             app:entryValues="@array/discovery_page_mode_values"
             app:iconSpaceReserved="false" />
 
+        <io.legado.app.lib.prefs.Preference
+            android:key="discoveryPageLayout"
+            android:title="@string/discovery_page_layout"
+            app:iconSpaceReserved="false" />
+
     </io.legado.app.lib.prefs.PreferenceCategory>
 
     <io.legado.app.lib.prefs.PreferenceCategory

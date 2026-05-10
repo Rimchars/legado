@@ -221,6 +221,7 @@ class ThemeConfigFragment : PreferenceFragment(),
             "themeList" -> startActivity<ThemeManageActivity>()
             "theme_manage" -> startActivity<ThemeManageActivity>()
             "navigation_bar_manage" -> startActivity<NavigationBarManageActivity>()
+            "book_info_manage" -> startActivity<BookInfoManageActivity>()
             "saveDayTheme",
             "saveNightTheme" -> alertSaveTheme(key)
 
@@ -228,8 +229,9 @@ class ThemeConfigFragment : PreferenceFragment(),
                 putExtra("configTag", ConfigTag.COVER_CONFIG)
             }
 
+            else -> return super.onPreferenceTreeClick(preference)
         }
-        return super.onPreferenceTreeClick(preference)
+        return true
     }
 
     @SuppressLint("InflateParams")

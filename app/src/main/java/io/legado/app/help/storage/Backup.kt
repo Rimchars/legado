@@ -16,8 +16,13 @@ import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
 import io.legado.app.help.config.NavigationBarIconConfig
+import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.model.BookCover
+import io.legado.app.data.entities.BaseSource
+import io.legado.app.data.entities.BookSource
+import io.legado.app.data.entities.HttpTTS
+import io.legado.app.data.entities.RssSource
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.LogUtils
@@ -25,6 +30,7 @@ import io.legado.app.utils.compress.ZipUtils
 import io.legado.app.utils.createFolderIfNotExist
 import io.legado.app.utils.defaultSharedPreferences
 import io.legado.app.utils.externalFiles
+import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getFile
 import io.legado.app.utils.getSharedPreferences
 import io.legado.app.utils.isContentScheme
@@ -92,6 +98,7 @@ object Backup {
             ReadBookConfig.shareConfigFileName,
             ThemeConfig.configFileName,
             BookCover.configFileName,
+            "sourceRuntime.json",
             "config.xml",
             "videoConfig.xml"
         )
@@ -188,6 +195,7 @@ object Backup {
             FileUtils.createFileIfNotExist(backupPath + File.separator + BookCover.configFileName)
                 .writeText(GSON.toJson(it))
         }
+        exportSourceRuntime()
         currentCoroutineContext().ensureActive()
         appCtx.getSharedPreferences(backupPath, "config")?.let { sp ->
             val edit = sp.edit()
@@ -237,6 +245,7 @@ object Backup {
         }
         paths.add(ThemePackageManager.rootDir.absolutePath)
         paths.add(NavigationBarIconConfig.rootDir.absolutePath)
+        paths.add(CoverCollectionManager.rootDir.absolutePath)
         FileUtils.delete(zipFilePath)
         FileUtils.delete(zipFilePath.replace("tmp_", ""))
         val backupFileName = if (AppConfig.onlyLatestBackup) {
@@ -276,6 +285,55 @@ object Backup {
         }.let {
             AppWebDav.upBgs(it.toTypedArray())
         }
+    }
+
+    private fun exportSourceRuntime() {
+        if (BackupConfig.ignoreSourceRuntime) return
+        val sourceCaches = appDb.cacheDao.getSourceRuntimeCaches()
+        val items = arrayListOf<SourceRuntimeBackupItem>()
+        appDb.bookSourceDao.all.forEach { source ->
+            buildSourceRuntimeItem("bookSource", source, sourceCaches)?.let(items::add)
+        }
+        appDb.rssSourceDao.all.forEach { source ->
+            buildSourceRuntimeItem("rssSource", source, sourceCaches)?.let(items::add)
+        }
+        appDb.httpTTSDao.all.forEach { source ->
+            buildSourceRuntimeItem("httpTts", source, sourceCaches)?.let(items::add)
+        }
+        if (items.isNotEmpty()) {
+            FileUtils.createFileIfNotExist(backupPath + File.separator + "sourceRuntime.json")
+                .writeText(GSON.toJson(SourceRuntimeBackup(items = items)))
+        }
+    }
+
+    private fun buildSourceRuntimeItem(
+        sourceType: String,
+        source: BaseSource,
+        sourceCaches: List<io.legado.app.data.entities.Cache>
+    ): SourceRuntimeBackupItem? {
+        val loginInfo = source.getLoginInfo()?.let { raw ->
+            GSON.fromJsonObject<HashMap<String, String>>(raw).getOrNull()?.toMap()
+        }
+        val sourceVariable = source.getVariable().takeIf { it.isNotBlank() }
+        val sourceValues = sourceCaches
+            .asSequence()
+            .filter { it.key.startsWith("v_${source.getKey()}_") }
+            .mapNotNull { cache ->
+                cache.value?.let { value ->
+                    cache.key.removePrefix("v_${source.getKey()}_") to value
+                }
+            }
+            .toMap(linkedMapOf())
+        if (loginInfo == null && sourceVariable == null && sourceValues.isEmpty()) {
+            return null
+        }
+        return SourceRuntimeBackupItem(
+            sourceType = sourceType,
+            sourceKey = source.getKey(),
+            loginInfo = loginInfo,
+            sourceVariable = sourceVariable,
+            sourceValues = sourceValues
+        )
     }
 
     private suspend fun writeListToJson(list: List<Any>, fileName: String, path: String) {

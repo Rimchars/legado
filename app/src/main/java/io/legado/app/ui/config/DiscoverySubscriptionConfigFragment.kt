@@ -35,6 +35,10 @@ class DiscoverySubscriptionConfigFragment : PreferenceFragment(),
             booleanKey = PreferKey.modernRssPage,
             defaultValue = true
         )
+        DiscoveryPageLayoutDialog.bindSummary(
+            requireContext(),
+            findPreference(PreferKey.discoveryPageLayout)
+        )
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -61,8 +65,20 @@ class DiscoverySubscriptionConfigFragment : PreferenceFragment(),
 
             PreferKey.modernDiscoveryPage,
             PreferKey.modernRssPage,
+            PreferKey.discoveryPageLayout,
             PreferKey.mergeDiscoveryRss -> postEvent(EventBus.NOTIFY_MAIN, false)
         }
+    }
+
+    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        if (preference.key == PreferKey.discoveryPageLayout) {
+            DiscoveryPageLayoutDialog.show(requireContext()) {
+                DiscoveryPageLayoutDialog.bindSummary(requireContext(), preference)
+                postEvent(EventBus.NOTIFY_MAIN, false)
+            }
+            return true
+        }
+        return super.onPreferenceTreeClick(preference)
     }
 
     private fun bindModePreference(

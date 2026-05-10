@@ -52,6 +52,8 @@ object ThemeConfig {
     private var usableBgImageCacheKey: String? = null
     private var usableBgImageCacheValue: Boolean = false
     const val configFileName = "themeConfig.json"
+    const val PANEL_BG_CROP = "crop"
+    const val PANEL_BG_FIT = "fit"
     val configFilePath = FileUtils.getPath(appCtx.filesDir, configFileName)
 
     val configList: ArrayList<Config> by lazy {
@@ -94,7 +96,7 @@ object ThemeConfig {
     }
 
     /**
-     * 获取链接获取图片文件名
+     * 获取链接获取图片文件�?
      */
     private fun getUrlToFile(url: String): String {
         val suffix = when {
@@ -283,6 +285,10 @@ object ThemeConfig {
             val isNightTheme = config.isNightTheme
             val backgroundPath = config.backgroundImgPath
             val bookInfoBackgroundPath = config.bookInfoBackgroundImgPath
+            val panelBackgroundPath = config.panelBackgroundImgPath
+            val panelBackgroundScaleType = config.panelBackgroundScaleType?.takeIf {
+                it == PANEL_BG_CROP || it == PANEL_BG_FIT
+            } ?: PANEL_BG_CROP
             config.uiCornerScale?.let {
                 context.putPrefString(PreferKey.uiCornerScale, it.coerceIn(0f, 3f).toPlainScale())
             }
@@ -347,6 +353,8 @@ object ThemeConfig {
                 context.putPrefString(PreferKey.bgImageN, backgroundPath)
                 context.putPrefInt(PreferKey.bgImageNBlurring, backgroundBlur)
                 context.putPrefString(PreferKey.bookInfoBgImageN, bookInfoBackgroundPath)
+                context.putPrefString(PreferKey.panelBgImageN, panelBackgroundPath)
+                context.putPrefString(PreferKey.panelBgScaleTypeN, panelBackgroundScaleType)
             } else {
                 context.putPrefString(PreferKey.dThemeName, config.themeName)
                 context.putPrefInt(PreferKey.cPrimary, primary)
@@ -357,6 +365,8 @@ object ThemeConfig {
                 context.putPrefString(PreferKey.bgImage, backgroundPath)
                 context.putPrefInt(PreferKey.bgImageBlurring, backgroundBlur)
                 context.putPrefString(PreferKey.bookInfoBgImage, bookInfoBackgroundPath)
+                context.putPrefString(PreferKey.panelBgImage, panelBackgroundPath)
+                context.putPrefString(PreferKey.panelBgScaleType, panelBackgroundScaleType)
             }
             if (switchNightMode) {
                 AppConfig.isNightTheme = isNightTheme
@@ -418,6 +428,10 @@ object ThemeConfig {
             context.getPrefInt(PreferKey.bgImageBlurring, 0)
         val bookInfoBgImgPath =
             context.getPrefString(PreferKey.bookInfoBgImage)
+        val panelBgImgPath =
+            context.getPrefString(PreferKey.panelBgImage)
+        val panelBgScaleType =
+            context.getPrefString(PreferKey.panelBgScaleType) ?: PANEL_BG_CROP
         val stored = configList.firstOrNull {
             it.themeName == name && !it.isNightTheme
         }
@@ -434,6 +448,8 @@ object ThemeConfig {
                 backgroundImgPath = bgImgPath,
                 backgroundImgBlur = bgImgBlur,
                 bookInfoBackgroundImgPath = bookInfoBgImgPath,
+                panelBackgroundImgPath = panelBgImgPath,
+                panelBackgroundScaleType = panelBgScaleType,
                 uiCornerScale = stored?.uiCornerScale ?: AppConfig.uiCornerScale,
                 uiLayoutAlpha = stored?.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha,
                 uiCornerSearchFollow = stored?.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow,
@@ -471,6 +487,10 @@ object ThemeConfig {
             context.getPrefInt(PreferKey.bgImageNBlurring, 0)
         val bookInfoBgImgPath =
             context.getPrefString(PreferKey.bookInfoBgImageN)
+        val panelBgImgPath =
+            context.getPrefString(PreferKey.panelBgImageN)
+        val panelBgScaleType =
+            context.getPrefString(PreferKey.panelBgScaleTypeN) ?: PANEL_BG_CROP
         val stored = configList.firstOrNull {
             it.themeName == name && it.isNightTheme
         }
@@ -486,6 +506,8 @@ object ThemeConfig {
                 backgroundImgPath = bgImgPath,
                 backgroundImgBlur = bgImgBlur,
                 bookInfoBackgroundImgPath = bookInfoBgImgPath,
+                panelBackgroundImgPath = panelBgImgPath,
+                panelBackgroundScaleType = panelBgScaleType,
                 uiCornerScale = stored?.uiCornerScale ?: AppConfig.uiCornerScale,
                 uiLayoutAlpha = stored?.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha,
                 uiCornerSearchFollow = stored?.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow,
@@ -508,6 +530,11 @@ object ThemeConfig {
                 config.bookInfoBackgroundImgPath,
                 stored.bookInfoBackgroundImgPath
             ),
+            panelBackgroundImgPath = preferThemeAsset(
+                config.panelBackgroundImgPath,
+                stored.panelBackgroundImgPath
+            ),
+            panelBackgroundScaleType = config.panelBackgroundScaleType ?: stored.panelBackgroundScaleType,
             backgroundImgBlur = if (config.backgroundImgPath.isNullOrBlank() && !stored.backgroundImgPath.isNullOrBlank()) {
                 stored.backgroundImgBlur
             } else {
@@ -524,13 +551,15 @@ object ThemeConfig {
     }
 
     private fun preferThemeAsset(current: String?, fallback: String?): String? {
-        if (!current.isNullOrBlank()) {
+        if (current != null) {
+            if (current.isBlank()) return current
             if (current.startsWith("http", ignoreCase = true)) return current
             if (File(current).exists()) return current
+            return current
         }
         return fallback?.takeIf {
             it.startsWith("http", ignoreCase = true) || File(it).exists()
-        } ?: current
+        }
     }
 
     private fun Float.toPlainScale(): String {
@@ -648,6 +677,8 @@ object ThemeConfig {
         var backgroundImgPath: String?,
         var backgroundImgBlur: Int,
         var bookInfoBackgroundImgPath: String? = null,
+        var panelBackgroundImgPath: String? = null,
+        var panelBackgroundScaleType: String? = PANEL_BG_CROP,
         var uiCornerScale: Float? = null,
         var uiLayoutAlpha: Int? = null,
         var uiCornerSearchFollow: Boolean? = null,
@@ -674,6 +705,8 @@ object ThemeConfig {
                         && other.backgroundImgPath == backgroundImgPath
                         && other.backgroundImgBlur == backgroundImgBlur
                         && other.bookInfoBackgroundImgPath == bookInfoBackgroundImgPath
+                        && other.panelBackgroundImgPath == panelBackgroundImgPath
+                        && other.panelBackgroundScaleType == panelBackgroundScaleType
                         && other.uiCornerScale == uiCornerScale
                         && other.uiLayoutAlpha == uiLayoutAlpha
                         && other.uiCornerSearchFollow == uiCornerSearchFollow
@@ -696,6 +729,8 @@ object ThemeConfig {
             "backgroundImgPath" to backgroundImgPath,
             "backgroundImgBlur" to backgroundImgBlur,
             "bookInfoBackgroundImgPath" to bookInfoBackgroundImgPath,
+            "panelBackgroundImgPath" to panelBackgroundImgPath,
+            "panelBackgroundScaleType" to panelBackgroundScaleType,
             "uiCornerScale" to uiCornerScale,
             "uiLayoutAlpha" to uiLayoutAlpha,
             "uiCornerSearchFollow" to uiCornerSearchFollow,

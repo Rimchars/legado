@@ -108,12 +108,18 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         val entry = pendingSidebarBackgroundEntry ?: return@registerForActivityResult
         val uri = result.uri ?: return@registerForActivityResult
         val metrics = resources.displayMetrics
+        val isLandscape = metrics.widthPixels > metrics.heightPixels
+        val sidebarWidth = if (isLandscape) {
+            (metrics.widthPixels * 0.33f).toInt()
+        } else {
+            (metrics.widthPixels * 0.66f).toInt()
+        }.coerceAtLeast(1)
         val request = ImageCropHelper.buildRequest(
             context = this,
             sourceUri = uri,
             requestCode = requestSidebarBackground,
-            aspectWidth = minOf(metrics.widthPixels, metrics.heightPixels),
-            aspectHeight = maxOf(metrics.widthPixels, metrics.heightPixels),
+            aspectWidth = sidebarWidth,
+            aspectHeight = metrics.heightPixels.coerceAtLeast(1),
             dirName = "navigationBarSidebarBackground",
             prefix = "sidebar_bg",
             targetWidth = 1440
@@ -731,7 +737,8 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         inner class Holder(private val itemBinding: ItemThemePackageBinding) : RecyclerView.ViewHolder(itemBinding.root) {
 
             fun bind(entry: NavigationBarIconConfig.Entry) = itemBinding.run {
-                root.background = UiCorner.opaqueRounded(
+                root.background = UiCorner.panelRounded(
+                    this@NavigationBarManageActivity,
                     ContextCompat.getColor(this@NavigationBarManageActivity, R.color.background_card),
                     UiCorner.panelRadius(this@NavigationBarManageActivity)
                 )

@@ -27,4 +27,9 @@
         android:title="@string/modern_discovery_page"
         android:visible="false" />
 
+    <io.legado.app.lib.prefs.Preference
+        android:key="discoveryPageLayout"
+        android:title="@string/discovery_page_layout"
+        app:iconSpaceReserved="false" />
+
 </androidx.preference.PreferenceScreen>

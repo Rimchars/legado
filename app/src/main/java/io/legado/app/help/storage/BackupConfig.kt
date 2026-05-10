@@ -24,6 +24,7 @@ object BackupConfig {
     private const val themeConfigKey = "themeConfig"
     private const val coverConfigKey = "coverConfig"
     private const val localBookKey = "localBook"
+    private const val sourceRuntimeKey = "sourceRuntime"
 
     //配置忽略key
     val ignoreKeys = arrayOf(
@@ -34,7 +35,8 @@ object BackupConfig {
         PreferKey.bookshelfLayout,
         PreferKey.showRss,
         PreferKey.threadCount,
-        localBookKey
+        localBookKey,
+        sourceRuntimeKey
     )
 
     //配置忽略标题
@@ -46,7 +48,8 @@ object BackupConfig {
         appCtx.getString(R.string.bookshelf_layout),
         appCtx.getString(R.string.show_rss),
         appCtx.getString(R.string.thread_count),
-        appCtx.getString(R.string.local_book)
+        appCtx.getString(R.string.local_book),
+        appCtx.getString(R.string.source_runtime_backup)
     )
 
     //自动忽略keys
@@ -145,6 +148,8 @@ object BackupConfig {
         get() = ignoreConfig[PreferKey.threadCount] == true
     val ignoreLocalBook: Boolean
         get() = ignoreConfig[localBookKey] == true
+    val ignoreSourceRuntime: Boolean
+        get() = ignoreConfig[sourceRuntimeKey] == true
 
     fun saveIgnoreConfig() {
         val json = GSON.toJson(ignoreConfig)

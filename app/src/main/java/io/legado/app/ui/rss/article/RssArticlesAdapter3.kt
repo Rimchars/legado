@@ -3,7 +3,12 @@ package io.legado.app.ui.rss.article
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.Outline
+import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
+import androidx.core.content.ContextCompat
 import com.bumptech.glide.request.RequestOptions
 import io.legado.app.R
 import io.legado.app.base.adapter.ItemViewHolder
@@ -19,6 +24,7 @@ import android.graphics.drawable.Drawable
 import androidx.collection.LruCache
 import com.bumptech.glide.request.target.Target
 import io.legado.app.help.CacheManager
+import io.legado.app.lib.theme.UiCorner
 import io.legado.app.utils.dpToPx
 
 class RssArticlesAdapter3(context: Context, callBack: CallBack) :
@@ -60,7 +66,14 @@ class RssArticlesAdapter3(context: Context, callBack: CallBack) :
                 ) / columnCount
             cardWidth = cardWidth.coerceAtLeast(120.dpToPx())
         }
-        return ItemRssArticle3Binding.inflate(inflater, parent, false)
+        return ItemRssArticle3Binding.inflate(inflater, parent, false).apply {
+            root.setCardBackgroundColor(Color.TRANSPARENT)
+            root.getChildAt(0)?.background = UiCorner.panelRounded(
+                root.context,
+                ContextCompat.getColor(root.context, R.color.background_card),
+                UiCorner.panelRadius(root.context)
+            )
+        }
     }
 
     @SuppressLint("CheckResult")
@@ -138,6 +151,12 @@ class RssArticlesAdapter3(context: Context, callBack: CallBack) :
                 layoutParams.height = (cardWidth * aspectRatio).toInt()
             }
             imageView.layoutParams = layoutParams
+            val radius = UiCorner.panelRadius(context)
+            imageView.outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setRoundRect(0, 0, view.width, view.height, radius)
+                }
+            }
             imageView.clipToOutline = true
             imageView.adjustViewBounds = true //自动调整ImageView的边界来适应图片的宽高比
             imageRequest.into(imageView)

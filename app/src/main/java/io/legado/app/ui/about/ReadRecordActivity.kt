@@ -1,5 +1,6 @@
 package io.legado.app.ui.about
 
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -621,13 +622,14 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
         fillColor: Int,
         strokeColor: Int,
         radiusDp: Float
-    ): GradientDrawable {
-        return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = UiCorner.scaledDp(radiusDp)
-            setColor(UiCorner.surfaceColor(fillColor))
-            setStroke(1.dpToPx(), if (UiCorner.effectMode() == "solid") strokeColor else UiCorner.effectStrokeColor(fillColor))
-        }
+    ): Drawable {
+        return UiCorner.panelRoundedStroke(
+            this,
+            fillColor,
+            UiCorner.scaledDp(radiusDp),
+            1.dpToPx(),
+            if (UiCorner.effectMode() == "solid") strokeColor else UiCorner.effectStrokeColor(fillColor)
+        )
     }
 
     private fun createFillDrawable(fillColor: Int, radiusDp: Float): GradientDrawable {

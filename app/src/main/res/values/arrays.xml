@@ -217,6 +217,16 @@
 		<item>legacy</item>
 	</string-array>
 
+	<string-array name="cover_collection_mode_entries">
+		<item>@string/cover_collection_mode_random</item>
+		<item>@string/cover_collection_mode_sequence</item>
+	</string-array>
+
+	<string-array name="cover_collection_mode_values">
+		<item>random</item>
+		<item>sequence</item>
+	</string-array>
+
 	<string-array name="bottom_bar_effect_mode_entries">
 		<item>常规</item>
 		<item>玻璃</item>

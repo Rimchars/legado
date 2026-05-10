@@ -1,6 +1,7 @@
 package io.legado.app.ui.main.readrecord
 
 import android.app.DatePickerDialog
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -669,13 +670,14 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
         fillColor: Int,
         strokeColor: Int,
         radiusDp: Float
-    ): GradientDrawable {
-        return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = UiCorner.scaledDp(radiusDp)
-            setColor(UiCorner.surfaceColor(fillColor))
-            setStroke(1.dpToPx(), if (UiCorner.effectMode() == "solid") strokeColor else UiCorner.effectStrokeColor(fillColor))
-        }
+    ): Drawable {
+        return UiCorner.panelRoundedStroke(
+            requireContext(),
+            fillColor,
+            UiCorner.scaledDp(radiusDp),
+            1.dpToPx(),
+            if (UiCorner.effectMode() == "solid") strokeColor else UiCorner.effectStrokeColor(fillColor)
+        )
     }
 
     private fun createFillDrawable(fillColor: Int, radiusDp: Float): GradientDrawable {

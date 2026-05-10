@@ -28,11 +28,13 @@ import io.legado.app.data.entities.RuleSub
 import io.legado.app.data.entities.SearchKeyword
 import io.legado.app.data.entities.Server
 import io.legado.app.data.entities.TxtTocRule
+import io.legado.app.data.entities.BaseSource
 import io.legado.app.help.DirectLinkUpload
 import io.legado.app.help.LauncherIconHelp
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.upType
 import io.legado.app.help.config.LocalConfig
+import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.config.NavigationBarIconConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
@@ -47,6 +49,7 @@ import io.legado.app.utils.LogUtils
 import io.legado.app.utils.compress.ZipUtils
 import io.legado.app.utils.defaultSharedPreferences
 import io.legado.app.utils.fromJsonArray
+import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.externalFiles
 import io.legado.app.utils.getFile
 import io.legado.app.utils.getPrefBoolean
@@ -267,6 +270,8 @@ object Restore {
         restoreBackgroundAssets(path)
         restoreThemePackages(path)
         restoreNavigationIcons(path)
+        restoreCoverCollections(path)
+        restoreSourceRuntime(path)
         //AppWebDav.downBgs()
         appCtx.getSharedPreferences(path, "config")?.all?.let { map ->
             val edit = appCtx.defaultSharedPreferences.edit()
@@ -338,6 +343,36 @@ object Restore {
                 LauncherIconHelp.changeIcon(appCtx.getPrefString(PreferKey.launcherIcon))
             }
             ThemeConfig.applyDayNight(appCtx)
+        }
+    }
+
+    private fun restoreSourceRuntime(path: String) {
+        if (BackupConfig.ignoreSourceRuntime) return
+        File(path, "sourceRuntime.json").takeIf { it.exists() }?.runCatching {
+            val backup = GSON.fromJsonObject<SourceRuntimeBackup>(readText()).getOrNull()
+                ?: return@runCatching
+            backup.items.forEach { item ->
+                val source = when (item.sourceType) {
+                    "bookSource" -> appDb.bookSourceDao.getBookSource(item.sourceKey)
+                    "rssSource" -> appDb.rssSourceDao.getByKey(item.sourceKey)
+                    "httpTts" -> item.sourceKey.substringAfter("httpTts:").toLongOrNull()
+                        ?.let { appDb.httpTTSDao.get(it) }
+                    else -> null
+                } ?: return@forEach
+                restoreSourceRuntimeItem(source, item)
+            }
+        }?.onFailure {
+            AppLog.put("恢复源运行期数据出错\n${it.localizedMessage}", it)
+        }
+    }
+
+    private fun restoreSourceRuntimeItem(source: BaseSource, item: SourceRuntimeBackupItem) {
+        item.loginInfo?.takeIf { it.isNotEmpty() }?.let {
+            source.putLoginInfo(GSON.toJson(it))
+        }
+        source.putVariable(item.sourceVariable?.takeIf { it.isNotBlank() })
+        item.sourceValues.forEach { (key, value) ->
+            source.put(key, value)
         }
     }
 
@@ -472,6 +507,18 @@ object Restore {
             copyDir(sourceDir, targetDir)
         }.onFailure {
             AppLog.put("恢复导航栏图标出错\n${it.localizedMessage}", it)
+        }
+    }
+
+    private fun restoreCoverCollections(path: String) {
+        val sourceDir = File(path, "coverCollections")
+        if (!sourceDir.exists() || !sourceDir.isDirectory) return
+        val targetDir = CoverCollectionManager.rootDir
+        kotlin.runCatching {
+            FileUtils.delete(targetDir, deleteRootDir = true)
+            copyDir(sourceDir, targetDir)
+        }.onFailure {
+            AppLog.put("恢复封面图集出错\n${it.localizedMessage}", it)
         }
     }
 

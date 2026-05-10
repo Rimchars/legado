@@ -32,6 +32,12 @@
         app:iconSpaceReserved="false" />
 
     <io.legado.app.lib.prefs.Preference
+        android:key="book_info_manage"
+        android:summary="@string/book_info_manage_summary"
+        android:title="@string/book_info_manage"
+        app:iconSpaceReserved="false" />
+
+    <io.legado.app.lib.prefs.Preference
         android:key="coverConfig"
         android:summary="@string/cover_config_summary"
         android:title="@string/cover_config"

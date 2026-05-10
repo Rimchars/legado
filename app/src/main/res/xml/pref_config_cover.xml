@@ -34,6 +34,13 @@
         app:allowDividerBelow="false"
         app:iconSpaceReserved="false" />
 
+    <io.legado.app.lib.prefs.Preference
+        android:key="coverCollectionManage"
+        android:title="@string/cover_collection_manage"
+        app:allowDividerAbove="false"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false" />
+
     <io.legado.app.lib.prefs.PreferenceCategory
         android:key="dayThemeCategory"
         android:title="@string/day"
@@ -43,8 +50,18 @@
         app:layout="@layout/view_preference_category">
 
         <io.legado.app.lib.prefs.Preference
-            android:key="defaultCover"
-            android:title="@string/default_cover"
+            android:key="coverCollectionDay"
+            android:title="@string/cover_collection_select"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.NameListPreference
+            android:defaultValue="random"
+            android:key="coverCollectionModeDay"
+            android:title="@string/cover_collection_mode"
+            app:entries="@array/cover_collection_mode_entries"
+            app:entryValues="@array/cover_collection_mode_values"
             app:allowDividerAbove="false"
             app:allowDividerBelow="false"
             app:iconSpaceReserved="false" />
@@ -78,8 +95,18 @@
         app:layout="@layout/view_preference_category">
 
         <io.legado.app.lib.prefs.Preference
-            android:key="defaultCoverDark"
-            android:title="@string/default_cover"
+            android:key="coverCollectionNight"
+            android:title="@string/cover_collection_select"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.NameListPreference
+            android:defaultValue="random"
+            android:key="coverCollectionModeNight"
+            android:title="@string/cover_collection_mode"
+            app:entries="@array/cover_collection_mode_entries"
+            app:entryValues="@array/cover_collection_mode_values"
             app:allowDividerAbove="false"
             app:allowDividerBelow="false"
             app:iconSpaceReserved="false" />

@@ -1861,4 +1861,44 @@ Current chapter: %4$s (chapter %5$d)
 
 Selected text or question:
 %6$s</string>
+
+    <string name="source_runtime_backup">Ignore source login and variables</string>
+    <string name="book_info_manage">Book detail manager</string>
+    <string name="book_info_manage_summary">Manage book detail page components and order</string>
+    <string name="book_info_components_hint">Enable components and drag to reorder. Changes apply when the detail page is opened again.</string>
+    <string name="book_info_component_header">Main book card</string>
+    <string name="book_info_component_header_hint">Cover, title, author, latest chapter and tags.</string>
+    <string name="book_info_component_meta">Group and source card</string>
+    <string name="book_info_component_meta_hint">Group, source, source switch and chapter entry.</string>
+    <string name="book_info_component_detail">Intro and chapters card</string>
+    <string name="book_info_component_detail_hint">Intro tab, chapter preview and expanded chapter list entry.</string>
+    <string name="book_info_component_keep_one">Keep at least one detail component enabled.</string>
+    <string name="discovery_page_layout">Discovery page layout</string>
+    <string name="discovery_page_layout_summary">Current: %1$s</string>
+    <string name="discovery_page_layout_list">List</string>
+    <string name="discovery_page_layout_waterfall">Waterfall</string>
+    <string name="cache_manage_downloading">Downloading cloud cache...</string>
+    <string name="cache_manage_download_success">Cloud cache downloaded</string>
+    <string name="cache_manage_download_failed">Download failed: %1$s</string>
+    <string name="cache_manage_download_failed_simple">Download failed</string>
+    <string name="cache_manage_download_first">Download the cloud cache to local first</string>
+    <string name="theme_image_panel_background">Panel background</string>
+    <string name="theme_image_panel_background_mode">Panel image mode</string>
+    <string name="theme_image_mode_crop">Crop fill</string>
+    <string name="theme_image_mode_fit">Fit inside</string>
+    <string name="theme_group_color">Color</string>
+    <string name="theme_group_image">Image</string>
+    <string name="theme_group_interface">Layout</string>
+    <string name="theme_group_font">Font</string>
+    <string name="cover_collection_manage">Cover collections</string>
+    <string name="cover_collection_select">Use collection</string>
+    <string name="cover_collection_none">None</string>
+    <string name="cover_collection_add">Create collection</string>
+    <string name="cover_collection_import_zip">Import ZIP</string>
+    <string name="cover_collection_import_images">Import images</string>
+    <string name="cover_collection_images_count">%d images</string>
+    <string name="cover_collection_mode">Cover mode</string>
+    <string name="cover_collection_mode_random">Random</string>
+    <string name="cover_collection_mode_sequence">Sequential</string>
+    <string name="cover_collection_name">Collection name</string>
 </resources>

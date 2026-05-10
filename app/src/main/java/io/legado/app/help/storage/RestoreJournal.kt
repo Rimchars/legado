@@ -2,6 +2,7 @@ package io.legado.app.help.storage
 
 import io.legado.app.constant.AppLog
 import io.legado.app.help.config.NavigationBarIconConfig
+import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
@@ -66,6 +67,9 @@ object RestoreJournal {
         }
         if (File(path, "navigationBarPackages").isDirectory) {
             targets.add(NavigationBarIconConfig.rootDir)
+        }
+        if (File(path, "coverCollections").isDirectory) {
+            targets.add(CoverCollectionManager.rootDir)
         }
         return targets.distinctBy { it.absolutePath }
     }

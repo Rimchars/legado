@@ -35,6 +35,10 @@ class DiscoveryConfigFragment : PreferenceFragment(),
             postEvent(EventBus.NOTIFY_MAIN, false)
             true
         }
+        DiscoveryPageLayoutDialog.bindSummary(
+            requireContext(),
+            findPreference(PreferKey.discoveryPageLayout)
+        )
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -57,8 +61,20 @@ class DiscoveryConfigFragment : PreferenceFragment(),
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
             PreferKey.showDiscovery -> postEvent(EventBus.NOTIFY_MAIN, true)
-            PreferKey.modernDiscoveryPage -> postEvent(EventBus.NOTIFY_MAIN, false)
+            PreferKey.modernDiscoveryPage,
+            PreferKey.discoveryPageLayout -> postEvent(EventBus.NOTIFY_MAIN, false)
         }
+    }
+
+    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        if (preference.key == PreferKey.discoveryPageLayout) {
+            DiscoveryPageLayoutDialog.show(requireContext()) {
+                DiscoveryPageLayoutDialog.bindSummary(requireContext(), preference)
+                postEvent(EventBus.NOTIFY_MAIN, false)
+            }
+            return true
+        }
+        return super.onPreferenceTreeClick(preference)
     }
 
     private fun updateModeSummary(modePref: NameListPreference?) {
