@@ -599,12 +599,10 @@ object ThemeConfig {
                     getPrefInt(PreferKey.cNBackground, getCompatColor(R.color.md_grey_900))
                 val bBackground =
                     getPrefInt(PreferKey.cNBBackground, getCompatColor(R.color.md_grey_850))
-                val appBackground =
-                    if (hasUsableBgImage(this)) Color.TRANSPARENT else ColorUtils.withAlpha(background, 1f)
                 ThemeStore.editTheme(this)
                     .primaryColor(ColorUtils.withAlpha(primary, 1f))
                     .accentColor(ColorUtils.withAlpha(accent, 1f))
-                    .backgroundColor(appBackground)
+                    .backgroundColor(ColorUtils.withAlpha(background, 1f))
                     .bottomBackground(ColorUtils.withAlpha(bBackground, 1f))
                     .transparentNavBar(true)
                     .apply()
@@ -619,12 +617,10 @@ object ThemeConfig {
                     getPrefInt(PreferKey.cBackground, getCompatColor(R.color.md_grey_100))
                 val bBackground =
                     getPrefInt(PreferKey.cBBackground, getCompatColor(R.color.md_grey_200))
-                val appBackground =
-                    if (hasUsableBgImage(this)) Color.TRANSPARENT else ColorUtils.withAlpha(background, 1f)
                 ThemeStore.editTheme(this)
                     .primaryColor(ColorUtils.withAlpha(primary, 1f))
                     .accentColor(ColorUtils.withAlpha(accent, 1f))
-                    .backgroundColor(appBackground)
+                    .backgroundColor(ColorUtils.withAlpha(background, 1f))
                     .bottomBackground(ColorUtils.withAlpha(bBackground, 1f))
                     .transparentNavBar(true)
                     .apply()
