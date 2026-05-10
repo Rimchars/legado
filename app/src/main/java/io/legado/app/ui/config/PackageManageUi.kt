@@ -1,6 +1,7 @@
 package io.legado.app.ui.config
 
 import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -32,6 +33,10 @@ object PackageManageUi {
     }
 
     fun optionRow(context: Context, title: String, value: String, onClick: () -> Unit): View {
+        return optionRow(context, title, value, null, onClick)
+    }
+
+    fun optionRow(context: Context, title: String, value: String, colorPreview: Int?, onClick: () -> Unit): View {
         return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -50,6 +55,18 @@ object PackageManageUi {
                 typeface = context.uiTypeface()
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
+            if (colorPreview != null) {
+                addView(View(context).apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(colorPreview)
+                        setStroke(1.dp(context), ContextCompat.getColor(context, R.color.background_menu))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(18.dp(context), 18.dp(context)).apply {
+                        marginEnd = 8.dp(context)
+                    }
+                })
+            }
             addView(TextView(context).apply {
                 text = value
                 textSize = 13f

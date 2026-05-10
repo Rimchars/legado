@@ -224,11 +224,16 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                     getString(R.string.top_bar_style),
                     listOf(
                         getString(R.string.top_bar_style_default),
-                        getString(R.string.top_bar_style_immersive)
+                        getString(R.string.top_bar_style_immersive),
+                        getString(R.string.top_bar_style_flow)
                     )
                 ) { _, index ->
-                    config.style = if (index == 1) TopBarConfig.STYLE_IMMERSIVE else TopBarConfig.STYLE_DEFAULT
-                    if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
+                    config.style = when (index) {
+                        1 -> TopBarConfig.STYLE_IMMERSIVE
+                        2 -> TopBarConfig.STYLE_FLOW
+                        else -> TopBarConfig.STYLE_DEFAULT
+                    }
+                    if (config.style == TopBarConfig.STYLE_IMMERSIVE || config.style == TopBarConfig.STYLE_FLOW) {
                         if (config.backgroundColor == null) {
                             config.backgroundColor = TopBarConfig.defaultBackgroundColor(config.isNightMode)
                         }
@@ -245,14 +250,15 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                     refreshEditDialog()
                 }
             })
-            if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
+            if (config.style == TopBarConfig.STYLE_IMMERSIVE || config.style == TopBarConfig.STYLE_FLOW) {
                 addView(optionRow(getString(R.string.top_bar_corner_scale), cornerScaleLabel(config.cornerScale)) {
                     showCornerScalePicker(config.cornerScale ?: 1f) {
                         config.cornerScale = it
                     }
                 })
-                addView(optionRow(getString(R.string.top_bar_background_color), colorLabel(config.backgroundColor ?: TopBarConfig.defaultBackgroundColor(config.isNightMode))) {
-                    showColorPicker(COLOR_BACKGROUND, config.backgroundColor ?: TopBarConfig.defaultBackgroundColor(config.isNightMode))
+                val backgroundColor = config.backgroundColor ?: TopBarConfig.defaultBackgroundColor(config.isNightMode)
+                addView(optionRow(getString(R.string.top_bar_background_color), colorLabel(backgroundColor), backgroundColor) {
+                    showColorPicker(COLOR_BACKGROUND, backgroundColor)
                 })
                 addView(optionRow(getString(R.string.top_bar_wallpaper), wallpaperLabel(config.wallpaperPath)) {
                     showWallpaperSelector()
@@ -262,16 +268,18 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                         config.wallpaperAlpha = it
                     }
                 })
-                addView(optionRow(getString(R.string.top_bar_tag_bar_color), colorLabel(config.tagBarColor)) {
-                    showColorPicker(COLOR_TAG_BAR, config.tagBarColor ?: Color.WHITE)
+                val tagBarColor = config.tagBarColor ?: Color.WHITE
+                addView(optionRow(getString(R.string.top_bar_tag_bar_color), colorLabel(tagBarColor), tagBarColor) {
+                    showColorPicker(COLOR_TAG_BAR, tagBarColor)
                 })
                 addView(optionRow(getString(R.string.top_bar_tag_bar_alpha), "${config.tagBarAlpha}%") {
                     showAlphaPicker(getString(R.string.top_bar_tag_bar_alpha), config.tagBarAlpha) {
                         config.tagBarAlpha = it
                     }
                 })
-                addView(optionRow(getString(R.string.top_bar_tag_selected_color), colorLabel(config.tagSelectedColor)) {
-                    showColorPicker(COLOR_TAG_SELECTED, config.tagSelectedColor ?: defaultSelectedColor())
+                val selectedColor = config.tagSelectedColor ?: defaultSelectedColor()
+                addView(optionRow(getString(R.string.top_bar_tag_selected_color), colorLabel(selectedColor), selectedColor) {
+                    showColorPicker(COLOR_TAG_SELECTED, selectedColor)
                 })
                 addView(optionRow(getString(R.string.top_bar_tag_selected_alpha), "${config.tagSelectedAlpha}%") {
                     showAlphaPicker(getString(R.string.top_bar_tag_selected_alpha), config.tagSelectedAlpha) {
@@ -279,16 +287,18 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                     }
                 })
             } else {
-                addView(optionRow(getString(R.string.top_bar_tag_bar_color), colorLabel(config.tagBarColor)) {
-                    showColorPicker(COLOR_TAG_BAR, config.tagBarColor ?: defaultTagBarColor())
+                val tagBarColor = config.tagBarColor ?: defaultTagBarColor()
+                addView(optionRow(getString(R.string.top_bar_tag_bar_color), colorLabel(tagBarColor), tagBarColor) {
+                    showColorPicker(COLOR_TAG_BAR, tagBarColor)
                 })
                 addView(optionRow(getString(R.string.top_bar_tag_bar_alpha), "${config.tagBarAlpha}%") {
                     showAlphaPicker(getString(R.string.top_bar_tag_bar_alpha), config.tagBarAlpha) {
                         config.tagBarAlpha = it
                     }
                 })
-                addView(optionRow(getString(R.string.top_bar_tag_selected_color), colorLabel(config.tagSelectedColor)) {
-                    showColorPicker(COLOR_TAG_SELECTED, config.tagSelectedColor ?: defaultSelectedColor())
+                val selectedColor = config.tagSelectedColor ?: defaultSelectedColor()
+                addView(optionRow(getString(R.string.top_bar_tag_selected_color), colorLabel(selectedColor), selectedColor) {
+                    showColorPicker(COLOR_TAG_SELECTED, selectedColor)
                 })
                 addView(optionRow(getString(R.string.top_bar_tag_selected_alpha), "${config.tagSelectedAlpha}%") {
                     showAlphaPicker(getString(R.string.top_bar_tag_selected_alpha), config.tagSelectedAlpha) {
@@ -338,6 +348,10 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
 
     private fun optionRow(title: String, value: String, onClick: () -> Unit): View {
         return PackageManageUi.optionRow(this, title, value, onClick)
+    }
+
+    private fun optionRow(title: String, value: String, colorPreview: Int, onClick: () -> Unit): View {
+        return PackageManageUi.optionRow(this, title, value, colorPreview, onClick)
     }
 
     private fun showAlphaPicker(title: String, value: Int, apply: (Int) -> Unit) {
@@ -539,10 +553,10 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
 
     private fun styleLabel(style: String): String {
         return getString(
-            if (style == TopBarConfig.STYLE_IMMERSIVE) {
-                R.string.top_bar_style_immersive
-            } else {
-                R.string.top_bar_style_default
+            when (style) {
+                TopBarConfig.STYLE_IMMERSIVE -> R.string.top_bar_style_immersive
+                TopBarConfig.STYLE_FLOW -> R.string.top_bar_style_flow
+                else -> R.string.top_bar_style_default
             }
         )
     }
@@ -620,7 +634,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                 )
                 tvName.text = entry.config.name
                 tvInfo.text = buildString {
-                    append(getString(R.string.top_bar_style_default))
+                    append(styleLabel(entry.config.style))
                     append(" · ")
                     append(getString(R.string.top_bar_tag_bar_alpha))
                     append(" ")

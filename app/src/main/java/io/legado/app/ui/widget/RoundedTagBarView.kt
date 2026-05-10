@@ -23,6 +23,8 @@ class RoundedTagBarView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : FrameLayout(context, attrs) {
 
+    enum class DisplayMode { CHIP, LIGHT, TEXT }
+
     data class Item(
         val text: CharSequence,
         val alpha: Float = 1f
@@ -46,6 +48,7 @@ class RoundedTagBarView @JvmOverloads constructor(
     private var onTagLongClick: ((Int) -> Boolean)? = null
     private var styleSignature: String? = null
     private var selectedBackgroundVisible = true
+    private var displayMode = DisplayMode.CHIP
 
     init {
         clipToOutline = true
@@ -65,24 +68,42 @@ class RoundedTagBarView @JvmOverloads constructor(
     }
 
     fun applyTopBarStyle(force: Boolean = false) {
-        val signature = TopBarConfig.currentSignature(AppConfig.isNightTheme)
+        val signature = "${TopBarConfig.currentSignature(AppConfig.isNightTheme)}|$displayMode"
         if (!force && styleSignature == signature) return
         styleSignature = signature
         val config = TopBarConfig.currentConfig(context, AppConfig.isNightTheme)
         val tagBarColor = config.tagBarColor
-            ?: if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
+            ?: if (config.style == TopBarConfig.STYLE_IMMERSIVE || config.style == TopBarConfig.STYLE_FLOW) {
                 Color.WHITE
             } else {
                 ContextCompat.getColor(context, R.color.background_menu)
             }
         val selectedColor = config.tagSelectedColor
             ?: ContextCompat.getColor(context, R.color.background_card)
-        background = UiCorner.opaqueRounded(
-            TopBarConfig.withOpacity(tagBarColor, config.tagBarAlpha),
-            UiCorner.panelRadius(context)
+        background = when (displayMode) {
+            DisplayMode.TEXT -> null
+            else -> UiCorner.opaqueRounded(
+                TopBarConfig.withOpacity(tagBarColor, config.tagBarAlpha),
+                UiCorner.panelRadius(context)
+            )
+        }
+        val horizontalPadding = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_padding_horizontal)
+        val verticalPadding = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_padding_vertical)
+        setPadding(
+            if (displayMode == DisplayMode.TEXT) 0 else horizontalPadding,
+            if (displayMode == DisplayMode.TEXT) 0 else verticalPadding,
+            if (displayMode == DisplayMode.TEXT) 0 else horizontalPadding,
+            if (displayMode == DisplayMode.TEXT) 0 else verticalPadding
         )
         adapter.selectedBackgroundColor = TopBarConfig.withOpacity(selectedColor, config.tagSelectedAlpha)
         adapter.notifyDataSetChanged()
+    }
+
+    fun setDisplayMode(mode: DisplayMode) {
+        if (displayMode == mode) return
+        displayMode = mode
+        styleSignature = null
+        applyTopBarStyle(force = true)
     }
 
     fun setSelectedBackgroundVisible(visible: Boolean) {
@@ -195,9 +216,16 @@ class RoundedTagBarView @JvmOverloads constructor(
             val item = items[position]
             holder.textView.background = UiCorner.actionSelector(
                 android.graphics.Color.TRANSPARENT,
-                if (selectedBackgroundVisible) selectedBackgroundColor else android.graphics.Color.TRANSPARENT,
+                when {
+                    !selectedBackgroundVisible -> android.graphics.Color.TRANSPARENT
+                    displayMode == DisplayMode.TEXT -> android.graphics.Color.TRANSPARENT
+                    else -> selectedBackgroundColor
+                },
                 UiCorner.actionRadius(holder.textView.context)
             )
+            val verticalPadding = if (displayMode == DisplayMode.TEXT) 0 else resources.getDimensionPixelSize(R.dimen.bookshelf_tag_recycler_padding_vertical)
+            val horizontalPadding = if (displayMode == DisplayMode.TEXT) 8.dp else resources.getDimensionPixelSize(R.dimen.bookshelf_tag_item_padding_horizontal)
+            holder.textView.setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
             holder.textView.text = item.text
             holder.textView.typeface = holder.textView.context.uiTypeface()
             holder.textView.alpha = item.alpha
@@ -222,4 +250,6 @@ class RoundedTagBarView @JvmOverloads constructor(
     }
 
     private class TagViewHolder(val textView: TextView) : RecyclerView.ViewHolder(textView)
+
+    private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 }

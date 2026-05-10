@@ -1805,6 +1805,7 @@
     <string name="top_bar_style">顶栏样式</string>
     <string name="top_bar_style_default">默认</string>
     <string name="top_bar_style_immersive">沉浸顶栏</string>
+    <string name="top_bar_style_flow">流光顶栏</string>
     <string name="top_bar_corner_scale">顶栏圆角倍率</string>
     <string name="top_bar_background_color">顶栏背景色</string>
     <string name="top_bar_tag_bar_color">标签栏背景色</string>

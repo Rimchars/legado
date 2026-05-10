@@ -127,7 +127,8 @@ class MainTopBarView @JvmOverloads constructor(
     }
 
     fun isImmersiveStyle(): Boolean {
-        return TopBarConfig.currentConfig(context, AppConfig.isNightTheme).style == TopBarConfig.STYLE_IMMERSIVE
+        val style = TopBarConfig.currentConfig(context, AppConfig.isNightTheme).style
+        return style == TopBarConfig.STYLE_IMMERSIVE || style == TopBarConfig.STYLE_FLOW
     }
 
     fun isOverlayMode(): Boolean {
@@ -161,10 +162,10 @@ class MainTopBarView @JvmOverloads constructor(
         if (!force && styleSignature == signature) return
         styleSignature = signature
         val config = TopBarConfig.currentConfig(context, AppConfig.isNightTheme)
-        if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
-            applyImmersiveStyle(config)
-        } else {
-            applyDefaultStyle()
+        when (config.style) {
+            TopBarConfig.STYLE_IMMERSIVE -> applyImmersiveStyle(config)
+            TopBarConfig.STYLE_FLOW -> applyFlowStyle(config)
+            else -> applyDefaultStyle()
         }
         updatePrimaryBarVisibility()
         updateIconColors()
@@ -202,6 +203,10 @@ class MainTopBarView @JvmOverloads constructor(
         }
         titleText.gravity = Gravity.CENTER_VERTICAL
         titleText.setTextColor(ContextCompat.getColor(context, R.color.primaryText))
+        searchEntryText.setTextColor(ContextCompat.getColor(context, R.color.primaryText))
+        primaryBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
+        selectsBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
+        tagsBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
         primaryBar.setSelectedBackgroundVisible(true)
         selectsBar.setSelectedBackgroundVisible(true)
         tagsBar.setSelectedBackgroundVisible(true)
@@ -235,8 +240,47 @@ class MainTopBarView @JvmOverloads constructor(
         titleText.gravity = Gravity.CENTER_VERTICAL
         titleText.setTextColor(context.primaryTextColor)
         searchEntryText.setTextColor(context.primaryTextColor)
+        primaryBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
+        selectsBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
+        tagsBar.setDisplayMode(RoundedTagBarView.DisplayMode.CHIP)
         primaryBar.setSelectedBackgroundVisible(true)
         selectsBar.setSelectedBackgroundVisible(true)
+        tagsBar.setSelectedBackgroundVisible(false)
+    }
+
+    private fun applyFlowStyle(config: TopBarConfig.Config) {
+        val horizontal = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_horizontal)
+        val vertical = 8.dp
+        setPadding(horizontal, paddingTop.coerceAtLeast(vertical), horizontal, vertical)
+        background = immersiveBackground(config)
+        titleRow.background = null
+        titleRow.setPadding(0, 0, 0, 0)
+        updateTitleRowControlHeight(40.dp)
+        titleSelect.isVisible = !searchEntryRequested
+        searchEntry.isVisible = searchEntryRequested
+        titleSpacer.isVisible = !searchEntryRequested
+        titleSelect.background = null
+        searchEntry.background = TopBarSearchStyle.actionBackground(context)
+        searchEntry.setPadding(16.dp, 0, 16.dp, 0)
+        titleSelect.setPadding(8.dp, 0, 8.dp, 0)
+        listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
+            it.background = null
+            it.layoutParams = (it.layoutParams as LayoutParams).apply {
+                width = 40.dp
+                height = 40.dp
+                marginStart = 4.dp
+            }
+            val padding = 9.dp
+            it.setPadding(padding, padding, padding, padding)
+        }
+        titleText.gravity = Gravity.CENTER_VERTICAL
+        titleText.setTextColor(context.primaryTextColor)
+        searchEntryText.setTextColor(context.primaryTextColor)
+        primaryBar.setDisplayMode(RoundedTagBarView.DisplayMode.LIGHT)
+        selectsBar.setDisplayMode(RoundedTagBarView.DisplayMode.TEXT)
+        tagsBar.setDisplayMode(RoundedTagBarView.DisplayMode.TEXT)
+        primaryBar.setSelectedBackgroundVisible(true)
+        selectsBar.setSelectedBackgroundVisible(false)
         tagsBar.setSelectedBackgroundVisible(false)
     }
 
