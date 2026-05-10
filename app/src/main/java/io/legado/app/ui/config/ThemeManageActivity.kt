@@ -290,19 +290,18 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     }
 
     private fun showManualAddDialog() {
+        val dialogBinding = createEditBinding(currentConfig(), null)
+        editDialogBinding = dialogBinding
+        editingEntry = null
         val dialog = alert(getString(R.string.theme_manual_add)) {
-            val dialogBinding = createEditBinding(currentConfig(), null)
-            editDialogBinding = dialogBinding
-            editingEntry = null
             customView { dialogBinding.root }
             applyThemeEditFonts(dialogBinding)
-            okButton { saveTheme(dialogBinding) }
             onDismiss {
                 editDialogBinding = null
                 editingEntry = null
             }
-            cancelButton()
         }
+        bindThemeEditDialogActions(dialog, dialogBinding)
         applyThemeEditDialogSize(dialog)
     }
 
@@ -315,23 +314,18 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     entry
                 }
             }.onSuccess { localEntry ->
+                val dialogBinding = createEditBinding(ThemePackageManager.getConfig(localEntry), localEntry)
+                editDialogBinding = dialogBinding
+                editingEntry = localEntry
                 val dialog = alert(getString(R.string.theme_edit)) {
-                    val dialogBinding = createEditBinding(ThemePackageManager.getConfig(localEntry), localEntry)
-                    editDialogBinding = dialogBinding
-                    editingEntry = localEntry
                     customView { dialogBinding.root }
                     applyThemeEditFonts(dialogBinding)
-                    okButton {
-                        saveTheme(dialogBinding)
-                        editDialogBinding = null
-                        editingEntry = null
-                    }
                     onDismiss {
                         editDialogBinding = null
                         editingEntry = null
                     }
-                    cancelButton()
                 }
+                bindThemeEditDialogActions(dialog, dialogBinding)
                 applyThemeEditDialogSize(dialog)
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
@@ -369,6 +363,20 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             setupInterfaceRows(this)
             setupEditGroups(this)
             etName.isEnabled = entry?.source != ThemePackageManager.Source.REMOTE
+        }
+    }
+
+    private fun bindThemeEditDialogActions(
+        dialog: androidx.appcompat.app.AlertDialog,
+        binding: DialogThemePackageEditBinding
+    ) {
+        binding.btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+        binding.btnConfirm.setOnClickListener {
+            if (saveTheme(binding)) {
+                dialog.dismiss()
+            }
         }
     }
 
@@ -451,11 +459,24 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             binding.btnColorGroup,
             binding.btnImageGroup,
             binding.btnInterfaceGroup,
-            binding.btnFontGroup
+            binding.btnFontGroup,
+            binding.btnCancel,
+            binding.btnConfirm
         ).forEach {
             it.applyUiTitleTypeface(this)
             it.typeface = titleTf
         }
+        val actionRadius = UiCorner.actionRadius(this)
+        binding.btnCancel.background = UiCorner.actionSelector(
+            Color.TRANSPARENT,
+            ContextCompat.getColor(this, R.color.background_card),
+            actionRadius
+        )
+        binding.btnConfirm.background = UiCorner.actionSelector(
+            Color.TRANSPARENT,
+            ContextCompat.getColor(this, R.color.background_card),
+            actionRadius
+        )
     }
 
     private fun setupCornerScaleRow(row: ItemThemePackageOptionBinding) {
@@ -726,7 +747,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
     }
 
-    private fun saveTheme(dialogBinding: DialogThemePackageEditBinding) {
+    private fun saveTheme(dialogBinding: DialogThemePackageEditBinding): Boolean {
         val name = dialogBinding.etName.text?.toString()?.trim().orEmpty()
             .ifBlank { getString(if (isNightTheme) R.string.theme_night else R.string.theme_day) }
         val baseConfig = editingEntry?.let {
@@ -756,8 +777,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             )
         }.onFailure {
             toastOnUi(R.string.color_format_error)
-        }.getOrNull() ?: return
+        }.getOrNull() ?: return false
         addTheme(config)
+        return true
     }
 
     private fun addTheme(config: ThemeConfig.Config) {
@@ -1356,8 +1378,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
     companion object {
         private val themeRemoteSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        private const val EDIT_DIALOG_WIDTH_RATIO = 0.94f
-        private const val EDIT_DIALOG_HEIGHT_RATIO = 0.72f
+        private const val EDIT_DIALOG_WIDTH_RATIO = 0.92f
+        private const val EDIT_DIALOG_HEIGHT_RATIO = 0.62f
         private const val requestMainBackground = 301
         private const val requestBookInfoBackground = 302
         private const val requestPanelBackground = 303

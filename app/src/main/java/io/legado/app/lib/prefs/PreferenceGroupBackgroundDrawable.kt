@@ -57,13 +57,15 @@ class PreferenceGroupBackgroundDrawable(
         path.reset()
         path.addRoundRect(rect, cornerRadii(), Path.Direction.CW)
         paint.style = Paint.Style.FILL
-        paint.color = if (pressed) pressedColor else normalColor
+        paint.color = normalColor
         canvas.drawPath(path, paint)
-        if (!pressed) {
-            panelImage?.let {
-                it.bounds = bounds
-                it.draw(canvas)
-            }
+        panelImage?.let {
+            it.bounds = bounds
+            it.draw(canvas)
+        }
+        if (pressed) {
+            paint.color = pressedColor
+            canvas.drawPath(path, paint)
         }
         if (hasNext) {
             paint.color = dividerColor
