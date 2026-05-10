@@ -51,6 +51,7 @@ object TopBarConfig {
         var wallpaperAlpha: Int = 100,
         var backgroundColor: Int? = null,
         var cornerScale: Float? = null,
+        var expandFiltersByDefault: Boolean = false,
         var updatedAt: Long = System.currentTimeMillis()
     )
 

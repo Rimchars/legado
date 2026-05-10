@@ -1700,6 +1700,7 @@
     <string name="bottom_bar_effect_frosted">Frosted glass</string>
     <string name="bottom_bar_layout_mode">Bottom bar layout</string>
     <string name="bottom_bar_layout_floating">Floating bottom bar</string>
+    <string name="bottom_bar_layout_standard">Bottom navigation bar</string>
     <string name="bottom_bar_layout_sidebar">Sidebar</string>
     <string name="bottom_bar_opacity">Opacity</string>
     <string name="theme_day">Day theme</string>
@@ -1869,7 +1870,11 @@
     <string name="top_bar_wallpaper_alpha">Wallpaper opacity</string>
     <string name="top_bar_tag_selected_color">Selected tag background</string>
     <string name="top_bar_tag_selected_alpha">Selected tag opacity</string>
+    <string name="top_bar_filter_default">Filter bar default state</string>
+    <string name="top_bar_filter_default_collapsed">Collapsed by default</string>
+    <string name="top_bar_filter_default_expanded">Expanded by default</string>
     <string name="top_bar_follow_theme">Follow theme</string>
+    <string name="read_record_top_bar_summary">Today %1$s · This month %2$s</string>
     <string name="read_rank_widget_description">Reading rank widget</string>
     <string name="color_format_error">Invalid color format</string>
     <string name="unknown">Unknown</string>

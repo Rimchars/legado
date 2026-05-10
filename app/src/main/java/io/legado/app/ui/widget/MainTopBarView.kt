@@ -26,6 +26,8 @@ import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
+import androidx.transition.AutoTransition
+import androidx.transition.TransitionManager
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.TopBarConfig
@@ -192,8 +194,12 @@ class MainTopBarView @JvmOverloads constructor(
     private fun applyTopBarStyle(force: Boolean = false) {
         val signature = "${TopBarConfig.currentSignature(AppConfig.isNightTheme)}|$mode"
         if (!force && styleSignature == signature) return
+        val signatureChanged = styleSignature != signature
         styleSignature = signature
         val config = TopBarConfig.currentConfig(context, AppConfig.isNightTheme)
+        if (force || signatureChanged) {
+            filtersExpanded = config.style == TopBarConfig.STYLE_IMMERSIVE && config.expandFiltersByDefault
+        }
         if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
             applyImmersiveStyle(config)
         } else {
@@ -402,6 +408,11 @@ class MainTopBarView @JvmOverloads constructor(
         val oldToggleVisible = filterToggleButton.isVisible
         val oldSelectsVisible = selectsBar.isVisible
         val oldTagsVisible = tagsBar.isVisible
+        if (isAttachedToWindow && width > 0 && height > 0) {
+            TransitionManager.beginDelayedTransition(this, AutoTransition().apply {
+                duration = 80L
+            })
+        }
         if (isImmersiveStyle()) {
             filterToggleButton.isVisible = hasFilters
             filterToggleButton.setImageResource(if (filtersExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more)

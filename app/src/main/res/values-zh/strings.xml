@@ -1592,6 +1592,7 @@
     <string name="bottom_bar_effect_frosted">磨砂玻璃</string>
     <string name="bottom_bar_layout_mode">底栏样式</string>
     <string name="bottom_bar_layout_floating">悬浮底栏</string>
+    <string name="bottom_bar_layout_standard">常规底栏</string>
     <string name="bottom_bar_layout_sidebar">侧边栏</string>
     <string name="bottom_bar_opacity">不透明度</string>
     <string name="theme_day">日间主题</string>
@@ -1813,5 +1814,9 @@
     <string name="top_bar_wallpaper_alpha">壁纸不透明度</string>
     <string name="top_bar_tag_selected_color">选中标签背景色</string>
     <string name="top_bar_tag_selected_alpha">选中标签不透明度</string>
+    <string name="top_bar_filter_default">筛选栏默认状态</string>
+    <string name="top_bar_filter_default_collapsed">默认折叠</string>
+    <string name="top_bar_filter_default_expanded">默认展开</string>
     <string name="top_bar_follow_theme">跟随主题</string>
+    <string name="read_record_top_bar_summary">今日 %1$s · 本月 %2$s</string>
 </resources>

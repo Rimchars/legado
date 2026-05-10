@@ -266,6 +266,18 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                         config.wallpaperAlpha = it
                     }
                 })
+                addView(optionRow(getString(R.string.top_bar_filter_default), filterDefaultLabel(config.expandFiltersByDefault)) {
+                    selector(
+                        getString(R.string.top_bar_filter_default),
+                        listOf(
+                            getString(R.string.top_bar_filter_default_collapsed),
+                            getString(R.string.top_bar_filter_default_expanded)
+                        )
+                    ) { _, index ->
+                        config.expandFiltersByDefault = index == 1
+                        refreshEditDialog()
+                    }
+                })
                 val tagBarColor = config.tagBarColor ?: Color.WHITE
                 addView(optionRow(getString(R.string.top_bar_tag_bar_color), colorLabel(tagBarColor), tagBarColor) {
                     showColorPicker(COLOR_TAG_BAR, tagBarColor)
@@ -541,6 +553,13 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
         return String.format(Locale.ROOT, "%.1f", (value ?: 1f).coerceIn(0f, 3f))
     }
 
+    private fun filterDefaultLabel(expanded: Boolean): String {
+        return getString(
+            if (expanded) R.string.top_bar_filter_default_expanded
+            else R.string.top_bar_filter_default_collapsed
+        )
+    }
+
     private fun wallpaperLabel(path: String?): String {
         return if (path.isNullOrBlank()) {
             getString(R.string.theme_image_value_unselected)
@@ -652,21 +671,10 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                         UiCorner.actionRadius(this@TopBarManageActivity)
                     )
                 }
-                cardPreview.visibility = View.VISIBLE
-                cardPreview.radius = TopBarConfig.cornerRadius(this@TopBarManageActivity, entry.config)
-                cardPreview.setCardBackgroundColor(TopBarConfig.resolveBackgroundColor(entry.config))
-                ivPreview.alpha = (entry.config.wallpaperAlpha.coerceIn(0, 100) / 100f)
-                val wallpaper = previewWallpaperFile(entry)
-                if (wallpaper != null) {
-                    ImageLoader.load(ivPreview.context, wallpaper.absolutePath)
-                        .centerCrop()
-                        .signature(ObjectKey("${wallpaper.absolutePath}:${wallpaper.lastModified()}"))
-                        .into(ivPreview)
-                } else {
-                    Glide.with(ivPreview.context).clear(ivPreview)
-                    ivPreview.setImageDrawable(null)
-                    ivPreview.alpha = 1f
-                }
+                cardPreview.visibility = View.GONE
+                Glide.with(ivPreview.context).clear(ivPreview)
+                ivPreview.setImageDrawable(null)
+                ivPreview.alpha = 1f
                 btnApply.text = getString(if (entry.dirName == activeDirName) R.string.theme_applied_state else R.string.theme_apply)
                 btnEdit.text = getString(R.string.edit)
                 btnEdit.visibility = View.VISIBLE

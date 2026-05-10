@@ -5,11 +5,13 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
@@ -22,6 +24,7 @@ import io.legado.app.databinding.ActivityReadRecordBinding
 import io.legado.app.databinding.ItemReadRecordDaySummaryBinding
 import io.legado.app.databinding.ItemReadRecordRecentBookBinding
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.TopBarConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.accentColor
@@ -85,6 +88,9 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
     }
     private val monthFormatter by lazy {
         DateTimeFormatter.ofPattern(getString(R.string.read_record_month_pattern), Locale.getDefault())
+    }
+    private val dateChipFormatter by lazy {
+        DateTimeFormatter.ofPattern("M/d", Locale.getDefault())
     }
     private val lastOpenFormatter by lazy {
         SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
@@ -343,6 +349,7 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
         currentReadBookCount = dashboard.readBookCount
         lastRecentReadTime = dashboard.latestRecentReadTime
 
+        renderDateTopBar(dashboard)
         renderRecentBooks(dashboard.recentBooks)
         renderDailyTimeline(dashboard.dailyTimeline, dashboard.hasDailyStats)
         renderRecentCovers(dashboard.recentCoverItems)
@@ -350,6 +357,102 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
         currentGoalConfig = dashboard.goalConfig
         renderGoalCard(dashboard.todayTime, dashboard.totalTime, dashboard.readBookCount)
         applyPageChrome()
+    }
+
+    private fun renderDateTopBar(dashboard: ReadRecordDashboard) {
+        val immersive = isImmersiveReadRecordTopBar()
+        binding.hsvRecordDates.isVisible = immersive
+        binding.llRecordHeader.background = if (immersive) {
+            createSurfaceDrawable(
+                ContextCompat.getColor(requireContext(), R.color.background_card),
+                ColorUtils.adjustAlpha(primaryTextColor, 0.08f),
+                16f
+            )
+        } else {
+            null
+        }
+        binding.llRecordHeader.setPadding(
+            if (immersive) 14.dpToPx() else 0,
+            binding.llRecordHeader.paddingTop,
+            if (immersive) 10.dpToPx() else 0,
+            if (immersive) 12.dpToPx() else 0
+        )
+        binding.tvRecordDate.textSize = if (immersive) 22f else 28f
+        binding.tvRecordDateHint.text = if (immersive) {
+            getString(
+                R.string.read_record_top_bar_summary,
+                formatDuring(dashboard.todayTime),
+                formatDuring(dashboard.monthTime)
+            )
+        } else {
+            getString(
+                if (dashboard.hasDailyStats) {
+                    R.string.read_record_stats_ready
+                } else {
+                    R.string.read_record_stats_waiting
+                }
+            )
+        }
+        if (!immersive) return
+        val dates = (-3L..3L).map { dashboard.today.plusDays(it) }
+        binding.llRecordDates.removeAllViews()
+        dates.forEach { date ->
+            binding.llRecordDates.addView(buildDateChip(date, date == dashboard.today))
+        }
+        binding.hsvRecordDates.post {
+            val selected = binding.llRecordDates.getChildAt(3) ?: return@post
+            binding.hsvRecordDates.smoothScrollTo(
+                (selected.left - (binding.hsvRecordDates.width - selected.width) / 2).coerceAtLeast(0),
+                0
+            )
+        }
+    }
+
+    private fun buildDateChip(date: LocalDate, selected: Boolean): TextView {
+        val today = LocalDate.now()
+        val label = when (date) {
+            today -> getString(R.string.read_record_today_word)
+            today.minusDays(1) -> getString(R.string.read_record_yesterday_word)
+            else -> date.format(dateChipFormatter)
+        }
+        return TextView(requireContext()).apply {
+            text = label
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            textSize = 13f
+            minWidth = 58.dpToPx()
+            setPadding(12.dpToPx(), 0, 12.dpToPx(), 0)
+            setTextColor(if (selected) accentColor else primaryTextColor)
+            background = createSurfaceDrawable(
+                if (selected) {
+                    ColorUtils.adjustAlpha(accentColor, 0.16f)
+                } else {
+                    ContextCompat.getColor(requireContext(), R.color.background_card)
+                },
+                if (selected) {
+                    ColorUtils.adjustAlpha(accentColor, 0.34f)
+                } else {
+                    ColorUtils.adjustAlpha(primaryTextColor, 0.08f)
+                },
+                14f
+            )
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                34.dpToPx()
+            ).apply {
+                marginEnd = 8.dpToPx()
+            }
+            setOnClickListener {
+                if (selectedDate != date) {
+                    selectedDate = date
+                    loadData(force = true)
+                }
+            }
+        }
+    }
+
+    private fun isImmersiveReadRecordTopBar(): Boolean {
+        return TopBarConfig.currentConfig(requireContext(), AppConfig.isNightTheme).style == TopBarConfig.STYLE_IMMERSIVE
     }
 
     private fun showComponentConfigDialog() {

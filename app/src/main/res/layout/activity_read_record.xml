@@ -75,6 +75,25 @@
 
             </LinearLayout>
 
+            <HorizontalScrollView
+                android:id="@+id/hsv_record_dates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:clipToPadding="false"
+                android:overScrollMode="never"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/ll_record_dates"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal" />
+
+            </HorizontalScrollView>
+
             <LinearLayout
                 android:id="@+id/ll_read_record_components"
                 android:layout_width="match_parent"
