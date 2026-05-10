@@ -42,7 +42,7 @@ class MainTopBarView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : LinearLayout(context, attrs) {
 
-    enum class Mode { BOOKSHELF, DISCOVERY, RSS }
+    enum class Mode { BOOKSHELF, DISCOVERY, RSS, READ_RECORD }
 
     val titleSelect = LinearLayout(context)
     val titleText = TextView(context)
@@ -73,6 +73,7 @@ class MainTopBarView @JvmOverloads constructor(
     private var wallpaperBitmapKey: String? = null
     private var wallpaperBitmap: Bitmap? = null
     private var onHeightChanged: (() -> Unit)? = null
+    private var onFilterExpandedChanged: ((Boolean) -> Unit)? = null
 
     init {
         orientation = VERTICAL
@@ -103,6 +104,7 @@ class MainTopBarView @JvmOverloads constructor(
         filterToggleButton.setOnClickListener {
             filtersExpanded = !filtersExpanded
             updateFilterBarsVisibility()
+            onFilterExpandedChanged?.invoke(filtersExpanded)
         }
         setMode(Mode.BOOKSHELF)
     }
@@ -114,12 +116,12 @@ class MainTopBarView @JvmOverloads constructor(
 
     fun setMode(mode: Mode) {
         this.mode = mode
-        moreButton.isVisible = mode == Mode.BOOKSHELF
-        searchButton.isVisible = mode != Mode.BOOKSHELF
+        moreButton.isVisible = mode == Mode.BOOKSHELF || mode == Mode.READ_RECORD
+        searchButton.isVisible = mode == Mode.DISCOVERY || mode == Mode.RSS
         filterButton.isVisible = mode == Mode.DISCOVERY
         starButton.isVisible = mode == Mode.RSS
         refreshButton.isVisible = mode == Mode.RSS
-        loginButton.isVisible = mode != Mode.BOOKSHELF
+        loginButton.isVisible = mode == Mode.DISCOVERY || mode == Mode.RSS
         titleText.textSize = if (mode == Mode.BOOKSHELF) 24f else 20f
         titleText.applyUiTitleTypeface(context)
         applyTopBarStyle(force = true)
@@ -159,6 +161,19 @@ class MainTopBarView @JvmOverloads constructor(
 
     fun setOnHeightChangedListener(listener: (() -> Unit)?) {
         onHeightChanged = listener
+    }
+
+    fun setOnFilterExpandedChangedListener(listener: ((Boolean) -> Unit)?) {
+        onFilterExpandedChanged = listener
+    }
+
+    fun setFiltersExpanded(expanded: Boolean) {
+        if (filtersExpanded == expanded) {
+            updateFilterBarsVisibility()
+            return
+        }
+        filtersExpanded = expanded
+        updateFilterBarsVisibility()
     }
 
     fun showSelects(show: Boolean) {
