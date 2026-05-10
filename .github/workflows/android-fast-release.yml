@@ -49,21 +49,21 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           cat > release-notes.md <<EOF
-          阅读Archive 第四版
-          
+          阅读Archive 第五版
+
           新增：
-          - 新增标题字体和界面字体设置。
-          - 新增阅读目标和阅读时长排行桌面组件。
-          - 新增最小兼容 md3 版备份恢复。
+          - 支持标题字体和界面字体设置。
+          - 支持阅读目标和阅读时长排行桌面组件。
+          - 支持圆角布局卡片壁纸。
+          - 支持云端缓存加入书架。
+          - 最小兼容 md3 版备份恢复。
 
           修复：
-          - 修复部分 EPUB 导入、封面读取、背景图显示、内置字体加载和复杂排版显示异常。
+          - 修复部分 EPUB 导入、封面读取、背景图显示、内置字体加载和复杂排版异常。
           - 修复 EPUB 含背景图页面加载慢、频繁重新加载和预加载不足的问题。
-          - 修复 md3 版备份部分字段不兼容导致恢复失败或启动报错的问题。
           - 修复纯 URL 订阅在新版订阅页中没有按原逻辑跳转的问题。
           - 修复主题背景图可能被背景色覆盖的问题。
-          - 修复三点菜单、动态布局和部分输入控件字体不跟随设置的问题。
-          - 修复自定义底栏和主题背景相关逻辑导致冷启动变慢的问题。
+          - 修复发现页默认封面模式下列表与详情页图集封面不一致的问题。
           EOF
 
       - name: Build arm64 release APK
@@ -112,7 +112,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: 阅读Archive 第四版 ${{ steps.version.outputs.name }}
+          name: 阅读Archive 第五版 ${{ steps.version.outputs.name }}
           prerelease: false
           make_latest: true
           generate_release_notes: false
