@@ -1,6 +1,7 @@
 package io.legado.app.ui.widget
 
 import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.Gravity
@@ -30,31 +31,41 @@ class MainTopBarView @JvmOverloads constructor(
     val titleSelect = LinearLayout(context)
     val titleText = TextView(context)
     val titleArrow = AppCompatImageView(context)
+    val searchEntry = LinearLayout(context)
+    private val searchEntryText = TextView(context)
+    private val searchEntryIcon = AppCompatImageView(context)
     val moreButton = actionButton(R.drawable.ic_more_vert, R.string.menu)
     val searchButton = actionButton(R.drawable.ic_search, R.string.search)
     val filterButton = actionButton(R.drawable.ic_sort, R.string.sort)
     val starButton = actionButton(R.drawable.ic_star, R.string.favorite)
     val refreshButton = actionButton(R.drawable.ic_refresh_black_24dp, R.string.refresh)
     val loginButton = actionButton(R.drawable.ic_bottom_person, R.string.login)
+    val primaryBar = RoundedTagBarView(context)
     val selectsBar = RoundedTagBarView(context)
     val tagsBar = RoundedTagBarView(context)
+    private val titleSpacer = Space(context)
     private val titleRow = buildTitleRow()
     private var mode = Mode.BOOKSHELF
     private var styleSignature: String? = null
+    private var primaryBarRequested = false
 
     init {
         orientation = VERTICAL
         clipChildren = false
         clipToPadding = false
         val horizontal = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_horizontal)
-        setPadding(horizontal, 0, horizontal, 0)
+        setPadding(horizontal, paddingTop, horizontal, 0)
         addView(titleRow)
+        addView(primaryBar, tagLayoutParams().apply {
+            topMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_top)
+        })
         addView(selectsBar, tagLayoutParams().apply {
             topMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_top)
         })
         addView(tagsBar, tagLayoutParams().apply {
             topMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_top)
         })
+        primaryBar.isVisible = false
         selectsBar.isVisible = false
         tagsBar.isVisible = false
         setMode(Mode.BOOKSHELF)
@@ -80,6 +91,20 @@ class MainTopBarView @JvmOverloads constructor(
 
     fun setTitle(text: CharSequence) {
         titleText.text = text
+    }
+
+    fun setSearchHint(text: CharSequence) {
+        searchEntryText.text = text
+    }
+
+    fun setPrimaryItems(items: List<RoundedTagBarView.Item>, selectedIndex: Int) {
+        primaryBarRequested = items.isNotEmpty()
+        primaryBar.submitItems(items, selectedIndex)
+        updatePrimaryBarVisibility()
+    }
+
+    fun isImmersiveStyle(): Boolean {
+        return TopBarConfig.currentConfig(context, AppConfig.isNightTheme).style == TopBarConfig.STYLE_IMMERSIVE
     }
 
     fun showSelects(show: Boolean) {
@@ -114,6 +139,7 @@ class MainTopBarView @JvmOverloads constructor(
         } else {
             applyDefaultStyle()
         }
+        updatePrimaryBarVisibility()
         updateIconColors()
     }
 
@@ -123,40 +149,46 @@ class MainTopBarView @JvmOverloads constructor(
         background = null
         titleRow.background = null
         titleRow.setPadding(0, resources.getDimensionPixelSize(R.dimen.bookshelf_title_row_margin_top), 0, 0)
+        searchEntry.isVisible = false
+        titleSelect.isVisible = true
+        titleSpacer.isVisible = true
         titleSelect.background = ContextCompat.getDrawable(context, R.drawable.bg_discover_embedded_action)
         listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
             it.background = ContextCompat.getDrawable(context, R.drawable.bg_discover_embedded_action)
         }
         titleText.gravity = Gravity.CENTER_VERTICAL
         titleText.setTextColor(ContextCompat.getColor(context, R.color.primaryText))
+        primaryBar.setSelectedBackgroundVisible(true)
+        selectsBar.setSelectedBackgroundVisible(true)
+        tagsBar.setSelectedBackgroundVisible(true)
     }
 
     private fun applyImmersiveStyle(config: TopBarConfig.Config) {
         val horizontal = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_horizontal)
         val vertical = 8.dp
         val color = config.tagBarColor ?: ContextCompat.getColor(context, R.color.background_menu)
-        setPadding(horizontal, vertical, horizontal, vertical)
-        background = UiCorner.opaqueRounded(
-            TopBarConfig.withOpacity(color, config.tagBarAlpha),
-            UiCorner.panelRadius(context)
-        )
+        setPadding(horizontal, paddingTop.coerceAtLeast(vertical), horizontal, vertical)
+        background = bottomRoundedBackground(TopBarConfig.withOpacity(color, config.tagBarAlpha))
         titleRow.background = null
         titleRow.setPadding(0, 0, 0, 0)
-        titleSelect.background = UiCorner.actionSelector(
-            TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 58),
-            TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 82),
-            UiCorner.actionRadius(context)
+        titleSelect.isVisible = false
+        searchEntry.isVisible = true
+        titleSpacer.isVisible = false
+        searchEntry.background = UiCorner.actionSelector(
+            TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 42),
+            TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 66),
+            UiCorner.searchRadius(18f)
         )
         titleSelect.setPadding(12.dp, 0, 8.dp, 0)
         listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
-            it.background = UiCorner.actionSelector(
-                TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 42),
-                TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 76),
-                UiCorner.actionRadius(context)
-            )
+            it.background = null
         }
         titleText.gravity = Gravity.CENTER_VERTICAL
         titleText.setTextColor(context.primaryTextColor)
+        searchEntryText.setTextColor(context.primaryTextColor)
+        primaryBar.setSelectedBackgroundVisible(true)
+        selectsBar.setSelectedBackgroundVisible(true)
+        tagsBar.setSelectedBackgroundVisible(false)
     }
 
     private fun buildTitleRow(): LinearLayout {
@@ -164,6 +196,31 @@ class MainTopBarView @JvmOverloads constructor(
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, resources.getDimensionPixelSize(R.dimen.bookshelf_title_row_margin_top), 0, 0)
+            addView(searchEntry.apply {
+                orientation = HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                isClickable = true
+                isFocusable = true
+                visibility = View.GONE
+                val height = resources.getDimensionPixelSize(R.dimen.bookshelf_title_select_height)
+                layoutParams = LayoutParams(0, height, 1f)
+                setPadding(12.dp, 0, 12.dp, 0)
+                addView(searchEntryIcon.apply {
+                    setImageResource(R.drawable.ic_search)
+                    layoutParams = LayoutParams(18.dp, 18.dp)
+                })
+                addView(searchEntryText.apply {
+                    includeFontPadding = false
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    textSize = 14f
+                    alpha = 0.78f
+                    applyUiTitleTypeface(context)
+                    layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
+                        marginStart = 8.dp
+                    }
+                })
+            })
             addView(titleSelect.apply {
                 orientation = HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -186,7 +243,7 @@ class MainTopBarView @JvmOverloads constructor(
                     )
                 })
             })
-            addView(Space(context), LayoutParams(0, 1, 1f))
+            addView(titleSpacer, LayoutParams(0, 1, 1f))
             addAction(searchButton)
             addAction(filterButton)
             addAction(starButton)
@@ -226,8 +283,27 @@ class MainTopBarView @JvmOverloads constructor(
     private fun updateIconColors() {
         val color = ContextCompat.getColor(context, R.color.primaryText)
         titleArrow.setColorFilter(color)
+        searchEntryIcon.setColorFilter(color)
         listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
             it.setColorFilter(color)
+        }
+    }
+
+    private fun updatePrimaryBarVisibility() {
+        primaryBar.isVisible = isImmersiveStyle() && primaryBarRequested
+    }
+
+    private fun bottomRoundedBackground(color: Int): GradientDrawable {
+        val radius = UiCorner.panelRadius(context)
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(color)
+            cornerRadii = floatArrayOf(
+                0f, 0f,
+                0f, 0f,
+                radius, radius,
+                radius, radius
+            )
         }
     }
 

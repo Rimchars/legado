@@ -343,6 +343,12 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.topBar.titleSelect.setOnClickListener {
             showDiscoverSourceMenu()
         }
+        binding.topBar.primaryBar.setOnTagClickListener { index ->
+            discoverSources.getOrNull(index)?.let(::selectDiscoverSource)
+        }
+        binding.topBar.searchEntry.setOnClickListener {
+            openDiscoverSearch()
+        }
         binding.topBar.loginButton.setOnClickListener {
             openSelectedSourceLogin()
         }
@@ -389,9 +395,11 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
 
     private fun updateDiscoverSearchButtonState() {
         val canSearch = !selectedDiscoverSource?.searchUrl.isNullOrBlank()
-        binding.topBar.searchButton.isVisible = canSearch
+        binding.topBar.searchButton.isVisible = canSearch && !binding.topBar.isImmersiveStyle()
         binding.topBar.searchButton.isEnabled = canSearch
         binding.topBar.searchButton.alpha = if (canSearch) 1f else 0.45f
+        binding.topBar.searchEntry.isEnabled = canSearch
+        binding.topBar.searchEntry.alpha = if (canSearch) 1f else 0.58f
         binding.topBar.post(::updateDiscoverSourceNameWidth)
     }
 
@@ -431,6 +439,8 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         clearDiscoverBooksToEmpty(getString(R.string.explore_empty))
                         renderDiscoverTags(emptyList(), -1)
                         binding.topBar.setTitle(getString(R.string.explore_empty))
+                        binding.topBar.setSearchHint(getString(R.string.search_book_key))
+                        renderDiscoverSourceSelector()
                         updateDiscoverLoginButtonState()
                         updateDiscoverSearchButtonState()
                         updateDiscoverTagFilterButtonState()
@@ -447,6 +457,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         selectDiscoverSource(selected)
                     } else {
                         updateDiscoverSourceTitle()
+                        renderDiscoverSourceSelector()
                         updateDiscoverLoginButtonState()
                         updateDiscoverSearchButtonState()
                     }
@@ -505,6 +516,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private fun selectDiscoverSource(source: BookSourcePart) {
         selectedDiscoverSourcePart = source
         AppConfig.modernDiscoverySourceUrl = source.bookSourceUrl
+        renderDiscoverSourceSelector()
         updateDiscoverLoginButtonState()
         tagFilterPopup?.dismiss()
         tagFilterPopup = null
@@ -543,8 +555,17 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private fun updateDiscoverSourceTitle() {
         val name = selectedDiscoverSourcePart?.bookSourceName
             ?: getString(R.string.discovery)
-        binding.topBar.setTitle(name)
+        binding.topBar.setTitle(if (binding.topBar.isImmersiveStyle()) getString(R.string.discovery) else name)
+        binding.topBar.setSearchHint(name)
+        renderDiscoverSourceSelector()
         binding.topBar.post(::updateDiscoverSourceNameWidth)
+    }
+
+    private fun renderDiscoverSourceSelector() {
+        binding.topBar.setPrimaryItems(
+            discoverSources.map { RoundedTagBarView.Item(it.bookSourceName) },
+            discoverSources.indexOfFirst { it.bookSourceUrl == selectedDiscoverSourcePart?.bookSourceUrl }
+        )
     }
 
     private suspend fun loadDiscoverKindsAndDefault() {

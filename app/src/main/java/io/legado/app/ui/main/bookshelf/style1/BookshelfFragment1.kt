@@ -22,6 +22,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.lib.theme.primaryColor
+import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.legado.app.ui.main.bookshelf.style1.books.BooksFragment
 import io.legado.app.ui.widget.MainTopBarView
@@ -76,14 +77,22 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         get() = bookGroups.getOrNull(binding.viewPagerBookshelf.currentItem)
 
     private fun initView() {
-        binding.root.applyStatusBarPadding()
+        binding.topBar.applyStatusBarPadding(withInitialPadding = true)
         binding.viewPagerBookshelf.setEdgeEffectColor(primaryColor)
         binding.topBar.setMode(MainTopBarView.Mode.BOOKSHELF)
         binding.topBar.moreButton.setOnClickListener {
             showModernBookshelfMenu(it)
         }
+        binding.topBar.setSearchHint(getString(R.string.search_book_key))
+        binding.topBar.searchEntry.setOnClickListener {
+            startActivity(android.content.Intent(requireContext(), SearchActivity::class.java))
+        }
         binding.topBar.titleSelect.setOnClickListener {
             showGroupSwitchMenu(it)
+        }
+        binding.topBar.primaryBar.setOnTagClickListener { index ->
+            selectedBookTag = ""
+            switchToGroup(index)
         }
         binding.topBar.showTags(true)
         binding.topBar.tagsBar.setOnTagClickListener { index ->
@@ -138,8 +147,10 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
             bookGroups.clear()
             bookGroups.addAll(data)
             adapter.notifyDataSetChanged()
+            renderGroupSelector()
             selectSavedGroup()
         } else {
+            renderGroupSelector()
             renderGroupTags()
         }
         updateHeaderTitle()
@@ -152,6 +163,7 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
     private fun selectSavedGroup() {
         binding.viewPagerBookshelf.post {
             if (bookGroups.isEmpty()) {
+                binding.topBar.setPrimaryItems(emptyList(), -1)
                 binding.topBar.tagsBar.submitItems(emptyList(), -1)
                 updateHeaderTitle()
                 return@post
@@ -171,6 +183,14 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
 
     private fun updateHeaderTitle() {
         binding.topBar.setTitle(selectedGroup?.groupName ?: getString(R.string.bookshelf))
+        renderGroupSelector()
+    }
+
+    private fun renderGroupSelector() {
+        binding.topBar.setPrimaryItems(
+            bookGroups.map { RoundedTagBarView.Item(it.groupName) },
+            currentGroupIndex.coerceIn(-1, bookGroups.lastIndex)
+        )
     }
 
     fun onBooksChanged(groupId: Long, books: List<Book>) {

@@ -44,6 +44,7 @@ class RoundedTagBarView @JvmOverloads constructor(
     private var onTagClick: ((Int) -> Unit)? = null
     private var onTagLongClick: ((Int) -> Boolean)? = null
     private var styleSignature: String? = null
+    private var selectedBackgroundVisible = true
 
     init {
         clipToOutline = true
@@ -76,6 +77,12 @@ class RoundedTagBarView @JvmOverloads constructor(
             UiCorner.panelRadius(context)
         )
         adapter.selectedBackgroundColor = TopBarConfig.withOpacity(selectedColor, config.tagSelectedAlpha)
+        adapter.notifyDataSetChanged()
+    }
+
+    fun setSelectedBackgroundVisible(visible: Boolean) {
+        if (selectedBackgroundVisible == visible) return
+        selectedBackgroundVisible = visible
         adapter.notifyDataSetChanged()
     }
 
@@ -183,7 +190,7 @@ class RoundedTagBarView @JvmOverloads constructor(
             val item = items[position]
             holder.textView.background = UiCorner.actionSelector(
                 android.graphics.Color.TRANSPARENT,
-                selectedBackgroundColor,
+                if (selectedBackgroundVisible) selectedBackgroundColor else android.graphics.Color.TRANSPARENT,
                 UiCorner.actionRadius(holder.textView.context)
             )
             holder.textView.text = item.text

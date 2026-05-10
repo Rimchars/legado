@@ -59,6 +59,7 @@ import io.legado.app.utils.transaction
 import io.legado.app.utils.visible
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.ui.widget.SourceSelectDialog
+import io.legado.app.ui.widget.RoundedTagBarView
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
@@ -238,6 +239,17 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.topBar.titleSelect.setOnClickListener {
             showSourceSelector()
         }
+        binding.topBar.primaryBar.setOnTagClickListener { index ->
+            val source = rssSources.getOrNull(index) ?: return@setOnTagClickListener
+            if (source.canRenderInModernPage()) {
+                selectSource(source, reload = true)
+            } else {
+                openRssLegacy(source)
+            }
+        }
+        binding.topBar.searchEntry.setOnClickListener {
+            openRssSearch()
+        }
         binding.topBar.loginButton.setOnClickListener {
             selectedRssSource?.let(::openRssLogin)
         }
@@ -340,6 +352,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 binding.swipeRefreshLayout.isRefreshing = false
                 rssSources.clear()
                 rssSources.addAll(sources)
+                renderRssSourceSelector()
                 val keep = selectedRssSource?.sourceUrl?.let { key ->
                     sources.firstOrNull { it.sourceUrl == key && it.canRenderInModernPage() }
                 }
@@ -365,10 +378,14 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         val changed = selectedRssSource?.sourceUrl != source.sourceUrl
         selectedRssSource = source
         AppConfig.modernRssSourceUrl = source.sourceUrl
-        binding.topBar.setTitle(source.sourceName)
+        binding.topBar.setTitle(if (binding.topBar.isImmersiveStyle()) getString(R.string.rss) else source.sourceName)
+        binding.topBar.setSearchHint(source.sourceName)
         binding.topBar.loginButton.isVisible = !source.loginUrl.isNullOrBlank()
-        binding.topBar.searchButton.isVisible = !source.searchUrl.isNullOrBlank()
+        binding.topBar.searchButton.isVisible = !source.searchUrl.isNullOrBlank() && !binding.topBar.isImmersiveStyle()
+        binding.topBar.searchEntry.isEnabled = !source.searchUrl.isNullOrBlank()
+        binding.topBar.searchEntry.alpha = if (source.searchUrl.isNullOrBlank()) 0.58f else 1f
         binding.topBar.refreshButton.isVisible = source.ruleArticles.isNullOrBlank()
+        renderRssSourceSelector()
         binding.topBar.post(::updateRssSourceNameWidth)
         if (changed) {
             selectedTagIndex = 0
@@ -538,6 +555,8 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         selectedRssSource = null
         currentSorts.clear()
         binding.topBar.setTitle(getString(R.string.rss))
+        binding.topBar.setSearchHint(getString(R.string.rss_search_hint))
+        renderRssSourceSelector()
         binding.topBar.loginButton.gone()
         binding.topBar.searchButton.gone()
         binding.topBar.refreshButton.gone()
@@ -586,6 +605,13 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 openRssLegacy(it)
             }
         }
+    }
+
+    private fun renderRssSourceSelector() {
+        binding.topBar.setPrimaryItems(
+            rssSources.map { RoundedTagBarView.Item(it.sourceName) },
+            rssSources.indexOfFirst { it.sourceUrl == selectedRssSource?.sourceUrl }
+        )
     }
 
     private fun openRssSearch() {
