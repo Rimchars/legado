@@ -155,6 +155,13 @@ class MainTopBarView @JvmOverloads constructor(
         titleSelect.background = ContextCompat.getDrawable(context, R.drawable.bg_discover_embedded_action)
         listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
             it.background = ContextCompat.getDrawable(context, R.drawable.bg_discover_embedded_action)
+            it.layoutParams = (it.layoutParams as LayoutParams).apply {
+                width = resources.getDimensionPixelSize(R.dimen.bookshelf_action_button_size)
+                height = resources.getDimensionPixelSize(R.dimen.bookshelf_action_button_size)
+                marginStart = 8.dp
+            }
+            val padding = resources.getDimensionPixelSize(R.dimen.bookshelf_action_button_padding)
+            it.setPadding(padding, padding, padding, padding)
         }
         titleText.gravity = Gravity.CENTER_VERTICAL
         titleText.setTextColor(ContextCompat.getColor(context, R.color.primaryText))
@@ -179,9 +186,17 @@ class MainTopBarView @JvmOverloads constructor(
             TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 66),
             UiCorner.searchRadius(18f)
         )
+        searchEntry.setPadding(14.dp, 0, 14.dp, 0)
         titleSelect.setPadding(12.dp, 0, 8.dp, 0)
         listOf(moreButton, searchButton, filterButton, starButton, refreshButton, loginButton).forEach {
             it.background = null
+            it.layoutParams = (it.layoutParams as LayoutParams).apply {
+                width = 36.dp
+                height = 36.dp
+                marginStart = 6.dp
+            }
+            val padding = 8.dp
+            it.setPadding(padding, padding, padding, padding)
         }
         titleText.gravity = Gravity.CENTER_VERTICAL
         titleText.setTextColor(context.primaryTextColor)
@@ -204,10 +219,10 @@ class MainTopBarView @JvmOverloads constructor(
                 visibility = View.GONE
                 val height = resources.getDimensionPixelSize(R.dimen.bookshelf_title_select_height)
                 layoutParams = LayoutParams(0, height, 1f)
-                setPadding(12.dp, 0, 12.dp, 0)
+                setPadding(14.dp, 0, 14.dp, 0)
                 addView(searchEntryIcon.apply {
                     setImageResource(R.drawable.ic_search)
-                    layoutParams = LayoutParams(18.dp, 18.dp)
+                    layoutParams = LayoutParams(17.dp, 17.dp)
                 })
                 addView(searchEntryText.apply {
                     includeFontPadding = false
@@ -254,8 +269,14 @@ class MainTopBarView @JvmOverloads constructor(
     }
 
     private fun LinearLayout.addAction(view: View) {
-        addView(Space(context), LayoutParams(10.dp, 1))
-        addView(view)
+        addView(view.apply {
+            layoutParams = (layoutParams as? LayoutParams ?: LayoutParams(
+                resources.getDimensionPixelSize(R.dimen.bookshelf_action_button_size),
+                resources.getDimensionPixelSize(R.dimen.bookshelf_action_button_size)
+            )).apply {
+                marginStart = 8.dp
+            }
+        })
     }
 
     private fun actionButton(drawableRes: Int, contentDescRes: Int): AppCompatImageButton {

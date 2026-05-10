@@ -718,19 +718,12 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                         append(dateFormat.format(Date(maxOf(entry.config.updatedAt, entry.remoteUpdatedAt))))
                     }
                 }
-                tvSource.text = when {
-                    entry.dirName == activeDirName -> getString(R.string.theme_source_using)
-                    entry.source == NavigationBarIconConfig.Source.BUILTIN -> getString(R.string.theme_source_local)
-                    entry.source == NavigationBarIconConfig.Source.REMOTE -> getString(R.string.theme_source_remote)
-                    entry.source == NavigationBarIconConfig.Source.BOTH -> getString(R.string.theme_source_both)
-                    else -> getString(R.string.theme_source_local)
-                }
+                tvSource.visibility = View.GONE
                 tvName.setTextColor(primaryTextColor)
                 tvInfo.setTextColor(secondaryTextColor)
-                tvSource.setTextColor(accentColor)
-                listOf(btnApply, btnEdit, btnMore, tvSource).forEach {
+                listOf(btnApply, btnEdit, btnMore).forEach {
                     it.background = UiCorner.actionSelector(
-                        ContextCompat.getColor(this@NavigationBarManageActivity, R.color.background_card),
+                        android.graphics.Color.TRANSPARENT,
                         ContextCompat.getColor(this@NavigationBarManageActivity, R.color.background_menu),
                         UiCorner.actionRadius(this@NavigationBarManageActivity)
                     )
@@ -738,6 +731,9 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 cardPreview.visibility = View.GONE
                 btnApply.text = getString(if (entry.dirName == activeDirName) R.string.theme_applied_state else R.string.theme_apply)
                 btnEdit.text = getString(R.string.edit)
+                btnApply.setTextColor(accentColor)
+                btnEdit.setTextColor(primaryTextColor)
+                btnMore.setTextColor(primaryTextColor)
                 btnApply.setOnClickListener { applyPackage(entry) }
                 btnEdit.setOnClickListener { showEditDialog(entry) }
                 btnMore.setOnClickListener { showActions(entry) }
