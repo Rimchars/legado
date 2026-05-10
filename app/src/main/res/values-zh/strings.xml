@@ -1807,6 +1807,8 @@
     <string name="top_bar_style_immersive">沉浸顶栏</string>
     <string name="top_bar_tag_bar_color">标签栏背景色</string>
     <string name="top_bar_tag_bar_alpha">标签栏不透明度</string>
+    <string name="top_bar_wallpaper">顶栏壁纸</string>
+    <string name="top_bar_wallpaper_alpha">壁纸不透明度</string>
     <string name="top_bar_tag_selected_color">选中标签背景色</string>
     <string name="top_bar_tag_selected_alpha">选中标签不透明度</string>
     <string name="top_bar_follow_theme">跟随主题</string></resources>

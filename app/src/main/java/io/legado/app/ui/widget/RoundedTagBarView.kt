@@ -2,6 +2,7 @@ package io.legado.app.ui.widget
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Color
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.FrameLayout
@@ -69,7 +70,11 @@ class RoundedTagBarView @JvmOverloads constructor(
         styleSignature = signature
         val config = TopBarConfig.currentConfig(context, AppConfig.isNightTheme)
         val tagBarColor = config.tagBarColor
-            ?: ContextCompat.getColor(context, R.color.background_menu)
+            ?: if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
+                Color.WHITE
+            } else {
+                ContextCompat.getColor(context, R.color.background_menu)
+            }
         val selectedColor = config.tagSelectedColor
             ?: ContextCompat.getColor(context, R.color.background_card)
         background = UiCorner.opaqueRounded(

@@ -1863,6 +1863,8 @@
     <string name="top_bar_style_immersive">Immersive</string>
     <string name="top_bar_tag_bar_color">Tag bar background</string>
     <string name="top_bar_tag_bar_alpha">Tag bar opacity</string>
+    <string name="top_bar_wallpaper">Top bar wallpaper</string>
+    <string name="top_bar_wallpaper_alpha">Wallpaper opacity</string>
     <string name="top_bar_tag_selected_color">Selected tag background</string>
     <string name="top_bar_tag_selected_alpha">Selected tag opacity</string>
     <string name="top_bar_follow_theme">Follow theme</string>

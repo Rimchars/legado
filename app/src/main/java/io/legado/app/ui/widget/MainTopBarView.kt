@@ -1,7 +1,19 @@
 package io.legado.app.ui.widget
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
+import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PixelFormat
+import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.Gravity
@@ -20,6 +32,7 @@ import io.legado.app.help.config.TopBarConfig
 import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.lib.theme.primaryTextColor
+import io.legado.app.utils.BitmapUtils
 
 class MainTopBarView @JvmOverloads constructor(
     context: Context,
@@ -48,6 +61,9 @@ class MainTopBarView @JvmOverloads constructor(
     private var mode = Mode.BOOKSHELF
     private var styleSignature: String? = null
     private var primaryBarRequested = false
+    private var searchEntryRequested = true
+    private var wallpaperBitmapKey: String? = null
+    private var wallpaperBitmap: Bitmap? = null
 
     init {
         orientation = VERTICAL
@@ -95,6 +111,12 @@ class MainTopBarView @JvmOverloads constructor(
 
     fun setSearchHint(text: CharSequence) {
         searchEntryText.text = text
+    }
+
+    fun setSearchEntryVisible(visible: Boolean) {
+        if (searchEntryRequested == visible) return
+        searchEntryRequested = visible
+        applyTopBarStyle(force = true)
     }
 
     fun setPrimaryItems(items: List<RoundedTagBarView.Item>, selectedIndex: Int) {
@@ -177,14 +199,15 @@ class MainTopBarView @JvmOverloads constructor(
     private fun applyImmersiveStyle(config: TopBarConfig.Config) {
         val horizontal = resources.getDimensionPixelSize(R.dimen.bookshelf_tag_bar_margin_horizontal)
         val vertical = 8.dp
-        val color = config.tagBarColor ?: ContextCompat.getColor(context, R.color.background_menu)
+        val color = android.graphics.Color.TRANSPARENT
         setPadding(horizontal, paddingTop.coerceAtLeast(vertical), horizontal, vertical)
-        background = bottomRoundedBackground(TopBarConfig.withOpacity(color, config.tagBarAlpha))
+        background = immersiveBackground(config, TopBarConfig.withOpacity(color, 0))
         titleRow.background = null
         titleRow.setPadding(0, 0, 0, 0)
-        titleSelect.isVisible = false
-        searchEntry.isVisible = true
-        titleSpacer.isVisible = false
+        titleSelect.isVisible = !searchEntryRequested
+        searchEntry.isVisible = searchEntryRequested
+        titleSpacer.isVisible = !searchEntryRequested
+        titleSelect.background = null
         searchEntry.background = UiCorner.actionSelector(
             TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 42),
             TopBarConfig.withOpacity(ContextCompat.getColor(context, R.color.background_card), 66),
@@ -330,6 +353,81 @@ class MainTopBarView @JvmOverloads constructor(
                 radius, radius
             )
         }
+    }
+
+    private fun immersiveBackground(config: TopBarConfig.Config, fallbackColor: Int): Drawable {
+        val base = bottomRoundedBackground(fallbackColor)
+        val file = TopBarConfig.currentWallpaperFile(context, AppConfig.isNightTheme) ?: return base
+        val key = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
+        val bitmap = wallpaperBitmap?.takeIf { wallpaperBitmapKey == key && !it.isRecycled }
+            ?: kotlin.runCatching {
+                BitmapUtils.decodeBitmap(
+                    file.absolutePath,
+                    resources.displayMetrics.widthPixels.coerceAtLeast(1),
+                    resources.getDimensionPixelSize(R.dimen.main_bottom_bar_height).coerceAtLeast(1) * 4
+                )
+            }.getOrNull()?.also {
+                wallpaperBitmapKey = key
+                wallpaperBitmap = it
+            }
+            ?: return base
+        return LayerDrawable(
+            arrayOf(
+                base,
+                BottomRoundedBitmapDrawable(bitmap, UiCorner.panelRadius(context), config.wallpaperAlpha)
+            )
+        )
+    }
+
+    private class BottomRoundedBitmapDrawable(
+        private val bitmap: Bitmap,
+        private val radius: Float,
+        alphaPercent: Int
+    ) : Drawable() {
+
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+            shader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+            alpha = (alphaPercent.coerceIn(0, 100) * 255 / 100).coerceIn(0, 255)
+        }
+        private val rect = RectF()
+        private val matrix = Matrix()
+        private val path = Path()
+
+        override fun draw(canvas: Canvas) {
+            val bounds = bounds
+            if (bounds.isEmpty || bitmap.width <= 0 || bitmap.height <= 0) return
+            rect.set(bounds)
+            val scale = maxOf(
+                bounds.width() / bitmap.width.toFloat(),
+                bounds.height() / bitmap.height.toFloat()
+            )
+            val dx = bounds.left + (bounds.width() - bitmap.width * scale) / 2f
+            val dy = bounds.top + (bounds.height() - bitmap.height * scale) / 2f
+            matrix.reset()
+            matrix.setScale(scale, scale)
+            matrix.postTranslate(dx, dy)
+            paint.shader?.setLocalMatrix(matrix)
+            path.reset()
+            path.addRoundRect(
+                rect,
+                floatArrayOf(0f, 0f, 0f, 0f, radius, radius, radius, radius),
+                Path.Direction.CW
+            )
+            canvas.drawPath(path, paint)
+        }
+
+        override fun setAlpha(alpha: Int) {
+            paint.alpha = alpha
+            invalidateSelf()
+        }
+
+        override fun setColorFilter(colorFilter: ColorFilter?) {
+            paint.colorFilter = colorFilter
+            invalidateSelf()
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
     }
 
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()

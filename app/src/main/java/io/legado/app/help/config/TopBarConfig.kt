@@ -47,6 +47,8 @@ object TopBarConfig {
         var tagBarAlpha: Int = 100,
         var tagSelectedColor: Int? = null,
         var tagSelectedAlpha: Int = 100,
+        var wallpaperPath: String? = null,
+        var wallpaperAlpha: Int = 100,
         var updatedAt: Long = System.currentTimeMillis()
     )
 
@@ -101,6 +103,18 @@ object TopBarConfig {
         return readEntry(localDir(isNight, dirName)) ?: defaultEntry(context, isNight)
     }
 
+    fun currentWallpaperFile(context: Context, isNight: Boolean): File? {
+        val entry = currentEntry(context, isNight)
+        val path = entry.config.wallpaperPath?.takeIf { it.isNotBlank() } ?: return null
+        val file = File(path)
+        val resolved = if (file.isAbsolute) {
+            file
+        } else {
+            File(entry.localDir ?: localDir(entry.config.isNightMode, entry.dirName), path)
+        }
+        return resolved.takeIf { it.exists() && it.isFile }
+    }
+
     suspend fun loadEntries(context: Context, isNight: Boolean, includeRemote: Boolean): List<Entry> {
         val local = loadLocal(isNight).associateBy { it.dirName }
         val remote = if (includeRemote && AppConfig.syncThemePackages) {
@@ -150,6 +164,7 @@ object TopBarConfig {
         val dir = localDir(normalized.isNightMode, dirName).apply { mkdirs() }
         val next = normalized.copy(
             name = name,
+            wallpaperPath = normalizeWallpaperPath(normalized.wallpaperPath, dir),
             updatedAt = System.currentTimeMillis()
         )
         File(dir, packageFileName).writeText(GSON.toJson(next))
@@ -305,8 +320,11 @@ object TopBarConfig {
             if (targetDir.exists()) FileUtils.delete(targetDir, deleteRootDir = true)
             targetDir.mkdirs()
             packageFile.parentFile?.copyRecursively(targetDir, overwrite = true)
-            File(targetDir, packageFileName).writeText(GSON.toJson(config))
-            Entry(config, Source.LOCAL, dirName, localDir = targetDir, remoteUpdatedAt = remoteUpdatedAt)
+            val finalConfig = config.copy(
+                wallpaperPath = normalizeWallpaperPath(config.wallpaperPath, targetDir)
+            )
+            File(targetDir, packageFileName).writeText(GSON.toJson(finalConfig))
+            Entry(finalConfig, Source.LOCAL, dirName, localDir = targetDir, remoteUpdatedAt = remoteUpdatedAt)
         } finally {
             FileUtils.delete(unzipDir, deleteRootDir = true)
         }
@@ -316,7 +334,29 @@ object TopBarConfig {
         config.style = config.style.takeIf { it == STYLE_DEFAULT || it == STYLE_IMMERSIVE } ?: STYLE_DEFAULT
         config.tagBarAlpha = config.tagBarAlpha.coerceIn(0, 100)
         config.tagSelectedAlpha = config.tagSelectedAlpha.coerceIn(0, 100)
+        config.wallpaperAlpha = config.wallpaperAlpha.coerceIn(0, 100)
+        config.wallpaperPath = config.wallpaperPath?.takeIf { it.isNotBlank() }
         return config
+    }
+
+    private fun normalizeWallpaperPath(path: String?, dir: File): String? {
+        val value = path?.takeIf { it.isNotBlank() } ?: return null
+        val source = File(value)
+        if (!source.isAbsolute) {
+            return value
+        }
+        if (!source.exists() || !source.isFile) {
+            return null
+        }
+        dir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith("top_bar_wallpaper.") }
+            ?.forEach { it.delete() }
+        val suffix = source.extension.takeIf { it.isNotBlank() } ?: "jpg"
+        val target = File(dir, "top_bar_wallpaper.$suffix")
+        if (source.absolutePath != target.absolutePath) {
+            source.copyTo(target, overwrite = true)
+        }
+        return target.name
     }
 
     private fun resetActiveIfNeeded(entry: Entry) {

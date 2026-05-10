@@ -32,7 +32,9 @@ import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.file.HandleFileContract
+import io.legado.app.ui.image.ImageCropContract
 import io.legado.app.ui.widget.number.NumberPickerDialog
+import io.legado.app.utils.ImageCropHelper
 import io.legado.app.utils.externalFiles
 import io.legado.app.utils.getFile
 import io.legado.app.utils.observeEvent
@@ -58,6 +60,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
     private var editingDialog: LinearLayout? = null
     private var pendingConfig: TopBarConfig.Config? = null
     private var pendingColorTarget = 0
+    private var pendingWallpaperCropRequest: ImageCropHelper.Request? = null
     private val dateFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
     private val importPackage = registerForActivityResult(HandleFileContract()) {
@@ -66,6 +69,21 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
 
     private val exportPackage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { toastOnUi(R.string.export_success) }
+    }
+
+    private val selectWallpaper = registerForActivityResult(HandleFileContract()) {
+        it.uri?.let(::startWallpaperCrop)
+    }
+
+    private val cropWallpaper = registerForActivityResult(ImageCropContract()) { result ->
+        pendingWallpaperCropRequest = null
+        if (result == null) return@registerForActivityResult
+        if (File(result).exists()) {
+            pendingConfig?.wallpaperPath = result
+            refreshEditDialog()
+        } else {
+            toastOnUi(getString(R.string.image_crop_failed, getString(R.string.unknown)))
+        }
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -207,26 +225,98 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                     )
                 ) { _, index ->
                     config.style = if (index == 1) TopBarConfig.STYLE_IMMERSIVE else TopBarConfig.STYLE_DEFAULT
+                    if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
+                        if (config.tagBarColor == null) {
+                            config.tagBarColor = Color.WHITE
+                        }
+                        if (config.tagBarAlpha == 100) {
+                            config.tagBarAlpha = 0
+                        }
+                    }
                     refreshEditDialog()
                 }
             })
-            addView(optionRow(getString(R.string.top_bar_tag_bar_color), colorLabel(config.tagBarColor)) {
-                showColorPicker(COLOR_TAG_BAR, config.tagBarColor ?: defaultTagBarColor())
-            })
-            addView(optionRow(getString(R.string.top_bar_tag_bar_alpha), "${config.tagBarAlpha}%") {
-                showAlphaPicker(getString(R.string.top_bar_tag_bar_alpha), config.tagBarAlpha) {
-                    config.tagBarAlpha = it
-                }
-            })
-            addView(optionRow(getString(R.string.top_bar_tag_selected_color), colorLabel(config.tagSelectedColor)) {
-                showColorPicker(COLOR_TAG_SELECTED, config.tagSelectedColor ?: defaultSelectedColor())
-            })
-            addView(optionRow(getString(R.string.top_bar_tag_selected_alpha), "${config.tagSelectedAlpha}%") {
-                showAlphaPicker(getString(R.string.top_bar_tag_selected_alpha), config.tagSelectedAlpha) {
-                    config.tagSelectedAlpha = it
-                }
-            })
+            if (config.style == TopBarConfig.STYLE_IMMERSIVE) {
+                addView(optionRow(getString(R.string.top_bar_wallpaper), wallpaperLabel(config.wallpaperPath)) {
+                    showWallpaperSelector()
+                })
+                addView(optionRow(getString(R.string.top_bar_wallpaper_alpha), "${config.wallpaperAlpha}%") {
+                    showAlphaPicker(getString(R.string.top_bar_wallpaper_alpha), config.wallpaperAlpha) {
+                        config.wallpaperAlpha = it
+                    }
+                })
+                addView(optionRow(getString(R.string.top_bar_tag_bar_color), colorLabel(config.tagBarColor)) {
+                    showColorPicker(COLOR_TAG_BAR, config.tagBarColor ?: Color.WHITE)
+                })
+                addView(optionRow(getString(R.string.top_bar_tag_bar_alpha), "${config.tagBarAlpha}%") {
+                    showAlphaPicker(getString(R.string.top_bar_tag_bar_alpha), config.tagBarAlpha) {
+                        config.tagBarAlpha = it
+                    }
+                })
+                addView(optionRow(getString(R.string.top_bar_tag_selected_color), colorLabel(config.tagSelectedColor)) {
+                    showColorPicker(COLOR_TAG_SELECTED, config.tagSelectedColor ?: defaultSelectedColor())
+                })
+                addView(optionRow(getString(R.string.top_bar_tag_selected_alpha), "${config.tagSelectedAlpha}%") {
+                    showAlphaPicker(getString(R.string.top_bar_tag_selected_alpha), config.tagSelectedAlpha) {
+                        config.tagSelectedAlpha = it
+                    }
+                })
+            } else {
+                addView(optionRow(getString(R.string.top_bar_tag_bar_color), colorLabel(config.tagBarColor)) {
+                    showColorPicker(COLOR_TAG_BAR, config.tagBarColor ?: defaultTagBarColor())
+                })
+                addView(optionRow(getString(R.string.top_bar_tag_bar_alpha), "${config.tagBarAlpha}%") {
+                    showAlphaPicker(getString(R.string.top_bar_tag_bar_alpha), config.tagBarAlpha) {
+                        config.tagBarAlpha = it
+                    }
+                })
+                addView(optionRow(getString(R.string.top_bar_tag_selected_color), colorLabel(config.tagSelectedColor)) {
+                    showColorPicker(COLOR_TAG_SELECTED, config.tagSelectedColor ?: defaultSelectedColor())
+                })
+                addView(optionRow(getString(R.string.top_bar_tag_selected_alpha), "${config.tagSelectedAlpha}%") {
+                    showAlphaPicker(getString(R.string.top_bar_tag_selected_alpha), config.tagSelectedAlpha) {
+                        config.tagSelectedAlpha = it
+                    }
+                })
+            }
         }
+    }
+
+    private fun showWallpaperSelector() {
+        val hasWallpaper = !pendingConfig?.wallpaperPath.isNullOrBlank()
+        selector(
+            getString(R.string.top_bar_wallpaper),
+            buildList {
+                add(getString(R.string.theme_image_select))
+                if (hasWallpaper) add(getString(R.string.theme_image_delete))
+            }
+        ) { _, index ->
+            if (index == 0) {
+                selectWallpaper.launch {
+                    mode = HandleFileContract.IMAGE
+                    title = getString(R.string.top_bar_wallpaper)
+                }
+            } else {
+                pendingConfig?.wallpaperPath = null
+                refreshEditDialog()
+            }
+        }
+    }
+
+    private fun startWallpaperCrop(uri: Uri) {
+        val metrics = resources.displayMetrics
+        val request = ImageCropHelper.buildRequest(
+            context = this,
+            sourceUri = uri,
+            requestCode = REQUEST_WALLPAPER,
+            aspectWidth = metrics.widthPixels.coerceAtLeast(1),
+            aspectHeight = (220 * metrics.density).toInt().coerceAtLeast(1),
+            dirName = "topBarWallpapers",
+            prefix = "top_bar",
+            targetWidth = 1600
+        )
+        pendingWallpaperCropRequest = request
+        cropWallpaper.launch(request.params)
     }
 
     private fun optionRow(title: String, value: String, onClick: () -> Unit): View {
@@ -405,6 +495,14 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
             ?: getString(R.string.top_bar_follow_theme)
     }
 
+    private fun wallpaperLabel(path: String?): String {
+        return if (path.isNullOrBlank()) {
+            getString(R.string.theme_image_value_unselected)
+        } else {
+            getString(R.string.theme_image_selected)
+        }
+    }
+
     private fun styleLabel(style: String): String {
         return getString(
             if (style == TopBarConfig.STYLE_IMMERSIVE) {
@@ -527,5 +625,6 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
     private companion object {
         const val COLOR_TAG_BAR = 5101
         const val COLOR_TAG_SELECTED = 5102
+        const val REQUEST_WALLPAPER = 5103
     }
 }

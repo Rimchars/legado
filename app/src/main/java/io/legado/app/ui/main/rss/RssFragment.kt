@@ -303,6 +303,13 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.topBar.bringToFront()
     }
 
+    private fun scheduleModernRssTopBarOverlayUpdate() {
+        if (!usingModernRss || view == null) return
+        binding.topBar.post {
+            updateModernRssTopBarOverlay()
+        }
+    }
+
     private fun updateRssSourceNameWidth() {
         val rowWidth = binding.topBar.width
         if (rowWidth <= 0) return
@@ -411,15 +418,18 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         val changed = selectedRssSource?.sourceUrl != source.sourceUrl
         selectedRssSource = source
         AppConfig.modernRssSourceUrl = source.sourceUrl
-        binding.topBar.setTitle(if (binding.topBar.isImmersiveStyle()) getString(R.string.rss) else source.sourceName)
+        val hasSearch = !source.searchUrl.isNullOrBlank()
+        binding.topBar.setSearchEntryVisible(hasSearch)
+        binding.topBar.setTitle(if (binding.topBar.isImmersiveStyle() && hasSearch) getString(R.string.rss) else source.sourceName)
         binding.topBar.setSearchHint(source.sourceName)
         binding.topBar.loginButton.isVisible = !source.loginUrl.isNullOrBlank()
-        binding.topBar.searchButton.isVisible = !source.searchUrl.isNullOrBlank() && !binding.topBar.isImmersiveStyle()
-        binding.topBar.searchEntry.isEnabled = !source.searchUrl.isNullOrBlank()
-        binding.topBar.searchEntry.alpha = if (source.searchUrl.isNullOrBlank()) 0.58f else 1f
+        binding.topBar.searchButton.isVisible = hasSearch && !binding.topBar.isImmersiveStyle()
+        binding.topBar.searchEntry.isEnabled = hasSearch
+        binding.topBar.searchEntry.alpha = if (hasSearch) 1f else 0.58f
         binding.topBar.refreshButton.isVisible = source.ruleArticles.isNullOrBlank()
         renderRssSourceSelector()
         binding.topBar.post(::updateRssSourceNameWidth)
+        scheduleModernRssTopBarOverlayUpdate()
         if (changed) {
             selectedTagIndex = 0
         }
@@ -450,6 +460,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         if (source.ruleArticles.isNullOrBlank()) {
             currentSorts.clear()
             binding.topBar.showTags(false)
+            scheduleModernRssTopBarOverlayUpdate()
             renderWebSource(source)
             return
         }
@@ -473,6 +484,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         } else {
             binding.topBar.showTags(false)
         }
+        scheduleModernRssTopBarOverlayUpdate()
         renderCurrentSort()
     }
 
@@ -598,6 +610,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         currentSorts.clear()
         binding.topBar.setTitle(getString(R.string.rss))
         binding.topBar.setSearchHint(getString(R.string.rss_search_hint))
+        binding.topBar.setSearchEntryVisible(false)
         renderRssSourceSelector()
         binding.topBar.loginButton.gone()
         binding.topBar.searchButton.gone()
@@ -659,7 +672,7 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private fun openRssSearch() {
         val source = selectedRssSource ?: return
         if (source.searchUrl.isNullOrBlank()) return
-        RssSortActivity.start(requireContext(), null, source.sourceUrl, focusSearch = true)
+        RssSortActivity.start(requireContext(), null, source.sourceUrl, focusSearch = true, pureSearch = true)
     }
 
     private fun openRssLogin(rssSource: RssSource) {
