@@ -95,6 +95,8 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
     private val bookshelfMargin by lazy { AppConfig.bookshelfMargin }
     private var itemCount = 0
     private var totalRows = 0
+    private var topOverlaySpace = 0
+    private var topOverlayEnabled = false
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         arguments?.let {
@@ -115,7 +117,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.rvBookshelf.applyMainBottomBarPadding()
         upFastScrollerBar()
         binding.refreshLayout.setColorSchemeColors(accentColor)
-        binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
+        applyTopOverlaySpace()
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
             activityViewModel.upToc(booksAdapter.getItems(), onlyUpdateRead)
@@ -161,12 +163,13 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
                 state: RecyclerView.State
             ) {
                 val position = parent.getChildAdapterPosition(view)
+                val topExtra = if (topOverlayEnabled) topOverlaySpace else 24
                 if (bookshelfLayout >= 2) {
                     val spanCount = bookshelfLayout
                     val rowIndex = position / spanCount
                     when (rowIndex) {
                         0 -> { //第一行加额外上边距
-                            outRect.set(bookshelfMargin, bookshelfMargin + 24, bookshelfMargin, bookshelfMargin)
+                            outRect.set(bookshelfMargin, bookshelfMargin + topExtra, bookshelfMargin, bookshelfMargin)
                         }
                         totalRows - 1 -> { //最后一行加额外下边距
                             outRect.set(bookshelfMargin, bookshelfMargin, bookshelfMargin, bookshelfMargin)
@@ -178,7 +181,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
                 } else {
                     when (position) {
                         0 -> {
-                            outRect.set(0, bookshelfMargin + 24, 0, bookshelfMargin)
+                            outRect.set(0, bookshelfMargin + topExtra, 0, bookshelfMargin)
                         }
                         itemCount - 1 -> {
                             outRect.set(0, bookshelfMargin, 0, bookshelfMargin)
@@ -191,6 +194,29 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
             }
         })
         startLastUpdateTimeJob()
+    }
+
+    fun setTopOverlaySpace(space: Int, overlay: Boolean) {
+        topOverlaySpace = space
+        topOverlayEnabled = overlay
+        view?.post {
+            applyTopOverlaySpace()
+        }
+    }
+
+    private fun applyTopOverlaySpace() {
+        if (view == null) return
+        binding.rvBookshelf.clipToPadding = !topOverlayEnabled
+        if (topOverlayEnabled) {
+            binding.refreshLayout.setProgressViewOffset(
+                true,
+                (topOverlaySpace - 28.dpToPx()).coerceAtLeast(0),
+                topOverlaySpace + 56.dpToPx()
+            )
+        } else {
+            binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
+        }
+        binding.rvBookshelf.invalidateItemDecorations()
     }
 
     private fun upFastScrollerBar() {

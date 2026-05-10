@@ -11,6 +11,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.widget.SearchView
+import androidx.core.view.doOnLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.fragment.app.commit
@@ -104,6 +105,8 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
     private var usingModernRss = false
     private var webSourceVersion = 0L
     private var lastRenderedWebSourceUrl: String? = null
+    private var rssTopOverlaySpace = 0
+    private var rssTopOverlayEnabled = false
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
@@ -223,8 +226,11 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
         binding.topBar.setMode(io.legado.app.ui.widget.MainTopBarView.Mode.RSS)
         binding.topBar.titleText.applyUiTitleTypeface(requireContext())
         binding.topBar.applyStatusBarPadding(withInitialPadding = true)
+        binding.topBar.doOnLayout {
+            updateModernRssTopBarOverlay()
+        }
         binding.swipeRefreshLayout.setColorSchemeColors(accentColor)
-        binding.swipeRefreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
+        updateModernRssTopBarOverlay()
         binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
             currentRssScrollTarget()?.canScrollVertically(-1) == true
         }
@@ -268,6 +274,33 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             binding.topBar.tagsBar.setSelectedIndex(index)
             renderCurrentSort()
         }
+    }
+
+    private fun updateModernRssTopBarOverlay() {
+        if (!usingModernRss || view == null) return
+        val topSpace = binding.topBar.height + 10.dpToPx()
+        val overlay = binding.topBar.isOverlayMode()
+        rssTopOverlaySpace = topSpace
+        rssTopOverlayEnabled = overlay
+        binding.recyclerView.clipToPadding = !overlay
+        binding.recyclerView.setPadding(
+            binding.recyclerView.paddingLeft,
+            topSpace,
+            binding.recyclerView.paddingRight,
+            binding.recyclerView.paddingBottom
+        )
+        rssWebView?.let { webView ->
+            webView.clipToPadding = !overlay
+            webView.setPadding(webView.paddingLeft, topSpace, webView.paddingRight, webView.paddingBottom)
+        }
+        (childFragmentManager.findFragmentById(R.id.rss_fragment_container) as? RssArticlesFragment)
+            ?.setTopOverlaySpace(topSpace, overlay)
+        binding.swipeRefreshLayout.setProgressViewOffset(
+            true,
+            (topSpace - 28.dpToPx()).coerceAtLeast(0),
+            topSpace + 56.dpToPx()
+        )
+        binding.topBar.bringToFront()
     }
 
     private fun updateRssSourceNameWidth() {
@@ -464,6 +497,13 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
                 RssArticlesFragment(sort.first, sort.second, null),
                 "rss_articles_${source.sourceUrl}_${selectedTagIndex}"
             )
+            runOnCommit {
+                (childFragmentManager.findFragmentById(R.id.rss_fragment_container) as? RssArticlesFragment)
+                    ?.setTopOverlaySpace(rssTopOverlaySpace, rssTopOverlayEnabled)
+                binding.root.post {
+                    updateModernRssTopBarOverlay()
+                }
+            }
         }
     }
 
@@ -496,6 +536,8 @@ class RssFragment() : VMBaseFragment<RssViewModel>(R.layout.fragment_rss), MainF
             binding.rssWebContainer.addView(created)
             rssWebView = created
         }
+        webView.clipToPadding = !rssTopOverlayEnabled
+        webView.setPadding(webView.paddingLeft, rssTopOverlaySpace, webView.paddingRight, webView.paddingBottom)
         webView.settings.javaScriptEnabled = source.enableJs
         webView.settings.loadWithOverviewMode = true
         webView.settings.useWideViewPort = true

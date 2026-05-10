@@ -15,6 +15,7 @@ import android.view.SubMenu
 import android.view.View
 import androidx.appcompat.widget.SearchView
 import androidx.core.os.bundleOf
+import androidx.core.view.doOnLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
@@ -161,6 +162,9 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         }
         binding.topBar.setMode(io.legado.app.ui.widget.MainTopBarView.Mode.DISCOVERY)
         binding.topBar.applyStatusBarPadding(withInitialPadding = true)
+        binding.topBar.doOnLayout {
+            updateModernTopBarOverlay()
+        }
         binding.rvFind.clipToPadding = false
         binding.rvFind.applyMainBottomBarPadding()
         binding.rvDiscoverBooks.clipToPadding = false
@@ -188,6 +192,11 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.rvFind.isGone = modern
         binding.tvEmptyMsg.isGone = modern
         searchView?.isGone = modern
+        if (modern) {
+            binding.topBar.post {
+                updateModernTopBarOverlay()
+            }
+        }
         if (!loadData) {
             activity?.invalidateOptionsMenu()
             return
@@ -310,6 +319,26 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 }
             }
         })
+        updateModernTopBarOverlay()
+    }
+
+    private fun updateModernTopBarOverlay() {
+        if (!usingModernDiscovery || view == null) return
+        val topSpace = binding.topBar.height + 10.dpToPx()
+        val overlay = binding.topBar.isOverlayMode()
+        binding.rvDiscoverBooks.clipToPadding = !overlay
+        binding.rvDiscoverBooks.setPadding(
+            binding.rvDiscoverBooks.paddingLeft,
+            topSpace,
+            binding.rvDiscoverBooks.paddingRight,
+            binding.rvDiscoverBooks.paddingBottom
+        )
+        binding.swipeRefreshLayout.setProgressViewOffset(
+            true,
+            (topSpace - 28.dpToPx()).coerceAtLeast(0),
+            topSpace + 56.dpToPx()
+        )
+        binding.topBar.bringToFront()
     }
 
     private fun applyDiscoverBookLayout(force: Boolean = false) {

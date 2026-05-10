@@ -6,7 +6,9 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupWindow
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentStatePagerAdapter
@@ -58,6 +60,8 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
     private var selectedBookTag = ""
     private val groupBooksCache = hashMapOf<Long, List<Book>>()
     private var currentGroupIndex = 0
+    private var topOverlaySpace = 0
+    private var topOverlayEnabled = false
     override val groupId: Long get() = selectedGroup?.groupId ?: 0
 
     override val books: List<Book>
@@ -131,12 +135,58 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
                 }
             }
         )
+        binding.topBar.doOnLayout {
+            updateTopBarOverlay()
+        }
+        binding.root.post {
+            updateTopBarOverlay()
+        }
         updateHeaderTitle()
     }
 
     override fun onResume() {
         super.onResume()
         binding.viewPagerBookshelf.swipeEnabled = AppConfig.bottomBarLayoutMode != "sidebar"
+        binding.root.post {
+            updateTopBarOverlay()
+        }
+    }
+
+    private fun updateTopBarOverlay() {
+        if (!isAdded) return
+        val overlay = binding.topBar.isOverlayMode()
+        val contentMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_content_margin_top)
+        val newSpace = if (overlay) binding.topBar.height + contentMargin else 0
+        if (topOverlayEnabled != overlay) {
+            ConstraintSet().apply {
+                clone(binding.root)
+                clear(R.id.view_pager_bookshelf, ConstraintSet.TOP)
+                if (overlay) {
+                    connect(
+                        R.id.view_pager_bookshelf,
+                        ConstraintSet.TOP,
+                        ConstraintSet.PARENT_ID,
+                        ConstraintSet.TOP
+                    )
+                    setMargin(R.id.view_pager_bookshelf, ConstraintSet.TOP, 0)
+                } else {
+                    connect(
+                        R.id.view_pager_bookshelf,
+                        ConstraintSet.TOP,
+                        R.id.top_bar,
+                        ConstraintSet.BOTTOM
+                    )
+                    setMargin(R.id.view_pager_bookshelf, ConstraintSet.TOP, contentMargin)
+                }
+                applyTo(binding.root)
+            }
+        }
+        topOverlayEnabled = overlay
+        topOverlaySpace = newSpace
+        fragmentMap.values.forEach { fragment ->
+            fragment.setTopOverlaySpace(topOverlaySpace, topOverlayEnabled)
+        }
+        binding.topBar.bringToFront()
     }
 
     @Synchronized
@@ -352,6 +402,7 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
                 fragment = super.instantiateItem(container, position) as BooksFragment
             }
             fragmentMap[group.groupId] = fragment
+            fragment.setTopOverlaySpace(topOverlaySpace, topOverlayEnabled)
             return fragment
         }
 

@@ -27,28 +27,20 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <LinearLayout
+            <FrameLayout
                 android:id="@+id/ll_modern_discovery"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipChildren="false"
                 android:clipToPadding="false"
-                android:orientation="vertical"
                 android:visibility="gone">
-
-                <io.legado.app.ui.widget.MainTopBarView
-                    android:id="@+id/top_bar"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
 
                 <FrameLayout
                     android:id="@+id/fl_discover_books"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
+                    android:layout_height="match_parent"
                     android:layout_marginStart="@dimen/bookshelf_tag_bar_margin_horizontal"
-                    android:layout_marginTop="10dp"
                     android:layout_marginEnd="@dimen/bookshelf_tag_bar_margin_horizontal"
-                    android:layout_weight="1"
                     android:clipToPadding="false">
 
                     <androidx.recyclerview.widget.RecyclerView
@@ -80,7 +72,12 @@
 
                 </FrameLayout>
 
-            </LinearLayout>
+                <io.legado.app.ui.widget.MainTopBarView
+                    android:id="@+id/top_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+            </FrameLayout>
 
             <io.legado.app.ui.widget.recycler.RecyclerViewAtPager2
                 android:id="@+id/rv_find"

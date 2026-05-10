@@ -107,6 +107,10 @@ class MainTopBarView @JvmOverloads constructor(
         return TopBarConfig.currentConfig(context, AppConfig.isNightTheme).style == TopBarConfig.STYLE_IMMERSIVE
     }
 
+    fun isOverlayMode(): Boolean {
+        return isImmersiveStyle()
+    }
+
     fun showSelects(show: Boolean) {
         selectsBar.isVisible = show
     }

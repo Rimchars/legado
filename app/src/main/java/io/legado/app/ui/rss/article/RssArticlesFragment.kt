@@ -27,6 +27,7 @@ import io.legado.app.ui.rss.read.ReadRss
 import io.legado.app.ui.widget.recycler.LoadMoreView
 import io.legado.app.ui.widget.recycler.VerticalDivider
 import io.legado.app.utils.applyMainBottomBarPadding
+import io.legado.app.utils.dpToPx
 import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
@@ -72,6 +73,8 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
     override val isGridLayout: Boolean
         get() = activityViewModel.articleStyle == 2
     private var fullRefresh = true
+    private var topOverlaySpace = 0
+    private var topOverlayEnabled = false
     private val embeddedInModernRss: Boolean
         get() = parentFragment is io.legado.app.ui.main.rss.RssFragment
 
@@ -129,6 +132,7 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
         }
         recyclerView.layoutManager = layoutManager
         recyclerView.adapter = adapter
+        applyTopOverlaySpace()
         adapter.addFooterView {
             ViewLoadMoreBinding.bind(loadMoreView)
         }
@@ -167,6 +171,30 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                 this@launch.cancel()
             }
         } //只刷新可见页面,非预加载时使用
+    }
+
+    fun setTopOverlaySpace(space: Int, overlay: Boolean) {
+        topOverlaySpace = space
+        topOverlayEnabled = overlay
+        view?.post {
+            applyTopOverlaySpace()
+        }
+    }
+
+    private fun applyTopOverlaySpace() {
+        if (view == null || !embeddedInModernRss) return
+        binding.recyclerView.clipToPadding = !topOverlayEnabled
+        binding.recyclerView.setPadding(
+            binding.recyclerView.paddingLeft,
+            topOverlaySpace,
+            binding.recyclerView.paddingRight,
+            binding.recyclerView.paddingBottom
+        )
+        binding.refreshLayout.setProgressViewOffset(
+            true,
+            (topOverlaySpace - 28.dpToPx()).coerceAtLeast(0),
+            topOverlaySpace + 56.dpToPx()
+        )
     }
 
     private fun initData() {
