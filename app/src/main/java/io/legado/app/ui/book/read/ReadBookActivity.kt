@@ -146,6 +146,7 @@ import com.script.rhino.runScriptWithContext
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
 import io.legado.app.ui.login.SourceLoginJsExtensions
 import io.legado.app.ui.widget.dialog.BottomWebViewDialog
+import io.legado.app.ui.widget.dialog.CommentBrowserStyleCache
 import io.legado.app.ui.widget.dialog.CommentWebViewSession
 
 /**
@@ -231,6 +232,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     private val commentWebViewSession by lazy { CommentWebViewSession() }
     private var pendingCommentBrowser: BottomWebViewDialog? = null
     private var pendingCommentBrowserToken = 0
+    private var pendingCommentBrowserClick: String? = null
     private val readShowBrowserCallback by lazy {
         object : SourceLoginJsExtensions.Callback {
             override fun upUiData(data: Map<String, Any?>?) = Unit
@@ -274,14 +276,17 @@ class ReadBookActivity : BaseReadBookActivity(),
         config: String?
     ): Boolean {
         val source = ReadBook.bookSource ?: return false
+        val sourceKey = source.getKey()
         runOnUiThread {
             if (isFinishing || isDestroyed) return@runOnUiThread
             if (token != null && pendingCommentBrowserToken != token) {
                 return@runOnUiThread
             }
+            val click = if (token == null) null else pendingCommentBrowserClick
+            CommentBrowserStyleCache.remember(sourceKey, BookType.text, click, url, config)
             val pending = if (token == null) null else pendingCommentBrowser
             if (pending?.submitContent(
-                    source.getKey(),
+                    sourceKey,
                     BookType.text,
                     url,
                     html,
@@ -290,13 +295,15 @@ class ReadBookActivity : BaseReadBookActivity(),
                 ) == true
             ) {
                 pendingCommentBrowser = null
+                pendingCommentBrowserClick = null
                 pendingCommentBrowserToken++
                 return@runOnUiThread
             }
             pendingCommentBrowser = null
+            pendingCommentBrowserClick = null
             showDialogFragment(
                 BottomWebViewDialog(
-                    source.getKey(),
+                    sourceKey,
                     BookType.text,
                     url,
                     html,
@@ -305,6 +312,9 @@ class ReadBookActivity : BaseReadBookActivity(),
                     commentWebViewSession
                 )
             )
+            if (token != null) {
+                pendingCommentBrowserToken++
+            }
         }
         return true
     }
@@ -312,10 +322,18 @@ class ReadBookActivity : BaseReadBookActivity(),
     private fun preOpenCommentBrowser(click: String): Int? {
         if (!click.contains("showBrowser", ignoreCase = true)) return null
         val token = ++pendingCommentBrowserToken
+        pendingCommentBrowserClick = click
+        val cachedConfig = ReadBook.bookSource?.let { source ->
+            CommentBrowserStyleCache.getByClick(source.getKey(), BookType.text, click)
+        }
         runOnUiThread {
             if (isFinishing || isDestroyed || pendingCommentBrowserToken != token) return@runOnUiThread
             pendingCommentBrowser?.dismissAllowingStateLoss()
-            pendingCommentBrowser = BottomWebViewDialog(commentWebViewSession).also { dialog ->
+            if (cachedConfig.isNullOrBlank()) {
+                pendingCommentBrowser = null
+                return@runOnUiThread
+            }
+            pendingCommentBrowser = BottomWebViewDialog(commentWebViewSession, cachedConfig).also { dialog ->
                 showDialogFragment(dialog)
             }
         }
@@ -328,6 +346,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             if (pendingCommentBrowserToken != token) return@runOnUiThread
             pendingCommentBrowser?.dismissAllowingStateLoss()
             pendingCommentBrowser = null
+            pendingCommentBrowserClick = null
             pendingCommentBrowserToken++
         }
     }

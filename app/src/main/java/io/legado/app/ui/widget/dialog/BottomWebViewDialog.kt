@@ -126,10 +126,11 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
-    constructor(webViewSession: CommentWebViewSession?) : this() {
+    constructor(webViewSession: CommentWebViewSession?, initialConfig: String? = null) : this() {
         this.webViewSession = webViewSession
         arguments = Bundle().apply {
             putBoolean("pendingBrowser", true)
+            putString("initialConfig", initialConfig)
         }
     }
 
@@ -465,6 +466,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         binding.nativeSheetSurface.alpha = 1f
         binding.nativeSheetSurface.translationY = displayMetrics.heightPixels.toFloat()
         applySheetSurfaceShape(0f)
+        applyInitialConfig()
         val deferredRequest = deferredBrowserRequest
         when {
             deferredRequest != null -> loadContentAsync(deferredRequest)
@@ -517,6 +519,17 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                 return@setOnKeyListener true
             }
             false
+        }
+    }
+
+    private fun applyInitialConfig() {
+        val configJson = arguments?.getString("config")
+            ?: arguments?.getString("initialConfig")
+            ?: return
+        GSON.fromJsonObject<Config>(configJson).getOrNull()?.let { config ->
+            pendingConfig = config
+            useDefaultWebViewConfig = false
+            setConfig(config, true)
         }
     }
 
@@ -688,11 +701,13 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     }
                 } ?: run {
                     activity?.runOnUiThread {
-                        useDefaultWebViewConfig = true
-                        bottomSheet?.let { sheet ->
-                            val layoutParams = sheet.layoutParams
-                            layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
-                            sheet.layoutParams = layoutParams
+                        if (pendingConfig == null) {
+                            useDefaultWebViewConfig = true
+                            bottomSheet?.let { sheet ->
+                                val layoutParams = sheet.layoutParams
+                                layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+                                sheet.layoutParams = layoutParams
+                            }
                         }
                         setLongClickSaveImg()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
