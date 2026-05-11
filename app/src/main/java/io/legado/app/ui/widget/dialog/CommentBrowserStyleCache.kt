@@ -18,8 +18,9 @@ object CommentBrowserStyleCache {
         appCtx.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
-    fun getByClick(sourceKey: String, bookType: Int, click: String): String? {
+    fun getForPreOpen(sourceKey: String, bookType: Int, click: String): String? {
         return get(clickKey(sourceKey, bookType, click))
+            ?: get(sourceKeyKey(sourceKey, bookType))
     }
 
     fun remember(
@@ -30,13 +31,15 @@ object CommentBrowserStyleCache {
         config: String?
     ) {
         val style = sanitizeConfig(config) ?: return
+        val record = GSON.toJson(StyleRecord(style))
         val editor = prefs.edit()
         urlKey(sourceKey, bookType, url)?.let { key ->
-            editor.putString(key, GSON.toJson(StyleRecord(style)))
+            editor.putString(key, record)
         }
         if (!click.isNullOrBlank()) {
-            editor.putString(clickKey(sourceKey, bookType, click), GSON.toJson(StyleRecord(style)))
+            editor.putString(clickKey(sourceKey, bookType, click), record)
         }
+        editor.putString(sourceKeyKey(sourceKey, bookType), record)
         editor.apply()
         trimIfNeeded()
     }
@@ -112,6 +115,10 @@ object CommentBrowserStyleCache {
         return "$KEY_PREFIX$clickKeyPrefix$sourceKey|$bookType|${sha256(click)}"
     }
 
+    private fun sourceKeyKey(sourceKey: String, bookType: Int): String {
+        return "$KEY_PREFIX$sourceKeyPrefix$sourceKey|$bookType"
+    }
+
     private fun trimIfNeeded() {
         val entries = prefs.all.mapNotNull { (key, value) ->
             if (!key.startsWith(KEY_PREFIX)) return@mapNotNull null
@@ -142,4 +149,5 @@ object CommentBrowserStyleCache {
 
     private const val urlKeyPrefix = "url|"
     private const val clickKeyPrefix = "click|"
+    private const val sourceKeyPrefix = "source|"
 }

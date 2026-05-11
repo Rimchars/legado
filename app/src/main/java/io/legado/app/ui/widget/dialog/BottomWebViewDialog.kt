@@ -170,6 +170,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private val sheetIntroInterpolator by lazy { DecelerateInterpolator(1.25f) }
     private var pendingBrowserTimeoutRunnable: Runnable? = null
     private var deferredBrowserRequest: BrowserRequest? = null
+    private val isPendingBrowser: Boolean
+        get() = arguments?.getBoolean("pendingBrowser") == true
 
     private data class BrowserRequest(
         val sourceKey: String,
@@ -830,7 +832,11 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
     private fun applySheetSurfaceShape(radius: Float) {
         if (view == null || context == null) return
-        val surfaceColor = ContextCompat.getColor(requireContext(), R.color.dialog_surface)
+        val surfaceColor = if (isPendingBrowser) {
+            Color.TRANSPARENT
+        } else {
+            ContextCompat.getColor(requireContext(), R.color.dialog_surface)
+        }
         val shapeDrawable = GradientDrawable().apply {
             setColor(surfaceColor)
             if (radius > 0f) {

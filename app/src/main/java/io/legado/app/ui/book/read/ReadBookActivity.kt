@@ -324,7 +324,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         val token = ++pendingCommentBrowserToken
         pendingCommentBrowserClick = click
         val cachedConfig = ReadBook.bookSource?.let { source ->
-            CommentBrowserStyleCache.getByClick(source.getKey(), BookType.text, click)
+            CommentBrowserStyleCache.getForPreOpen(source.getKey(), BookType.text, click)
         }
         runOnUiThread {
             if (isFinishing || isDestroyed || pendingCommentBrowserToken != token) return@runOnUiThread
