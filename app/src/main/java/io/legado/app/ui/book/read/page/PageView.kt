@@ -718,6 +718,7 @@ class PageView(context: Context) : FrameLayout(context) {
         }
         return runCatching {
             val root = JSONObject(rawJson)
+            normalizeFullWidthImageLayers(root)
             val layers = root.optJSONArray("layers") ?: return rawJson
             for (i in 0 until layers.length()) {
                 val layer = layers.optJSONObject(i) ?: continue
@@ -760,6 +761,34 @@ class PageView(context: Context) : FrameLayout(context) {
             synchronized(styledLottieJsonCache) {
                 styledLottieJsonCache[cacheKey] = styledJson
             }
+        }
+    }
+
+    private fun normalizeFullWidthImageLayers(root: JSONObject) {
+        val rootWidth = root.optDouble("w", 0.0)
+        if (rootWidth <= 0.0) return
+        val assets = root.optJSONArray("assets") ?: return
+        val assetWidthMap = mutableMapOf<String, Double>()
+        for (i in 0 until assets.length()) {
+            val asset = assets.optJSONObject(i) ?: continue
+            val id = asset.optString("id").takeIf { it.isNotBlank() } ?: continue
+            assetWidthMap[id] = asset.optDouble("w", 0.0)
+        }
+        val layers = root.optJSONArray("layers") ?: return
+        for (i in 0 until layers.length()) {
+            val layer = layers.optJSONObject(i) ?: continue
+            if (layer.optInt("ty") != 2) continue
+            val assetWidth = assetWidthMap[layer.optString("refId")] ?: continue
+            if (kotlin.math.abs(assetWidth - rootWidth) > 1.0) continue
+            val scaleArray = layer.optJSONObject("ks")
+                ?.optJSONObject("s")
+                ?.optJSONArray("k") ?: continue
+            val scaleX = scaleArray.optDouble(0, 100.0)
+            val scaleY = scaleArray.optDouble(1, scaleX)
+            if (scaleX <= 0.0 || scaleX >= 99.9) continue
+            val fillScale = (100.0 / scaleX).coerceIn(1.0, 2.0)
+            scaleArray.put(0, scaleX * fillScale)
+            scaleArray.put(1, scaleY * fillScale)
         }
     }
 

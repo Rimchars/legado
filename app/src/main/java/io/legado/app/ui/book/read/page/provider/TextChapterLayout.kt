@@ -755,7 +755,7 @@ class TextChapterLayout(
         if (startY + layout.requiredHeight > visibleHeight) return false
         pendingTextPage.epubEmbeddedBlocks.add(
             TextPage.EpubEmbeddedBlock(
-                offsetX = paddingLeft + (visibleWidth - layout.blockWidth) / 2f,
+                offsetX = (viewWidth - layout.blockWidth) / 2f,
                 offsetY = paddingTop + startY,
                 width = layout.blockWidth,
                 height = layout.blockHeight,
@@ -781,7 +781,7 @@ class TextChapterLayout(
         val titleScale = advancedTitleScale()
         val heightScale = AdvancedTitleConfig.heightFactor / AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR.toFloat()
         val aspectRatio = resolveAdvancedTitleAspectRatio(lottieJson)
-        val maxBlockWidth = visibleWidth.toFloat()
+        val maxBlockWidth = viewWidth.toFloat()
         val requestedWidth = (maxBlockWidth * ADVANCED_TITLE_WIDTH_FACTOR * titleScale * heightScale).coerceAtLeast(1f)
         val requestedHeight = requestedWidth * aspectRatio
         val widthLimited = requestedWidth > maxBlockWidth
