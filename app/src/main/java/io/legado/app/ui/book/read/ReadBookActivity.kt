@@ -334,7 +334,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 return@runOnUiThread
             }
             pendingCommentBrowser = BottomWebViewDialog(commentWebViewSession, cachedConfig).also { dialog ->
-                showDialogFragment(dialog)
+                showPendingCommentBrowser(dialog)
             }
         }
         return token
@@ -348,6 +348,14 @@ class ReadBookActivity : BaseReadBookActivity(),
             pendingCommentBrowser = null
             pendingCommentBrowserClick = null
             pendingCommentBrowserToken++
+        }
+    }
+
+    private fun showPendingCommentBrowser(dialog: BottomWebViewDialog) {
+        runCatching {
+            dialog.showNow(supportFragmentManager, BottomWebViewDialog::class.simpleName)
+        }.onFailure {
+            showDialogFragment(dialog)
         }
     }
 

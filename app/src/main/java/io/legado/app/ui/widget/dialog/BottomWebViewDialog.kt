@@ -544,22 +544,17 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         surface.visible()
         surface.alpha = 1f
         surface.translationY = displayMetrics.heightPixels.toFloat()
-        surface.post {
-            if (!isAdded || view == null) return@post
-            val startY = (surface.height.takeIf { it > 0 } ?: displayMetrics.heightPixels).toFloat()
-            surface.translationY = startY
-            surface.animate()
-                .translationY(0f)
-                .setDuration(SHEET_INTRO_DURATION)
-                .setInterpolator(sheetIntroInterpolator)
-                .withEndAction {
-                    if (!isAdded || view == null) return@withEndAction
-                    sheetIntroDone = true
-                    surface.translationY = 0f
-                    attachWebViewWhenReady()
-                }
-                .start()
-        }
+        surface.animate()
+            .translationY(0f)
+            .setDuration(SHEET_INTRO_DURATION)
+            .setInterpolator(sheetIntroInterpolator)
+            .withEndAction {
+                if (!isAdded || view == null) return@withEndAction
+                sheetIntroDone = true
+                surface.translationY = 0f
+                attachWebViewWhenReady()
+            }
+            .start()
     }
 
     private fun attachWebViewWhenReady() {
