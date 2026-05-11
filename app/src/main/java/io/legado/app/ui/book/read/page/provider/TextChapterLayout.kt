@@ -50,6 +50,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import java.util.LinkedList
+import kotlin.math.max
 import kotlin.math.roundToInt
 import android.util.Size
 import androidx.core.text.HtmlCompat
@@ -745,27 +746,45 @@ class TextChapterLayout(
         if (pageAnim == PageAnim.scrollPageAnim) return false
         currentCoroutineContext().ensureActive()
         val lottieJson = AdvancedTitleConfig.renderValidLottieJson(book, title) ?: return false
-        val blockHeight = (visibleHeight * (AdvancedTitleConfig.heightFactor / 100f))
-            .coerceAtLeast(80f)
-            .coerceAtMost(visibleHeight * 0.6f)
-        val startY = durY + titleTopSpacing
-        prepareNextPageIfNeed(startY + blockHeight)
+        val layout = resolveAdvancedTitleLayout() ?: return false
+        var startY = durY + titleTopSpacing
+        if (startY + layout.requiredHeight > visibleHeight) {
+            prepareNextPageIfNeed()
+            startY = titleTopSpacing.toFloat()
+        }
+        if (startY + layout.requiredHeight > visibleHeight) return false
         pendingTextPage.epubEmbeddedBlocks.add(
             TextPage.EpubEmbeddedBlock(
                 offsetX = paddingLeft.toFloat(),
                 offsetY = paddingTop + startY,
                 width = visibleWidth.toFloat(),
-                height = blockHeight,
+                height = layout.blockHeight,
                 commands = emptyList(),
                 role = AdvancedTitleConfig.LOTTIE_BLOCK_ROLE,
                 payload = lottieJson
             )
         )
-        durY = startY + blockHeight + titleBottomSpacing
+        durY = startY + layout.requiredHeight
         if (pendingTextPage.height < durY) {
             pendingTextPage.height = durY
         }
         return true
+    }
+
+    private fun resolveAdvancedTitleLayout(): AdvancedTitleLayout? {
+        if (visibleWidth <= 0 || visibleHeight <= 0) return null
+        val textLineHeight = contentPaintTextHeight.coerceAtLeast(1f)
+        val minBodyLines = if (viewWidth > viewHeight) 1 else 2
+        val minBodyHeight = textLineHeight * minBodyLines + lineSpacingExtra * textLineHeight
+        val maxBlockHeight = visibleHeight - titleTopSpacing - titleBottomSpacing - minBodyHeight
+        if (maxBlockHeight < textLineHeight) return null
+        val requestedHeight = visibleHeight * (AdvancedTitleConfig.heightFactor / 100f)
+        val minTitleHeight = max(textLineHeight * 1.6f, 48f.dpToPx())
+        val blockHeight = requestedHeight
+            .coerceAtLeast(minTitleHeight)
+            .coerceAtMost(maxBlockHeight)
+        val requiredHeight = blockHeight + titleBottomSpacing
+        return AdvancedTitleLayout(blockHeight, requiredHeight)
     }
 
     private suspend fun setTypeNativeEpubLayout(layout: EpubLayoutDocument) {
@@ -2300,6 +2319,11 @@ class TextChapterLayout(
             durY = 0f
         }
     }
+
+    private data class AdvancedTitleLayout(
+        val blockHeight: Float,
+        val requiredHeight: Float
+    )
 
     private fun allocateFloatArray(size: Int): FloatArray {
         if (size > floatArray.size) {

@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import com.airbnb.lottie.FontAssetDelegate
 import com.airbnb.lottie.ImageAssetDelegate
 import android.widget.FrameLayout
+import android.widget.ImageView
 import com.airbnb.lottie.LottieImageAsset
 import com.airbnb.lottie.LottieDrawable
 import androidx.core.content.ContextCompat
@@ -593,30 +594,51 @@ class PageView(context: Context) : FrameLayout(context) {
     private fun upAdvancedTitleLottie(textPage: TextPage) {
         val lottieView = binding.advancedTitleLottie
         val fallbackView = binding.advancedTitleFallback
+
         fun hide() {
             lottieView.cancelAnimation()
             advancedTitleLottieKey = null
             lottieView.visibility = GONE
             fallbackView.visibility = GONE
         }
-        fun showFallback(block: TextPage.EpubEmbeddedBlock, forceDefaultTitle: Boolean = false) {
+
+        fun resolveTitleViewSize(block: TextPage.EpubEmbeddedBlock): Pair<Int, Int> {
+            val scale = advancedTitleScale()
+            val blockWidth = block.width.toInt().coerceAtLeast(1)
+            val blockHeight = block.height.toInt().coerceAtLeast(1)
+            val maxWidth = (block.width * 0.86f).toInt().coerceIn(1, blockWidth)
+            val minWidth = minOf(160.dpToPx(), maxWidth)
+            val targetWidth = (maxWidth * scale).toInt().coerceIn(minWidth, maxWidth)
+            val minHeight = minOf((targetWidth * 120f / 720f).toInt().coerceAtLeast(1), blockHeight)
+            val preferredHeight = (block.height * scale.coerceAtMost(1f)).toInt()
+            val targetHeight = preferredHeight.coerceIn(minHeight, blockHeight)
+            return targetWidth to targetHeight
+        }
+
+        fun resolveTitleTranslationY(block: TextPage.EpubEmbeddedBlock, targetHeight: Int): Float {
+            val contentHeight = binding.contentTextView.height
+            if (contentHeight <= 0) return block.offsetY
+            val maxTranslation = (contentHeight - targetHeight).toFloat().coerceAtLeast(0f)
+            return block.offsetY.coerceIn(0f, maxTranslation)
+        }
+
+        fun showFallback(block: TextPage.EpubEmbeddedBlock) {
             lottieView.cancelAnimation()
             lottieView.visibility = GONE
             advancedTitleLottieKey = null
-            val scale = advancedTitleScale()
-            val targetWidth = (block.width * 0.86f * scale).toInt().coerceAtLeast(160)
-            val targetHeight = (block.height * scale).toInt().coerceAtLeast(1)
+            val (targetWidth, targetHeight) = resolveTitleViewSize(block)
             val params = fallbackView.layoutParams as ViewGroup.LayoutParams
             if (params.width != targetWidth || params.height != targetHeight) {
                 params.width = targetWidth
                 params.height = targetHeight
                 fallbackView.layoutParams = params
             }
-            fallbackView.translationY = block.offsetY
+            fallbackView.translationY = resolveTitleTranslationY(block, targetHeight)
             fallbackView.gravity = Gravity.CENTER
-            fallbackView.text = if (forceDefaultTitle) textPage.title else textPage.title
+            fallbackView.text = textPage.title
             fallbackView.visibility = VISIBLE
         }
+
         if (ReadBookConfig.titleMode != AdvancedTitleConfig.TITLE_MODE_ADVANCED) {
             hide()
             return
@@ -628,20 +650,18 @@ class PageView(context: Context) : FrameLayout(context) {
             return
         }
         if (isScroll) {
-            showFallback(block, forceDefaultTitle = true)
+            showFallback(block)
             return
         }
-        val scale = advancedTitleScale()
-        val targetWidth = (block.width * 0.86f * scale).toInt().coerceAtLeast(160)
-        val targetHeight = (block.height * scale).toInt()
-            .coerceAtLeast((targetWidth * 120f / 720f).toInt())
+        val (targetWidth, targetHeight) = resolveTitleViewSize(block)
         val params = lottieView.layoutParams as ViewGroup.LayoutParams
         if (params.width != targetWidth || params.height != targetHeight) {
             params.width = targetWidth
             params.height = targetHeight
             lottieView.layoutParams = params
         }
-        lottieView.translationY = block.offsetY
+        lottieView.scaleType = ImageView.ScaleType.FIT_CENTER
+        lottieView.translationY = resolveTitleTranslationY(block, targetHeight)
         lottieView.repeatCount = LottieDrawable.INFINITE
         lottieView.setFontAssetDelegate(defaultFontAssetDelegate)
         lottieView.setImageAssetDelegate(dataUriImageAssetDelegate)
