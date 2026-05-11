@@ -40,8 +40,10 @@ class CommentWebViewSession {
         }
         pooled.upContext(context)
         pooled.realWebView.apply {
-            visibility = View.VISIBLE
-            alpha = 1f
+            animate().cancel()
+            visibility = View.INVISIBLE
+            alpha = 0f
+            translationY = 0f
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
         }
         return pooled

@@ -853,7 +853,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         webView.setBackgroundColor(Color.TRANSPARENT)
         webView.alpha = 0f
         webView.translationY = 0f
-        webView.visible()
+        webView.invisible()
     }
 
     private fun startWebViewRevealAnimation() {

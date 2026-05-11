@@ -2,6 +2,7 @@ package io.legado.app.ui.widget.dialog
 
 import android.content.Context
 import android.net.Uri
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
 import splitties.init.appCtx
@@ -18,9 +19,10 @@ object CommentBrowserStyleCache {
         appCtx.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
-    fun getForPreOpen(sourceKey: String, bookType: Int, click: String): String? {
+    fun getForPreOpen(sourceKey: String, bookType: Int, click: String): String {
         return get(clickKey(sourceKey, bookType, click))
             ?: get(sourceKeyKey(sourceKey, bookType))
+            ?: defaultPreOpenConfig
     }
 
     fun remember(
@@ -44,6 +46,20 @@ object CommentBrowserStyleCache {
         trimIfNeeded()
     }
 
+    private val defaultPreOpenConfig by lazy {
+        GSON.toJson(
+            BottomWebViewDialog.Config(
+                state = BottomSheetBehavior.STATE_EXPANDED,
+                heightPercentage = 0.62f,
+                expandedCornersRadius = 18f,
+                isHideable = true,
+                skipCollapsed = true,
+                setFitToContents = false,
+                scrollNoDraggable = true,
+                longClickSaveImg = true
+            )
+        )
+    }
     private fun get(key: String): String? {
         val record = prefs.getString(key, null)?.let {
             GSON.fromJsonObject<StyleRecord>(it).getOrNull()

@@ -329,10 +329,6 @@ class ReadBookActivity : BaseReadBookActivity(),
         runOnUiThread {
             if (isFinishing || isDestroyed || pendingCommentBrowserToken != token) return@runOnUiThread
             pendingCommentBrowser?.dismissAllowingStateLoss()
-            if (cachedConfig.isNullOrBlank()) {
-                pendingCommentBrowser = null
-                return@runOnUiThread
-            }
             pendingCommentBrowser = BottomWebViewDialog(commentWebViewSession, cachedConfig).also { dialog ->
                 showPendingCommentBrowser(dialog)
             }
