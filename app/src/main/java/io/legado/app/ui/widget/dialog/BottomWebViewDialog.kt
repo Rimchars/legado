@@ -5,6 +5,8 @@ import android.app.Dialog
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -16,6 +18,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
@@ -85,6 +88,7 @@ import io.legado.app.utils.get
 import io.legado.app.utils.writeBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayInputStream
 import java.lang.ref.WeakReference
@@ -94,14 +98,23 @@ import androidx.core.graphics.createBitmap
 
 class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view), WebJsExtensions.Callback {
 
+    private companion object {
+        const val FIRST_PAGE_REVEAL_TIMEOUT = 1500L
+        const val FIRST_PAGE_REVEAL_DURATION = 180L
+        const val FIRST_PAGE_REVEAL_TRANSLATION_DP = 6f
+        const val WEB_VIEW_ATTACH_DELAY = 180L
+    }
+
     constructor(
         sourceKey: String,
         bookType: Int,
         url: String,
         html: String? = null,
         preloadJs: String? = null,
-        config: String? = null
+        config: String? = null,
+        webViewSession: CommentWebViewSession? = null
     ) : this() {
+        this.webViewSession = webViewSession
         arguments = Bundle().apply {
             putString("sourceKey", sourceKey)
             putInt("bookType", bookType)
@@ -128,19 +141,33 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             saveImage(it.value, uri)
         }
     }
-    private lateinit var pooledWebView: PooledWebView
-    private lateinit var currentWebView: WebView
+    private var pooledWebView: PooledWebView? = null
+    private var currentWebView: WebView? = null
+    private var webViewSession: CommentWebViewSession? = null
+    private var pendingWebContent: PendingWebContent? = null
+    private var pendingConfig: Config? = null
+    private var useDefaultWebViewConfig = false
+    private var webViewAttachToken = 0
+    private var loadJob: Job? = null
     private var source: BaseSource? = null
     private var preloadJs: String? = null
     private var isFullScreen = false
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var originOrientation: Int? = null
     private var needClearHistory = true
+    private var waitingFirstPageVisible = false
+    private var firstPageVisibleToken = 0
+    private val firstPageRevealInterpolator by lazy { DecelerateInterpolator(1.35f) }
+
+    private data class PendingWebContent(
+        val url: String,
+        val html: String,
+        val headerMap: HashMap<String, String>,
+        val bookType: Int
+    )
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
-        pooledWebView = WebViewPool.acquire(context)
-        currentWebView = pooledWebView.realWebView
     }
 
     @Suppress("DEPRECATION")
@@ -148,6 +175,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         val dialog = super.onCreateDialog(savedInstanceState)
         dialog.window?.let { window ->
             window.decorView.systemUiVisibility = activity?.window?.decorView?.systemUiVisibility ?: 0
+            window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
         }
         return dialog
@@ -155,6 +183,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
     override fun onStart() {
         super.onStart()
+        applyTransparentDialogSurface()
         setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
     }
 
@@ -211,7 +240,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     sheet.background = shapeDrawable
                     sheet.clipToOutline = true
                     if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-                        currentWebView.outlineProvider =
+                        currentWebView?.outlineProvider =
                             object : android.view.ViewOutlineProvider() {
                                 override fun getOutline(
                                     view: View,
@@ -220,7 +249,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                                     outline.setRoundRect(0, 0, view.width, view.height, radius)
                                 }
                             }
-                        currentWebView.clipToOutline = true
+                        currentWebView?.clipToOutline = true
                         binding.customWebView.outlineProvider =
                             object : android.view.ViewOutlineProvider() {
                                 override fun getOutline(
@@ -237,8 +266,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     sheet.background = null
                     sheet.clipToOutline = false
                     if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-                        currentWebView.outlineProvider = null
-                        currentWebView.clipToOutline = false
+                        currentWebView?.outlineProvider = null
+                        currentWebView?.clipToOutline = false
                         binding.customWebView.outlineProvider = null
                         binding.customWebView.clipToOutline = false
                     }
@@ -265,7 +294,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
         }
 
-        currentWebView.let { webView ->
+        currentWebView?.let { webView ->
             config.webViewInitialScale?.let { scale ->
                 webView.settings.apply {
                     loadWithOverviewMode = true
@@ -347,11 +376,11 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         scrollNoDraggable?.let {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (it) {
-                    currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                    currentWebView?.setOnScrollChangeListener { _, _, scrollY, _, _ ->
                         behavior?.isDraggable = scrollY == 0
                     }
                 } else {
-                    currentWebView.setOnScrollChangeListener(null)
+                    currentWebView?.setOnScrollChangeListener(null)
                 }
             }
         }
@@ -361,14 +390,15 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             if (it) {
                 setLongClickSaveImg()
             } else {
-                currentWebView.setOnLongClickListener(null)
+                currentWebView?.setOnLongClickListener(null)
             }
         }
     }
 
     private fun setLongClickSaveImg() {
-        currentWebView.setOnLongClickListener {
-            val hitTestResult = currentWebView.hitTestResult
+        val webView = currentWebView ?: return
+        webView.setOnLongClickListener {
+            val hitTestResult = webView.hitTestResult
             if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE ||
                 hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
                 hitTestResult.extra?.let { webPic ->
@@ -388,10 +418,10 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
             return@setOnLongClickListener false
         }
-        currentWebView.setDownloadListener { url, _, contentDisposition, _, _ ->
+        webView.setDownloadListener { url, _, contentDisposition, _, _ ->
             var fileName = URLUtil.guessFileName(url, contentDisposition, null)
             fileName = URLDecoder.decode(fileName, "UTF-8")
-            currentWebView.longSnackbar(fileName, getString(R.string.action_download)) {
+            webView.longSnackbar(fileName, getString(R.string.action_download)) {
                 Download.start(requireContext(), url, fileName)
             }
         }
@@ -399,21 +429,157 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        view.setBackgroundColor(0)
-        binding.webViewContainer.addView(currentWebView)
-        lifecycleScope.launch(IO) {
+        applyTransparentDialogSurface()
+        view.setBackgroundColor(Color.TRANSPARENT)
+        binding.root.setBackgroundColor(Color.TRANSPARENT)
+        binding.webViewContainer.setBackgroundColor(Color.TRANSPARENT)
+        binding.customWebView.setBackgroundColor(Color.TRANSPARENT)
+        binding.webViewPlaceholder.visible()
+        binding.webViewPlaceholder.alpha = 1f
+        loadContentAsync()
+        scheduleWebViewLoad()
+        dialog?.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                if (binding.customWebView.size > 0) { //网页全屏
+                    customWebViewCallback?.onCustomViewHidden()
+                    return@setOnKeyListener true
+                }
+                val webView = currentWebView
+                if (webView != null && webView.canGoBack()) {
+                    val list = webView.copyBackForwardList()
+                    val size = list.size
+                    if (size == 1) {
+                        dismiss()
+                        return@setOnKeyListener true
+                    }
+                    val currentIndex = list.currentIndex
+                    val currentItem = list.currentItem
+                    val currentUrl = currentItem?.originalUrl ?: BLANK_HTML
+                    val currentTitle = currentItem?.title
+                    var steps = 1
+                    for (i in currentIndex - 1 downTo 0) {
+                        val item = list.getItemAtIndex(i)
+                        val itemUrl = item.originalUrl
+                        if (itemUrl == BLANK_HTML) {
+                            dismiss()
+                            return@setOnKeyListener true
+                        }
+                        if (itemUrl != currentUrl || currentTitle != item.title) {
+                            break
+                        }
+                        if (currentUrl == DATA_HTML) {
+                            break
+                        }
+                        steps++
+                    }
+                    if (steps == size) {
+                        dismiss()
+                        return@setOnKeyListener true
+                    }
+                    webView.goBackOrForward(-steps)
+                    return@setOnKeyListener true
+                }
+                dismiss()
+                return@setOnKeyListener true
+            }
+            false
+        }
+    }
+
+    private fun scheduleWebViewLoad() {
+        val token = ++webViewAttachToken
+        binding.root.postDelayed({
+            if (!isAdded || view == null || token != webViewAttachToken) return@postDelayed
+            if (attachWebViewIfNeeded() == null) {
+                dismissOnMain()
+            }
+        }, WEB_VIEW_ATTACH_DELAY)
+    }
+
+    private fun attachWebViewIfNeeded(): WebView? {
+        val webView = obtainWebView(addToContainer = true) ?: return null
+        if (webView.parent == null) {
+            binding.webViewContainer.addView(webView)
+        }
+        binding.webViewPlaceholder.visible()
+        binding.webViewPlaceholder.alpha = 1f
+        pendingConfig?.let { setConfig(it) } ?: applyDefaultWebViewBehaviorIfNeeded()
+        loadPendingContent(webView)
+        if (waitingFirstPageVisible) {
+            revealWebViewAfterVisualState()
+        }
+        return webView
+    }
+
+    private fun obtainWebView(addToContainer: Boolean): WebView? {
+        currentWebView?.let { return it }
+        val ctx = context ?: return null
+        val session = webViewSession
+        if (!addToContainer && session?.isPrepared != true) return null
+        val pooled = session?.acquire(ctx) ?: WebViewPool.acquire(ctx)
+        val webView = pooled.realWebView
+        pooledWebView = pooled
+        currentWebView = webView
+        (webView.parent as? ViewGroup)?.removeView(webView)
+        prepareWebViewForFirstFrame()
+        return webView
+    }
+
+    private fun applyDefaultWebViewBehaviorIfNeeded() {
+        if (!useDefaultWebViewConfig) return
+        setLongClickSaveImg()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            currentWebView?.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                behavior?.isDraggable = scrollY == 0
+            }
+        }
+    }
+
+    private fun loadPendingContent(webView: WebView) {
+        val content = pendingWebContent ?: return
+        pendingWebContent = null
+        webView.post {
+            if (currentWebView !== webView || !isAdded) return@post
+            webView.onResume()
+            initWebView(webView, content.url, content.html, content.headerMap, content.bookType)
+            webView.clearHistory()
+        }
+    }
+
+    private fun onContentReady(content: PendingWebContent) {
+        activity?.runOnUiThread {
+            if (!isAdded) return@runOnUiThread
+            pendingWebContent = content
+            val webView = currentWebView ?: if (webViewSession?.isPrepared == true) {
+                obtainWebView(addToContainer = false)
+            } else {
+                null
+            }
+            webView?.let { loadPendingContent(it) }
+        }
+    }
+
+    private fun loadContentAsync() {
+        loadJob?.cancel()
+        loadJob = lifecycleScope.launch(IO) {
             val args = arguments
             if (args == null) {
-                dismiss()
+                dismissOnMain()
                 return@launch
             }
-            val sourceKey = args.getString("sourceKey") ?: return@launch
-            val url = args.getString("url") ?: return@launch
+            val sourceKey = args.getString("sourceKey")
+            val url = args.getString("url")
+            if (sourceKey.isNullOrEmpty() || url.isNullOrEmpty()) {
+                dismissOnMain()
+                return@launch
+            }
             kotlin.runCatching {
                 args.getString("config")?.let { json ->
                     try {
                         GSON.fromJsonObject<Config>(json).getOrThrow().let { config ->
                             activity?.runOnUiThread {
+                                pendingConfig = config
+                                useDefaultWebViewConfig = false
                                 setConfig(config, true)
                             }
                         }
@@ -424,6 +590,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     }
                 } ?: run {
                     activity?.runOnUiThread {
+                        useDefaultWebViewConfig = true
                         bottomSheet?.let { sheet ->
                             val layoutParams = sheet.layoutParams
                             layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
@@ -431,7 +598,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         }
                         setLongClickSaveImg()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            currentWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                            currentWebView?.setOnScrollChangeListener { _, _, scrollY, _, _ ->
                                 behavior?.isDraggable = scrollY == 0
                             }
                         }
@@ -463,99 +630,147 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                 appDb.bookSourceDao.getBookSource(sourceKey).let {
                     if (it == null) {
                         activity?.toastOnUi("no find bookSource")
-                        dismiss()
+                        dismissOnMain()
                         return@launch
                     }
                     source = it
                 }
                 val bookType = args.getInt("bookType", 0)
-                currentWebView.post {
-                    currentWebView.onResume() //缓存库拿的需要激活
-                    initWebView(analyzeUrl.url, spliceHtml, analyzeUrl.headerMap, bookType)
-                    currentWebView.clearHistory()
-                }
-            }.onFailure {
-                currentWebView.post {
-                    currentWebView.resumeTimers()
-                    currentWebView.onResume()
-                    currentWebView.loadDataWithBaseURL(
+                onContentReady(PendingWebContent(analyzeUrl.url, spliceHtml, analyzeUrl.headerMap, bookType))
+            }.onFailure { error ->
+                onContentReady(
+                    PendingWebContent(
                         url,
-                        it.stackTraceToString(),
-                        "text/html",
-                        "utf-8",
-                        url
+                        error.stackTraceToString(),
+                        hashMapOf(),
+                        args.getInt("bookType", 0)
                     )
-                    currentWebView.clearHistory()
-                }
+                )
             }
-        }
-        dialog?.setOnKeyListener { _, keyCode, event ->
-            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
-                if (binding.customWebView.size > 0) { //网页全屏
-                    customWebViewCallback?.onCustomViewHidden()
-                    return@setOnKeyListener true
-                }
-                if (currentWebView.canGoBack()) {
-                    val list = currentWebView.copyBackForwardList()
-                    val size = list.size
-                    if (size == 1) {
-                        dismiss()
-                        return@setOnKeyListener true
-                    }
-                    val currentIndex = list.currentIndex
-                    val currentItem = list.currentItem
-                    val currentUrl = currentItem?.originalUrl ?: BLANK_HTML
-                    val currentTitle = currentItem?.title
-                    var steps = 1
-                    for (i in currentIndex - 1 downTo 0) {
-                        val item = list.getItemAtIndex(i)
-                        val itemUrl = item.originalUrl
-                        if (itemUrl == BLANK_HTML) {
-                            dismiss()
-                            return@setOnKeyListener true
-                        }
-                        if (itemUrl != currentUrl || currentTitle != item.title) {
-                            break
-                        }
-                        if (currentUrl == DATA_HTML) {
-                            break
-                        }
-                        steps++
-                    }
-                    if (steps == size) {
-                        dismiss()
-                        return@setOnKeyListener true
-                    }
-                    currentWebView.goBackOrForward(-steps)
-                    return@setOnKeyListener true
-                }
-                dismiss()
-                return@setOnKeyListener true
-            }
-            false
         }
     }
 
+    private fun dismissOnMain() {
+        activity?.runOnUiThread {
+            if (isAdded) dismiss()
+        }
+    }
     private fun initWebView(
+        webView: WebView,
         url: String,
         html: String,
         headerMap: HashMap<String, String>,
         bookType: Int
     ) {
-        currentWebView.webChromeClient = CustomWebChromeClient()
-        currentWebView.addJavascriptInterface(JSInterface(this), nameBasic)
-        currentWebView.webViewClient = CustomWebViewClient()
-        currentWebView.settings.userAgentString = headerMap.get(AppConst.UA_NAME, true)
+        webView.webChromeClient = CustomWebChromeClient()
+        webView.addJavascriptInterface(JSInterface(this), nameBasic)
+        webView.webViewClient = CustomWebViewClient()
+        webView.settings.userAgentString = headerMap.get(AppConst.UA_NAME, true)
         source?.let { source ->
             (activity as? AppCompatActivity)?.let { currentActivity ->
                 val webJsExtensions =
-                    WebJsExtensions(source, currentActivity, currentWebView, bookType, callback = this)
-                currentWebView.addJavascriptInterface(webJsExtensions, nameJava)
+                    WebJsExtensions(source, currentActivity, webView, bookType, callback = this)
+                webView.addJavascriptInterface(webJsExtensions, nameJava)
             }
-            currentWebView.addJavascriptInterface(source, nameSource)
-            currentWebView.addJavascriptInterface(WebCacheManager, nameCache)
+            webView.addJavascriptInterface(source, nameSource)
+            webView.addJavascriptInterface(WebCacheManager, nameCache)
         }
-        currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+        hideWebViewUntilReady()
+        webView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+    }
+    private fun hideWebViewUntilReady() {
+        val webView = currentWebView ?: return
+        firstPageVisibleToken++
+        val token = firstPageVisibleToken
+        waitingFirstPageVisible = true
+        binding.webViewPlaceholder.visible()
+        binding.webViewPlaceholder.alpha = 1f
+        prepareWebViewForFirstFrame()
+        webView.postDelayed({
+            revealWebViewIfWaiting(token)
+        }, FIRST_PAGE_REVEAL_TIMEOUT)
+    }
+
+    private fun revealWebViewAfterVisualState() {
+        if (!waitingFirstPageVisible) return
+        val webView = currentWebView ?: return
+        val token = firstPageVisibleToken
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            webView.postVisualStateCallback(
+                System.nanoTime(),
+                object : WebView.VisualStateCallback() {
+                    override fun onComplete(requestId: Long) {
+                        revealWebViewIfWaiting(token)
+                    }
+                }
+            )
+        } else {
+            webView.post {
+                revealWebViewIfWaiting(token)
+            }
+        }
+    }
+
+    private fun revealWebViewIfWaiting(token: Int) {
+        val webView = currentWebView ?: return
+        if (webView.parent == null) return
+        if (!waitingFirstPageVisible || token != firstPageVisibleToken) return
+        waitingFirstPageVisible = false
+        startWebViewRevealAnimation()
+    }
+
+    private fun applyTransparentDialogSurface() {
+        dialog?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        bottomSheet?.let { sheet ->
+            sheet.setBackgroundColor(Color.TRANSPARENT)
+            sheet.backgroundTintList = null
+        }
+    }
+
+    private fun prepareWebViewForFirstFrame() {
+        val webView = currentWebView ?: return
+        webView.animate().cancel()
+        webView.setBackgroundColor(Color.TRANSPARENT)
+        webView.alpha = 0f
+        webView.translationY = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            FIRST_PAGE_REVEAL_TRANSLATION_DP,
+            displayMetrics
+        )
+        webView.visible()
+    }
+
+    private fun startWebViewRevealAnimation() {
+        val webView = currentWebView ?: return
+        if (webView.parent == null) return
+        webView.animate().cancel()
+        webView.visible()
+        binding.webViewPlaceholder.animate().cancel()
+        binding.webViewPlaceholder.animate()
+            .alpha(0f)
+            .setDuration(FIRST_PAGE_REVEAL_DURATION)
+            .withEndAction {
+                binding.webViewPlaceholder.invisible()
+                binding.webViewPlaceholder.alpha = 1f
+            }
+            .start()
+        webView.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setDuration(FIRST_PAGE_REVEAL_DURATION)
+            .setInterpolator(firstPageRevealInterpolator)
+            .start()
+    }
+
+    private fun cancelFirstPageReveal() {
+        waitingFirstPageVisible = false
+        firstPageVisibleToken++
+        currentWebView?.let { webView ->
+            webView.animate().cancel()
+            webView.alpha = 1f
+            webView.translationY = 0f
+        }
+        binding.webViewPlaceholder.animate().cancel()
     }
 
     private fun saveImage(webPic: String) {
@@ -604,14 +819,20 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     }
 
     override fun onDestroyView() {
+        webViewAttachToken++
+        loadJob?.cancel()
         customWebViewCallback?.onCustomViewHidden()
-        WebViewPool.release(pooledWebView)
+        cancelFirstPageReveal()
+        pooledWebView?.let { pooled ->
+            webViewSession?.detachForReuse(pooled) ?: WebViewPool.releaseForFastReuse(pooled)
+        }
+        pooledWebView = null
+        currentWebView = null
         originOrientation?.let {
             activity?.requestedOrientation = it
         }
         super.onDestroyView()
     }
-
     override fun upConfig(config: String) {
         try {
             lifecycleScope.launch(Dispatchers.Main) {
@@ -775,12 +996,24 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            val webView = view ?: return
+            if (currentWebView !== webView) return
             if (needClearHistory) {
                 needClearHistory = false
-                currentWebView.clearHistory() //清除历史
+                webView.clearHistory() //清除历史
             }
             super.onPageStarted(view, url, favicon)
-            currentWebView.evaluateJavascript(basicJs, null)
+            webView.evaluateJavascript(basicJs, null)
+        }
+
+        override fun onPageCommitVisible(view: WebView?, url: String?) {
+            super.onPageCommitVisible(view, url)
+            revealWebViewAfterVisualState()
+        }
+
+        override fun onPageFinished(view: WebView?, url: String?) {
+            super.onPageFinished(view, url)
+            revealWebViewAfterVisualState()
         }
 
         private fun shouldOverrideUrlLoading(url: Uri): Boolean {

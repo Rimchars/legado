@@ -68,9 +68,11 @@ class BackstageWebView(
     private val mHandler = Handler(Looper.getMainLooper())
     private var callback: Callback? = null
     private var pooledWebView: PooledWebView? = null
+    private var closed = false
 
     suspend fun getStrResponse(): StrResponse = withTimeout(timeout ?: 60000L) {
         suspendCancellableCoroutine { block ->
+            closed = false
             block.invokeOnCancellation {
                 runOnUI {
                     destroy()
@@ -78,25 +80,29 @@ class BackstageWebView(
             }
             callback = object : Callback() {
                 override fun onResult(response: StrResponse) {
-                    if (!block.isCompleted) {
+                    if (!closed && !block.isCompleted) {
                         block.resume(response)
                     }
                 }
 
                 override fun onError(error: Throwable) {
-                    if (!block.isCompleted)
+                    if (!closed && !block.isCompleted) {
                         block.resumeWithException(error)
+                    }
                 }
             }
             if (javaScript == null && delayTime == 0L) {
                 delayTime = 900L
             }
             runOnUI {
+                if (closed || block.isCompleted) return@runOnUI
                 try {
                     load()
                 } catch (error: Throwable) {
                     destroy()
-                    block.resumeWithException(error)
+                    if (!block.isCompleted) {
+                        block.resumeWithException(error)
+                    }
                 }
             }
         }
@@ -169,8 +175,18 @@ class BackstageWebView(
     }
 
     private fun destroy() {
+        if (closed && pooledWebView == null) return
+        closed = true
+        callback = null
+        mHandler.removeCallbacksAndMessages(null)
         pooledWebView?.let { WebViewPool.release(it) }
         pooledWebView = null
+    }
+
+    private fun isActiveWebView(webView: WebView? = null): Boolean {
+        if (closed) return false
+        val pooled = pooledWebView ?: return false
+        return webView == null || pooled.realWebView === webView
     }
 
     private fun getJs(): String {
@@ -209,6 +225,7 @@ class BackstageWebView(
         }
 
         override fun onPageFinished(view: WebView, url: String) {
+            if (!isActiveWebView(view)) return
             setCookie(url)
             result?.let {
                 view.evaluateJavascript("window.result = $nameCache.getFromMemory('webview_result')", null)
@@ -241,14 +258,17 @@ class BackstageWebView(
                 "$getInjectionString\n$mJavaScript"
             } else mJavaScript
             override fun run() {
-                mWebView.get()?.evaluateJavascript(jsStr) {
-                    if (pooledWebView != null) {
+                val webView = mWebView.get() ?: return
+                if (!isActiveWebView(webView)) return
+                webView.evaluateJavascript(jsStr) {
+                    if (isActiveWebView(webView)) {
                         handleResult(it)
                     }
                 }
             }
 
             private fun handleResult(result: String) = Coroutine.async {
+                if (closed) return@async
                 if (result.isNotEmpty() && result != "null") {
                     val content = StringEscapeUtils.unescapeJson(result)
                         .replace(quoteRegex, "")
@@ -324,6 +344,7 @@ class BackstageWebView(
         }
 
         private fun shouldOverrideUrlLoading(requestUrl: String): Boolean {
+            if (closed) return false
             overrideUrlRegex?.let {
                 if (requestUrl.matches(it.toRegex())) {
                     try {
@@ -340,6 +361,7 @@ class BackstageWebView(
         }
 
         override fun onLoadResource(view: WebView, resUrl: String) {
+            if (!isActiveWebView(view)) return
             sourceRegex?.let {
                 if (resUrl.matches(it.toRegex())) {
                     try {
@@ -354,6 +376,7 @@ class BackstageWebView(
         }
 
         override fun onPageFinished(webView: WebView, url: String) {
+            if (!isActiveWebView(webView)) return
             setCookie(url)
             if (!javaScript.isNullOrEmpty()) {
                 val runnable = LoadJsRunnable(webView, javaScript)
@@ -376,7 +399,9 @@ class BackstageWebView(
         ) : Runnable {
             private val mWebView: WeakReference<WebView> = WeakReference(webView)
             override fun run() {
-                mWebView.get()?.loadUrl("javascript:${mJavaScript}")
+                val webView = mWebView.get() ?: return
+                if (!isActiveWebView(webView)) return
+                webView.loadUrl("javascript:${mJavaScript}")
             }
         }
 

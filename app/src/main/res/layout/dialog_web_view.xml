@@ -9,6 +9,12 @@
         android:layout_height="match_parent" />
 
     <FrameLayout
+        android:id="@+id/web_view_placeholder"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent" />
+
+    <FrameLayout
         android:id="@+id/custom_web_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />

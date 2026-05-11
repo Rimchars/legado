@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.MutableContextWrapper
 import android.graphics.Color
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -36,15 +38,15 @@ object WebViewPool {
     private val CACHED_WEB_VIEW_MAX_NUM = max(AppConfig.threadCount / 10, 5) // 池子总容量（闲置+使用）
     private const val IDLE_TIME_OUT: Long = 5 * 60 * 1000 // 闲置5分钟后销毁
     private const val IDLE_TIME_OUT_LAST: Long = 30 * 60 * 1000 // 最后一个闲置30分钟后销毁
+    private const val RESET_TIME_OUT: Long = 3 * 1000
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     private val cleanupScope by lazy { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
     private var cleanupJob: Job? = null
 
     // 获取一个WebView
     @Synchronized
     fun acquire(context: Context): PooledWebView {
-        val pooledWebView = if (idlePool.isNotEmpty()) {
-            idlePool.pop() // 复用闲置实例
-        } else {
+        val pooledWebView = pollIdleWebView() ?: run {
             if (needInitialize) {
                 needInitialize = false
                 startCleanupTimer()
@@ -56,9 +58,13 @@ object WebViewPool {
             if (inUsePool.isEmpty()) {
                 realWebView.resumeTimers()
             }
+            isDestroyed = false
+            resetToken++
             isInUse = true
         }
         inUsePool[pooledWebView.id] = pooledWebView
+        pooledWebView.realWebView.alpha = 1f
+        pooledWebView.realWebView.visibility = android.view.View.VISIBLE
         pooledWebView.realWebView.setBackgroundColor(Color.TRANSPARENT)
         return pooledWebView
     }
@@ -67,9 +73,11 @@ object WebViewPool {
     @Synchronized
     fun release(pooledWebView: PooledWebView) {
         if (inUsePool.remove(pooledWebView.id) == null) {
-            pooledWebView.realWebView.destroy()
+            idlePool.remove(pooledWebView)
+            destroyWebView(pooledWebView)
             return
         }
+        val resetToken = ++pooledWebView.resetToken
         // 重置WebView状态
         pooledWebView.realWebView.run {
             (parent as? ViewGroup)?.removeView(this)
@@ -80,6 +88,8 @@ object WebViewPool {
             stopLoading()
             clearFocus() //清除焦点
             setOnLongClickListener(null)
+            setOnTouchListener(null)
+            setLayerType(android.view.View.LAYER_TYPE_NONE, null)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 setOnScrollChangeListener(null)
             }
@@ -98,13 +108,13 @@ object WebViewPool {
             pooledWebView.upContext(appCtx)
             if (idlePool.size >= CACHED_WEB_VIEW_MAX_NUM - inUsePool.size) {
                 // 池子已满，直接销毁
-                pooledWebView.realWebView.destroy()
+                destroyWebView(pooledWebView)
                 return
             }
             webViewClient = object: WebViewClient() {
                 @SuppressLint("SetJavaScriptEnabled")
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    if (url != BLANK_HTML) return
+                    if (url != BLANK_HTML || pooledWebView.isDestroyed || pooledWebView.resetToken != resetToken) return
                     view?.let{ webview ->
                         webview.settings.apply {
                             javaScriptEnabled = false
@@ -115,17 +125,136 @@ object WebViewPool {
                             loadWithOverviewMode = false // 恢复默认
                             textZoom = 100
                         }
-                        if (inUsePool.isEmpty()) {
+                        webview.clearHistory()
+                        val shouldPauseTimers = synchronized(this@WebViewPool) {
+                            inUsePool.isEmpty() && !pooledWebView.isDestroyed && pooledWebView.resetToken == resetToken
+                        }
+                        if (shouldPauseTimers) {
                             webview.pauseTimers()
                         }
                         webview.onPause()
                     }
-                    pooledWebView.isInUse = false
-                    pooledWebView.lastUseTime = System.currentTimeMillis()
-                    idlePool.push(pooledWebView)
+                    synchronized(this@WebViewPool) {
+                        if (!pooledWebView.isDestroyed && pooledWebView.resetToken == resetToken && !inUsePool.containsKey(pooledWebView.id)) {
+                            pooledWebView.isInUse = false
+                            pooledWebView.lastUseTime = System.currentTimeMillis()
+                            if (!idlePool.contains(pooledWebView)) {
+                                idlePool.push(pooledWebView)
+                            }
+                            ensureCleanupTimer()
+                        }
+                    }
                 }
             }
             loadUrl(BLANK_HTML)
+            postDelayed({
+                val shouldDestroy = synchronized(this@WebViewPool) {
+                    !pooledWebView.isDestroyed
+                        && pooledWebView.resetToken == resetToken
+                        && !inUsePool.containsKey(pooledWebView.id)
+                        && !idlePool.contains(pooledWebView)
+                }
+                if (shouldDestroy) {
+                    destroyWebView(pooledWebView)
+                }
+            }, RESET_TIME_OUT)
+        }
+    }
+
+
+    fun releaseForFastReuse(pooledWebView: PooledWebView) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            releaseForFastReuseOnMain(pooledWebView)
+        } else {
+            mainHandler.post {
+                releaseForFastReuseOnMain(pooledWebView)
+            }
+        }
+    }
+
+    @Synchronized
+    private fun releaseForFastReuseOnMain(pooledWebView: PooledWebView) {
+        if (inUsePool.remove(pooledWebView.id) == null) {
+            idlePool.remove(pooledWebView)
+            destroyWebView(pooledWebView)
+            return
+        }
+        pooledWebView.resetToken++
+        pooledWebView.realWebView.run {
+            (parent as? ViewGroup)?.removeView(this)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            animate().cancel()
+            alpha = 1f
+            translationY = 0f
+            visibility = android.view.View.VISIBLE
+            stopLoading()
+            clearFocus()
+            setOnLongClickListener(null)
+            setOnTouchListener(null)
+            setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                setOnScrollChangeListener(null)
+            }
+            setDownloadListener(null)
+            outlineProvider = null
+            clipToOutline = false
+            webChromeClient = null
+            webViewClient = WebViewClient()
+            removeJavascriptInterface(WebJsExtensions.nameBasic)
+            removeJavascriptInterface(WebJsExtensions.nameJava)
+            removeJavascriptInterface(WebJsExtensions.nameSource)
+            removeJavascriptInterface(WebJsExtensions.nameCache)
+            clearFormData()
+            clearMatches()
+            clearDisappearingChildren()
+            clearAnimation()
+            setBackgroundColor(Color.TRANSPARENT)
+            settings.apply {
+                blockNetworkImage = false
+                cacheMode = WebSettings.LOAD_DEFAULT
+                useWideViewPort = false
+                loadWithOverviewMode = false
+                textZoom = 100
+            }
+            onPause()
+        }
+        pooledWebView.upContext(appCtx)
+        if (idlePool.size >= CACHED_WEB_VIEW_MAX_NUM - inUsePool.size) {
+            destroyWebView(pooledWebView)
+            return
+        }
+        pooledWebView.isInUse = false
+        pooledWebView.lastUseTime = System.currentTimeMillis()
+        if (!idlePool.contains(pooledWebView)) {
+            idlePool.push(pooledWebView)
+        }
+        ensureCleanupTimer()
+    }
+
+    @Synchronized
+    fun discard(pooledWebView: PooledWebView) {
+        inUsePool.remove(pooledWebView.id)
+        idlePool.remove(pooledWebView)
+        destroyWebView(pooledWebView)
+    }
+
+    private fun pollIdleWebView(): PooledWebView? {
+        while (idlePool.isNotEmpty()) {
+            val pooledWebView = idlePool.pop()
+            if (!pooledWebView.isDestroyed) {
+                return pooledWebView
+            }
+        }
+        return null
+    }
+
+    private fun ensureCleanupTimer() {
+        if (cleanupJob?.isActive != true) {
+            needInitialize = false
+            startCleanupTimer()
         }
     }
 
@@ -181,11 +310,7 @@ object WebViewPool {
                     }
                     toRemove.forEach { pooled ->
                         idlePool.remove(pooled)
-                        try {
-                            pooled.realWebView.destroy()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                        destroyWebView(pooled)
                     }
                     if (idlePool.isEmpty()) {
                         shouldCancel = true
@@ -196,6 +321,33 @@ object WebViewPool {
                     this@launch.cancel()
                 }
             }
+        }
+    }
+
+    @Synchronized
+    private fun destroyWebView(pooledWebView: PooledWebView) {
+        inUsePool.remove(pooledWebView.id)
+        idlePool.remove(pooledWebView)
+        pooledWebView.isInUse = false
+        pooledWebView.isDestroyed = true
+        pooledWebView.resetToken++
+        val action = Runnable {
+            try {
+                pooledWebView.realWebView.run {
+                    (parent as? ViewGroup)?.removeView(this)
+                    stopLoading()
+                    webChromeClient = null
+                    webViewClient = WebViewClient()
+                    destroy()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action.run()
+        } else {
+            mainHandler.post(action)
         }
     }
 

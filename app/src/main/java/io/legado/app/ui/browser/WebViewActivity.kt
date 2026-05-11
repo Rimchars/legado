@@ -5,6 +5,7 @@ import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
+import android.os.Build
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -69,6 +70,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
     companion object {
         // 是否输出日志
         var sessionShowWebLog = false
+        private const val FIRST_PAGE_REVEAL_TIMEOUT = 1500L
     }
 
     private lateinit var pooledWebView: PooledWebView
@@ -83,6 +85,8 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
     private var isfullscreen = false
     private var wasScreenOff = false
     private var needClearHistory = true
+    private var waitingFirstPageVisible = false
+    private var firstPageVisibleToken = 0
     private val saveImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
             ACache.get().put(imagePathKey, uri.toString())
@@ -98,6 +102,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
         pooledWebView = WebViewPool.acquire(this)
         currentWebView = pooledWebView.realWebView
         binding.webViewContainer.addView(currentWebView)
+        currentWebView.alpha = 0f
         currentWebView.post {
             currentWebView.clearHistory()
         }
@@ -119,6 +124,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
                     currentWebView.addJavascriptInterface(WebCacheManager, nameCache)
                 }
                 currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+                revealWebViewAfterVisualState()
             }
         }
         currentWebView.clearHistory()
@@ -237,6 +243,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun initWebView(url: String, headerMap: HashMap<String, String>) {
+        hideWebViewUntilReady()
         binding.progressBar.fontColor = accentColor
         currentWebView.webChromeClient = CustomWebChromeClient()
         // 添加 JavaScript 接口
@@ -278,6 +285,47 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
                 Download.start(this, url, fileName)
             }
         }
+    }
+
+    private fun hideWebViewUntilReady() {
+        firstPageVisibleToken++
+        val token = firstPageVisibleToken
+        waitingFirstPageVisible = true
+        currentWebView.alpha = 0f
+        currentWebView.postDelayed({
+            revealWebViewIfWaiting(token)
+        }, FIRST_PAGE_REVEAL_TIMEOUT)
+    }
+
+    private fun revealWebViewAfterVisualState() {
+        if (!waitingFirstPageVisible) return
+        val token = firstPageVisibleToken
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            currentWebView.postVisualStateCallback(
+                System.nanoTime(),
+                object : WebView.VisualStateCallback() {
+                    override fun onComplete(requestId: Long) {
+                        revealWebViewIfWaiting(token)
+                    }
+                }
+            )
+        } else {
+            currentWebView.post {
+                revealWebViewIfWaiting(token)
+            }
+        }
+    }
+
+    private fun revealWebViewIfWaiting(token: Int) {
+        if (!waitingFirstPageVisible || token != firstPageVisibleToken) return
+        waitingFirstPageVisible = false
+        currentWebView.alpha = 1f
+        currentWebView.visible()
+    }
+
+    private fun cancelFirstPageReveal() {
+        waitingFirstPageVisible = false
+        firstPageVisibleToken++
     }
 
     private fun saveImage(webPic: String) {
@@ -337,7 +385,8 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
     }
 
     override fun onDestroy() {
-        WebViewPool.release(pooledWebView)
+        cancelFirstPageReveal()
+        WebViewPool.discard(pooledWebView)
         super.onDestroy()
     }
 
@@ -442,6 +491,11 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
             return true
         }
 
+        override fun onPageCommitVisible(view: WebView?, url: String?) {
+            super.onPageCommitVisible(view, url)
+            revealWebViewAfterVisualState()
+        }
+
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
             if (needClearHistory) {
                 needClearHistory = false
@@ -453,6 +507,7 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
         
         override fun onPageFinished(view: WebView?, url: String?) {
             super.onPageFinished(view, url)
+            revealWebViewAfterVisualState()
             val cookieManager = CookieManager.getInstance()
             url?.let {
                 CookieStore.setCookie(it, cookieManager.getCookie(it))

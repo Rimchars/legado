@@ -145,6 +145,8 @@ import androidx.lifecycle.Lifecycle
 import com.script.rhino.runScriptWithContext
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
 import io.legado.app.ui.login.SourceLoginJsExtensions
+import io.legado.app.ui.widget.dialog.BottomWebViewDialog
+import io.legado.app.ui.widget.dialog.CommentWebViewSession
 
 /**
  * 阅读界面
@@ -226,6 +228,38 @@ class ReadBookActivity : BaseReadBookActivity(),
     private var modernMenuPopup: PopupWindow? = null
     private var backupJob: Job? = null
     private var tts: TTS? = null
+    private val commentWebViewSession by lazy { CommentWebViewSession() }
+    private val readShowBrowserCallback by lazy {
+        object : SourceLoginJsExtensions.Callback {
+            override fun upUiData(data: Map<String, Any?>?) = Unit
+
+            override fun reUiView(deltaUp: Boolean) = Unit
+
+            override fun showBrowser(
+                url: String,
+                html: String?,
+                preloadJs: String?,
+                config: String?
+            ): Boolean {
+                val source = ReadBook.bookSource ?: return false
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    showDialogFragment(
+                        BottomWebViewDialog(
+                            source.getKey(),
+                            BookType.text,
+                            url,
+                            html,
+                            preloadJs,
+                            config,
+                            commentWebViewSession
+                        )
+                    )
+                }
+                return true
+            }
+        }
+    }
     private val textActionMenuDelegate = lazy {
         TextActionMenu(this, this)
     }
@@ -282,6 +316,11 @@ class ReadBookActivity : BaseReadBookActivity(),
         window.setBackgroundDrawable(null)
         upScreenTimeOut()
         ReadBook.register(this)
+        handler.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                commentWebViewSession.prepare(this@ReadBookActivity)
+            }
+        }, 800L)
         onBackPressedDispatcher.addCallback(this) {
             if (binding.readAiPanel.isVisible) {
                 binding.readAiPanel.close()
@@ -1339,6 +1378,15 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
+    private fun readSourceJsExtensions(source: BookSource): SourceLoginJsExtensions {
+        return SourceLoginJsExtensions(
+            this@ReadBookActivity,
+            source,
+            BookType.text,
+            readShowBrowserCallback
+        )
+    }
+
     override fun showLogin() {
         ReadBook.bookSource?.let {
             startActivity<SourceLoginActivity> {
@@ -1365,7 +1413,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                     if (payAction.isNullOrBlank()) {
                         throw NoStackTraceException("no pay action")
                     }
-                    val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
+                    val java = readSourceJsExtensions(source)
                     runScriptWithContext {
                         source.evalJS(payAction) {
                             put("java", java)
@@ -1415,7 +1463,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             if (click != null) {
                 Coroutine.async(lifecycleScope,IO) {
                     val source = ReadBook.bookSource ?: return@async
-                    val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
+                    val java = readSourceJsExtensions(source)
                     val book = ReadBook.book ?: return@async
                     val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
                     runScriptWithContext {
@@ -1454,7 +1502,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     override fun clickImg(click: String, src: String) {
         Coroutine.async(lifecycleScope,IO) {
             val source = ReadBook.bookSource ?: return@async
-            val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
+            val java = readSourceJsExtensions(source)
             val book = ReadBook.book ?: return@async
             val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
             runScriptWithContext {
@@ -1783,6 +1831,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     override fun onDestroy() {
         super.onDestroy()
         tts?.clearTts()
+        commentWebViewSession.destroy(releaseToPool = true)
         if (textActionMenuDelegate.isInitialized()) {
             textActionMenu.dismiss()
         }

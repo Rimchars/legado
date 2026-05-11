@@ -10,6 +10,8 @@ class PooledWebView(
 ) {
     var isInUse: Boolean = false // 是否正在被使用
     var lastUseTime: Long = 0 // 最后一次被使用的时间戳
+    var resetToken: Int = 0
+    var isDestroyed: Boolean = false
 
     fun upContext(context: Context): PooledWebView {
         (realWebView.context as MutableContextWrapper).let {

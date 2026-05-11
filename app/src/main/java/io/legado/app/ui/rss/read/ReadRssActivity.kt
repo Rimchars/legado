@@ -495,7 +495,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
     }
 
     override fun onDestroy() {
-        WebViewPool.release(pooledWebView)
+        WebViewPool.discard(pooledWebView)
         super.onDestroy()
     }
 
