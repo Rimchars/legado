@@ -657,7 +657,7 @@ class PageView(context: Context) : FrameLayout(context) {
         lottieView.setFontAssetDelegate(defaultFontAssetDelegate)
         lottieView.setImageAssetDelegate(dataUriImageAssetDelegate)
         val json = block.payload?.takeIf { it.isNotBlank() }
-        val resolvedJson = json?.let { applyLottieTextFallbackStyle(it) }
+        val resolvedJson = json?.let { applyLottieTextFallbackStyle(it, advancedTitleTextLayerScale(block)) }
         val nextKey = resolvedJson?.let { "advanced_title:${it.hashCode()}" } ?: "advanced_title:raw"
         if (advancedTitleLottieKey != nextKey) {
             advancedTitleLottieKey = nextKey
@@ -697,12 +697,22 @@ class PageView(context: Context) : FrameLayout(context) {
             (advancedTitleTextSizeSp() / textSize.coerceAtLeast(1)).coerceIn(0.6f, 2.5f)
         }
     }
+    private fun advancedTitleTextLayerScale(block: TextPage.EpubEmbeddedBlock): Float {
+        val contentWidth = binding.contentTextView.width.takeIf { it > 0 }?.toFloat() ?: block.width
+        if (contentWidth <= 0f) return 1f
+        val actualWidthRatio = block.width / contentWidth
+        if (actualWidthRatio < 0.98f) return 1f
+        val requestedWidthRatio = ADVANCED_TITLE_WIDTH_FACTOR * advancedTitleScale() *
+            (AdvancedTitleConfig.heightFactor / AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR.toFloat())
+        return (requestedWidthRatio / actualWidthRatio).coerceIn(1f, 2.5f)
+    }
 
-    private fun applyLottieTextFallbackStyle(rawJson: String): String {
+    private fun applyLottieTextFallbackStyle(rawJson: String, textScale: Float): String {
         val fallbackColor = ReadBookConfig.textColor
         val fallbackHex = String.format("#%06X", 0xFFFFFF and fallbackColor)
         val fallbackFont = "legado_default_font"
-        val cacheKey = "${rawJson.hashCode()}:$fallbackHex"
+        val normalizedTextScale = textScale.coerceIn(1f, 2.5f)
+        val cacheKey = "${rawJson.hashCode()}:$fallbackHex:${"%.3f".format(normalizedTextScale)}"
         synchronized(styledLottieJsonCache) {
             styledLottieJsonCache[cacheKey]?.let { return it }
         }
@@ -724,6 +734,7 @@ class PageView(context: Context) : FrameLayout(context) {
                     if (!style.has("fc") || style.optJSONArray("fc") == null) {
                         style.put("fc", parseColorArray(fallbackHex))
                     }
+                    scaleLottieTextStyle(style, normalizedTextScale)
                 }
             }
             val fonts = root.optJSONObject("fonts") ?: JSONObject().also { root.put("fonts", it) }
@@ -748,6 +759,31 @@ class PageView(context: Context) : FrameLayout(context) {
         }.getOrDefault(rawJson).also { styledJson ->
             synchronized(styledLottieJsonCache) {
                 styledLottieJsonCache[cacheKey] = styledJson
+            }
+        }
+    }
+
+    private fun scaleLottieTextStyle(style: JSONObject, scale: Float) {
+        if (scale <= 1.001f) return
+        val fontSize = style.optDouble("s", 0.0)
+        if (fontSize > 0.0) {
+            style.put("s", fontSize * scale)
+        }
+        val lineHeight = style.optDouble("lh", 0.0)
+        if (lineHeight > 0.0) {
+            style.put("lh", lineHeight * scale)
+        }
+        val size = style.optJSONArray("sz")
+        val oldHeight = size?.optDouble(1, 0.0) ?: 0.0
+        if (size != null && oldHeight > 0.0) {
+            val newHeight = oldHeight * scale
+            size.put(1, newHeight)
+            val position = style.optJSONArray("ps")
+            if (position != null && position.length() > 1) {
+                val oldY = position.optDouble(1, 0.0)
+                if (kotlin.math.abs(oldY + oldHeight / 2.0) < 1.0) {
+                    position.put(1, -newHeight / 2.0)
+                }
             }
         }
     }
@@ -820,6 +856,7 @@ class PageView(context: Context) : FrameLayout(context) {
 
     private companion object {
         const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
+        const val ADVANCED_TITLE_WIDTH_FACTOR = 0.86f
         const val MAX_STYLED_LOTTIE_CACHE_SIZE = 6
         const val MAX_LOTTIE_IMAGE_CACHE_SIZE = 4
     }

@@ -782,7 +782,7 @@ class TextChapterLayout(
         val heightScale = AdvancedTitleConfig.heightFactor / AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR.toFloat()
         val aspectRatio = resolveAdvancedTitleAspectRatio(lottieJson)
         val maxBlockWidth = visibleWidth.toFloat()
-        val requestedWidth = (maxBlockWidth * titleScale * heightScale).coerceAtLeast(1f)
+        val requestedWidth = (maxBlockWidth * ADVANCED_TITLE_WIDTH_FACTOR * titleScale * heightScale).coerceAtLeast(1f)
         val requestedHeight = requestedWidth * aspectRatio
         val widthLimited = requestedWidth > maxBlockWidth
         val heightLimited = requestedHeight > maxBlockHeight
@@ -2356,6 +2356,7 @@ class TextChapterLayout(
 
     private companion object {
         const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
+        const val ADVANCED_TITLE_WIDTH_FACTOR = 0.86f
         const val DEFAULT_LOTTIE_WIDTH = 720f
         const val DEFAULT_LOTTIE_HEIGHT = 112f
     }
