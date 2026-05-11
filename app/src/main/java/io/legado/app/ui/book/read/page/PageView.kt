@@ -651,7 +651,7 @@ class PageView(context: Context) : FrameLayout(context) {
             params.height = targetHeight
             lottieView.layoutParams = params
         }
-        lottieView.scaleType = ImageView.ScaleType.FIT_XY
+        lottieView.scaleType = ImageView.ScaleType.FIT_CENTER
         lottieView.translationY = resolveTitleTranslationY(block, targetHeight)
         lottieView.repeatCount = LottieDrawable.INFINITE
         lottieView.setFontAssetDelegate(defaultFontAssetDelegate)

@@ -50,7 +50,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import java.util.LinkedList
-import kotlin.math.max
 import kotlin.math.roundToInt
 import android.util.Size
 import androidx.core.text.HtmlCompat
@@ -781,15 +780,21 @@ class TextChapterLayout(
 
         val titleScale = advancedTitleScale()
         val heightScale = AdvancedTitleConfig.heightFactor / AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR.toFloat()
-        val baseWidth = visibleWidth * ADVANCED_TITLE_WIDTH_FACTOR
         val aspectRatio = resolveAdvancedTitleAspectRatio(lottieJson)
-        val requestedWidth = baseWidth * titleScale * heightScale
-        val requestedHeight = baseWidth * aspectRatio * titleScale * heightScale
-        val minTitleHeight = max(contentPaintTextHeight * 1.2f, 32f.dpToPx())
-        val blockWidth = requestedWidth.coerceIn(1f, visibleWidth.toFloat())
-        val blockHeight = requestedHeight
-            .coerceAtLeast(minTitleHeight)
-            .coerceAtMost(maxBlockHeight)
+        val maxBlockWidth = visibleWidth.toFloat()
+        val requestedWidth = (maxBlockWidth * titleScale * heightScale).coerceAtLeast(1f)
+        val requestedHeight = requestedWidth * aspectRatio
+        val widthLimited = requestedWidth > maxBlockWidth
+        val heightLimited = requestedHeight > maxBlockHeight
+        val blockWidth: Float
+        val blockHeight: Float
+        if (heightLimited && (!widthLimited || maxBlockHeight / aspectRatio <= maxBlockWidth)) {
+            blockHeight = maxBlockHeight
+            blockWidth = (blockHeight / aspectRatio).coerceIn(1f, maxBlockWidth)
+        } else {
+            blockWidth = requestedWidth.coerceIn(1f, maxBlockWidth)
+            blockHeight = (blockWidth * aspectRatio).coerceAtMost(maxBlockHeight)
+        }
         val requiredHeight = blockHeight + titleBottom
         return AdvancedTitleLayout(blockWidth, blockHeight, requiredHeight)
     }
@@ -2351,7 +2356,6 @@ class TextChapterLayout(
 
     private companion object {
         const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
-        const val ADVANCED_TITLE_WIDTH_FACTOR = 0.86f
         const val DEFAULT_LOTTIE_WIDTH = 720f
         const val DEFAULT_LOTTIE_HEIGHT = 112f
     }
