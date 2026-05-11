@@ -3,14 +3,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <View
-        android:id="@+id/web_view_scrim"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:alpha="0"
-        android:background="#66000000"
-        android:visibility="invisible" />
-
     <FrameLayout
         android:id="@+id/native_sheet_surface"
         android:layout_width="match_parent"
@@ -27,20 +19,9 @@
 
         <FrameLayout
             android:id="@+id/web_view_placeholder"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_gravity="center"
-            android:background="@drawable/bg_web_view_loading_circle"
-            android:elevation="8dp"
-            android:padding="20dp">
-
-            <io.legado.app.lib.theme.view.ThemeProgressBar
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:indeterminateBehavior="repeat"
-                android:indeterminateOnly="true" />
-
-        </FrameLayout>
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
     </FrameLayout>
 

@@ -103,9 +103,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private companion object {
         const val FIRST_PAGE_REVEAL_TIMEOUT = 650L
         const val SHEET_INTRO_DURATION = 220L
-        const val SCRIM_REVEAL_DELAY = 60L
-        const val SCRIM_REVEAL_DURATION = 140L
-        const val DEFAULT_SCRIM_ALPHA = 0.32f
     }
 
     constructor(
@@ -161,7 +158,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private var firstPageVisibleToken = 0
     private var sheetIntroStarted = false
     private var sheetIntroDone = false
-    private var scrimTargetAlpha = DEFAULT_SCRIM_ALPHA
     private val sheetIntroInterpolator by lazy { DecelerateInterpolator(1.25f) }
 
     private data class PendingWebContent(
@@ -288,11 +284,11 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             dialog.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             dialog.window?.setDimAmount(0f)
             config.backgroundDimAmount?.let { amount ->
-                setScrimTargetAlpha(amount)
+                dialog.window?.setDimAmount(0f)
             }
             config.shouldDimBackground?.let { shouldDim ->
                 if (!shouldDim) {
-                    setScrimTargetAlpha(0f)
+                    dialog.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 }
             }
             config.dismissOnTouchOutside?.let { touchOutside ->
@@ -445,9 +441,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         binding.root.setBackgroundColor(Color.TRANSPARENT)
         binding.webViewContainer.setBackgroundColor(Color.TRANSPARENT)
         binding.customWebView.setBackgroundColor(Color.TRANSPARENT)
-        binding.webViewScrim.invisible()
-        binding.webViewScrim.alpha = 0f
-        binding.webViewPlaceholder.visible()
+        binding.webViewPlaceholder.invisible()
         binding.webViewPlaceholder.alpha = 1f
         binding.nativeSheetSurface.alpha = 1f
         binding.nativeSheetSurface.translationY = displayMetrics.heightPixels.toFloat()
@@ -508,9 +502,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         sheetIntroDone = false
         val surface = binding.nativeSheetSurface
         surface.animate().cancel()
-        binding.webViewScrim.animate().cancel()
-        binding.webViewScrim.invisible()
-        binding.webViewScrim.alpha = 0f
         surface.visible()
         surface.alpha = 1f
         surface.translationY = displayMetrics.heightPixels.toFloat()
@@ -529,17 +520,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     attachWebViewWhenReady()
                 }
                 .start()
-            binding.webViewScrim.postDelayed({
-                if (!isAdded || view == null || !sheetIntroStarted || scrimTargetAlpha <= 0f) {
-                    return@postDelayed
-                }
-                binding.webViewScrim.visible()
-                binding.webViewScrim.animate().cancel()
-                binding.webViewScrim.animate()
-                    .alpha(scrimTargetAlpha)
-                    .setDuration(SCRIM_REVEAL_DURATION)
-                    .start()
-            }, SCRIM_REVEAL_DELAY)
         }
     }
 
@@ -555,7 +535,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         if (webView.parent == null) {
             binding.webViewContainer.addView(webView)
         }
-        binding.webViewPlaceholder.visible()
+        binding.webViewPlaceholder.invisible()
         binding.webViewPlaceholder.alpha = 1f
         pendingConfig?.let { setConfig(it) } ?: applyDefaultWebViewBehaviorIfNeeded()
         loadPendingContent(webView)
@@ -732,7 +712,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         firstPageVisibleToken++
         val token = firstPageVisibleToken
         waitingFirstPageVisible = true
-        binding.webViewPlaceholder.visible()
+        binding.webViewPlaceholder.invisible()
         binding.webViewPlaceholder.alpha = 1f
         prepareWebViewForFirstFrame()
         webView.postDelayed({
@@ -765,24 +745,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
-    private fun setScrimTargetAlpha(alpha: Float) {
-        scrimTargetAlpha = alpha.coerceIn(0f, 1f)
-        dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        dialog?.window?.setDimAmount(0f)
-        if (view == null || !sheetIntroStarted) return
-        binding.webViewScrim.animate().cancel()
-        if (scrimTargetAlpha <= 0f) {
-            binding.webViewScrim.alpha = 0f
-            binding.webViewScrim.invisible()
-        } else {
-            binding.webViewScrim.visible()
-            binding.webViewScrim.animate()
-                .alpha(scrimTargetAlpha)
-                .setDuration(SCRIM_REVEAL_DURATION)
-                .start()
-        }
-    }
-
     private fun applySheetSurfaceShape(radius: Float) {
         if (view == null || context == null) return
         val surfaceColor = ContextCompat.getColor(requireContext(), R.color.dialog_surface)
@@ -798,10 +760,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             }
         }
         binding.nativeSheetSurface.background = shapeDrawable
-        binding.webViewPlaceholder.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(surfaceColor)
-        }
         binding.nativeSheetSurface.clipToOutline = radius > 0f
     }
 
@@ -820,7 +778,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         webView.animate().cancel()
         binding.webViewPlaceholder.animate().cancel()
         binding.nativeSheetSurface.animate().cancel()
-        binding.webViewScrim.animate().cancel()
         binding.webViewPlaceholder.invisible()
         binding.webViewPlaceholder.alpha = 1f
         webView.alpha = 1f
@@ -838,7 +795,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
         binding.webViewPlaceholder.animate().cancel()
         binding.nativeSheetSurface.animate().cancel()
-        binding.webViewScrim.animate().cancel()
     }
 
     private fun saveImage(webPic: String) {
