@@ -731,11 +731,6 @@
     <string name="ui_corner_scale_invalid">请输入 0 到 3 之间的数字</string>
     <string name="ui_layout_alpha">界面布局透明度</string>
     <string name="ui_layout_alpha_value">%d%%</string>
-    <string name="theme_panel_border_color">圆角卡片边框色</string>
-    <string name="theme_panel_border_alpha">圆角卡片边框不透明度</string>
-    <string name="bottom_bar_border_color">底栏边框色</string>
-    <string name="top_bar_border_color">顶栏边框色</string>
-    <string name="select_color">选择颜色</string>
     <string name="ui_corner_search_follow">搜索栏跟随圆角</string>
     <string name="ui_corner_search_follow_summary">允许搜索栏使用全局圆角倍率</string>
     <string name="ui_corner_reply_follow">回复栏跟随圆角</string>
@@ -1597,7 +1592,6 @@
     <string name="bottom_bar_effect_frosted">磨砂玻璃</string>
     <string name="bottom_bar_layout_mode">底栏样式</string>
     <string name="bottom_bar_layout_floating">悬浮底栏</string>
-    <string name="bottom_bar_layout_standard">常规底栏</string>
     <string name="bottom_bar_layout_sidebar">侧边栏</string>
     <string name="bottom_bar_opacity">不透明度</string>
     <string name="theme_day">日间主题</string>
@@ -1760,6 +1754,12 @@
 用户选中或追问：
 %6$s</string>
 
+    <string name="theme_panel_border_color">圆角卡片边框色</string>
+    <string name="theme_panel_border_alpha">圆角卡片边框不透明度</string>
+    <string name="bottom_bar_border_color">底栏边框色</string>
+    <string name="top_bar_border_color">顶栏边框色</string>
+    <string name="select_color">选择颜色</string>
+    <string name="bottom_bar_layout_standard">常规底栏</string>
     <string name="source_runtime_backup">忽略书源登录与变量</string>
     <string name="book_info_manage">详情页管理</string>
     <string name="book_info_manage_summary">管理详情页组件与显示顺序</string>
