@@ -229,6 +229,8 @@ class ReadBookActivity : BaseReadBookActivity(),
     private var backupJob: Job? = null
     private var tts: TTS? = null
     private val commentWebViewSession by lazy { CommentWebViewSession() }
+    private var pendingCommentBrowser: BottomWebViewDialog? = null
+    private var pendingCommentBrowserToken = 0
     private val readShowBrowserCallback by lazy {
         object : SourceLoginJsExtensions.Callback {
             override fun upUiData(data: Map<String, Any?>?) = Unit
@@ -241,25 +243,95 @@ class ReadBookActivity : BaseReadBookActivity(),
                 preloadJs: String?,
                 config: String?
             ): Boolean {
-                val source = ReadBook.bookSource ?: return false
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    showDialogFragment(
-                        BottomWebViewDialog(
-                            source.getKey(),
-                            BookType.text,
-                            url,
-                            html,
-                            preloadJs,
-                            config,
-                            commentWebViewSession
-                        )
-                    )
-                }
-                return true
+                return showCommentBrowser(null, url, html, preloadJs, config)
             }
         }
     }
+
+    private fun pendingShowBrowserCallback(token: Int?): SourceLoginJsExtensions.Callback {
+        if (token == null) return readShowBrowserCallback
+        return object : SourceLoginJsExtensions.Callback {
+            override fun upUiData(data: Map<String, Any?>?) = Unit
+
+            override fun reUiView(deltaUp: Boolean) = Unit
+
+            override fun showBrowser(
+                url: String,
+                html: String?,
+                preloadJs: String?,
+                config: String?
+            ): Boolean {
+                return showCommentBrowser(token, url, html, preloadJs, config)
+            }
+        }
+    }
+
+    private fun showCommentBrowser(
+        token: Int?,
+        url: String,
+        html: String?,
+        preloadJs: String?,
+        config: String?
+    ): Boolean {
+        val source = ReadBook.bookSource ?: return false
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            if (token != null && pendingCommentBrowserToken != token) {
+                return@runOnUiThread
+            }
+            val pending = if (token == null) null else pendingCommentBrowser
+            if (pending?.submitContent(
+                    source.getKey(),
+                    BookType.text,
+                    url,
+                    html,
+                    preloadJs,
+                    config
+                ) == true
+            ) {
+                pendingCommentBrowser = null
+                pendingCommentBrowserToken++
+                return@runOnUiThread
+            }
+            pendingCommentBrowser = null
+            showDialogFragment(
+                BottomWebViewDialog(
+                    source.getKey(),
+                    BookType.text,
+                    url,
+                    html,
+                    preloadJs,
+                    config,
+                    commentWebViewSession
+                )
+            )
+        }
+        return true
+    }
+
+    private fun preOpenCommentBrowser(click: String): Int? {
+        if (!click.contains("showBrowser", ignoreCase = true)) return null
+        val token = ++pendingCommentBrowserToken
+        runOnUiThread {
+            if (isFinishing || isDestroyed || pendingCommentBrowserToken != token) return@runOnUiThread
+            pendingCommentBrowser?.dismissAllowingStateLoss()
+            pendingCommentBrowser = BottomWebViewDialog(commentWebViewSession).also { dialog ->
+                showDialogFragment(dialog)
+            }
+        }
+        return token
+    }
+
+    private fun dismissPendingCommentBrowser(token: Int?) {
+        if (token == null) return
+        runOnUiThread {
+            if (pendingCommentBrowserToken != token) return@runOnUiThread
+            pendingCommentBrowser?.dismissAllowingStateLoss()
+            pendingCommentBrowser = null
+            pendingCommentBrowserToken++
+        }
+    }
+
     private val textActionMenuDelegate = lazy {
         TextActionMenu(this, this)
     }
@@ -1378,12 +1450,15 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
-    private fun readSourceJsExtensions(source: BookSource): SourceLoginJsExtensions {
+    private fun readSourceJsExtensions(
+        source: BookSource,
+        callback: SourceLoginJsExtensions.Callback = readShowBrowserCallback
+    ): SourceLoginJsExtensions {
         return SourceLoginJsExtensions(
             this@ReadBookActivity,
             source,
             BookType.text,
-            readShowBrowserCallback
+            callback
         )
     }
 
@@ -1461,9 +1536,10 @@ class ReadBookActivity : BaseReadBookActivity(),
             val urlOptionMap = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()
             val click = urlOptionMap?.get("click")
             if (click != null) {
+                val pendingToken = preOpenCommentBrowser(click)
                 Coroutine.async(lifecycleScope,IO) {
                     val source = ReadBook.bookSource ?: return@async
-                    val java = readSourceJsExtensions(source)
+                    val java = readSourceJsExtensions(source, pendingShowBrowserCallback(pendingToken))
                     val book = ReadBook.book ?: return@async
                     val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
                     runScriptWithContext {
@@ -1475,6 +1551,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                         }
                     }
                 }.onError {
+                    dismissPendingCommentBrowser(pendingToken)
                     AppLog.put("执行图片链接click键值出错\n${it.localizedMessage}", it, true)
                 }
                 return true
@@ -1500,9 +1577,10 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     override fun clickImg(click: String, src: String) {
+        val pendingToken = preOpenCommentBrowser(click)
         Coroutine.async(lifecycleScope,IO) {
             val source = ReadBook.bookSource ?: return@async
-            val java = readSourceJsExtensions(source)
+            val java = readSourceJsExtensions(source, pendingShowBrowserCallback(pendingToken))
             val book = ReadBook.book ?: return@async
             val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
             runScriptWithContext {
@@ -1514,6 +1592,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 }
             }
         }.onError {
+            dismissPendingCommentBrowser(pendingToken)
             AppLog.put("执行图片链接click键值出错\n${it.localizedMessage}", it, true)
         }
     }

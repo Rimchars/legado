@@ -103,6 +103,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private companion object {
         const val FIRST_PAGE_REVEAL_TIMEOUT = 650L
         const val SHEET_INTRO_DURATION = 220L
+        const val PENDING_BROWSER_TIMEOUT = 8_000L
     }
 
     constructor(
@@ -122,6 +123,13 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             putString("html", html)
             putString("preloadJs", preloadJs)
             putString("config", config)
+        }
+    }
+
+    constructor(webViewSession: CommentWebViewSession?) : this() {
+        this.webViewSession = webViewSession
+        arguments = Bundle().apply {
+            putBoolean("pendingBrowser", true)
         }
     }
 
@@ -159,6 +167,17 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private var sheetIntroStarted = false
     private var sheetIntroDone = false
     private val sheetIntroInterpolator by lazy { DecelerateInterpolator(1.25f) }
+    private var pendingBrowserTimeoutRunnable: Runnable? = null
+    private var deferredBrowserRequest: BrowserRequest? = null
+
+    private data class BrowserRequest(
+        val sourceKey: String,
+        val bookType: Int,
+        val url: String,
+        val html: String?,
+        val preloadJs: String?,
+        val config: String?
+    )
 
     private data class PendingWebContent(
         val url: String,
@@ -446,7 +465,12 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         binding.nativeSheetSurface.alpha = 1f
         binding.nativeSheetSurface.translationY = displayMetrics.heightPixels.toFloat()
         applySheetSurfaceShape(0f)
-        loadContentAsync()
+        val deferredRequest = deferredBrowserRequest
+        when {
+            deferredRequest != null -> loadContentAsync(deferredRequest)
+            arguments?.getBoolean("pendingBrowser") == true -> startPendingBrowserTimeout()
+            else -> loadContentAsync()
+        }
         startSheetIntro()
         dialog?.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
@@ -588,22 +612,67 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
-    private fun loadContentAsync() {
-        loadJob?.cancel()
-        loadJob = lifecycleScope.launch(IO) {
-            val args = arguments
-            if (args == null) {
-                dismissOnMain()
-                return@launch
+    fun submitContent(
+        sourceKey: String,
+        bookType: Int,
+        url: String,
+        html: String? = null,
+        preloadJs: String? = null,
+        config: String? = null
+    ): Boolean {
+        val request = BrowserRequest(sourceKey, bookType, url, html, preloadJs, config)
+        deferredBrowserRequest = request
+        if (!isAdded || view == null) {
+            return true
+        }
+        loadContentAsync(request)
+        return true
+    }
+
+    private fun startPendingBrowserTimeout() {
+        cancelPendingBrowserTimeout()
+        val runnable = Runnable {
+            if (!isAdded || view == null || currentWebView != null || pendingWebContent != null) {
+                return@Runnable
             }
+            dismissAllowingStateLoss()
+        }
+        pendingBrowserTimeoutRunnable = runnable
+        binding.root.postDelayed(runnable, PENDING_BROWSER_TIMEOUT)
+    }
+
+    private fun cancelPendingBrowserTimeout() {
+        pendingBrowserTimeoutRunnable?.let { binding.root.removeCallbacks(it) }
+        pendingBrowserTimeoutRunnable = null
+    }
+
+    private fun loadContentAsync(request: BrowserRequest? = null) {
+        cancelPendingBrowserTimeout()
+        val browserRequest = request ?: arguments?.let { args ->
             val sourceKey = args.getString("sourceKey")
             val url = args.getString("url")
             if (sourceKey.isNullOrEmpty() || url.isNullOrEmpty()) {
-                dismissOnMain()
-                return@launch
+                null
+            } else {
+                BrowserRequest(
+                    sourceKey = sourceKey,
+                    bookType = args.getInt("bookType", 0),
+                    url = url,
+                    html = args.getString("html"),
+                    preloadJs = args.getString("preloadJs"),
+                    config = args.getString("config")
+                )
             }
+        }
+        if (browserRequest == null) {
+            dismissOnMain()
+            return
+        }
+        deferredBrowserRequest = browserRequest
+        loadJob?.cancel()
+        loadJob = lifecycleScope.launch(IO) {
             kotlin.runCatching {
-                args.getString("config")?.let { json ->
+                browserRequest.config?.let { json ->
                     try {
                         GSON.fromJsonObject<Config>(json).getOrThrow().let { config ->
                             activity?.runOnUiThread {
@@ -634,12 +703,12 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     }
                 }
                 val analyzeUrl =
-                    AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
-                val html = args.getString("html") ?: analyzeUrl.getStrResponseAwait().body
+                    AnalyzeUrl(browserRequest.url, source = source, coroutineContext = coroutineContext)
+                val html = browserRequest.html ?: analyzeUrl.getStrResponseAwait().body
                 if (html.isNullOrEmpty()) {
                     throw NoStackTraceException("html is NullOrEmpty")
                 }
-                preloadJs = args.getString("preloadJs")
+                preloadJs = browserRequest.preloadJs
                 val spliceHtml = if (preloadJs.isNullOrEmpty()) {
                     html
                 } else {
@@ -656,7 +725,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         JS_URL + html
                     }
                 }
-                appDb.bookSourceDao.getBookSource(sourceKey).let {
+                appDb.bookSourceDao.getBookSource(browserRequest.sourceKey).let {
                     if (it == null) {
                         activity?.toastOnUi("no find bookSource")
                         dismissOnMain()
@@ -664,15 +733,14 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     }
                     source = it
                 }
-                val bookType = args.getInt("bookType", 0)
-                onContentReady(PendingWebContent(analyzeUrl.url, spliceHtml, analyzeUrl.headerMap, bookType))
+                onContentReady(PendingWebContent(analyzeUrl.url, spliceHtml, analyzeUrl.headerMap, browserRequest.bookType))
             }.onFailure { error ->
                 onContentReady(
                     PendingWebContent(
-                        url,
+                        browserRequest.url,
                         error.stackTraceToString(),
                         hashMapOf(),
-                        args.getInt("bookType", 0)
+                        browserRequest.bookType
                     )
                 )
             }
@@ -845,6 +913,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     override fun onDestroyView() {
         loadJob?.cancel()
         customWebViewCallback?.onCustomViewHidden()
+        cancelPendingBrowserTimeout()
         cancelFirstPageReveal()
         pooledWebView?.let { pooled ->
             webViewSession?.detachForReuse(pooled) ?: WebViewPool.releaseForFastReuse(pooled)

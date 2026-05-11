@@ -91,7 +91,8 @@
                             android:layout_height="144dp"
                             android:layout_marginEnd="16dp"
                             app:cardCornerRadius="@dimen/ui_panel_radius"
-                            app:cardElevation="4dp">
+                            app:cardElevation="0dp"
+                            app:cardMaxElevation="0dp">
 
                             <io.legado.app.ui.widget.image.CoverImageView
                                 android:id="@+id/iv_cover"
