@@ -96,14 +96,16 @@ import java.io.ByteArrayInputStream
 import java.lang.ref.WeakReference
 import java.net.URLDecoder
 import java.util.Date
+import java.util.Locale
 import androidx.core.graphics.createBitmap
 
 class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view), WebJsExtensions.Callback {
 
     private companion object {
-        const val FIRST_PAGE_REVEAL_TIMEOUT = 650L
+        const val FIRST_PAGE_REVEAL_TIMEOUT = 900L
         const val SHEET_INTRO_DURATION = 220L
         const val PENDING_BROWSER_TIMEOUT = 8_000L
+        const val FIRST_FRAME_STYLE_ID = "legado-first-frame-style"
     }
 
     constructor(
@@ -469,13 +471,16 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         binding.nativeSheetSurface.translationY = displayMetrics.heightPixels.toFloat()
         applySheetSurfaceShape(0f)
         applyInitialConfig()
+        startSheetIntro()
+        binding.nativeSheetSurface.post {
+            preAttachWebViewForFastStart()
+        }
         val deferredRequest = deferredBrowserRequest
         when {
             deferredRequest != null -> loadContentAsync(deferredRequest)
             arguments?.getBoolean("pendingBrowser") == true -> startPendingBrowserTimeout()
             else -> loadContentAsync()
         }
-        startSheetIntro()
         dialog?.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
                 if (binding.customWebView.size > 0) { //网页全屏
@@ -564,6 +569,13 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
+    private fun preAttachWebViewForFastStart() {
+        val webView = obtainWebView(addToContainer = true) ?: return
+        if (webView.parent == null) {
+            binding.webViewContainer.addView(webView)
+        }
+        pendingConfig?.let { setConfig(it) } ?: applyDefaultWebViewBehaviorIfNeeded()
+    }
     private fun attachWebViewIfNeeded(): WebView? {
         val webView = obtainWebView(addToContainer = true) ?: return null
         if (webView.parent == null) {
@@ -618,7 +630,13 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         activity?.runOnUiThread {
             if (!isAdded) return@runOnUiThread
             pendingWebContent = content
-            attachWebViewWhenReady()
+            val webView = currentWebView
+            if (webView != null && webView.parent != null) {
+                pendingConfig?.let { setConfig(it) } ?: applyDefaultWebViewBehaviorIfNeeded()
+                loadPendingContent(webView)
+            } else {
+                attachWebViewWhenReady()
+            }
         }
     }
 
@@ -784,11 +802,18 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             webView.addJavascriptInterface(source, nameSource)
             webView.addJavascriptInterface(WebCacheManager, nameCache)
         }
-        hideWebViewUntilReady()
-        webView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+        val firstFrameToken = hideWebViewUntilReady()
+        webView.loadDataWithBaseURL(
+            url,
+            prepareHtmlForStableFirstFrame(html, firstFrameToken),
+            "text/html",
+            "utf-8",
+            url
+        )
     }
-    private fun hideWebViewUntilReady() {
-        val webView = currentWebView ?: return
+
+    private fun hideWebViewUntilReady(): Int {
+        val webView = currentWebView ?: return firstPageVisibleToken
         firstPageVisibleToken++
         val token = firstPageVisibleToken
         waitingFirstPageVisible = true
@@ -798,6 +823,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         webView.postDelayed({
             revealWebViewIfWaiting(token)
         }, FIRST_PAGE_REVEAL_TIMEOUT)
+        return token
     }
 
     private fun revealWebViewAfterVisualState() {
@@ -805,6 +831,73 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         revealWebViewIfWaiting(firstPageVisibleToken)
     }
 
+    private fun onFirstFrameReadyFromPage(token: Int) {
+        activity?.runOnUiThread {
+            val webView = currentWebView ?: return@runOnUiThread
+            if (!waitingFirstPageVisible || token != firstPageVisibleToken) return@runOnUiThread
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                webView.postVisualStateCallback(token.toLong(), object : WebView.VisualStateCallback() {
+                    override fun onComplete(requestId: Long) {
+                        revealWebViewIfWaiting(token)
+                    }
+                })
+            } else {
+                revealWebViewIfWaiting(token)
+            }
+        }
+    }
+
+    private fun prepareHtmlForStableFirstFrame(html: String, token: Int): String {
+        val bootstrap = firstFrameBootstrapScript(token)
+        val headIndex = html.indexOf("<head", ignoreCase = true)
+        if (headIndex >= 0) {
+            val closingHeadIndex = html.indexOf('>', startIndex = headIndex)
+            if (closingHeadIndex >= 0) {
+                return StringBuilder(html).insert(closingHeadIndex + 1, bootstrap).toString()
+            }
+        }
+        val htmlIndex = html.indexOf("<html", ignoreCase = true)
+        if (htmlIndex >= 0) {
+            val closingHtmlIndex = html.indexOf('>', startIndex = htmlIndex)
+            if (closingHtmlIndex >= 0) {
+                return StringBuilder(html).insert(closingHtmlIndex + 1, "<head>$bootstrap</head>").toString()
+            }
+        }
+        return bootstrap + html
+    }
+
+    private fun firstFrameBootstrapScript(token: Int): String {
+        val colorScheme = if (AppConfig.isNightTheme) "dark" else "light"
+        val surfaceColor = cssColor(ContextCompat.getColor(requireContext(), R.color.dialog_surface))
+        return """
+            <style id="$FIRST_FRAME_STYLE_ID">
+            html,body{background:$surfaceColor!important;color-scheme:$colorScheme!important;}
+            body{visibility:hidden!important;}
+            </style>
+            <script>
+            (function(){
+              var done=false,token=$token;
+              function finish(){
+                if(done)return;done=true;
+                try{var s=document.getElementById('$FIRST_FRAME_STYLE_ID');if(s&&s.parentNode)s.parentNode.removeChild(s);}catch(e){}
+                try{if(document.body)document.body.style.visibility='';}catch(e){}
+                try{if(window.$nameBasic&&window.$nameBasic.onFirstFrameReady)window.$nameBasic.onFirstFrameReady(token);}catch(e){}
+              }
+              function rafFinish(){
+                var raf=window.requestAnimationFrame||function(cb){return setTimeout(cb,16)};
+                raf(function(){raf(finish);});
+              }
+              if(document.readyState==='interactive'||document.readyState==='complete')rafFinish();
+              else document.addEventListener('DOMContentLoaded',rafFinish,{once:true});
+              setTimeout(finish,900);
+            })();
+            </script>
+        """.trimIndent()
+    }
+
+    private fun cssColor(color: Int): String {
+        return String.format(Locale.US, "#%06X", 0xFFFFFF and color)
+    }
     private fun revealWebViewIfWaiting(token: Int) {
         val webView = currentWebView ?: return
         if (webView.parent == null) return
@@ -850,7 +943,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private fun prepareWebViewForFirstFrame() {
         val webView = currentWebView ?: return
         webView.animate().cancel()
-        webView.setBackgroundColor(Color.TRANSPARENT)
+        webView.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.dialog_surface))
         webView.alpha = 0f
         webView.translationY = 0f
         webView.invisible()
@@ -974,6 +1067,11 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     }
                 }
             }
+        }
+
+        @JavascriptInterface
+        fun onFirstFrameReady(token: Int) {
+            dialogRef.get()?.onFirstFrameReadyFromPage(token)
         }
 
         @JavascriptInterface
@@ -1116,7 +1214,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
         override fun onPageCommitVisible(view: WebView?, url: String?) {
             super.onPageCommitVisible(view, url)
-            revealWebViewAfterVisualState()
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
