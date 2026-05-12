@@ -6,17 +6,24 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.FrameLayout
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
+import io.legado.app.constant.AppLog
 import io.legado.app.databinding.ActivityImageCropBinding
+import io.legado.app.help.http.addHeaders
+import io.legado.app.help.http.newCallResponse
+import io.legado.app.help.http.okHttpClient
+import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.utils.ImageProcessUtils
 import io.legado.app.utils.printOnDebug
 import io.legado.app.utils.setLightStatusBar
@@ -113,46 +120,110 @@ class ImageCropActivity : BaseActivity<ActivityImageCropBinding>(
         }
     }
 
-    private fun decodeBitmapFromStableFile(uri: Uri): Bitmap? {
+    private suspend fun decodeBitmapFromStableFile(uri: Uri): Bitmap? {
         val tempDir = File(cacheDir, "image_crop_source").apply { mkdirs() }
         val tempFile = File.createTempFile("source_", ".img", tempDir)
         try {
-            contentResolver.openInputStream(uri)?.use { input ->
-                tempFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            } ?: return null
+            copyImageSourceToFile(uri, tempFile)
+            if (!tempFile.exists() || tempFile.length() <= 0L) return null
             val metrics = resources.displayMetrics
             val expectHeight = (targetWidth * aspectHeight.toFloat() / aspectWidth)
                 .roundToInt()
                 .coerceAtLeast(128)
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
-            tempFile.inputStream().use {
-                BitmapFactory.decodeStream(it, null, options)
-            }
-            if (options.outWidth <= 0 || options.outHeight <= 0) return null
             val decodeWidth = maxOf(metrics.widthPixels, targetWidth).coerceAtLeast(128)
             val decodeHeight = maxOf(metrics.heightPixels, expectHeight).coerceAtLeast(128)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                decodeBitmapWithImageDecoder(tempFile, decodeWidth, decodeHeight, uri)?.let {
+                    return it
+                }
+            }
+            val options = decodeBounds(tempFile)
+            if (options.outWidth <= 0 || options.outHeight <= 0) return null
             val sampleSize = ImageProcessUtils.calculateSampleSize(
                 options.outWidth,
                 options.outHeight,
                 decodeWidth,
                 decodeHeight
             )
-            return tempFile.inputStream().use {
-                BitmapFactory.decodeStream(
-                    it,
-                    null,
-                    BitmapFactory.Options().apply {
-                        inSampleSize = sampleSize
-                        inPreferredConfig = Bitmap.Config.ARGB_8888
-                    }
-                )
-            }
+            return decodeBitmapWithBitmapFactory(tempFile, sampleSize)
         } finally {
             tempFile.delete()
+        }
+    }
+
+    private suspend fun copyImageSourceToFile(uri: Uri, target: File) {
+        if (uri.scheme.equals("http", true) || uri.scheme.equals("https", true)) {
+            val analyzeUrl = AnalyzeUrl(uri.toString())
+            okHttpClient.newCallResponse(0) {
+                addHeaders(analyzeUrl.headerMap)
+                url(analyzeUrl.urlNoQuery)
+            }.use { response ->
+                if (!response.isSuccessful) {
+                    error("HTTP ${response.code}")
+                }
+                response.body.byteStream().use { input ->
+                    target.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+            return
+        }
+        contentResolver.openInputStream(uri)?.use { input ->
+            target.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        } ?: error("Open input stream failed")
+    }
+
+    private fun decodeBounds(file: File): BitmapFactory.Options {
+        return BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+            file.inputStream().use {
+                BitmapFactory.decodeStream(it, null, this)
+            }
+        }
+    }
+
+    private fun decodeBitmapWithImageDecoder(
+        file: File,
+        targetDecodeWidth: Int,
+        targetDecodeHeight: Int,
+        sourceUri: Uri
+    ): Bitmap? {
+        return kotlin.runCatching {
+            val source = ImageDecoder.createSource(file)
+            ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                decoder.isMutableRequired = false
+                val sampleSize = ImageProcessUtils.calculateSampleSize(
+                    info.size.width,
+                    info.size.height,
+                    targetDecodeWidth,
+                    targetDecodeHeight
+                )
+                val width = (info.size.width / sampleSize).coerceAtLeast(1)
+                val height = (info.size.height / sampleSize).coerceAtLeast(1)
+                decoder.setTargetSize(width, height)
+            }.copy(Bitmap.Config.ARGB_8888, false)
+        }.onFailure {
+            AppLog.putDebug(
+                "ImageDecoder failed for crop source: uri=$sourceUri, size=${file.length()}",
+                it
+            )
+        }.getOrNull()
+    }
+
+    private fun decodeBitmapWithBitmapFactory(file: File, sampleSize: Int): Bitmap? {
+        return file.inputStream().use {
+            BitmapFactory.decodeStream(
+                it,
+                null,
+                BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+            )
         }
     }
 
