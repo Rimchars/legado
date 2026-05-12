@@ -600,18 +600,18 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
         if (isScroll && !isAutoPage) {
             if (relativePosition == 0) {
-                curPage.setContent(pageFactory.curPage, resetPageOffset)
+                curPage.setContent(pageFactory.curPage, pageFactory.curPairPage, resetPageOffset)
             } else {
                 curPage.invalidateContentView()
             }
         } else {
             when (relativePosition) {
-                -1 -> prevPage.setContent(pageFactory.prevPage)
-                1 -> nextPage.setContent(pageFactory.nextPage)
+                -1 -> prevPage.setContent(pageFactory.prevPage, pageFactory.prevPairPage)
+                1 -> nextPage.setContent(pageFactory.nextPage, pageFactory.nextPairPage)
                 else -> {
-                    curPage.setContent(pageFactory.curPage, resetPageOffset)
-                    nextPage.setContent(pageFactory.nextPage)
-                    prevPage.setContent(pageFactory.prevPage)
+                    curPage.setContent(pageFactory.curPage, pageFactory.curPairPage, resetPageOffset)
+                    nextPage.setContent(pageFactory.nextPage, pageFactory.nextPairPage)
+                    prevPage.setContent(pageFactory.prevPage, pageFactory.prevPairPage)
                 }
             }
         }

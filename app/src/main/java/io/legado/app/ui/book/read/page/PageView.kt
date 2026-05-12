@@ -14,8 +14,10 @@ import com.airbnb.lottie.FontAssetDelegate
 import com.airbnb.lottie.ImageAssetDelegate
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.TextView
 import com.airbnb.lottie.LottieImageAsset
 import com.airbnb.lottie.LottieDrawable
+import com.airbnb.lottie.LottieAnimationView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.ViewCompat
@@ -73,7 +75,9 @@ class PageView(context: Context) : FrameLayout(context) {
     private var tvTimeBatteryP: BatteryView? = null
     private var isMainView = false
     private var currentTextPage: TextPage? = null
+    private var pairedTextPage: TextPage? = null
     private var advancedTitleLottieKey: String? = null
+    private var advancedTitlePairLottieKey: String? = null
     private val lottieImageCache = object : LinkedHashMap<String, android.graphics.Bitmap>(8, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, android.graphics.Bitmap>?): Boolean {
             return size > MAX_LOTTIE_IMAGE_CACHE_SIZE
@@ -112,6 +116,7 @@ class PageView(context: Context) : FrameLayout(context) {
 
     override fun onDetachedFromWindow() {
         binding.advancedTitleLottie.cancelAnimation()
+        binding.advancedTitleLottiePair.cancelAnimation()
         synchronized(lottieImageCache) {
             lottieImageCache.clear()
         }
@@ -142,8 +147,12 @@ class PageView(context: Context) : FrameLayout(context) {
             tvFooterMiddle.setColor(tipColor)
             tvFooterRight.setColor(tipColor)
             advancedTitleFallback.setTextColor(textColor)
+            advancedTitleFallbackPair.setTextColor(textColor)
             advancedTitleFallback.textSize = advancedTitleTextSizeSp()
-            advancedTitleFallback.typeface = ChapterProvider.titlePaint.typeface ?: ChapterProvider.typeface
+            advancedTitleFallbackPair.textSize = advancedTitleTextSizeSp()
+            val titleTypeface = ChapterProvider.titlePaint.typeface ?: ChapterProvider.typeface
+            advancedTitleFallback.typeface = titleTypeface
+            advancedTitleFallbackPair.typeface = titleTypeface
             vwTopDivider.backgroundColor = tipDividerColor
             vwBottomDivider.backgroundColor = tipDividerColor
             upStatusBar()
@@ -399,10 +408,15 @@ class PageView(context: Context) : FrameLayout(context) {
     /**
      * 设置内容
      */
-    fun setContent(textPage: TextPage, resetPageOffset: Boolean = true) {
+    fun setContent(
+        textPage: TextPage,
+        pairedTextPage: TextPage? = null,
+        resetPageOffset: Boolean = true
+    ) {
         currentTextPage = textPage
+        this.pairedTextPage = pairedTextPage
         upTipStyle(textPage)
-        upAdvancedTitleLottie(textPage)
+        upAdvancedTitleLotties(textPage, pairedTextPage)
         if (isMainView && !isScroll) {
             setProgress(textPage)
         } else {
@@ -413,7 +427,7 @@ class PageView(context: Context) : FrameLayout(context) {
         if (resetPageOffset) {
             resetPageOffset()
         }
-        binding.contentTextView.setContent(textPage, resetPageOffset)
+        binding.contentTextView.setContent(textPage, pairedTextPage, resetPageOffset)
     }
 
     fun invalidateContentView() {
@@ -591,19 +605,60 @@ class PageView(context: Context) : FrameLayout(context) {
         return binding.contentTextView.relativePage(relativePagePos)
     }
 
-    private fun upAdvancedTitleLottie(textPage: TextPage) {
-        val lottieView = binding.advancedTitleLottie
-        val fallbackView = binding.advancedTitleFallback
+    private fun upAdvancedTitleLotties(textPage: TextPage, pairedTextPage: TextPage?) {
+        val contentWidth = binding.contentTextView.width.takeIf { it > 0 } ?: width
+        val pairOffsetX = if (pairedTextPage != null && ChapterProvider.doublePage && !isScroll) {
+            contentWidth / 2f
+        } else {
+            0f
+        }
+        val pageWidth = if (pairedTextPage != null && ChapterProvider.doublePage && !isScroll) {
+            contentWidth / 2f
+        } else {
+            contentWidth.toFloat()
+        }.coerceAtLeast(1f)
+        advancedTitleLottieKey = upAdvancedTitleLottie(
+            textPage = textPage,
+            lottieView = binding.advancedTitleLottie,
+            fallbackView = binding.advancedTitleFallback,
+            currentKey = advancedTitleLottieKey,
+            pageOffsetX = 0f,
+            pageWidth = pageWidth
+        )
+        advancedTitlePairLottieKey = upAdvancedTitleLottie(
+            textPage = pairedTextPage,
+            lottieView = binding.advancedTitleLottiePair,
+            fallbackView = binding.advancedTitleFallbackPair,
+            currentKey = advancedTitlePairLottieKey,
+            pageOffsetX = pairOffsetX,
+            pageWidth = pageWidth
+        )
+    }
 
-        fun hide() {
+    private fun upAdvancedTitleLottie(
+        textPage: TextPage?,
+        lottieView: LottieAnimationView,
+        fallbackView: TextView,
+        currentKey: String?,
+        pageOffsetX: Float,
+        pageWidth: Float
+    ): String? {
+        fun hide(): String? {
             lottieView.cancelAnimation()
-            advancedTitleLottieKey = null
             lottieView.visibility = GONE
             fallbackView.visibility = GONE
+            return null
         }
 
         fun resolveTitleViewSize(block: TextPage.EpubEmbeddedBlock): Pair<Int, Int> {
             return block.width.toInt().coerceAtLeast(1) to block.height.toInt().coerceAtLeast(1)
+        }
+
+        fun resolveTitleTranslationX(block: TextPage.EpubEmbeddedBlock, targetWidth: Int): Float {
+            val contentWidth = binding.contentTextView.width
+            if (contentWidth <= 0) return pageOffsetX + block.offsetX
+            val centeredX = (contentWidth - targetWidth) / 2f
+            return pageOffsetX + block.offsetX - centeredX
         }
 
         fun resolveTitleTranslationY(block: TextPage.EpubEmbeddedBlock, targetHeight: Int): Float {
@@ -613,10 +668,9 @@ class PageView(context: Context) : FrameLayout(context) {
             return block.offsetY.coerceIn(0f, maxTranslation)
         }
 
-        fun showFallback(block: TextPage.EpubEmbeddedBlock) {
+        fun showFallback(block: TextPage.EpubEmbeddedBlock): String? {
             lottieView.cancelAnimation()
             lottieView.visibility = GONE
-            advancedTitleLottieKey = null
             val (targetWidth, targetHeight) = resolveTitleViewSize(block)
             val params = fallbackView.layoutParams as ViewGroup.LayoutParams
             if (params.width != targetWidth || params.height != targetHeight) {
@@ -624,25 +678,22 @@ class PageView(context: Context) : FrameLayout(context) {
                 params.height = targetHeight
                 fallbackView.layoutParams = params
             }
+            fallbackView.translationX = resolveTitleTranslationX(block, targetWidth)
             fallbackView.translationY = resolveTitleTranslationY(block, targetHeight)
             fallbackView.gravity = Gravity.CENTER
-            fallbackView.text = textPage.title
+            fallbackView.text = textPage?.title.orEmpty()
             fallbackView.visibility = VISIBLE
+            return null
         }
 
         if (ReadBookConfig.titleMode != AdvancedTitleConfig.TITLE_MODE_ADVANCED) {
-            hide()
-            return
+            return hide()
         }
-        val block = textPage.epubEmbeddedBlocks.firstOrNull {
+        val block = textPage?.epubEmbeddedBlocks?.firstOrNull {
             it.role == AdvancedTitleConfig.LOTTIE_BLOCK_ROLE
-        } ?: run {
-            hide()
-            return
-        }
+        } ?: return hide()
         if (isScroll) {
-            showFallback(block)
-            return
+            return showFallback(block)
         }
         val (targetWidth, targetHeight) = resolveTitleViewSize(block)
         val params = lottieView.layoutParams as ViewGroup.LayoutParams
@@ -652,15 +703,15 @@ class PageView(context: Context) : FrameLayout(context) {
             lottieView.layoutParams = params
         }
         lottieView.scaleType = ImageView.ScaleType.FIT_CENTER
+        lottieView.translationX = resolveTitleTranslationX(block, targetWidth)
         lottieView.translationY = resolveTitleTranslationY(block, targetHeight)
         lottieView.repeatCount = LottieDrawable.INFINITE
         lottieView.setFontAssetDelegate(defaultFontAssetDelegate)
         lottieView.setImageAssetDelegate(dataUriImageAssetDelegate)
         val json = block.payload?.takeIf { it.isNotBlank() }
-        val resolvedJson = json?.let { applyLottieTextFallbackStyle(it, advancedTitleTextLayerScale(block)) }
+        val resolvedJson = json?.let { applyLottieTextFallbackStyle(it, advancedTitleTextLayerScale(block, pageWidth)) }
         val nextKey = resolvedJson?.let { "advanced_title:${it.hashCode()}" } ?: "advanced_title:raw"
-        if (advancedTitleLottieKey != nextKey) {
-            advancedTitleLottieKey = nextKey
+        if (currentKey != nextKey) {
             runCatching {
                 if (resolvedJson != null) {
                     lottieView.setAnimationFromJson(resolvedJson, nextKey)
@@ -668,8 +719,7 @@ class PageView(context: Context) : FrameLayout(context) {
                     lottieView.setAnimation(R.raw.advanced_title_lottie)
                 }
             }.onFailure {
-                showFallback(block)
-                return
+                return showFallback(block)
             }
         }
         fallbackView.visibility = GONE
@@ -682,8 +732,9 @@ class PageView(context: Context) : FrameLayout(context) {
                 lottieView.progress = 1f
             }
         }.onFailure {
-            showFallback(block)
+            return showFallback(block)
         }
+        return nextKey
     }
 
     private fun advancedTitleTextSizeSp(): Float {
@@ -697,8 +748,8 @@ class PageView(context: Context) : FrameLayout(context) {
             (advancedTitleTextSizeSp() / textSize.coerceAtLeast(1)).coerceIn(0.6f, 2.5f)
         }
     }
-    private fun advancedTitleTextLayerScale(block: TextPage.EpubEmbeddedBlock): Float {
-        val contentWidth = binding.contentTextView.width.takeIf { it > 0 }?.toFloat() ?: block.width
+    private fun advancedTitleTextLayerScale(block: TextPage.EpubEmbeddedBlock, pageWidth: Float): Float {
+        val contentWidth = pageWidth.takeIf { it > 0f } ?: block.width
         if (contentWidth <= 0f) return 1f
         val actualWidthRatio = block.width / contentWidth
         if (actualWidthRatio < 0.98f) return 1f

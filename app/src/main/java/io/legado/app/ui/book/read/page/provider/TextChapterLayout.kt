@@ -190,7 +190,7 @@ class TextChapterLayout(
         textPage.chapterIndex = bookChapter.index
         textPage.chapterSize = chaptersSize
         textPage.title = displayTitle
-        textPage.doublePage = doublePage
+        textPage.doublePage = false
         textPage.paddingTop = paddingTop
         textPage.fallbackChapterPosition = textPage.lines.firstOrNull()?.chapterPosition
             ?: textPages.lastOrNull()?.let { lastPage ->
@@ -755,7 +755,7 @@ class TextChapterLayout(
         if (startY + layout.requiredHeight > visibleHeight) return false
         pendingTextPage.epubEmbeddedBlocks.add(
             TextPage.EpubEmbeddedBlock(
-                offsetX = (viewWidth - layout.blockWidth) / 2f,
+                offsetX = paddingLeft + (visibleWidth - layout.blockWidth) / 2f,
                 offsetY = paddingTop + startY,
                 width = layout.blockWidth,
                 height = layout.blockHeight,
@@ -781,7 +781,7 @@ class TextChapterLayout(
         val titleScale = advancedTitleScale()
         val heightScale = AdvancedTitleConfig.heightFactor / AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR.toFloat()
         val aspectRatio = resolveAdvancedTitleAspectRatio(lottieJson)
-        val maxBlockWidth = viewWidth.toFloat()
+        val maxBlockWidth = visibleWidth.toFloat()
         val requestedWidth = (maxBlockWidth * ADVANCED_TITLE_WIDTH_FACTOR * titleScale * heightScale).coerceAtLeast(1f)
         val requestedHeight = requestedWidth * aspectRatio
         val widthLimited = requestedWidth > maxBlockWidth
@@ -2327,23 +2327,15 @@ class TextChapterLayout(
             if (textPage.height < durY) {
                 textPage.height = durY
             }
-            if (doublePage && absStartX < viewWidth / 2) {
-                //当前页面左列结束
+            if (textPage.leftLineSize == 0) {
                 textPage.leftLineSize = textPage.lineSize
-                absStartX = viewWidth / 2 + paddingLeft
-            } else {
-                //当前页面结束,设置各种值
-                if (textPage.leftLineSize == 0) {
-                    textPage.leftLineSize = textPage.lineSize
-                }
-                textPage.text = stringBuilder.toString()
-                currentCoroutineContext().ensureActive()
-                onPageCompleted()
-                //新建页面
-                pendingTextPage = TextPage()
-                stringBuilder.clear()
-                absStartX = paddingLeft
             }
+            textPage.text = stringBuilder.toString()
+            currentCoroutineContext().ensureActive()
+            onPageCompleted()
+            pendingTextPage = TextPage()
+            stringBuilder.clear()
+            absStartX = paddingLeft
             durY = 0f
         }
     }

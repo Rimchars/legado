@@ -63,6 +63,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     private val selectEnd = TextPos(0, -1, -1)
     var textPage: TextPage = TextPage()
         private set
+    private var pairedTextPage: TextPage? = null
     var isMainView = false
     var longScreenshot = false
     var reverseStartCursor = false
@@ -97,16 +98,20 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     /**
      * 设置内容
      */
-    fun setContent(textPage: TextPage, resetBackgroundOffset: Boolean = true) {
-        if (this.textPage !== textPage) {
+    fun setContent(
+        textPage: TextPage,
+        pairedTextPage: TextPage? = null,
+        resetBackgroundOffset: Boolean = true
+    ) {
+        if (this.textPage !== textPage || this.pairedTextPage !== pairedTextPage) {
             nativeSelectedText = null
             nativeSelectionRect = null
         }
         this.textPage = textPage
+        this.pairedTextPage = pairedTextPage
         if (resetBackgroundOffset) {
             backgroundScrollOffset = 0
         }
-        // 非滑动翻页动画需要同步重绘，不然翻页可能会出现闪烁
         if (isScroll) {
             postInvalidate()
         } else {
@@ -143,7 +148,14 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
      */
     private fun drawPage(canvas: Canvas) {
         var relativeOffset = relativeOffset(0)
-        textPage.draw(this, canvas, relativeOffset)
+        val pairedPage = pairedTextPage
+        if (!callBack.isScroll && pairedPage != null && ChapterProvider.doublePage) {
+            val halfWidth = width / 2f
+            drawPageInBounds(canvas, textPage, 0f, relativeOffset, 0f, halfWidth)
+            drawPageInBounds(canvas, pairedPage, halfWidth, relativeOffset, halfWidth, width.toFloat())
+        } else {
+            textPage.draw(this, canvas, relativeOffset)
+        }
         if (callBack.isScroll) {
             if (!pageFactory.hasNext()) {
                 nativeSelectionRect?.let { rect ->
@@ -165,6 +177,21 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         nativeSelectionRect?.let { rect ->
             canvas.drawRect(rect, selectedPaint)
         }
+    }
+
+    private fun drawPageInBounds(
+        canvas: Canvas,
+        page: TextPage,
+        translateX: Float,
+        relativeOffset: Float,
+        clipLeft: Float,
+        clipRight: Float
+    ) {
+        canvas.save()
+        canvas.clipRect(clipLeft, 0f, clipRight, height.toFloat())
+        canvas.translate(translateX, 0f)
+        page.draw(this, canvas, relativeOffset)
+        canvas.restore()
     }
 
     override fun computeScroll() {
@@ -437,12 +464,13 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
 
     private fun handleEpubNoteClick(x: Float, y: Float): Boolean? {
         val book = ReadBook.book ?: return null
-        for (relativePos in 0..2) {
-            if (relativePos > 0 && !callBack.isScroll) break
+        for (relativePos in 0..lastRelativePageIndex()) {
+            if (!isInRelativePage(x, relativePos)) continue
             val offset = relativeOffset(relativePos)
-            if (relativePos > 0 && offset >= ChapterProvider.visibleHeight) break
+            if (relativePos > 0 && callBack.isScroll && offset >= ChapterProvider.visibleHeight) break
             val page = relativePage(relativePos)
-            val href = page.findEpubLinkAt(x, y - offset) ?: continue
+            val localX = x - pageHorizontalOffset(relativePos)
+            val href = page.findEpubLinkAt(localX, y - offset) ?: continue
             AppLog.put("EPUB Footnote click hit: href=$href, x=$x, y=${y - offset}, pageLinks=${page.epubLinkDiagnostics()}")
             if (!href.contains("#")) return null
             showEpubFootnote(book, href)
@@ -564,19 +592,16 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         ) -> Unit
     ) {
         if (!visibleRect.contains(x, y)) return
-        var relativeOffset: Float
-        for (relativePos in 0..2) {
-            relativeOffset = relativeOffset(relativePos)
-            if (relativePos > 0) {
-                //滚动翻页
-                if (!callBack.isScroll) return
-                if (relativeOffset >= ChapterProvider.visibleHeight) return
-            }
+        for (relativePos in 0..lastRelativePageIndex()) {
+            if (!isInRelativePage(x, relativePos)) continue
+            val relativeOffset = relativeOffset(relativePos)
+            if (relativePos > 0 && callBack.isScroll && relativeOffset >= ChapterProvider.visibleHeight) return
+            val localX = x - pageHorizontalOffset(relativePos)
             val textPage = relativePage(relativePos)
             for ((lineIndex, textLine) in textPage.lines.withIndex()) {
-                if (textLine.isTouch(x, y, relativeOffset)) {
+                if (textLine.isTouch(localX, y, relativeOffset)) {
                     for ((charIndex, textColumn) in textLine.columns.withIndex()) {
-                        if (textColumn.isTouch(x)) {
+                        if (textColumn.isTouch(localX)) {
                             touched.invoke(
                                 relativeOffset,
                                 TextPos(relativePos, lineIndex, charIndex),
@@ -591,11 +616,6 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         }
     }
 
-    /**
-     * 触碰位置信息
-     * 文本选择专用
-     * @param touched 回调
-     */
     private fun touchRough(
         x: Float,
         y: Float,
@@ -607,31 +627,19 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             column: BaseColumn
         ) -> Unit
     ) {
-        var relativeOffset: Float
-        for (relativePos in 0..2) {
-            relativeOffset = relativeOffset(relativePos)
-            if (relativePos > 0) {
-                //滚动翻页
-                if (!callBack.isScroll) return
-                if (relativeOffset >= ChapterProvider.visibleHeight) return
-            }
+        for (relativePos in 0..lastRelativePageIndex()) {
+            if (!isInRelativePage(x, relativePos)) continue
+            val relativeOffset = relativeOffset(relativePos)
+            if (relativePos > 0 && callBack.isScroll && relativeOffset >= ChapterProvider.visibleHeight) return
+            val localX = x - pageHorizontalOffset(relativePos)
             val textPage = relativePage(relativePos)
             for (lineIndex in textPage.lines.indices) {
                 val textLine = textPage.getLine(lineIndex)
                 if (textLine.isTouchY(y, relativeOffset)) {
-                    if (textPage.doublePage) {
-                        val halfWidth = width / 2
-                        if (textLine.isLeftLine && x > halfWidth) {
-                            continue
-                        }
-                        if (!textLine.isLeftLine && x < halfWidth) {
-                            continue
-                        }
-                    }
                     val columns = textLine.columns
                     for (charIndex in columns.indices) {
                         val textColumn = columns[charIndex]
-                        if (textColumn.isTouch(x)) {
+                        if (textColumn.isTouch(localX)) {
                             touched.invoke(
                                 relativeOffset,
                                 TextPos(relativePos, lineIndex, charIndex),
@@ -640,7 +648,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                             return
                         }
                     }
-                    val isLast = columns.first().start < x
+                    val isLast = columns.first().start < localX
                     val charIndex = if (isLast) columns.lastIndex + 1 else -1
                     val textColumn = if (isLast) columns.last() else columns.first()
                     touched.invoke(
@@ -718,8 +726,9 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         selectStart.columnIndex = max(0, charIndex)
         val textLine = relativePage(relativePagePos).getLine(lineIndex)
         val textColumn = textLine.getColumn(charIndex)
+        val offsetX = pageHorizontalOffset(relativePagePos)
         upSelectedStart(
-            if (charIndex < textLine.columns.size) textColumn.start else textColumn.end,
+            offsetX + if (charIndex < textLine.columns.size) textColumn.start else textColumn.end,
             textLine.lineBottom + relativeOffset(relativePagePos),
             textLine.lineTop + relativeOffset(relativePagePos)
         )
@@ -743,8 +752,9 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         val textLine = relativePage(relativePage).getLine(lineIndex)
         selectEnd.columnIndex = min(charIndex, textLine.columns.lastIndex)
         val textColumn = textLine.getColumn(charIndex)
+        val offsetX = pageHorizontalOffset(relativePage)
         upSelectedEnd(
-            if (charIndex > -1) textColumn.end else textColumn.start,
+            offsetX + if (charIndex > -1) textColumn.end else textColumn.start,
             textLine.lineBottom + relativeOffset(relativePage)
         )
         upSelectChars()
@@ -758,7 +768,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         if (!selectStart.isSelected() && !selectEnd.isSelected()) {
             return
         }
-        val last = if (callBack.isScroll) 2 else 0
+        val last = lastRelativePageIndex()
         val textPos = TextPos(0, 0, 0)
         for (relativePos in 0..last) {
             textPos.relativePagePos = relativePos
@@ -803,7 +813,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     fun cancelSelect(clearSearchResult: Boolean = false) {
         nativeSelectedText = null
         nativeSelectionRect = null
-        val last = if (callBack.isScroll) 2 else 0
+        val last = lastRelativePageIndex()
         for (relativePos in 0..last) {
             val textPage = relativePage(relativePos)
             textPage.lines.forEach { textLine ->
@@ -875,17 +885,19 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     fun hasNativeSelection(): Boolean = !nativeSelectedText.isNullOrBlank()
 
     private fun isNativeEpubHit(x: Float, y: Float): Boolean {
-        val last = if (callBack.isScroll) 2 else 0
+        val last = lastRelativePageIndex()
         for (relativePos in 0..last) {
             val page = relativePage(relativePos)
             if (!page.isNativeEpubPage()) continue
+            if (!isInRelativePage(x, relativePos)) continue
             val offset = relativeOffset(relativePos)
             val localY = y - offset
-            val href = page.findEpubLinkAt(x, localY)
+            val localX = x - pageHorizontalOffset(relativePos)
+            val href = page.findEpubLinkAt(localX, localY)
             if (href != null) {
                 return false
             }
-            if (page.findNativeTextSelectionAt(x, localY) != null) {
+            if (page.findNativeTextSelectionAt(localX, localY) != null) {
                 nativeSelectedText = null
                 nativeSelectionRect = null
                 postInvalidate()
@@ -896,17 +908,19 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     private fun selectNativeText(x: Float, y: Float): String? {
-        val last = if (callBack.isScroll) 2 else 0
+        val last = lastRelativePageIndex()
         for (relativePos in 0..last) {
             val page = relativePage(relativePos)
             if (!page.isNativeEpubPage()) continue
+            if (!isInRelativePage(x, relativePos)) continue
             val offset = relativeOffset(relativePos)
             val localY = y - offset
-            val selection = page.findNativeTextSelectionAt(x, localY) ?: continue
+            val localX = x - pageHorizontalOffset(relativePos)
+            val selection = page.findNativeTextSelectionAt(localX, localY) ?: continue
             val hitRect = RectF(
-                selection.rect.left + page.epubDrawOffsetX,
+                pageHorizontalOffset(relativePos) + selection.rect.left + page.epubDrawOffsetX,
                 selection.rect.top + page.epubDrawOffsetY + offset,
-                selection.rect.right + page.epubDrawOffsetX,
+                pageHorizontalOffset(relativePos) + selection.rect.right + page.epubDrawOffsetX,
                 selection.rect.bottom + page.epubDrawOffsetY + offset
             )
             nativeSelectedText = selection.expandedText ?: selection.text
@@ -935,7 +949,32 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         return null
     }
 
+    private fun lastRelativePageIndex(): Int {
+        return when {
+            callBack.isScroll -> 2
+            pairedTextPage != null -> 1
+            else -> 0
+        }
+    }
+
+    private fun pageHorizontalOffset(relativePos: Int): Float {
+        return if (!callBack.isScroll && relativePos == 1 && pairedTextPage != null) {
+            width / 2f
+        } else {
+            0f
+        }
+    }
+
+    private fun isInRelativePage(x: Float, relativePos: Int): Boolean {
+        if (callBack.isScroll || pairedTextPage == null) return true
+        val halfWidth = width / 2f
+        return if (relativePos == 0) x < halfWidth else x >= halfWidth
+    }
+
     private fun relativeOffset(relativePos: Int): Float {
+        if (!callBack.isScroll && pairedTextPage != null) {
+            return pageOffset.toFloat()
+        }
         return when (relativePos) {
             0 -> pageOffset.toFloat()
             1 -> pageOffset + textPage.height
@@ -944,6 +983,9 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     fun relativePage(relativePos: Int): TextPage {
+        if (!callBack.isScroll && relativePos == 1) {
+            pairedTextPage?.let { return it }
+        }
         return when (relativePos) {
             0 -> textPage
             1 -> pageFactory.nextPage
