@@ -149,10 +149,12 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     private fun drawPage(canvas: Canvas) {
         var relativeOffset = relativeOffset(0)
         val pairedPage = pairedTextPage
-        if (!callBack.isScroll && pairedPage != null && ChapterProvider.doublePage) {
+        if (!callBack.isScroll && ChapterProvider.doublePage) {
             val halfWidth = width / 2f
             drawPageInBounds(canvas, textPage, 0f, relativeOffset, 0f, halfWidth)
-            drawPageInBounds(canvas, pairedPage, halfWidth, relativeOffset, halfWidth, width.toFloat())
+            pairedPage?.let {
+                drawPageInBounds(canvas, it, halfWidth, relativeOffset, halfWidth, width.toFloat())
+            }
         } else {
             textPage.draw(this, canvas, relativeOffset)
         }
@@ -952,13 +954,13 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     private fun lastRelativePageIndex(): Int {
         return when {
             callBack.isScroll -> 2
-            pairedTextPage != null -> 1
+            ChapterProvider.doublePage -> 1
             else -> 0
         }
     }
 
     private fun pageHorizontalOffset(relativePos: Int): Float {
-        return if (!callBack.isScroll && relativePos == 1 && pairedTextPage != null) {
+        return if (!callBack.isScroll && relativePos == 1 && ChapterProvider.doublePage) {
             width / 2f
         } else {
             0f
@@ -966,13 +968,13 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     private fun isInRelativePage(x: Float, relativePos: Int): Boolean {
-        if (callBack.isScroll || pairedTextPage == null) return true
+        if (callBack.isScroll || !ChapterProvider.doublePage) return true
         val halfWidth = width / 2f
-        return if (relativePos == 0) x < halfWidth else x >= halfWidth
+        return if (relativePos == 0) x < halfWidth else x >= halfWidth && pairedTextPage != null
     }
 
     private fun relativeOffset(relativePos: Int): Float {
-        if (!callBack.isScroll && pairedTextPage != null) {
+        if (!callBack.isScroll && ChapterProvider.doublePage) {
             return pageOffset.toFloat()
         }
         return when (relativePos) {
@@ -983,8 +985,8 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     fun relativePage(relativePos: Int): TextPage {
-        if (!callBack.isScroll && relativePos == 1) {
-            pairedTextPage?.let { return it }
+        if (!callBack.isScroll && relativePos == 1 && ChapterProvider.doublePage) {
+            return pairedTextPage ?: TextPage().format()
         }
         return when (relativePos) {
             0 -> textPage

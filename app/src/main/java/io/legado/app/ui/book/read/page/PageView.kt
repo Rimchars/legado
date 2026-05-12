@@ -607,12 +607,13 @@ class PageView(context: Context) : FrameLayout(context) {
 
     private fun upAdvancedTitleLotties(textPage: TextPage, pairedTextPage: TextPage?) {
         val contentWidth = binding.contentTextView.width.takeIf { it > 0 } ?: width
-        val pairOffsetX = if (pairedTextPage != null && ChapterProvider.doublePage && !isScroll) {
+        val useDoublePage = ChapterProvider.doublePage && !isScroll
+        val pairOffsetX = if (useDoublePage) {
             contentWidth / 2f
         } else {
             0f
         }
-        val pageWidth = if (pairedTextPage != null && ChapterProvider.doublePage && !isScroll) {
+        val pageWidth = if (useDoublePage) {
             contentWidth / 2f
         } else {
             contentWidth.toFloat()
