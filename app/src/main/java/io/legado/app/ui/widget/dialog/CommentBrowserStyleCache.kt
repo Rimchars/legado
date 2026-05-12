@@ -29,9 +29,16 @@ object CommentBrowserStyleCache {
     private var trimQueued = false
 
     fun getForPreOpen(sourceKey: String, bookType: Int, click: String): String {
+        return getCachedForPreOpen(sourceKey, bookType, click) ?: defaultPreOpenConfig
+    }
+
+    fun getCachedForPreOpen(sourceKey: String, bookType: Int, click: String): String? {
         return get(clickKey(sourceKey, bookType, click))
-            ?: get(sourceKeyKey(sourceKey, bookType))
-            ?: defaultPreOpenConfig
+            ?: getForSource(sourceKey, bookType)
+    }
+
+    fun getForSource(sourceKey: String, bookType: Int): String? {
+        return get(sourceKeyKey(sourceKey, bookType))
     }
 
     fun remember(

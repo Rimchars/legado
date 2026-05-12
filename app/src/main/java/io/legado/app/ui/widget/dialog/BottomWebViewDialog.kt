@@ -118,7 +118,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         html: String? = null,
         preloadJs: String? = null,
         config: String? = null,
-        webViewSession: CommentWebViewSession? = null
+        webViewSession: CommentWebViewSession? = null,
+        showCommentLoading: Boolean = webViewSession != null
     ) : this() {
         this.webViewSession = webViewSession
         arguments = Bundle().apply {
@@ -129,13 +130,20 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             putString("preloadJs", preloadJs)
             putString("config", config)
             putBoolean("commentBrowser", webViewSession != null)
+            putBoolean("commentLoading", showCommentLoading)
         }
     }
 
-    constructor(webViewSession: CommentWebViewSession?, initialConfig: String? = null) : this() {
+    constructor(
+        webViewSession: CommentWebViewSession?,
+        initialConfig: String? = null,
+        showCommentLoading: Boolean = true
+    ) : this() {
         this.webViewSession = webViewSession
         arguments = Bundle().apply {
             putBoolean("pendingBrowser", true)
+            putBoolean("commentBrowser", true)
+            putBoolean("commentLoading", showCommentLoading)
             putString("initialConfig", initialConfig)
         }
     }
@@ -184,6 +192,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         get() = arguments?.getBoolean("pendingBrowser") == true
     private val isCommentBrowser: Boolean
         get() = webViewSession != null || arguments?.getBoolean("commentBrowser") == true
+    private val isCommentLoadingEnabled: Boolean
+        get() = isCommentBrowser && arguments?.getBoolean("commentLoading", true) != false
 
     private data class BrowserRequest(
         val sourceKey: String,
@@ -807,19 +817,19 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
 
     private fun showCommentLoading() {
-        if (isCommentBrowser) {
+        if (isCommentLoadingEnabled) {
             webLoadingController.show()
         }
     }
 
     private fun hideCommentLoading() {
-        if (isCommentBrowser) {
+        if (isCommentLoadingEnabled) {
             webLoadingController.hide()
         }
     }
 
     private fun cancelCommentLoading() {
-        if (isCommentBrowser) {
+        if (isCommentLoadingEnabled) {
             webLoadingController.cancel()
         }
     }

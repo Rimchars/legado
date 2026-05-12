@@ -302,6 +302,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             }
             pendingCommentBrowser = null
             pendingCommentBrowserClick = null
+            val cachedConfig = config ?: CommentBrowserStyleCache.getForSource(sourceKey, BookType.text)
             showDialogFragment(
                 BottomWebViewDialog(
                     sourceKey,
@@ -309,8 +310,9 @@ class ReadBookActivity : BaseReadBookActivity(),
                     url,
                     html,
                     preloadJs,
-                    config,
-                    commentWebViewSession
+                    cachedConfig,
+                    commentWebViewSession,
+                    showCommentLoading = cachedConfig.isNullOrBlank()
                 )
             )
             if (token != null) {
@@ -325,12 +327,19 @@ class ReadBookActivity : BaseReadBookActivity(),
         val token = ++pendingCommentBrowserToken
         pendingCommentBrowserClick = click
         val cachedConfig = ReadBook.bookSource?.let { source ->
+            CommentBrowserStyleCache.getCachedForPreOpen(source.getKey(), BookType.text, click)
+        }
+        val initialConfig = cachedConfig ?: ReadBook.bookSource?.let { source ->
             CommentBrowserStyleCache.getForPreOpen(source.getKey(), BookType.text, click)
         }
         runOnUiThread {
             if (isFinishing || isDestroyed || pendingCommentBrowserToken != token) return@runOnUiThread
             pendingCommentBrowser?.dismissAllowingStateLoss()
-            pendingCommentBrowser = BottomWebViewDialog(commentWebViewSession, cachedConfig).also { dialog ->
+            pendingCommentBrowser = BottomWebViewDialog(
+                commentWebViewSession,
+                initialConfig,
+                showCommentLoading = cachedConfig.isNullOrBlank()
+            ).also { dialog ->
                 showPendingCommentBrowser(dialog)
             }
         }
