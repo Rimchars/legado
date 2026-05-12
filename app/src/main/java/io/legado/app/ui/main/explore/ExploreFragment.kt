@@ -21,6 +21,7 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -49,6 +50,7 @@ import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.ui.book.explore.ExploreShowAdapter
 import io.legado.app.ui.book.explore.ExploreShowActivity
+import io.legado.app.ui.book.explore.ExploreShowGridAdapter
 import io.legado.app.ui.book.explore.ExploreShowWaterfallAdapter
 import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.ui.book.search.SearchActivity
@@ -349,18 +351,18 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     }
 
     private fun applyDiscoverBookLayout(force: Boolean = false) {
-        val columns = if (AppConfig.discoveryPageLayout == 2) 2 else 1
-        if (!force && discoverBookLayoutMode == columns && discoverBookAdapter != null) return
-        discoverBookLayoutMode = columns
-        binding.rvDiscoverBooks.layoutManager = if (columns == 1) {
-            LinearLayoutManager(requireContext())
-        } else {
-            StaggeredGridLayoutManager(columns, StaggeredGridLayoutManager.VERTICAL)
+        val layoutMode = AppConfig.discoveryPageLayout
+        if (!force && discoverBookLayoutMode == layoutMode && discoverBookAdapter != null) return
+        discoverBookLayoutMode = layoutMode
+        binding.rvDiscoverBooks.layoutManager = when (layoutMode) {
+            3 -> GridLayoutManager(requireContext(), 3)
+            2 -> StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
+            else -> LinearLayoutManager(requireContext())
         }
-        discoverBookAdapter = if (columns == 1) {
-            ExploreShowAdapter(requireContext(), this)
-        } else {
-            ExploreShowWaterfallAdapter(requireContext(), this, columns)
+        discoverBookAdapter = when (layoutMode) {
+            3 -> ExploreShowGridAdapter(requireContext(), this)
+            2 -> ExploreShowWaterfallAdapter(requireContext(), this, 2)
+            else -> ExploreShowAdapter(requireContext(), this)
         }.also { adapter ->
             binding.rvDiscoverBooks.adapter = adapter
             if (discoverBooks.isNotEmpty()) {

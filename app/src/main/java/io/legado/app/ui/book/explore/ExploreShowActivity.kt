@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.activity.viewModels
 import androidx.core.os.bundleOf
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
@@ -97,17 +98,19 @@ class ExploreShowActivity : VMBaseActivity<ActivityExploreShowBinding, ExploreSh
     }
 
     private fun initRecyclerView() {
-        val columns = if (AppConfig.discoveryPageLayout == 2) 2 else 1
-        adapter = if (columns == 1) {
-            binding.recyclerView.addItemDecoration(VerticalDivider(this))
-            ExploreShowAdapter(this, this)
-        } else {
-            ExploreShowWaterfallAdapter(this, this, columns)
+        val layoutMode = AppConfig.discoveryPageLayout
+        adapter = when (layoutMode) {
+            3 -> ExploreShowGridAdapter(this, this)
+            2 -> ExploreShowWaterfallAdapter(this, this, 2)
+            else -> {
+                binding.recyclerView.addItemDecoration(VerticalDivider(this))
+                ExploreShowAdapter(this, this)
+            }
         }
-        binding.recyclerView.layoutManager = if (columns == 1) {
-            LinearLayoutManager(this)
-        } else {
-            StaggeredGridLayoutManager(columns, StaggeredGridLayoutManager.VERTICAL)
+        binding.recyclerView.layoutManager = when (layoutMode) {
+            3 -> GridLayoutManager(this, 3)
+            2 -> StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
+            else -> LinearLayoutManager(this)
         }
         binding.recyclerView.adapter = adapter
         binding.recyclerView.applyNavigationBarPadding()

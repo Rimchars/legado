@@ -1907,6 +1907,7 @@ Selected text or question:
     <string name="discovery_page_layout_summary">Current: %1$s</string>
     <string name="discovery_page_layout_list">List</string>
     <string name="discovery_page_layout_waterfall">Waterfall</string>
+    <string name="discovery_page_layout_grid">Three-column grid</string>
     <string name="cache_manage_downloading">Downloading cloud cache...</string>
     <string name="cache_manage_download_success">Cloud cache downloaded</string>
     <string name="cache_manage_download_failed">Download failed: %1$s</string>

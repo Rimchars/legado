@@ -1775,6 +1775,7 @@
     <string name="discovery_page_layout_summary">当前：%1$s</string>
     <string name="discovery_page_layout_list">列表</string>
     <string name="discovery_page_layout_waterfall">瀑布流</string>
+    <string name="discovery_page_layout_grid">三列</string>
     <string name="cache_manage_downloading">正在下载云端缓存...</string>
     <string name="cache_manage_download_success">云端缓存已下载</string>
     <string name="cache_manage_download_failed">下载失败：%1$s</string>
