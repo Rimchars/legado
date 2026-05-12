@@ -15,6 +15,7 @@ import androidx.core.view.ViewCompat
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import io.legado.app.utils.dpToPx
 
 
 /**
@@ -40,6 +41,7 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
 
     //滑动距离的最大边界
     private var mOffsetHeight: Int = 0
+    private val scrollBottomSafety by lazy { 2.dpToPx() }
 
     //f(x) = (x-1)^5 + 1
     private val sQuinticInterpolator = Interpolator {
@@ -185,8 +187,9 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
         val mHeight: Int = measuredHeight
 
         //计算滑动距离的边界
-        mOffsetHeight = mLayoutHeight + paddingTop + paddingBottom - mHeight
-        if (mOffsetHeight <= 0) {
+        mOffsetHeight = mLayoutHeight + paddingTop + paddingBottom - mHeight + scrollBottomSafety
+        if (mOffsetHeight <= scrollBottomSafety) {
+            mOffsetHeight = 0
             scrollTo(0, 0)
         }
     }

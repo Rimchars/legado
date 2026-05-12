@@ -36,6 +36,8 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
 import io.legado.app.R
@@ -156,7 +158,10 @@ class BookInfoActivity :
 
     private val tocBatchSize = 30
     private var tocPreviewChapters: List<BookChapter> = emptyList()
-    private var tocRenderedCount = 0
+    private var tocPreviewStart = 0
+    private var tocPreviewEnd = 0
+    private var isUpdatingTocPreview = false
+    private val catalogAdapter by lazy { CatalogPagerAdapter() }
     private var detailPanelLastHeight = -1
 
     private val tocActivityResult = registerForActivityResult(TocActivityResult()) {
@@ -288,6 +293,7 @@ class BookInfoActivity :
         binding.vwBg.applyNavigationBarPadding()
         binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
         initDetailTabs()
+        initCatalogPager()
         binding.vwBg.doOnLayout { updateDetailContentPanelHeight() }
         viewModel.bookData.observe(this) { showBook(it) }
         viewModel.chapterListData.observe(this) {
@@ -295,6 +301,7 @@ class BookInfoActivity :
             if (detailPage == DetailPage.TOC) {
                 renderTocPreview(it)
             }
+            renderCatalogPager(it)
         }
         viewModel.waitDialogData.observe(this) { upWaitDialogStatus(it) }
         viewModel.initData(intent)
@@ -308,10 +315,10 @@ class BookInfoActivity :
         val strokeColor = ContextCompat.getColor(this@BookInfoActivity, R.color.glass_stroke)
         val transparent = Color.TRANSPARENT
         ivCoverC.radius = UiCorner.panelRadius(this@BookInfoActivity)
-        listOfNotNull(llDetailPanel, llInfoPage, llDetailContentPanel).forEach {
+        listOfNotNull(llDetailPanel, llInfoPage, llDetailContentPanel, llCatalogPanel).forEach {
             it.background = UiCorner.panelRounded(this@BookInfoActivity, panelColor, UiCorner.panelRadius(this@BookInfoActivity))
         }
-        listOfNotNull(tvTabIntro, tvTabToc, tvTabInfo, tvIntroToggle).forEach {
+        listOfNotNull(tvTabIntro, tvTabToc, tvTabInfo, tvIntroToggle, tvTocFull).forEach {
             it.background = UiCorner.actionSelector(
                 transparent,
                 menuColor,
@@ -338,7 +345,10 @@ class BookInfoActivity :
             tvTabToc,
             tvTabInfo,
             tvToc,
-            tvIntroToggle
+            tvIntroToggle,
+            tvTocFull,
+            tvCatalogTitle,
+            tvCatalogPage
         ).forEach {
             it.applyUiTitleTypeface(this@BookInfoActivity)
             it.typeface = titleTf
@@ -349,7 +359,8 @@ class BookInfoActivity :
         val componentViews = mapOf<BookInfoComponentType, View?>(
             BookInfoComponentType.HEADER to llDetailPanel,
             BookInfoComponentType.META to llInfoPage,
-            BookInfoComponentType.DETAIL to llDetailContentPanel
+            BookInfoComponentType.DETAIL to llDetailContentPanel,
+            BookInfoComponentType.CATALOG to llCatalogPanel
         )
         val orderedComponents = BookInfoComponentConfig.load()
         if (isLandscapeComponentLayout()) {
@@ -382,7 +393,9 @@ class BookInfoActivity :
         val rightColumn = findViewById<LinearLayout>(R.id.ll_info_right) ?: return
         val leftScroll = findViewById<View>(R.id.scroll_view)
         val divider = findViewById<View>(R.id.book_info_land_divider)
-        val leftItems = orderedComponents.filter { it.type != BookInfoComponentType.DETAIL }
+        val actionView = findViewById<View>(R.id.fl_action)
+        val leftItems = orderedComponents.filterNot { isRightBookInfoComponent(it.type) }
+        val rightItems = orderedComponents.filter { isRightBookInfoComponent(it.type) }
         val headerVisible = leftItems.any { it.type == BookInfoComponentType.HEADER && it.enabled } &&
                 componentViews[BookInfoComponentType.HEADER] != null
         findViewById<View>(R.id.iv_cover_c)?.visibility = if (headerVisible) View.VISIBLE else View.GONE
@@ -393,17 +406,22 @@ class BookInfoActivity :
             leftColumn.addView(componentView)
         }
         resetLandscapeComponentMargins(leftColumn)
-        val detailItem = orderedComponents.firstOrNull { it.type == BookInfoComponentType.DETAIL }
-        val detailView = componentViews[BookInfoComponentType.DETAIL]
-        detailView?.visibility = if (detailItem?.enabled != false) View.VISIBLE else View.GONE
-        if (detailView != null && detailView.parent !== rightColumn) {
-            (detailView.parent as? ViewGroup)?.removeView(detailView)
-            rightColumn.addView(detailView, 0)
+        rightItems.forEach { item ->
+            val componentView = componentViews[item.type] ?: return@forEach
+            componentView.visibility = if (item.enabled) View.VISIBLE else View.GONE
+            (componentView.parent as? ViewGroup)?.removeView(componentView)
+            val actionIndex = rightColumn.indexOfChild(actionView).takeIf { it >= 0 } ?: rightColumn.childCount
+            rightColumn.addView(componentView, actionIndex)
         }
+        resetLandscapeRightComponentMargins(rightColumn, actionView)
         val hasLeftContent = leftItems.any { it.enabled && componentViews[it.type] != null }
         leftScroll?.visibility = if (hasLeftContent) View.VISIBLE else View.GONE
         divider?.visibility = if (hasLeftContent) View.VISIBLE else View.GONE
         rightColumn.visibility = View.VISIBLE
+    }
+
+    private fun isRightBookInfoComponent(type: BookInfoComponentType): Boolean {
+        return type == BookInfoComponentType.DETAIL || type == BookInfoComponentType.CATALOG
     }
 
     private fun resetLandscapeComponentMargins(leftColumn: LinearLayout) {
@@ -414,6 +432,21 @@ class BookInfoActivity :
                 width = LinearLayout.LayoutParams.MATCH_PARENT
                 height = LinearLayout.LayoutParams.WRAP_CONTENT
                 weight = 0f
+                topMargin = if (child.visibility == View.VISIBLE && visibleIndex++ > 0) 12.dpToPx() else 0
+            }
+        }
+    }
+
+    private fun resetLandscapeRightComponentMargins(rightColumn: LinearLayout, actionView: View?) {
+        var visibleIndex = 0
+        for (index in 0 until rightColumn.childCount) {
+            val child = rightColumn.getChildAt(index)
+            if (child === actionView) continue
+            if (child.id != R.id.ll_detail_content_panel && child.id != R.id.ll_catalog_panel) continue
+            child.updateLayoutParams<LinearLayout.LayoutParams> {
+                width = LinearLayout.LayoutParams.MATCH_PARENT
+                height = 0
+                weight = if (child.visibility == View.VISIBLE) 1f else 0f
                 topMargin = if (child.visibility == View.VISIBLE && visibleIndex++ > 0) 12.dpToPx() else 0
             }
         }
@@ -668,6 +701,7 @@ class BookInfoActivity :
         upKinds(book)
         upGroup(book.group)
         updateDetailContentPanelHeight()
+        renderCatalogPager(viewModel.chapterListData.value)
     }
 
     inner class CustomWebViewClient : WebViewClient() {
@@ -994,10 +1028,13 @@ class BookInfoActivity :
     private fun initDetailTabs() = binding.run {
         tvTabIntro.setOnClickListener { showDetailPage(DetailPage.INTRO) }
         tvTabToc.setOnClickListener { showDetailPage(DetailPage.TOC) }
+        tvTocFull.setOnClickListener { openChapterListSafely() }
         tocScrollView.setOnScrollChangeListener { view, _, scrollY, _, _ ->
+            if (isUpdatingTocPreview) return@setOnScrollChangeListener
             val child = tocScrollView.getChildAt(0) ?: return@setOnScrollChangeListener
-            if (scrollY + view.height >= child.height - 48.dpToPx()) {
-                appendTocPreviewBatch()
+            when {
+                scrollY <= 48.dpToPx() -> prependTocPreviewBatch()
+                scrollY + view.height >= child.height - 48.dpToPx() -> appendTocPreviewBatch()
             }
         }
         tocScrollView.setOnTouchListener { _, event ->
@@ -1015,6 +1052,17 @@ class BookInfoActivity :
         showDetailPage(DetailPage.INTRO)
     }
 
+    private fun initCatalogPager() = binding.run {
+        vpCatalog.adapter = catalogAdapter
+        vpCatalog.offscreenPageLimit = 1
+        vpCatalog.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                updateCatalogPageIndicator(position, catalogAdapter.itemCount)
+            }
+        })
+        vpCatalog.doOnLayout { renderCatalogPager(viewModel.chapterListData.value) }
+    }
+
     private fun showDetailPage(page: DetailPage) = binding.run {
         detailPage = page
         llIntroPage.visibility = if (page == DetailPage.INTRO) android.view.View.VISIBLE else android.view.View.GONE
@@ -1030,47 +1078,77 @@ class BookInfoActivity :
     }
 
     private fun renderTocPreview(chapterList: List<BookChapter>?) = binding.run {
+        isUpdatingTocPreview = true
         llTocPreview.removeAllViews()
         val chapters = chapterList.orEmpty().filterNot { it.isVolume }
         val currentBook = book
         if (chapters.isEmpty() || currentBook == null) {
             tocPreviewChapters = emptyList()
-            tocRenderedCount = 0
+            tocPreviewStart = 0
+            tocPreviewEnd = 0
             llTocPreview.addView(tocPreviewText(getString(R.string.chapter_list_empty), false))
+            isUpdatingTocPreview = false
             return@run
         }
         tocPreviewChapters = chapters
         val currentPosition = chapters.indexOfFirst { it.index == currentBook.durChapterIndex }
             .coerceAtLeast(0)
-        tocRenderedCount = (currentPosition - tocBatchSize / 2).coerceAtLeast(0)
-        appendTocPreviewBatch()
-        centerCurrentTocItem(currentBook.durChapterIndex)
+        var start = (currentPosition - tocBatchSize / 2).coerceAtLeast(0)
+        var end = (start + tocBatchSize).coerceAtMost(chapters.size)
+        if (end - start < tocBatchSize) {
+            start = (end - tocBatchSize).coerceAtLeast(0)
+        }
+        tocPreviewStart = start
+        tocPreviewEnd = end
+        addTocPreviewRange(start, end)
+        tocScrollView.post {
+            isUpdatingTocPreview = false
+            centerCurrentTocItem(currentBook.durChapterIndex)
+        }
+    }
+
+    private fun prependTocPreviewBatch() = binding.run {
+        val chapters = tocPreviewChapters
+        val oldStart = tocPreviewStart
+        val newStart = (oldStart - tocBatchSize).coerceAtLeast(0)
+        if (chapters.isEmpty() || newStart == oldStart) return@run
+        isUpdatingTocPreview = true
+        val oldHeight = llTocPreview.height
+        addTocPreviewRange(newStart, oldStart, 0)
+        tocPreviewStart = newStart
+        llTocPreview.post {
+            val addedHeight = (llTocPreview.height - oldHeight).coerceAtLeast(0)
+            tocScrollView.scrollBy(0, addedHeight)
+            isUpdatingTocPreview = false
+        }
     }
 
     private fun appendTocPreviewBatch() = binding.run {
         val chapters = tocPreviewChapters
-        if (chapters.isEmpty() || tocRenderedCount >= chapters.size) {
-            return@run
-        }
-        if (llTocPreview.childCount == 0) {
-            llTocPreview.removeAllViews()
-        }
-        val currentBook = book ?: return@run
-        val currentIndex = currentBook.durChapterIndex
-        val nextCount = (tocRenderedCount + tocBatchSize).coerceAtMost(chapters.size)
-        chapters.subList(tocRenderedCount, nextCount).forEach { chapter ->
-            llTocPreview.addView(tocPreviewText(chapter.title, chapter.index == currentIndex).apply {
+        val oldEnd = tocPreviewEnd
+        val newEnd = (oldEnd + tocBatchSize).coerceAtMost(chapters.size)
+        if (chapters.isEmpty() || newEnd == oldEnd) return@run
+        isUpdatingTocPreview = true
+        addTocPreviewRange(oldEnd, newEnd)
+        tocPreviewEnd = newEnd
+        llTocPreview.post { isUpdatingTocPreview = false }
+    }
+
+    private fun addTocPreviewRange(start: Int, end: Int, insertAt: Int? = null) = binding.run {
+        val chapters = tocPreviewChapters
+        if (start !in 0..chapters.size || end !in 0..chapters.size || start >= end) return@run
+        val currentIndex = book?.durChapterIndex ?: -1
+        chapters.subList(start, end).forEachIndexed { offset, chapter ->
+            val itemView = tocPreviewText(chapter.title, chapter.index == currentIndex).apply {
                 tag = chapter.index
                 setOnClickListener { openChapterDirect(chapter) }
-            })
-        }
-        tocRenderedCount = nextCount
-        if (tocRenderedCount >= chapters.size) {
-            llTocPreview.addView(tocPreviewText(getString(R.string.view_toc), false).apply {
-                gravity = Gravity.CENTER
-                setTextColor(accentColor)
-                setOnClickListener { openChapterListSafely() }
-            })
+            }
+            val targetIndex = insertAt?.let { it + offset }
+            if (targetIndex == null) {
+                llTocPreview.addView(itemView)
+            } else {
+                llTocPreview.addView(itemView, targetIndex)
+            }
         }
     }
 
@@ -1086,6 +1164,14 @@ class BookInfoActivity :
     }
 
     private fun updateDetailContentPanelHeight() = binding.run {
+        if (isLandscapeComponentLayout()) {
+            detailPanelLastHeight = -1
+            tvIntroContainer.post {
+                (tvIntroContainer.getChildAt(0) as? ScrollTextView)?.refreshScrollBounds()
+                renderCatalogPager(viewModel.chapterListData.value)
+            }
+            return@run
+        }
         val panel = llDetailContentPanel
         val action = flAction
         val panelLoc = IntArray(2)
@@ -1101,8 +1187,13 @@ class BookInfoActivity :
             height = targetHeight
             weight = 0f
         }
+        llCatalogPanel.updateLayoutParams<LinearLayout.LayoutParams> {
+            height = targetHeight
+            weight = 0f
+        }
         tvIntroContainer.post {
             (tvIntroContainer.getChildAt(0) as? ScrollTextView)?.refreshScrollBounds()
+            renderCatalogPager(viewModel.chapterListData.value)
         }
     }
 
@@ -1117,6 +1208,79 @@ class BookInfoActivity :
             setTextColor(if (selected) accentColor else primaryTextColor)
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 9.dpToPx(), 0, 9.dpToPx())
+        }
+    }
+
+    private fun renderCatalogPager(chapterList: List<BookChapter>?) = binding.run {
+        val chapters = chapterList.orEmpty().filterNot { it.isVolume }
+        if (chapters.isEmpty()) {
+            catalogAdapter.submitList(listOf(emptyList()))
+            updateCatalogPageIndicator(0, 0)
+            return@run
+        }
+        val pagerHeight = vpCatalog.height
+        if (pagerHeight <= 0) {
+            updateCatalogPageIndicator(0, 0)
+            return@run
+        }
+        val rowsPerPage = (pagerHeight / 42.dpToPx()).coerceAtLeast(1)
+        val pages = chapters.chunked(rowsPerPage)
+        catalogAdapter.submitList(pages)
+        val currentPosition = book?.durChapterIndex?.let { currentIndex ->
+            chapters.indexOfFirst { it.index == currentIndex }
+        }?.takeIf { it >= 0 } ?: 0
+        val targetPage = (currentPosition / rowsPerPage).coerceIn(0, pages.lastIndex)
+        vpCatalog.setCurrentItem(targetPage, false)
+        updateCatalogPageIndicator(targetPage, pages.size)
+    }
+
+    private fun updateCatalogPageIndicator(position: Int, count: Int) {
+        binding.tvCatalogPage.text = if (count <= 0) "0/0" else "${position + 1}/$count"
+    }
+
+    private inner class CatalogPagerAdapter : RecyclerView.Adapter<CatalogPagerAdapter.Holder>() {
+        private var pages: List<List<BookChapter>> = emptyList()
+
+        fun submitList(newPages: List<List<BookChapter>>) {
+            pages = newPages
+            notifyDataSetChanged()
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+            val container = LinearLayout(parent.context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                orientation = LinearLayout.VERTICAL
+            }
+            return Holder(container)
+        }
+
+        override fun getItemCount(): Int = pages.size
+
+        override fun onBindViewHolder(holder: Holder, position: Int) {
+            holder.bind(pages[position])
+        }
+
+        inner class Holder(
+            private val container: LinearLayout
+        ) : RecyclerView.ViewHolder(container) {
+
+            fun bind(chapters: List<BookChapter>) {
+                container.removeAllViews()
+                if (chapters.isEmpty()) {
+                    container.addView(tocPreviewText(getString(R.string.chapter_list_empty), false))
+                    return
+                }
+                val currentIndex = book?.durChapterIndex ?: -1
+                chapters.forEach { chapter ->
+                    container.addView(tocPreviewText(chapter.title, chapter.index == currentIndex).apply {
+                        tag = chapter.index
+                        setOnClickListener { openChapterDirect(chapter) }
+                    })
+                }
+            }
         }
     }
 

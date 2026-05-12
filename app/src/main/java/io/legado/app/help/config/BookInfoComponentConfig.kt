@@ -13,7 +13,8 @@ enum class BookInfoComponentType(
 ) {
     HEADER(R.string.book_info_component_header, R.string.book_info_component_header_hint),
     META(R.string.book_info_component_meta, R.string.book_info_component_meta_hint),
-    DETAIL(R.string.book_info_component_detail, R.string.book_info_component_detail_hint);
+    DETAIL(R.string.book_info_component_detail, R.string.book_info_component_detail_hint),
+    CATALOG(R.string.book_info_tab_toc, R.string.view_toc);
 
     companion object {
         fun fromKey(key: String?): BookInfoComponentType? {
@@ -32,7 +33,8 @@ object BookInfoComponentConfig {
     private val defaultOrder = listOf(
         BookInfoComponentType.HEADER,
         BookInfoComponentType.META,
-        BookInfoComponentType.DETAIL
+        BookInfoComponentType.DETAIL,
+        BookInfoComponentType.CATALOG
     )
 
     fun load(): MutableList<BookInfoComponentItem> {
