@@ -5,9 +5,14 @@ import android.net.Uri
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import splitties.init.appCtx
 import java.security.MessageDigest
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 object CommentBrowserStyleCache {
 
@@ -18,6 +23,10 @@ object CommentBrowserStyleCache {
     private val prefs by lazy {
         appCtx.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
+    private val memoryCache = ConcurrentHashMap<String, String>()
+    private val trimScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    @Volatile
+    private var trimQueued = false
 
     fun getForPreOpen(sourceKey: String, bookType: Int, click: String): String {
         return get(clickKey(sourceKey, bookType, click))
@@ -36,14 +45,20 @@ object CommentBrowserStyleCache {
         val record = GSON.toJson(StyleRecord(style))
         val editor = prefs.edit()
         urlKey(sourceKey, bookType, url)?.let { key ->
+            memoryCache[key] = style
             editor.putString(key, record)
         }
         if (!click.isNullOrBlank()) {
-            editor.putString(clickKey(sourceKey, bookType, click), record)
+            val key = clickKey(sourceKey, bookType, click)
+            memoryCache[key] = style
+            editor.putString(key, record)
         }
-        editor.putString(sourceKeyKey(sourceKey, bookType), record)
+        sourceKeyKey(sourceKey, bookType).let { key ->
+            memoryCache[key] = style
+            editor.putString(key, record)
+        }
         editor.apply()
-        trimIfNeeded()
+        scheduleTrimIfNeeded()
     }
 
     private val defaultPreOpenConfig by lazy {
@@ -61,10 +76,13 @@ object CommentBrowserStyleCache {
         )
     }
     private fun get(key: String): String? {
+        memoryCache[key]?.let { return it }
         val record = prefs.getString(key, null)?.let {
             GSON.fromJsonObject<StyleRecord>(it).getOrNull()
         } ?: return null
-        return record.config.takeIf { it.isNotBlank() }
+        return record.config.takeIf { it.isNotBlank() }?.also {
+            memoryCache[key] = it
+        }
     }
 
     private fun sanitizeConfig(config: String?): String? {
@@ -135,6 +153,18 @@ object CommentBrowserStyleCache {
         return "$KEY_PREFIX$sourceKeyPrefix$sourceKey|$bookType"
     }
 
+    private fun scheduleTrimIfNeeded() {
+        if (trimQueued) return
+        trimQueued = true
+        trimScope.launch {
+            try {
+                trimIfNeeded()
+            } finally {
+                trimQueued = false
+            }
+        }
+    }
+
     private fun trimIfNeeded() {
         val entries = prefs.all.mapNotNull { (key, value) ->
             if (!key.startsWith(KEY_PREFIX)) return@mapNotNull null
@@ -149,7 +179,10 @@ object CommentBrowserStyleCache {
             .take(entries.size - MAX_RECORDS)
             .map { it.first }
         prefs.edit().apply {
-            removeKeys.forEach { remove(it) }
+            removeKeys.forEach {
+                memoryCache.remove(it)
+                remove(it)
+            }
         }.apply()
     }
 

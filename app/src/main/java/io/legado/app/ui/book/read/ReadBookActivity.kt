@@ -349,9 +349,9 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     private fun showPendingCommentBrowser(dialog: BottomWebViewDialog) {
         runCatching {
-            dialog.showNow(supportFragmentManager, BottomWebViewDialog::class.simpleName)
-        }.onFailure {
             showDialogFragment(dialog)
+        }.onFailure {
+            AppLog.put("显示段评弹窗失败", it)
         }
     }
 

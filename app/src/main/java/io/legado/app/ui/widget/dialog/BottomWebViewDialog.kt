@@ -106,6 +106,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         const val SHEET_INTRO_DURATION = 220L
         const val PENDING_BROWSER_TIMEOUT = 8_000L
         const val FIRST_FRAME_STYLE_ID = "legado-first-frame-style"
+        const val WEB_VIEW_PRE_ATTACH_DELAY = 96L
     }
 
     constructor(
@@ -472,9 +473,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         applySheetSurfaceShape(0f)
         applyInitialConfig()
         startSheetIntro()
-        binding.nativeSheetSurface.post {
-            preAttachWebViewForFastStart()
-        }
+        schedulePreAttachWebView()
         val deferredRequest = deferredBrowserRequest
         when {
             deferredRequest != null -> loadContentAsync(deferredRequest)
@@ -569,13 +568,24 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
+    private fun schedulePreAttachWebView() {
+        val delay = if (isPendingBrowser) WEB_VIEW_PRE_ATTACH_DELAY else 0L
+        binding.nativeSheetSurface.postDelayed({
+            if (!isAdded || view == null || currentWebView != null) return@postDelayed
+            preAttachWebViewForFastStart()
+        }, delay)
+    }
+
     private fun preAttachWebViewForFastStart() {
         val webView = obtainWebView(addToContainer = true) ?: return
         if (webView.parent == null) {
             binding.webViewContainer.addView(webView)
         }
-        pendingConfig?.let { setConfig(it) } ?: applyDefaultWebViewBehaviorIfNeeded()
+        if (sheetIntroDone) {
+            pendingConfig?.let { setConfig(it) } ?: applyDefaultWebViewBehaviorIfNeeded()
+        }
     }
+
     private fun attachWebViewIfNeeded(): WebView? {
         val webView = obtainWebView(addToContainer = true) ?: return null
         if (webView.parent == null) {
@@ -630,6 +640,9 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         activity?.runOnUiThread {
             if (!isAdded) return@runOnUiThread
             pendingWebContent = content
+            if (isPendingBrowser && !sheetIntroDone) {
+                return@runOnUiThread
+            }
             val webView = currentWebView
             if (webView != null && webView.parent != null) {
                 pendingConfig?.let { setConfig(it) } ?: applyDefaultWebViewBehaviorIfNeeded()
