@@ -282,7 +282,7 @@ object ThemePackageManager {
                 updatedAt = it.remoteUpdatedAt.takeIf { time -> time > 0L } ?: it.packageInfo.updatedAt
             )
         }
-        remoteCacheFile(isNightTheme).writeText(GSON.toJson(packages))
+        remoteCacheFile(isNightTheme).writeTextIfChanged(GSON.toJson(packages))
     }
 
     private fun readPackage(dir: File): Package? {

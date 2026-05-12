@@ -492,7 +492,7 @@ object NavigationBarIconConfig {
                 updatedAt = it.remoteUpdatedAt.takeIf { time -> time > 0L } ?: it.config.updatedAt
             )
         }
-        remoteCacheFile(isNight).writeText(GSON.toJson(cache))
+        remoteCacheFile(isNight).writeTextIfChanged(GSON.toJson(cache))
     }
 
     private fun readEntry(dir: File): Entry? {

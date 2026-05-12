@@ -46,6 +46,9 @@ import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.lib.theme.titleTypeface
 import io.legado.app.lib.theme.uiTypeface
+import io.legado.app.ui.book.cache.WebDavTaskManager
+import io.legado.app.ui.book.cache.WebDavTaskStatus
+import io.legado.app.ui.book.cache.WebDavTaskType
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.font.FontSelectDialog
 import io.legado.app.ui.image.ImageCropContract
@@ -72,6 +75,7 @@ import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
@@ -114,6 +118,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private var appliedDayThemeOverride: String? = null
     private var appliedNightThemeOverride: String? = null
     private var pendingImageCropRequest: ImageCropHelper.Request? = null
+    private val handledWebDavTasks = mutableSetOf<String>()
     private val selectImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
             startImageCrop(uri, it.requestCode)
@@ -169,6 +174,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             loadThemes()
         }
         flushPendingRemoteSyncTasks()
+        observeWebDavTasks()
     }
 
     private fun initView() = binding.run {
@@ -222,38 +228,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         binding.tvSummary.text = appendPendingRemoteSummary(getString(R.string.theme_package_summary_default))
         lifecycleScope.launch {
             kotlin.runCatching {
-                ThemePackageManager.loadLocalOnly(isNightTheme)
-            }.onSuccess {
-                if (version != loadVersion) return@launch
-                adapter.items = it
-                binding.tvSummary.text = appendPendingRemoteSummary(
-                    if (it.isEmpty()) {
-                        getString(
-                            R.string.theme_package_empty,
-                            getString(if (isNightTheme) R.string.theme_night_short else R.string.theme_day_short)
-                        )
-                    } else {
-                        getString(R.string.theme_package_summary_default)
-                    }
-                )
-                if (useCloud) {
-                    loadThemesRemote(version)
-                }
-            }.onFailure {
-                if (it.isJobCancellation()) return@onFailure
-                if (version != loadVersion) return@launch
-                binding.tvSummary.text = if (useCloud) {
-                    getString(R.string.theme_package_cloud_load_failed, it.localizedMessage)
-                } else {
-                    getString(R.string.theme_package_load_failed, it.localizedMessage)
-                }
-            }
-        }
-    }
-
-    private fun loadThemesRemote(version: Int) {
-        lifecycleScope.launch {
-            kotlin.runCatching {
                 ThemePackageManager.load(isNightTheme)
             }.onSuccess {
                 if (version != loadVersion) return@onSuccess
@@ -271,9 +245,11 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 if (version != loadVersion) return@onFailure
-                binding.tvSummary.text = appendPendingRemoteSummary(
+                binding.tvSummary.text = if (useCloud) {
                     getString(R.string.theme_package_cloud_load_failed, it.localizedMessage)
-                )
+                } else {
+                    getString(R.string.theme_package_load_failed, it.localizedMessage)
+                }
             }
         }
     }
@@ -895,16 +871,32 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
     }
 
-    private fun enqueueUploadIfNeeded(entry: ThemePackageManager.Entry) {
-        if (!AppConfig.syncThemePackages) return
-        enqueueRemoteSync(
-            RemoteSyncTask(
-                key = "upload:${entry.packageInfo.isNightTheme}:${entry.dirName}",
-                type = RemoteSyncTask.Type.UPLOAD,
-                isNightTheme = entry.packageInfo.isNightTheme,
-                dirName = entry.dirName
-            )
-        )
+    private fun enqueueUploadIfNeeded(entry: ThemePackageManager.Entry): Boolean {
+        if (!AppConfig.syncThemePackages) return false
+        return WebDavTaskManager.enqueueUpload(
+            key = "theme_upload:${entry.packageInfo.isNightTheme}:${entry.dirName}",
+            name = entry.packageInfo.name,
+            type = WebDavTaskType.THEME_PACKAGE_UPLOAD,
+            runningMessage = getString(R.string.theme_upload_remote),
+            successMessage = getString(R.string.theme_sync_done)
+        ) {
+            ThemePackageManager.upload(entry)
+        }
+    }
+
+    private fun observeWebDavTasks() {
+        lifecycleScope.launch {
+            WebDavTaskManager.states.collectLatest { states ->
+                states.values
+                    .filter { it.type == WebDavTaskType.THEME_PACKAGE_UPLOAD }
+                    .filter { it.status == WebDavTaskStatus.COMPLETED }
+                    .forEach { state ->
+                        if (handledWebDavTasks.add("${state.key}:${state.status}")) {
+                            loadThemes()
+                        }
+                    }
+            }
+        }
     }
 
     private fun currentConfig(): ThemeConfig.Config {
@@ -1059,7 +1051,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             add(ThemeAction.EDIT)
             if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.EXPORT)
             if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DOWNLOAD)
-            if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.UPLOAD)
+            if (AppConfig.syncThemePackages && entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.UPLOAD)
             if (!isApplied(entry)) {
                 if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.DELETE_LOCAL)
                 if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DELETE_REMOTE)
@@ -1073,8 +1065,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 ThemeAction.EXPORT -> exportThemeZip(entry)
                 ThemeAction.DOWNLOAD -> runAction(getString(R.string.theme_downloaded)) { ThemePackageManager.download(entry) }
                 ThemeAction.UPLOAD -> {
-                    enqueueUploadIfNeeded(entry)
-                    toastOnUi(getString(R.string.theme_sync_queued))
+                    val queued = enqueueUploadIfNeeded(entry)
+                    toastOnUi(if (queued) R.string.theme_sync_queued else R.string.cache_manage_webdav_task_duplicate)
                 }
                 ThemeAction.DELETE_LOCAL -> confirmDeleteTheme(entry, getString(R.string.theme_delete_local_confirm)) {
                     ThemePackageManager.deleteLocal(entry)

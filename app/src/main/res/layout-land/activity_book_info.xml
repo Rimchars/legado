@@ -42,10 +42,10 @@
                 android:layout_height="match_parent"
                 android:background="@color/transparent"
                 android:orientation="horizontal"
-                android:paddingStart="18dp"
-                android:paddingTop="14dp"
-                android:paddingEnd="18dp"
-                android:paddingBottom="14dp">
+                android:paddingStart="0dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="0dp"
+                android:paddingBottom="0dp">
 
             <io.legado.app.ui.widget.image.ArcView
                 android:id="@+id/arc_view"
@@ -550,14 +550,31 @@
                             android:layout_height="match_parent"
                             android:gravity="center"
                             android:includeFontPadding="false"
-                            android:text="0/0"
+                            android:text="@string/catalog_page_indicator_empty"
                             android:textColor="@color/tv_text_summary"
                             android:textSize="12.5sp" />
 
                     </LinearLayout>
 
-                    <androidx.viewpager2.widget.ViewPager2
-                        android:id="@+id/vp_catalog"
+                    <EditText
+                        android:id="@+id/et_catalog_search"
+                        android:layout_width="match_parent"
+                        android:layout_height="38dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_textfield_search"
+                        android:hint="@string/search"
+                        android:imeOptions="actionSearch"
+                        android:includeFontPadding="false"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="@color/primaryText"
+                        android:textColorHint="@color/tv_text_summary"
+                        android:textSize="13.5sp" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_catalog"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_marginTop="8dp"
@@ -572,9 +589,9 @@
                     android:clipChildren="false"
                     android:clipToPadding="false"
                     android:orientation="horizontal"
-                    android:paddingStart="16dp"
+                    android:paddingStart="0dp"
                     android:paddingTop="10dp"
-                    android:paddingEnd="16dp"
+                    android:paddingEnd="0dp"
                     android:paddingBottom="12dp">
 
                     <TextView

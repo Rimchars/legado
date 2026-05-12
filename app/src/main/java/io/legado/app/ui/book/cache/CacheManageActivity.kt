@@ -13,7 +13,6 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.ActivityCacheManageBinding
-import io.legado.app.help.AppWebDav
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.UiCorner
@@ -108,8 +107,24 @@ class CacheManageActivity :
                 }
             }
         }
+        lifecycleScope.launch {
+            WebDavTaskManager.states.collectLatest { states ->
+                adapter.updateWebDavTaskStates(states)
+                reloadItemsWhenWebDavTaskFinished(states)
+            }
+        }
     }
 
+    private fun reloadItemsWhenWebDavTaskFinished(states: Map<String, WebDavTaskState>) {
+        states.values
+            .filter { !it.active && it.status.isTerminalForListRefresh() }
+            .forEach { state ->
+                val key = "webdav:${state.key}:${state.type}:${state.status}"
+                if (handledTerminalTaskReloads.add(key)) {
+                    viewModel.load()
+                }
+            }
+    }
     private fun reloadAudioItemsWhenNeeded(states: Map<String, AudioCacheTaskState>) {
         val stateValues = states.values
         val activeTaskBookUrls = stateValues
@@ -178,35 +193,17 @@ class CacheManageActivity :
     }
 
     override fun upload(item: CacheBookItem) {
-        lifecycleScope.launch {
-            toastOnUi(R.string.cache_manage_uploading)
-            kotlin.runCatching {
-                viewModel.uploadCacheItem(item)
-            }.onSuccess {
-                toastOnUi(R.string.cache_manage_upload_success)
-                viewModel.load()
-            }.onFailure {
-                toastOnUi(getString(R.string.cache_manage_upload_failed, it.localizedMessage))
-            }
+        val queued = WebDavTaskManager.enqueueCacheUpload(item) {
+            viewModel.uploadCacheItem(item)
         }
+        toastOnUi(if (queued) R.string.cache_manage_upload_queued else R.string.cache_manage_webdav_task_duplicate)
     }
 
     override fun download(item: CacheBookItem) {
-        lifecycleScope.launch {
-            toastOnUi(R.string.cache_manage_downloading)
-            kotlin.runCatching {
-                viewModel.downloadRemoteCache(item)
-            }.onSuccess { success ->
-                if (success) {
-                    toastOnUi(R.string.cache_manage_download_success)
-                    viewModel.load()
-                } else {
-                    toastOnUi(R.string.cache_manage_download_failed_simple)
-                }
-            }.onFailure {
-                toastOnUi(getString(R.string.cache_manage_download_failed, it.localizedMessage))
-            }
+        val queued = WebDavTaskManager.enqueueCacheDownload(item) {
+            viewModel.downloadRemoteCache(item)
         }
+        toastOnUi(if (queued) R.string.cache_manage_download_queued else R.string.cache_manage_webdav_task_duplicate)
     }
 
     override fun restoreToBookshelf(item: CacheBookItem) {
@@ -273,30 +270,21 @@ class CacheManageActivity :
     }
 
     private fun uploadAll() {
-        val items = adapter.getItems().filter { it.cachedCount > 0 && !it.hasLockedAudioTask() }
+        val items = adapter.getItems().filter { it.cachedCount > 0 && !it.hasLockedCacheTask() }
         if (items.isEmpty()) {
             toastOnUi(R.string.cache_manage_batch_empty)
             return
         }
-        lifecycleScope.launch {
-            toastOnUi(R.string.cache_manage_uploading)
-            var success = 0
-            var failed = 0
-            items.forEach { item ->
-                kotlin.runCatching {
-                    viewModel.uploadCacheItem(item)
-                }.onSuccess {
-                    success++
-                }.onFailure {
-                    failed++
-                }
+        val queued = items.count { item ->
+            WebDavTaskManager.enqueueCacheUpload(item) {
+                viewModel.uploadCacheItem(item)
             }
-            toastOnUi(getString(R.string.cache_manage_batch_upload_done, success, failed))
         }
+        toastOnUi(getString(R.string.cache_manage_batch_upload_queued, queued))
     }
 
     private fun deleteAll() {
-        val items = adapter.getItems().filter { it.cachedCount > 0 && !it.hasLockedAudioTask() }
+        val items = adapter.getItems().filter { it.cachedCount > 0 && !it.hasLockedCacheTask() }
         if (items.isEmpty()) {
             toastOnUi(R.string.cache_manage_batch_empty)
             return
@@ -340,13 +328,23 @@ private fun CacheTaskStatus.isTerminalForListRefresh(): Boolean {
         this == CacheTaskStatus.FAILED
 }
 
+private fun WebDavTaskStatus.isTerminalForListRefresh(): Boolean {
+    return this == WebDavTaskStatus.COMPLETED ||
+        this == WebDavTaskStatus.CANCELLED ||
+        this == WebDavTaskStatus.FAILED
+}
+
 private const val MISSING_TASK_RELOAD_INTERVAL_MS = 2500L
 private const val MISSING_TASK_RELOAD_DELAY_MS = 250L
 private const val TERMINAL_TASK_RELOAD_DELAY_MS = 600L
 
-private fun CacheBookItem.hasLockedAudioTask(): Boolean {
+private fun CacheBookItem.hasLockedCacheTask(): Boolean {
     if (AudioCacheTaskManager.snapshot(book.bookUrl).locksCacheActions()) return true
-    return sourceVariants.any { AudioCacheTaskManager.snapshot(it.book.bookUrl).locksCacheActions() }
+    if (WebDavTaskManager.snapshot(cacheKey)?.active == true) return true
+    return sourceVariants.any {
+        AudioCacheTaskManager.snapshot(it.book.bookUrl).locksCacheActions() ||
+            WebDavTaskManager.snapshot(it.cacheKey)?.active == true
+    }
 }
 
 private fun AudioCacheTaskState?.locksCacheActions(): Boolean {

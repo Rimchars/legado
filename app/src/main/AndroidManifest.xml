@@ -530,6 +530,9 @@
             android:name=".service.ExportBookService"
             android:foregroundServiceType="dataSync" />
         <service
+            android:name=".service.WebDavTaskService"
+            android:foregroundServiceType="dataSync" />
+        <service
             android:name=".service.WebService"
             android:foregroundServiceType="dataSync" />
         <service

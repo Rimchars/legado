@@ -416,15 +416,19 @@ class CacheManageViewModel(application: Application) : BaseViewModel(application
     suspend fun uploadCacheItem(item: CacheBookItem) {
         withContext(Dispatchers.IO) {
             val zipFile = createCachePackage(item.book)
-            val indexItem = createCacheIndexItem(item)
-            AppWebDav.uploadCachePackage(indexItem.zipFileName, zipFile)
-            val remoteIndex = AppWebDav.downloadCacheIndex().items
-            val merged = linkedMapOf<String, CacheCloudIndexItem>()
-            remoteIndex.forEach { merged[it.cacheKey] = it }
-            merged[indexItem.cacheKey] = indexItem
-            val finalItems = merged.values.sortedByDescending { it.updatedAt }
-            AppWebDav.uploadCacheIndex(CacheCloudIndex(items = finalItems))
-            CacheCloudIndexStore.upsertLocal(indexItem)
+            try {
+                val indexItem = createCacheIndexItem(item)
+                AppWebDav.uploadCachePackage(indexItem.zipFileName, zipFile)
+                val remoteIndex = AppWebDav.downloadCacheIndex().items
+                val merged = linkedMapOf<String, CacheCloudIndexItem>()
+                remoteIndex.forEach { merged[it.cacheKey] = it }
+                merged[indexItem.cacheKey] = indexItem
+                val finalItems = merged.values.sortedByDescending { it.updatedAt }
+                AppWebDav.uploadCacheIndex(CacheCloudIndex(items = finalItems))
+                CacheCloudIndexStore.upsertLocal(indexItem)
+            } finally {
+                zipFile.delete()
+            }
         }
     }
 

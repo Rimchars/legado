@@ -34,6 +34,9 @@ import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.lib.theme.uiTypeface
+import io.legado.app.ui.book.cache.WebDavTaskManager
+import io.legado.app.ui.book.cache.WebDavTaskStatus
+import io.legado.app.ui.book.cache.WebDavTaskType
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.image.ImageCropContract
 import io.legado.app.ui.widget.number.NumberPickerDialog
@@ -45,6 +48,7 @@ import io.legado.app.utils.postEvent
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -64,6 +68,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
     private var pendingConfig: TopBarConfig.Config? = null
     private var pendingColorTarget = 0
     private var pendingWallpaperCropRequest: ImageCropHelper.Request? = null
+    private val handledWebDavTasks = mutableSetOf<String>()
     private val dateFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
     private val importPackage = registerForActivityResult(HandleFileContract()) {
@@ -93,6 +98,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
         binding.titleBar.title = getString(R.string.top_bar_manage)
         initView()
         loadPackages()
+        observeWebDavTasks()
     }
 
     override fun observeLiveBus() {
@@ -176,7 +182,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
         lifecycleScope.launch {
             kotlin.runCatching {
                 withContext(Dispatchers.IO) {
-                    TopBarConfig.loadEntries(this@TopBarManageActivity, isNightMode, AppConfig.syncThemePackages)
+                    TopBarConfig.loadEntries(this@TopBarManageActivity, isNightMode, includeRemote = AppConfig.syncThemePackages)
                 }
             }.onSuccess {
                 adapter.submit(it, TopBarConfig.activeDirName(isNightMode))
@@ -463,7 +469,7 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                 Action.APPLY -> applyPackage(entry)
                 Action.EDIT -> showEditDialog(entry)
                 Action.EXPORT -> exportPackage(entry)
-                Action.UPLOAD -> runAction { TopBarConfig.upload(entry) }
+                Action.UPLOAD -> enqueueUpload(entry)
                 Action.DOWNLOAD -> runAction { TopBarConfig.download(entry) }
                 Action.DELETE_LOCAL -> confirmDelete(entry, getString(R.string.navigation_bar_delete_local_confirm)) {
                     TopBarConfig.deleteLocal(entry)
@@ -476,6 +482,33 @@ class TopBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPi
                     TopBarConfig.delete(entry)
                     postEvent(EventBus.TOP_BAR_CHANGED, entry.config.isNightMode)
                 }
+            }
+        }
+    }
+
+    private fun enqueueUpload(entry: TopBarConfig.Entry) {
+        val queued = WebDavTaskManager.enqueueUpload(
+            key = "top_bar_upload:${entry.config.isNightMode}:${entry.dirName}",
+            name = entry.config.name,
+            type = WebDavTaskType.TOP_BAR_PACKAGE_UPLOAD,
+            runningMessage = getString(R.string.navigation_bar_upload)
+        ) {
+            TopBarConfig.upload(entry)
+        }
+        toastOnUi(if (queued) R.string.cache_manage_upload_queued else R.string.cache_manage_webdav_task_duplicate)
+    }
+
+    private fun observeWebDavTasks() {
+        lifecycleScope.launch {
+            WebDavTaskManager.states.collectLatest { states ->
+                states.values
+                    .filter { it.type == WebDavTaskType.TOP_BAR_PACKAGE_UPLOAD }
+                    .filter { it.status == WebDavTaskStatus.COMPLETED }
+                    .forEach { state ->
+                        if (handledWebDavTasks.add("${state.key}:${state.status}")) {
+                            loadPackages()
+                        }
+                    }
             }
         }
     }

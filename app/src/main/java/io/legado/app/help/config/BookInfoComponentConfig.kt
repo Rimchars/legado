@@ -34,11 +34,11 @@ object BookInfoComponentConfig {
     private val defaultOrder = listOf(
         BookInfoComponentType.HEADER,
         BookInfoComponentType.META,
-        BookInfoComponentType.ACTIONS,
         BookInfoComponentType.DETAIL,
         BookInfoComponentType.CATALOG
     )
 
+    private val manageableTypes = defaultOrder.toSet()
     fun load(): MutableList<BookInfoComponentItem> {
         val raw = appCtx.getPrefString(PreferKey.bookInfoComponents).orEmpty().trim()
         if (raw.isEmpty()) {
@@ -48,6 +48,7 @@ object BookInfoComponentConfig {
             .mapNotNull { entry ->
                 val parts = entry.split(":")
                 val type = BookInfoComponentType.fromKey(parts.getOrNull(0)?.trim())
+                    ?.takeIf { it in manageableTypes }
                 val enabled = parts.getOrNull(1)?.trim() != "0"
                 type?.let { BookInfoComponentItem(it, enabled) }
             }
@@ -66,7 +67,7 @@ object BookInfoComponentConfig {
     }
 
     fun save(items: List<BookInfoComponentItem>) {
-        val normalized = items.distinctBy { it.type }.ifEmpty { defaultItems() }
+        val normalized = items.filter { it.type in manageableTypes }.distinctBy { it.type }.ifEmpty { defaultItems() }
         val safeItems = if (normalized.none { it.enabled }) {
             normalized.mapIndexed { index, item -> item.copy(enabled = index == 0) }
         } else {

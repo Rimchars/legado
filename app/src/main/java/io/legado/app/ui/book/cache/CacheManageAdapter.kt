@@ -18,6 +18,7 @@ class CacheManageAdapter(
 ) : DiffRecyclerAdapter<CacheBookItem, ItemCacheManageBookBinding>(context) {
 
     private var taskStates: Map<String, AudioCacheTaskState> = emptyMap()
+    private var webDavTaskStates: Map<String, WebDavTaskState> = emptyMap()
 
     override val diffItemCallback: DiffUtil.ItemCallback<CacheBookItem> =
         object : DiffUtil.ItemCallback<CacheBookItem>() {
@@ -99,17 +100,24 @@ class CacheManageAdapter(
     }
 
     private fun updateTaskViews(binding: ItemCacheManageBookBinding, item: CacheBookItem) = binding.run {
-        val taskState = taskStateFor(item)
-        val isCaching = taskState?.active == true
-        val isPaused = taskState?.status == CacheTaskStatus.PAUSED
+        val audioState = taskStateFor(item)
+        val webDavState = webDavTaskStateFor(item)
+        val isCaching = audioState?.active == true
+        val isPaused = audioState?.status == CacheTaskStatus.PAUSED
+        val webDavActive = webDavState?.active == true
         if (isCaching || isPaused) {
             tvTask.visible()
-            tvTask.text = taskState?.message
+            tvTask.text = audioState.message
             btnStop.setText(if (isPaused) R.string.resume else R.string.pause)
             btnStop.visible()
+        } else if (webDavActive) {
+            tvTask.visible()
+            tvTask.text = webDavState.message
+            btnStop.gone()
         } else {
-            val lastMessage = taskState?.message
-            if (!lastMessage.isNullOrBlank() && taskState.status != CacheTaskStatus.COMPLETED) {
+            val lastMessage = webDavState?.takeIf { it.status != WebDavTaskStatus.COMPLETED }?.message
+                ?: audioState?.takeIf { it.status != CacheTaskStatus.COMPLETED }?.message
+            if (!lastMessage.isNullOrBlank()) {
                 tvTask.visible()
                 tvTask.text = lastMessage
             } else {
@@ -118,7 +126,7 @@ class CacheManageAdapter(
             btnStop.gone()
         }
         val hasCache = item.hasLocalCache()
-        val taskLocked = isCaching || isPaused
+        val taskLocked = isCaching || isPaused || webDavActive
         btnUpload.isEnabled = (hasCache || item.shouldDownloadRemote()) && !taskLocked
         btnDelete.isEnabled = hasCache && !taskLocked
         btnUpload.alpha = if ((hasCache || item.shouldDownloadRemote()) && !taskLocked) 1f else 0.45f
@@ -163,6 +171,18 @@ class CacheManageAdapter(
         }
     }
 
+    fun updateWebDavTaskStates(states: Map<String, WebDavTaskState>) {
+        val changedCacheKeys = (webDavTaskStates.keys + states.keys)
+            .filterTo(hashSetOf<String>()) { webDavTaskStates[it] != states[it] }
+        webDavTaskStates = states
+        if (changedCacheKeys.isEmpty()) return
+        getItems().forEachIndexed { index, item ->
+            if (item.containsCacheKey(changedCacheKeys)) {
+                notifyItemChanged(index, PAYLOAD_TASK_STATE)
+            }
+        }
+    }
+
     interface Callback {
         fun openChapters(item: CacheBookItem)
         fun upload(item: CacheBookItem)
@@ -177,6 +197,10 @@ class CacheManageAdapter(
         return book.bookUrl in bookUrls || sourceVariants.any { it.book.bookUrl in bookUrls }
     }
 
+    private fun CacheBookItem.containsCacheKey(cacheKeys: Set<String>): Boolean {
+        return cacheKey in cacheKeys || sourceVariants.any { it.cacheKey in cacheKeys }
+    }
+
     private fun taskStateFor(item: CacheBookItem): AudioCacheTaskState? {
         taskStates[item.book.bookUrl]?.let { return it }
         item.sourceVariants.forEach { variant ->
@@ -184,6 +208,14 @@ class CacheManageAdapter(
             variant.taskState?.let { return it }
         }
         return item.taskState
+    }
+
+    private fun webDavTaskStateFor(item: CacheBookItem): WebDavTaskState? {
+        webDavTaskStates[item.cacheKey]?.let { return it }
+        item.sourceVariants.forEach { variant ->
+            webDavTaskStates[variant.cacheKey]?.let { return it }
+        }
+        return null
     }
 
     private companion object {

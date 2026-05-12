@@ -177,8 +177,8 @@ object AppWebDav {
     }
 
     suspend fun listThemePackages(isNightTheme: Boolean): List<WebDavFile> {
-        val authorization = authorization ?: return emptyList()
-        if (!NetworkUtils.isAvailable()) return emptyList()
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val dirUrl = getThemeTypeUrl(isNightTheme)
         WebDav(dirUrl, authorization).makeAsDir()
         return WebDav(dirUrl, authorization).listFiles()
@@ -254,8 +254,8 @@ object AppWebDav {
     }
 
     suspend fun listNavigationBarPackages(isNightTheme: Boolean): List<WebDavFile> {
-        val authorization = authorization ?: return emptyList()
-        if (!NetworkUtils.isAvailable()) return emptyList()
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val dirUrl = getNavigationBarTypeUrl(isNightTheme)
         WebDav(dirUrl, authorization).makeAsDir()
         return WebDav(dirUrl, authorization).listFiles()
@@ -288,8 +288,8 @@ object AppWebDav {
     }
 
     suspend fun listTopBarPackages(isNightTheme: Boolean): List<WebDavFile> {
-        val authorization = authorization ?: return emptyList()
-        if (!NetworkUtils.isAvailable()) return emptyList()
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val dirUrl = getTopBarTypeUrl(isNightTheme)
         WebDav(dirUrl, authorization).makeAsDir()
         return WebDav(dirUrl, authorization).listFiles()

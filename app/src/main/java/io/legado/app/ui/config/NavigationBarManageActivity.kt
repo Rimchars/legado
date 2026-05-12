@@ -34,6 +34,9 @@ import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.lib.theme.uiTypeface
+import io.legado.app.ui.book.cache.WebDavTaskManager
+import io.legado.app.ui.book.cache.WebDavTaskStatus
+import io.legado.app.ui.book.cache.WebDavTaskType
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.image.ImageCropContract
 import io.legado.app.ui.widget.number.NumberPickerDialog
@@ -46,6 +49,7 @@ import io.legado.app.utils.putPrefBoolean
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -66,6 +70,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
     private var pendingColorTarget = 0
     private var pendingIconRequest: IconRequest? = null
     private var pendingSidebarBackgroundEntry: NavigationBarIconConfig.Entry? = null
+    private val handledWebDavTasks = mutableSetOf<String>()
     private val dateFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
     private val selectIcon = registerForActivityResult(HandleFileContract()) { result ->
@@ -166,6 +171,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
         binding.titleBar.title = getString(R.string.navigation_bar_manage)
         initView()
         loadPackages()
+        observeWebDavTasks()
     }
 
     override fun observeLiveBus() {
@@ -566,7 +572,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
                 NavAction.APPLY -> applyPackage(entry)
                 NavAction.EDIT -> showEditDialog(entry)
                 NavAction.EXPORT -> exportPackage(entry)
-                NavAction.UPLOAD -> runAction { NavigationBarIconConfig.upload(entry) }
+                NavAction.UPLOAD -> enqueueUpload(entry)
                 NavAction.DOWNLOAD -> runAction { NavigationBarIconConfig.download(entry) }
                 NavAction.DELETE_LOCAL -> confirmDelete(entry, getString(R.string.navigation_bar_delete_local_confirm)) {
                     NavigationBarIconConfig.deleteLocal(entry)
@@ -606,6 +612,33 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
                 loadPackages()
             }.onFailure {
                 toastOnUi(it.localizedMessage)
+            }
+        }
+    }
+
+    private fun enqueueUpload(entry: NavigationBarIconConfig.Entry) {
+        val queued = WebDavTaskManager.enqueueUpload(
+            key = "navigation_bar_upload:${entry.config.isNightMode}:${entry.dirName}",
+            name = entry.config.name,
+            type = WebDavTaskType.NAVIGATION_BAR_PACKAGE_UPLOAD,
+            runningMessage = getString(R.string.navigation_bar_upload)
+        ) {
+            NavigationBarIconConfig.upload(entry)
+        }
+        toastOnUi(if (queued) R.string.cache_manage_upload_queued else R.string.cache_manage_webdav_task_duplicate)
+    }
+
+    private fun observeWebDavTasks() {
+        lifecycleScope.launch {
+            WebDavTaskManager.states.collectLatest { states ->
+                states.values
+                    .filter { it.type == WebDavTaskType.NAVIGATION_BAR_PACKAGE_UPLOAD }
+                    .filter { it.status == WebDavTaskStatus.COMPLETED }
+                    .forEach { state ->
+                        if (handledWebDavTasks.add("${state.key}:${state.status}")) {
+                            loadPackages()
+                        }
+                    }
             }
         }
     }
