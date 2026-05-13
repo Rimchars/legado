@@ -22,6 +22,7 @@ import io.legado.app.service.BaseReadAloudService
 import io.legado.app.ui.book.read.ContentEditDialog
 import io.legado.app.ui.book.read.page.api.DataSource
 import io.legado.app.ui.book.read.page.delegate.CoverPageDelegate
+import io.legado.app.ui.book.read.page.delegate.DoublePageSimulationPageDelegate
 import io.legado.app.ui.book.read.page.delegate.HorizontalPageDelegate
 import io.legado.app.ui.book.read.page.delegate.LinkedCoverPageDelegate
 import io.legado.app.ui.book.read.page.delegate.NoAnimPageDelegate
@@ -563,8 +564,15 @@ class ReadView(context: Context, attrs: AttributeSet) :
                 pageDelegate = SlidePageDelegate(this)
             }
 
-            PageAnim.simulationPageAnim -> if (pageDelegate !is SimulationPageDelegate) {
-                pageDelegate = SimulationPageDelegate(this)
+            PageAnim.simulationPageAnim -> {
+                val useDoublePageSimulation = ChapterProvider.doublePage && !isScroll
+                if (useDoublePageSimulation) {
+                    if (pageDelegate !is DoublePageSimulationPageDelegate) {
+                        pageDelegate = DoublePageSimulationPageDelegate(this)
+                    }
+                } else if (pageDelegate !is SimulationPageDelegate) {
+                    pageDelegate = SimulationPageDelegate(this)
+                }
             }
 
             PageAnim.scrollPageAnim -> if (pageDelegate !is ScrollPageDelegate) {
