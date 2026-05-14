@@ -79,6 +79,7 @@ import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
 import io.legado.app.ui.book.read.page.provider.ChapterProvider.reviewChar
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
+import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -189,7 +190,7 @@ class TextChapterLayout(
         textPage.chapterIndex = bookChapter.index
         textPage.chapterSize = chaptersSize
         textPage.title = displayTitle
-        textPage.doublePage = doublePage
+        textPage.doublePage = false
         textPage.paddingTop = paddingTop
         textPage.fallbackChapterPosition = textPage.lines.firstOrNull()?.chapterPosition
             ?: textPages.lastOrNull()?.let { lastPage ->
@@ -747,27 +748,73 @@ class TextChapterLayout(
         if (pageAnim == PageAnim.scrollPageAnim) return false
         currentCoroutineContext().ensureActive()
         val lottieJson = AdvancedTitleConfig.renderValidLottieJson(book, title) ?: return false
-        val blockHeight = (visibleHeight * (AdvancedTitleConfig.heightFactor / 100f))
-            .coerceAtLeast(80f)
-            .coerceAtMost(visibleHeight * 0.6f)
-        val startY = durY + titleTopSpacing
-        prepareNextPageIfNeed(startY + blockHeight)
+        val layout = resolveAdvancedTitleLayout(lottieJson) ?: return false
+        var startY = durY + titleTopSpacing
+        if (startY + layout.requiredHeight > visibleHeight) {
+            prepareNextPageIfNeed()
+            startY = titleTopSpacing.toFloat()
+        }
+        if (startY + layout.requiredHeight > visibleHeight) return false
         pendingTextPage.epubEmbeddedBlocks.add(
             TextPage.EpubEmbeddedBlock(
-                offsetX = paddingLeft.toFloat(),
+                offsetX = paddingLeft + (visibleWidth - layout.blockWidth) / 2f,
                 offsetY = paddingTop + startY,
-                width = visibleWidth.toFloat(),
-                height = blockHeight,
+                width = layout.blockWidth,
+                height = layout.blockHeight,
                 commands = emptyList(),
                 role = AdvancedTitleConfig.LOTTIE_BLOCK_ROLE,
                 payload = lottieJson
             )
         )
-        durY = startY + blockHeight + titleBottomSpacing
+        durY = startY + layout.requiredHeight
         if (pendingTextPage.height < durY) {
             pendingTextPage.height = durY
         }
         return true
+    }
+
+    private fun resolveAdvancedTitleLayout(lottieJson: String): AdvancedTitleLayout? {
+        if (visibleWidth <= 0 || visibleHeight <= 0) return null
+        val titleTop = titleTopSpacing.toFloat()
+        val titleBottom = titleBottomSpacing.toFloat()
+        val maxBlockHeight = visibleHeight - titleTop - titleBottom
+        if (maxBlockHeight <= 0f) return null
+
+        val titleScale = advancedTitleScale()
+        val heightScale = AdvancedTitleConfig.heightFactor / AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR.toFloat()
+        val aspectRatio = resolveAdvancedTitleAspectRatio(lottieJson)
+        val maxBlockWidth = visibleWidth.toFloat()
+        val requestedWidth = (maxBlockWidth * ADVANCED_TITLE_WIDTH_FACTOR * titleScale * heightScale).coerceAtLeast(1f)
+        val requestedHeight = requestedWidth * aspectRatio
+        val widthLimited = requestedWidth > maxBlockWidth
+        val heightLimited = requestedHeight > maxBlockHeight
+        val blockWidth: Float
+        val blockHeight: Float
+        if (heightLimited && (!widthLimited || maxBlockHeight / aspectRatio <= maxBlockWidth)) {
+            blockHeight = maxBlockHeight
+            blockWidth = (blockHeight / aspectRatio).coerceIn(1f, maxBlockWidth)
+        } else {
+            blockWidth = requestedWidth.coerceIn(1f, maxBlockWidth)
+            blockHeight = (blockWidth * aspectRatio).coerceAtMost(maxBlockHeight)
+        }
+        val requiredHeight = blockHeight + titleBottom
+        return AdvancedTitleLayout(blockWidth, blockHeight, requiredHeight)
+    }
+
+    private fun advancedTitleScale(): Float {
+        return with(ReadBookConfig) {
+            ((textSize + titleSize * ADVANCED_TITLE_SIZE_FACTOR) / textSize.coerceAtLeast(1))
+                .coerceIn(0.6f, 2.5f)
+        }
+    }
+
+    private fun resolveAdvancedTitleAspectRatio(lottieJson: String): Float {
+        return runCatching {
+            val root = JSONObject(lottieJson)
+            val width = root.optDouble("w", DEFAULT_LOTTIE_WIDTH.toDouble()).toFloat()
+            val height = root.optDouble("h", DEFAULT_LOTTIE_HEIGHT.toDouble()).toFloat()
+            if (width > 0f && height > 0f) height / width else DEFAULT_LOTTIE_HEIGHT / DEFAULT_LOTTIE_WIDTH
+        }.getOrDefault(DEFAULT_LOTTIE_HEIGHT / DEFAULT_LOTTIE_WIDTH)
     }
 
     private suspend fun setTypeNativeEpubLayout(layout: EpubLayoutDocument) {
@@ -1481,7 +1528,9 @@ class TextChapterLayout(
         val width = element.attr("data-legado-width")
             .ifBlank { element.attr("width") }
             .ifBlank { element.cssWidth() }
-        val click = element.attr("data-legado-pclick").ifBlank { element.attr("data-legado-click") }.ifBlank { null }
+        val click = element.attr("data-legado-pclick")
+            .ifBlank { element.attr("data-legado-click") }
+            .ifBlank { null }
         var imgSize = ImageProvider.getImageSize(book, src, ReadBook.bookSource)
         imgSize = imgSize.applyWidth(width)
         if (style == null) {
@@ -2282,25 +2331,30 @@ class TextChapterLayout(
             if (textPage.height < durY) {
                 textPage.height = durY
             }
-            if (doublePage && absStartX < viewWidth / 2) {
-                //当前页面左列结束
+            if (textPage.leftLineSize == 0) {
                 textPage.leftLineSize = textPage.lineSize
-                absStartX = viewWidth / 2 + paddingLeft
-            } else {
-                //当前页面结束,设置各种值
-                if (textPage.leftLineSize == 0) {
-                    textPage.leftLineSize = textPage.lineSize
-                }
-                textPage.text = stringBuilder.toString()
-                currentCoroutineContext().ensureActive()
-                onPageCompleted()
-                //新建页面
-                pendingTextPage = TextPage()
-                stringBuilder.clear()
-                absStartX = paddingLeft
             }
+            textPage.text = stringBuilder.toString()
+            currentCoroutineContext().ensureActive()
+            onPageCompleted()
+            pendingTextPage = TextPage()
+            stringBuilder.clear()
+            absStartX = paddingLeft
             durY = 0f
         }
+    }
+
+    private data class AdvancedTitleLayout(
+        val blockWidth: Float,
+        val blockHeight: Float,
+        val requiredHeight: Float
+    )
+
+    private companion object {
+        const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
+        const val ADVANCED_TITLE_WIDTH_FACTOR = 0.86f
+        const val DEFAULT_LOTTIE_WIDTH = 720f
+        const val DEFAULT_LOTTIE_HEIGHT = 112f
     }
 
     private fun allocateFloatArray(size: Int): FloatArray {
