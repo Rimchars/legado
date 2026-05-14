@@ -54,7 +54,6 @@ import io.legado.app.help.config.ReadTipConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.source.getSourceType
 import io.legado.app.help.storage.Backup
-import io.legado.app.help.webView.WebViewPool
 import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
@@ -110,6 +109,7 @@ import io.legado.app.ui.widget.ModernActionPopup
 import io.legado.app.ui.widget.PopupAction
 import io.legado.app.ui.widget.dialog.PhotoDialog
 import io.legado.app.ui.widget.dialog.BottomWebViewDialog
+import io.legado.app.ui.widget.dialog.CommentWebViewSession
 import io.legado.app.utils.ACache
 import io.legado.app.utils.Debounce
 import io.legado.app.utils.LogUtils
@@ -230,6 +230,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     private var modernMenuPopup: PopupWindow? = null
     private var backupJob: Job? = null
     private var tts: TTS? = null
+    private var commentWebViewSession: CommentWebViewSession? = null
     val textActionMenu: TextActionMenu by lazy {
         TextActionMenu(this, this)
     }
@@ -1418,6 +1419,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     private fun evalParagraphRuleClick(click: String?, src: String): Boolean {
         if (!ParagraphRuleProcessor.isParagraphClick(click)) return false
         val clickValue = click ?: return false
+        getCommentWebViewSession().prepare(applicationContext)
         Coroutine.async(lifecycleScope, IO) {
             val book = ReadBook.book ?: return@async
             val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex)
@@ -1434,6 +1436,10 @@ class ReadBookActivity : BaseReadBookActivity(),
             AppLog.put("ParagraphRule pclick error: ${it.localizedMessage}", it, true)
         }
         return true
+    }
+
+    private fun getCommentWebViewSession(): CommentWebViewSession {
+        return commentWebViewSession ?: CommentWebViewSession.shared.also { commentWebViewSession = it }
     }
 
     private fun paragraphRuleBrowserCallback(): ParagraphRuleProcessor.BrowserCallback {
@@ -1454,7 +1460,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                             html,
                             preloadJs,
                             config,
-                            WebViewPool.GROUP_COMMENT_BROWSER
+                            getCommentWebViewSession()
                         )
                     )
                 }
@@ -1845,6 +1851,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         textActionMenu.dismiss()
         popupAction.dismiss()
         binding.readView.onDestroy()
+        commentWebViewSession?.releaseAfterDelay()
         ReadBook.unregister(this)
         handler.removeCallbacksAndMessages(null) // 清理Handler消息
         if (!ReadBook.inBookshelf && !isChangingConfigurations) {
@@ -1855,6 +1862,11 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        commentWebViewSession?.trimMemory(level)
+    }
     override fun observeLiveBus() = binding.run {
         observeEvent<String>(EventBus.TIME_CHANGED) { readView.upTime() }
         observeEvent<Int>(EventBus.BATTERY_CHANGED) { readView.upBattery(it) }

@@ -101,8 +101,9 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         html: String? = null,
         preloadJs: String? = null,
         config: String? = null,
-        webViewGroup: String = WebViewPool.GROUP_DEFAULT
+        webViewSession: CommentWebViewSession? = null
     ) : this() {
+        this.webViewSession = webViewSession
         arguments = Bundle().apply {
             putString("sourceKey", sourceKey)
             putInt("bookType", bookType)
@@ -110,7 +111,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             putString("html", html)
             putString("preloadJs", preloadJs)
             putString("config", config)
-            putString("webViewGroup", webViewGroup)
+            putBoolean("useCommentWebViewSession", webViewSession != null)
         }
     }
 
@@ -132,6 +133,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     }
     private lateinit var pooledWebView: PooledWebView
     private lateinit var currentWebView: WebView
+    private var webViewSession: CommentWebViewSession? = null
     private var source: BaseSource? = null
     private var preloadJs: String? = null
     private var isFullScreen = false
@@ -141,8 +143,10 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
-        val group = arguments?.getString("webViewGroup") ?: WebViewPool.GROUP_DEFAULT
-        pooledWebView = WebViewPool.acquire(context, group)
+        val session = webViewSession ?: if (arguments?.getBoolean("useCommentWebViewSession") == true) {
+            CommentWebViewSession.shared.also { webViewSession = it }
+        } else null
+        pooledWebView = session?.acquire(context) ?: WebViewPool.acquire(context)
         currentWebView = pooledWebView.realWebView
     }
 
@@ -440,13 +444,31 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         }
                     }
                 }
+                appDb.bookSourceDao.getBookSource(sourceKey).let {
+                    if (it == null) {
+                        activity?.toastOnUi("no find bookSource")
+                        dismiss()
+                        return@launch
+                    }
+                    source = it
+                }
+                preloadJs = args.getString("preloadJs")
+                val argHtml = args.getString("html")
                 val analyzeUrl =
                     AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
-                val html = args.getString("html") ?: analyzeUrl.getStrResponseAwait().body
+                val bookType = args.getInt("bookType", 0)
+                if (shouldLoadUrlDirectly(url, argHtml, preloadJs)) {
+                    currentWebView.post {
+                        currentWebView.onResume()
+                        initWebViewForUrl(analyzeUrl.url, analyzeUrl.headerMap, bookType)
+                        currentWebView.clearHistory()
+                    }
+                    return@runCatching
+                }
+                val html = argHtml ?: analyzeUrl.getStrResponseAwait().body
                 if (html.isNullOrEmpty()) {
                     throw NoStackTraceException("html is NullOrEmpty")
                 }
-                preloadJs = args.getString("preloadJs")
                 val spliceHtml = if (preloadJs.isNullOrEmpty()) {
                     html
                 } else {
@@ -463,15 +485,6 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         JS_URL + html
                     }
                 }
-                appDb.bookSourceDao.getBookSource(sourceKey).let {
-                    if (it == null) {
-                        activity?.toastOnUi("no find bookSource")
-                        dismiss()
-                        return@launch
-                    }
-                    source = it
-                }
-                val bookType = args.getInt("bookType", 0)
                 currentWebView.post {
                     currentWebView.onResume() //缓存库拿的需要激活
                     initWebView(analyzeUrl.url, spliceHtml, analyzeUrl.headerMap, bookType)
@@ -539,9 +552,37 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
+    private fun shouldLoadUrlDirectly(rawUrl: String, html: String?, preloadJs: String?): Boolean {
+        if (webViewSession == null || html != null || !preloadJs.isNullOrEmpty()) return false
+        val url = rawUrl.trim()
+        return URLUtil.isNetworkUrl(url) &&
+            !url.contains(",{", ignoreCase = false) &&
+            !url.contains("{{", ignoreCase = false) &&
+            !url.contains("}}", ignoreCase = false) &&
+            !url.contains("@js", ignoreCase = true) &&
+            !url.contains("<js", ignoreCase = true)
+    }
+
+    private fun initWebViewForUrl(
+        url: String,
+        headerMap: HashMap<String, String>,
+        bookType: Int
+    ) {
+        prepareWebView(headerMap, bookType)
+        currentWebView.loadUrl(url, webViewExtraHeaders(headerMap))
+    }
+
     private fun initWebView(
         url: String,
         html: String,
+        headerMap: HashMap<String, String>,
+        bookType: Int
+    ) {
+        prepareWebView(headerMap, bookType)
+        currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+    }
+
+    private fun prepareWebView(
         headerMap: HashMap<String, String>,
         bookType: Int
     ) {
@@ -558,8 +599,16 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             currentWebView.addJavascriptInterface(source, nameSource)
             currentWebView.addJavascriptInterface(WebCacheManager, nameCache)
         }
-        currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
     }
+
+    private fun webViewExtraHeaders(headerMap: HashMap<String, String>): Map<String, String> {
+        return HashMap(headerMap).apply {
+            remove(AppConst.UA_NAME)
+            remove("User-Agent")
+            remove("user-agent")
+        }
+    }
+
 
     private fun saveImage(webPic: String) {
         val path = ACache.get().getAsString(imagePathKey)
@@ -608,7 +657,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
 
     override fun onDestroyView() {
         customWebViewCallback?.onCustomViewHidden()
-        WebViewPool.release(pooledWebView)
+        webViewSession?.detachForReuse(pooledWebView) ?: WebViewPool.release(pooledWebView)
         originOrientation?.let {
             activity?.requestedOrientation = it
         }
