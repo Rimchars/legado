@@ -90,15 +90,10 @@ object ParagraphRuleProcessor {
         if (!isParagraphClick(click)) return false
         val (ruleId, js) = parseClick(click) ?: return false
         val rule = appDb.paragraphRuleDao.get(ruleId) ?: return false
-        val ctx = mapOf(
-            "book" to book,
-            "chapter" to chapter,
-            "result" to result,
-            "rule" to rule,
-            "vars" to readVars(rule.id)
-        )
+        val ctx = buildCtx(rule, book, chapter, result, emptyList())
         val scope = buildScope(rule, book, chapter, result, ctx, coroutineContext, browserCallback)
         val script = buildString {
+            append(jsCtxPrelude(ctx))
             if (rule.jsLib.isNotBlank()) append(rule.jsLib).append('\n')
             append(js)
         }
@@ -115,12 +110,65 @@ object ParagraphRuleProcessor {
     ): String {
         val paragraphs = parseContent(content)
         if (paragraphs.isEmpty()) return content
-        val ctx = linkedMapOf<String, Any?>(
-            "book" to book,
-            "chapter" to chapter,
+        val ctx = buildCtx(rule, book, chapter, content, paragraphs)
+        val scope = buildScope(rule, book, chapter, content, ctx, coroutineContext, null)
+        val script = buildString {
+            append(jsCtxPrelude(ctx))
+            if (rule.jsLib.isNotBlank()) append(rule.jsLib).append('\n')
+            append(rule.script).append('\n')
+            append("""
+                ;(function(){
+                    var __paragraphRuleResult;
+                    if (typeof process === 'function') {
+                        __paragraphRuleResult = process(ctx);
+                    } else if (typeof result !== 'undefined') {
+                        __paragraphRuleResult = result;
+                    } else {
+                        __paragraphRuleResult = ctx.result;
+                    }
+                    return (typeof __paragraphRuleResult === 'undefined' || __paragraphRuleResult === null) ? ctx.result : __paragraphRuleResult;
+                })();
+            """.trimIndent())
+        }
+        val jsResult = RhinoScriptEngine.eval(script, scope, coroutineContext)
+        writeVars(rule.id, ctx["vars"])
+        return wrapPclicks(rule.id, applyResult(content, paragraphs, jsResult))
+    }
+
+    private fun buildCtx(
+        rule: ParagraphRule,
+        book: Book,
+        chapter: BookChapter,
+        content: String,
+        paragraphs: List<ParagraphItem>
+    ): Map<String, Any?> {
+        return linkedMapOf(
+            "book" to linkedMapOf(
+                "name" to book.name,
+                "author" to book.author,
+                "bookUrl" to book.bookUrl,
+                "tocUrl" to book.tocUrl,
+                "origin" to book.origin,
+                "originName" to book.originName,
+                "type" to book.type,
+                "durChapterIndex" to book.durChapterIndex,
+                "durChapterTitle" to book.durChapterTitle,
+                "latestChapterTitle" to book.latestChapterTitle,
+                "variable" to book.variable
+            ),
+            "chapter" to linkedMapOf(
+                "bookUrl" to chapter.bookUrl,
+                "title" to chapter.title,
+                "url" to chapter.url,
+                "baseUrl" to chapter.baseUrl,
+                "index" to chapter.index,
+                "isVolume" to chapter.isVolume,
+                "isVip" to chapter.isVip,
+                "isPay" to chapter.isPay
+            ),
             "content" to content,
             "paragraphs" to paragraphs.map {
-                mapOf(
+                linkedMapOf(
                     "index" to it.index,
                     "text" to it.text,
                     "start" to it.start,
@@ -129,20 +177,26 @@ object ParagraphRuleProcessor {
                 )
             },
             "result" to content,
-            "rule" to rule,
+            "rule" to linkedMapOf(
+                "id" to rule.id,
+                "name" to rule.name,
+                "timeoutMillisecond" to rule.timeoutMillisecond,
+                "order" to rule.order,
+                "updateTime" to rule.updateTime
+            ),
             "vars" to readVars(rule.id)
         )
-        val scope = buildScope(rule, book, chapter, content, ctx, coroutineContext, null)
-        val script = buildString {
-            if (rule.jsLib.isNotBlank()) append(rule.jsLib).append('\n')
-            append(rule.script).append('\n')
-            append("\n;if (typeof process === 'function') { process(ctx); } else if (typeof result !== 'undefined') { result; } else { ctx.result; }")
-        }
-        val jsResult = RhinoScriptEngine.eval(script, scope, coroutineContext)
-        writeVars(rule.id, ctx["vars"])
-        return wrapPclicks(rule.id, applyResult(content, paragraphs, jsResult))
     }
 
+    private fun jsCtxPrelude(ctx: Map<String, Any?>): String {
+        val ctxJsonLiteral = GSON.toJson(GSON.toJson(ctx))
+        return """
+            var ctx = JSON.parse($ctxJsonLiteral);
+            var ruleId = ctx.rule.id;
+            var vars = ctx.vars;
+            var result = ctx.result;
+        """.trimIndent() + '\n'
+    }
     private fun buildScope(
         rule: ParagraphRule,
         book: Book,
