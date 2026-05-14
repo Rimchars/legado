@@ -32,6 +32,7 @@ import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.model.ImageProvider
 import io.legado.app.model.ReadBook
+import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.ui.book.read.page.entities.TextChapter
 import io.legado.app.ui.book.read.page.entities.TextLine
 import io.legado.app.ui.book.read.page.entities.TextPage
@@ -142,6 +143,7 @@ class TextChapterLayout(
     private var floatArray = FloatArray(128)
     private var pendingSingleImagePageBreak = false
     private var activeEpubBlockDecoration: ActiveEpubBlockDecoration? = null
+    private val imageInfoCache = hashMapOf<String, ImageInfo>()
 
     private var isCompleted = false
     private val job: Coroutine<*>
@@ -279,27 +281,12 @@ class TextChapterLayout(
                 val imgText = if (titleImg.isNullOrEmpty()) {
                     null
                 } else {
-                    val urlMatcher = paramPattern.matcher(titleImg)
-                    var click: String? = null
-                    var style: String? = null
-                    var imgSize = ImageProvider.getImageSize(book, titleImg, ReadBook.bookSource)
-                    if (urlMatcher.find()) {
-                        var width: String? = null
-                        val urlOptionStr = titleImg.substring(urlMatcher.end())
-                        GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()
-                            ?.let { map ->
-                                map.forEach { (key, value) ->
-                                    when (key) {
-                                        "style" -> style = value
-                                        "width" -> width = value
-                                        "click" -> click = value
-                                        "pclick" -> click = value
-                                    }
-                                }
-                            }
-                        width?.let {
-                            imgSize = imgSize.applyWidth(it)
-                        }
+                    val imageInfo = parseImageInfo(titleImg)
+                    var click: String? = imageInfo.click
+                    var style: String? = imageInfo.style
+                    var imgSize = ImageProvider.getImageSize(book, imageInfo.renderSrc, ReadBook.bookSource)
+                    imageInfo.width?.let {
+                        imgSize = imgSize.applyWidth(it)
                     }
                     if (style == null) {
                         style = if (imgSize.width < 80 && imgSize.height < 80) {
@@ -310,19 +297,19 @@ class TextChapterLayout(
                     }
                     when (style) {
                         "text" -> {
-                            srcList.add(titleImg)
+                            srcList.add(imageInfo.renderSrc)
                             clickList.add(click)
                             srcReplaceChar
                         }
                         "TEXT" -> {
-                            srcList.add(titleImg)
+                            srcList.add(imageInfo.renderSrc)
                             clickList.add(click)
                             reviewChar
                         }
                         else -> {
                             setTypeImage(
                                 book,
-                                titleImg,
+                                imageInfo.renderSrc,
                                 contentPaintTextHeight,
                                 style,
                                 imgSize,
@@ -427,26 +414,12 @@ class TextChapterLayout(
                     while (matcher.find()) {
                         currentCoroutineContext().ensureActive()
                         val imgSrc = matcher.group(1)!!
-                        var style: String? = null
-                        var click: String? = null
-                        var imgSize = ImageProvider.getImageSize(book, imgSrc, ReadBook.bookSource)
-                        val urlMatcher = paramPattern.matcher(imgSrc)
-                        if (urlMatcher.find()) {
-                            var width: String? = null
-                            val urlOptionStr = imgSrc.substring(urlMatcher.end())
-                            GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()?.let { map ->
-                                map.forEach { (key, value) ->
-                                    when (key) {
-                                        "style" -> style = value
-                                        "width" -> width = value
-                                        "click" -> click = value
-                                        "pclick" -> click = value
-                                    }
-                                }
-                            }
-                            width?.let {
-                                imgSize = imgSize.applyWidth(it)
-                            }
+                        val imageInfo = parseImageInfo(imgSrc)
+                        var style: String? = imageInfo.style
+                        var click: String? = imageInfo.click
+                        var imgSize = ImageProvider.getImageSize(book, imageInfo.renderSrc, ReadBook.bookSource)
+                        imageInfo.width?.let {
+                            imgSize = imgSize.applyWidth(it)
                         }
                         if (style == null) {
                             style = if (imgSize.width < 80 && imgSize.height < 80) {
@@ -461,12 +434,12 @@ class TextChapterLayout(
                         when (style) {
                             "TEXT" -> {
                                 sb.append(reviewChar)
-                                srcList.add(imgSrc)
+                                srcList.add(imageInfo.renderSrc)
                                 clickList.add(click)
                             }
                             "text" -> {
                                 sb.append(srcReplaceChar)
-                                srcList.add(imgSrc)
+                                srcList.add(imageInfo.renderSrc)
                                 clickList.add(click)
                             }
                             else -> {
@@ -489,7 +462,7 @@ class TextChapterLayout(
                                 }
                                 setTypeImage(
                                     book,
-                                    imgSrc,
+                                    imageInfo.renderSrc,
                                     contentPaintTextHeight,
                                     style,
                                     imgSize,
@@ -1524,14 +1497,17 @@ class TextChapterLayout(
             }
             return
         }
-        var style = element.attr("data-legado-style").ifBlank { null }
+        val imageInfo = parseImageInfo(src)
+        var style = element.attr("data-legado-style").ifBlank { imageInfo.style.orEmpty() }.ifBlank { null }
         val width = element.attr("data-legado-width")
             .ifBlank { element.attr("width") }
             .ifBlank { element.cssWidth() }
+            .ifBlank { imageInfo.width.orEmpty() }
         val click = element.attr("data-legado-pclick")
             .ifBlank { element.attr("data-legado-click") }
+            .ifBlank { imageInfo.click.orEmpty() }
             .ifBlank { null }
-        var imgSize = ImageProvider.getImageSize(book, src, ReadBook.bookSource)
+        var imgSize = ImageProvider.getImageSize(book, imageInfo.renderSrc, ReadBook.bookSource)
         imgSize = imgSize.applyWidth(width)
         if (style == null) {
             style = if (imgSize.width < 80 && imgSize.height < 80) {
@@ -1542,7 +1518,7 @@ class TextChapterLayout(
         }
         setTypeImage(
             book,
-            src,
+            imageInfo.renderSrc,
             contentPaintTextHeight,
             style,
             imgSize,
@@ -1673,14 +1649,13 @@ class TextChapterLayout(
                 var needAddText = true
                 spanned.getSpans(charIndex, charIndex + 1, ImageSpan::class.java).firstOrNull()?.let { span -> //处理图片
                     val source = span.source ?: return@let
+                    val imageInfo = parseImageInfo(source)
                     val urlMatcher = paramPattern.matcher(source)
                     if (urlMatcher.find()) {
-                        val urlOptionStr = source.substring(urlMatcher.end())
-                        val urlOption = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull() ?: return@let
-                        var iStyle = urlOption["style"]
-                        val width = urlOption["width"]
-                        val click = urlOption["pclick"] ?: urlOption["click"]
-                        var imgSize = ImageProvider.getImageSize(book, source, ReadBook.bookSource)
+                        var iStyle = imageInfo.style
+                        val width = imageInfo.width
+                        val click = imageInfo.click
+                        var imgSize = ImageProvider.getImageSize(book, imageInfo.renderSrc, ReadBook.bookSource)
                         width?.let {
                             imgSize = imgSize.applyWidth(it)
                         }
@@ -1693,12 +1668,12 @@ class TextChapterLayout(
                         }
                         when (iStyle?.uppercase()) {
                             "TEXT" -> {
-                                ImageProvider.cacheImage(book, source, ReadBook.bookSource)
+                                ImageProvider.cacheImage(book, imageInfo.renderSrc, ReadBook.bookSource)
                                 columns.add(
                                     ImageColumn(
                                         start = lineAbsStartX + charX,
                                         end = lineAbsStartX + charRight,
-                                        src = source,
+                                        src = imageInfo.renderSrc,
                                         click = click
                                     )
                                 )
@@ -1706,7 +1681,7 @@ class TextChapterLayout(
                             else -> {
                                 setTypeImage(
                                     book,
-                                    source,
+                                    imageInfo.renderSrc,
                                     contentPaintTextHeight,
                                     iStyle,
                                     imgSize,
@@ -1715,10 +1690,10 @@ class TextChapterLayout(
                             }
                         }
                     } else {
-                        val imgSize = ImageProvider.getImageSize(book, source, ReadBook.bookSource)
+                        val imgSize = ImageProvider.getImageSize(book, imageInfo.renderSrc, ReadBook.bookSource)
                         setTypeImage(
                             book,
-                            source,
+                            imageInfo.renderSrc,
                             contentPaintTextHeight,
                             imageStyle,
                             imgSize,
@@ -2350,11 +2325,51 @@ class TextChapterLayout(
         val requiredHeight: Float
     )
 
+    private data class ImageInfo(
+        val renderSrc: String,
+        val style: String? = null,
+        val width: String? = null,
+        val click: String? = null
+    )
+
     private companion object {
         const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
         const val ADVANCED_TITLE_WIDTH_FACTOR = 0.86f
         const val DEFAULT_LOTTIE_WIDTH = 720f
         const val DEFAULT_LOTTIE_HEIGHT = 112f
+    }
+
+    private suspend fun parseImageInfo(src: String): ImageInfo {
+        imageInfoCache[src]?.let { return it }
+        val urlMatcher = paramPattern.matcher(src)
+        if (!urlMatcher.find()) return ImageInfo(src).also { imageInfoCache[src] = it }
+        val urlOption = GSON.fromJsonObject<Map<String, String>>(src.substring(urlMatcher.end()))
+            .getOrNull()
+            ?: return ImageInfo(src).also { imageInfoCache[src] = it }
+        val js = urlOption["js"]
+        val renderSrc = if (js.isNullOrBlank()) {
+            src
+        } else {
+            runCatching {
+                AnalyzeUrl(
+                    src,
+                    baseUrl = bookChapter.baseUrl.ifBlank { bookChapter.url },
+                    source = ReadBook.bookSource,
+                    ruleData = book,
+                    chapter = bookChapter,
+                    coroutineContext = currentCoroutineContext()
+                ).url.takeIf { it.isNotBlank() } ?: src
+            }.getOrElse {
+                AppLog.put("正文图片 js 参数解析失败: $src\n${it.localizedMessage}", it)
+                src
+            }
+        }
+        return ImageInfo(
+            renderSrc = renderSrc,
+            style = urlOption["style"],
+            width = urlOption["width"],
+            click = urlOption["pclick"] ?: urlOption["click"]
+        ).also { imageInfoCache[src] = it }
     }
 
     private fun allocateFloatArray(size: Int): FloatArray {
