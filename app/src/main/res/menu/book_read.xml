@@ -138,6 +138,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/menu_paragraph_rule_manage"
+        android:title="@string/paragraph_rule_manage"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/menu_effective_replaces"
         android:title="@string/effective_replaces"
         app:showAsAction="never" />

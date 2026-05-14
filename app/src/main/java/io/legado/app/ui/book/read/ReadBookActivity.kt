@@ -40,6 +40,7 @@ import io.legado.app.help.IntentData
 import io.legado.app.help.TTS
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
+import io.legado.app.help.book.ParagraphRuleProcessor
 import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isEpub
 import io.legado.app.help.book.isLocal
@@ -80,6 +81,7 @@ import io.legado.app.ui.book.read.config.BgTextConfigDialog.Companion.BG_COLOR
 import io.legado.app.ui.book.read.config.BgTextConfigDialog.Companion.TEXT_ACCENT_COLOR
 import io.legado.app.ui.book.read.config.BgTextConfigDialog.Companion.TEXT_COLOR
 import io.legado.app.ui.book.read.config.MoreConfigDialog
+import io.legado.app.ui.book.read.config.ParagraphRuleManageActivity
 import io.legado.app.ui.book.read.config.ReadAloudDialog
 import io.legado.app.ui.book.read.config.ReadStyleDialog
 import io.legado.app.ui.book.read.config.TipConfigDialog.Companion.TIP_COLOR
@@ -106,6 +108,7 @@ import io.legado.app.ui.replace.edit.ReplaceEditActivity
 import io.legado.app.ui.widget.ModernActionPopup
 import io.legado.app.ui.widget.PopupAction
 import io.legado.app.ui.widget.dialog.PhotoDialog
+import io.legado.app.ui.widget.dialog.BottomWebViewDialog
 import io.legado.app.utils.ACache
 import io.legado.app.utils.Debounce
 import io.legado.app.utils.LogUtils
@@ -458,6 +461,7 @@ class ReadBookActivity : BaseReadBookActivity(),
 //                    }
 
                     R.id.menu_reverse_content -> item.isVisible = onLine
+                    R.id.menu_paragraph_rule_manage -> item.isVisible = !book.isEpub
                     R.id.menu_del_ruby_tag -> item.isChecked = book.getDelTag(Book.rubyTag)
                     R.id.menu_del_h_tag -> item.isChecked = book.getDelTag(Book.hTag)
                 }
@@ -640,6 +644,12 @@ class ReadBookActivity : BaseReadBookActivity(),
             }
 
             R.id.menu_effective_replaces -> showDialogFragment<EffectiveReplacesDialog>()
+
+            R.id.menu_paragraph_rule_manage -> ReadBook.book?.let {
+                startActivity<ParagraphRuleManageActivity> {
+                    putExtra("bookUrl", it.bookUrl)
+                }
+            }
 
             R.id.menu_help -> showHelp()
         }
@@ -1404,13 +1414,61 @@ class ReadBookActivity : BaseReadBookActivity(),
     /**
      * 点击图片
      */
+    private fun evalParagraphRuleClick(click: String?, src: String): Boolean {
+        if (!ParagraphRuleProcessor.isParagraphClick(click)) return false
+        val clickValue = click ?: return false
+        Coroutine.async(lifecycleScope, IO) {
+            val book = ReadBook.book ?: return@async
+            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex)
+                ?: throw Exception("no find chapter")
+            ParagraphRuleProcessor.evalClick(
+                book,
+                chapter,
+                clickValue,
+                src,
+                paragraphRuleBrowserCallback(),
+                coroutineContext
+            )
+        }.onError {
+            AppLog.put("ParagraphRule pclick error: ${it.localizedMessage}", it, true)
+        }
+        return true
+    }
+
+    private fun paragraphRuleBrowserCallback(): ParagraphRuleProcessor.BrowserCallback {
+        return object : ParagraphRuleProcessor.BrowserCallback {
+            override fun showBrowser(
+                url: String,
+                html: String?,
+                preloadJs: String?,
+                config: String?
+            ): Boolean {
+                val source = ReadBook.bookSource ?: return false
+                runOnUiThread {
+                    showDialogFragment(
+                        BottomWebViewDialog(
+                            source.getKey(),
+                            BookType.text,
+                            url,
+                            html,
+                            preloadJs,
+                            config
+                        )
+                    )
+                }
+                return true
+            }
+        }
+    }
+
     override fun oldClickImg(src: String): Boolean {
         val urlMatcher = paramPattern.matcher(src)
         if (urlMatcher.find()) {
             val urlOptionStr = src.substring(urlMatcher.end())
             val urlOptionMap = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()
-            val click = urlOptionMap?.get("click")
+            val click = urlOptionMap?.get("pclick") ?: urlOptionMap?.get("click")
             if (click != null) {
+                if (evalParagraphRuleClick(click, src)) return true
                 Coroutine.async(lifecycleScope,IO) {
                     val source = ReadBook.bookSource ?: return@async
                     val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
@@ -1450,6 +1508,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     override fun clickImg(click: String, src: String) {
+        if (evalParagraphRuleClick(click, src)) return
         Coroutine.async(lifecycleScope,IO) {
             val source = ReadBook.bookSource ?: return@async
             val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)

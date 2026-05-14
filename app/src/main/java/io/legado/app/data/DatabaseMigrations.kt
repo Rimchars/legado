@@ -20,10 +20,56 @@ object DatabaseMigrations {
             migration_31_32, migration_32_33, migration_33_34, migration_34_35,
             migration_35_36, migration_36_37, migration_37_38, migration_38_39,
             migration_39_40, migration_40_41, migration_41_42, migration_42_43,
-            migration_90_91,
+            migration_90_91, migration_91_92,
         )
     }
 
+    private val migration_91_92 = object : Migration(91, 92) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `paragraph_rules` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `name` TEXT NOT NULL DEFAULT '',
+                    `jsLib` TEXT NOT NULL DEFAULT '',
+                    `loginUrl` TEXT NOT NULL DEFAULT '',
+                    `loginUi` TEXT NOT NULL DEFAULT '',
+                    `script` TEXT NOT NULL DEFAULT '',
+                    `timeoutMillisecond` INTEGER NOT NULL DEFAULT 3000,
+                    `sortOrder` INTEGER NOT NULL DEFAULT 0,
+                    `updateTime` INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_paragraph_rules_id` ON `paragraph_rules` (`id`)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `book_paragraph_rules` (
+                    `bookUrl` TEXT NOT NULL,
+                    `ruleId` INTEGER NOT NULL,
+                    `enabled` INTEGER NOT NULL DEFAULT 1,
+                    `sortOrder` INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(`bookUrl`, `ruleId`),
+                    FOREIGN KEY(`ruleId`) REFERENCES `paragraph_rules`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_book_paragraph_rules_bookUrl` ON `book_paragraph_rules` (`bookUrl`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_book_paragraph_rules_ruleId` ON `book_paragraph_rules` (`ruleId`)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `paragraph_rule_vars` (
+                    `ruleId` INTEGER NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `value` TEXT NOT NULL,
+                    PRIMARY KEY(`ruleId`, `name`),
+                    FOREIGN KEY(`ruleId`) REFERENCES `paragraph_rules`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_paragraph_rule_vars_ruleId` ON `paragraph_rule_vars` (`ruleId`)")
+        }
+    }
     private val migration_90_91 = object : Migration(90, 91) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(

@@ -1793,4 +1793,20 @@
     <string name="cover_collection_mode_random">随机</string>
     <string name="cover_collection_mode_sequence">顺序</string>
     <string name="cover_collection_name">图集名称</string>
+    <string name="paragraph_rule_manage">段落规则管理</string>
+    <string name="paragraph_rule_add_hint">添加段落规则</string>
+    <string name="paragraph_rule_all_rules">全部段落规则</string>
+    <string name="paragraph_rule_current_book">当前书籍</string>
+    <string name="paragraph_rule_disabled_for_book">当前书籍未启用</string>
+    <string name="paragraph_rule_edit">编辑段落规则</string>
+    <string name="paragraph_rule_empty">暂无段落规则</string>
+    <string name="paragraph_rule_enabled_for_book">当前书籍已启用</string>
+    <string name="paragraph_rule_manage_summary">可为当前书籍启用多个规则，长按拖动调整执行顺序。</string>
+    <string name="paragraph_rule_no_book_hint">未找到当前书籍</string>
+    <string name="paragraph_rule_no_editable_vars">暂无可编辑变量</string>
+    <string name="paragraph_rule_save">保存段落规则</string>
+    <string name="paragraph_rule_save_invalid">名称和段落处理 JS 不能为空</string>
+    <string name="paragraph_rule_script">段落处理 JS</string>
+    <string name="paragraph_rule_vars">规则变量</string>
+    <string name="paragraph_rule_vars_json">变量 JSON</string>
 </resources>

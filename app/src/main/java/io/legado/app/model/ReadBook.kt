@@ -14,6 +14,7 @@ import io.legado.app.help.AppWebDav
 import io.legado.app.help.ReadRecordDailyHelper
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
+import io.legado.app.help.book.ParagraphRuleProcessor
 import io.legado.app.help.book.isEpub
 import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
@@ -769,8 +770,11 @@ object ReadBook : CoroutineScope by MainScope() {
                 book.getUseReplaceRule(),
                 replaceBook = book.toReplaceBook()
             )
-            val contents = contentProcessor
-                .getContent(book, chapter, content, includeTitle = false)
+            val contents = ParagraphRuleProcessor.process(
+                book,
+                chapter,
+                contentProcessor.getContent(book, chapter, content, includeTitle = false)
+            )
             ensureActive()
             val textChapter = ChapterProvider.getTextChapterAsync(
                 this, book, chapter, displayTitle, contents, simulatedChapterSize
@@ -862,8 +866,11 @@ object ReadBook : CoroutineScope by MainScope() {
                 book.getUseReplaceRule(),
                 replaceBook = book.toReplaceBook()
             )
-            val contents = contentProcessor
-                .getContent(book, chapter, content, includeTitle = false)
+            val contents = ParagraphRuleProcessor.process(
+                book,
+                chapter,
+                contentProcessor.getContent(book, chapter, content, includeTitle = false)
+            )
             val textChapter = ChapterProvider.getTextChapterAsync(
                 this@ReadBook, book, chapter, displayTitle, contents, simulatedChapterSize
             )

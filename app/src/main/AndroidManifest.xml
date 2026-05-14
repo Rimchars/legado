@@ -229,6 +229,15 @@
             android:windowSoftInputMode="adjustResize|stateHidden" />
         <!-- 配置界面 -->
         <activity
+            android:name=".ui.book.read.config.ParagraphRuleManageActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:launchMode="standard" />
+        <activity
+            android:name=".ui.book.read.config.ParagraphRuleEditActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize|stateHidden" />
+        <activity
             android:name=".ui.config.ConfigActivity"
             android:launchMode="standard" />
         <activity

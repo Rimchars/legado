@@ -292,6 +292,7 @@ class TextChapterLayout(
                                         "style" -> style = value
                                         "width" -> width = value
                                         "click" -> click = value
+                                        "pclick" -> click = value
                                     }
                                 }
                             }
@@ -438,6 +439,7 @@ class TextChapterLayout(
                                         "style" -> style = value
                                         "width" -> width = value
                                         "click" -> click = value
+                                        "pclick" -> click = value
                                     }
                                 }
                             }
@@ -1479,7 +1481,7 @@ class TextChapterLayout(
         val width = element.attr("data-legado-width")
             .ifBlank { element.attr("width") }
             .ifBlank { element.cssWidth() }
-        val click = element.attr("data-legado-click").ifBlank { null }
+        val click = element.attr("data-legado-pclick").ifBlank { element.attr("data-legado-click") }.ifBlank { null }
         var imgSize = ImageProvider.getImageSize(book, src, ReadBook.bookSource)
         imgSize = imgSize.applyWidth(width)
         if (style == null) {
@@ -1628,7 +1630,7 @@ class TextChapterLayout(
                         val urlOption = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull() ?: return@let
                         var iStyle = urlOption["style"]
                         val width = urlOption["width"]
-                        val click = urlOption["click"]
+                        val click = urlOption["pclick"] ?: urlOption["click"]
                         var imgSize = ImageProvider.getImageSize(book, source, ReadBook.bookSource)
                         width?.let {
                             imgSize = imgSize.applyWidth(it)
