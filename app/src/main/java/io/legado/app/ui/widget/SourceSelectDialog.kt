@@ -47,7 +47,7 @@ object SourceSelectDialog {
 
             override fun onBindViewHolder(holder: SourceViewHolder, position: Int) {
                 val item = filteredItems[position]
-                val selectedPrefix = if (itemKey(item) == selectedKey) "✓ " else ""
+                val selectedPrefix = if (itemKey(item) == selectedKey) "\u2713 " else ""
                 holder.bind(selectedPrefix + displayName(item)) {
                     dialog?.dismiss()
                     onSelect(item)

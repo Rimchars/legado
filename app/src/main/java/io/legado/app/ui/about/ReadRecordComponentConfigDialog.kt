@@ -18,8 +18,10 @@ import io.legado.app.lib.theme.applyUiSectionTitleStyle
 import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.widget.recycler.ItemTouchCallback
+import io.legado.app.utils.applyModernWindowStyle
 import io.legado.app.utils.applyTint
 import io.legado.app.utils.dpToPx
+import io.legado.app.utils.setLayout
 import kotlin.math.min
 
 object ReadRecordComponentConfigDialog {
@@ -55,6 +57,7 @@ object ReadRecordComponentConfigDialog {
             .create()
         dialog.setOnShowListener {
             dialog.applyTint()
+            dialog.setLayout(0.9f, 0.68f)
             dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
                 val items = adapter.items.map { it.copy() }
                 if (items.none { it.enabled }) {
@@ -64,6 +67,7 @@ object ReadRecordComponentConfigDialog {
                 dialog.dismiss()
             }
         }
+        dialog.applyModernWindowStyle()
         dialog.show()
     }
 

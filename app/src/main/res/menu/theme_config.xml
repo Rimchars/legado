@@ -4,6 +4,7 @@
 
     <item
         android:id="@+id/menu_theme_mode"
+        android:icon="@drawable/ic_brightness"
         android:title="@string/theme_mode"
         app:showAsAction="always" />
 

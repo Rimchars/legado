@@ -14,9 +14,6 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
-import io.legado.app.help.config.ThemePackageManager
-import io.legado.app.help.config.NavigationBarIconConfig
-import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.model.BookCover
 import io.legado.app.data.entities.BaseSource
@@ -68,13 +65,6 @@ object Backup {
     private const val TAG = "Backup"
 
     private val mutex = Mutex()
-
-    private val backgroundAssetDirNames = arrayOf(
-        PreferKey.bgImage,
-        PreferKey.bgImageN,
-        PreferKey.bookInfoBgImage,
-        PreferKey.bookInfoBgImageN
-    )
 
     private val backupFileNames by lazy {
         arrayOf(
@@ -214,6 +204,10 @@ object Backup {
                             is Long -> edit.putLong(key, value)
                             is Float -> edit.putFloat(key, value)
                             is String -> edit.putString(key, value)
+                            is Set<*> -> edit.putStringSet(
+                                key,
+                                value.mapNotNull { it?.toString() }.toSet()
+                            )
                         }
                     }
                 }
@@ -240,12 +234,6 @@ object Backup {
         for (i in 0 until paths.size) {
             paths[i] = backupPath + File.separator + paths[i]
         }
-        backgroundAssetDirNames.forEach { dirName ->
-            paths.add(appCtx.externalFiles.getFile(dirName).absolutePath)
-        }
-        paths.add(ThemePackageManager.rootDir.absolutePath)
-        paths.add(NavigationBarIconConfig.rootDir.absolutePath)
-        paths.add(CoverCollectionManager.rootDir.absolutePath)
         FileUtils.delete(zipFilePath)
         FileUtils.delete(zipFilePath.replace("tmp_", ""))
         val backupFileName = if (AppConfig.onlyLatestBackup) {

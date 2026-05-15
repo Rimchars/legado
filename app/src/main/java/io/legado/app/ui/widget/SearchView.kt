@@ -7,7 +7,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.Spannable
 import android.text.SpannableStringBuilder
@@ -17,12 +16,10 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.widget.TextView
 import androidx.appcompat.widget.SearchView
-import androidx.core.content.ContextCompat
 import io.legado.app.R
-import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.TopBarSearchStyle
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
-import io.legado.app.utils.dpToPx
 import io.legado.app.utils.printOnDebug
 
 
@@ -74,12 +71,7 @@ class SearchView @JvmOverloads constructor(
     }
 
     private fun updateSearchBackground() {
-        background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = UiCorner.searchRadius(18f)
-            setColor(ContextCompat.getColor(context, R.color.background_card))
-            setStroke(1.dpToPx(), ContextCompat.getColor(context, R.color.divider))
-        }
+        TopBarSearchStyle.apply(this)
     }
 
     private fun getDecoratedHint(hintText: CharSequence): CharSequence {

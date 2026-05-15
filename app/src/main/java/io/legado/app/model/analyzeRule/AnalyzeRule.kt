@@ -876,6 +876,10 @@ class AnalyzeRule(
      * js实现跨域访问,不能删
      */
     override fun ajax(url: Any): String? {
+        return ajax(url, null)
+    }
+
+    override fun ajax(url: Any, callTimeout: Long?): String? {
         val urlStr = if (url is List<*>) {
             url.firstOrNull().toString()
         } else {
@@ -885,6 +889,7 @@ class AnalyzeRule(
             urlStr,
             source = source,
             ruleData = book,
+            callTimeout = callTimeout,
             coroutineContext = coroutineContext
         )
         return kotlin.runCatching {

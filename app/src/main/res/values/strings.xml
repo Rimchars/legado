@@ -104,7 +104,7 @@
         \u3000\u3000 This is an open source reading software newly developed by Kotlin, welcome to join us.
     </string>
     <string name="app_share_description">
-        阅读Archive download link：\n https://github.com/Rimchars/legado/releases
+        阅读Archive download link：\nhttps://gitee.com/zziji/legado/releases\nGitHub fallback：\nhttps://github.com/Rimchars/legado/releases
     </string>
     <string name="version_name">Version %s</string>
     <string name="pt_background_verification">Background-verification</string>
@@ -1588,7 +1588,7 @@
     <string name="about_description_sigma">\u3000\u3000阅读Archive 基于 Legado 持续定制，专注阅读体验、书源工具与 AI 辅助能力。</string>
     <string name="contributors_summary_sigma">当前维护仓库：Rimchars/legado，详情请在 GitHub 中查看</string>
     <string name="app_share_description_sigma">
-        阅读Archive 下载地址：\nhttps://github.com/Rimchars/legado/releases
+        阅读Archive 下载地址：\nhttps://gitee.com/zziji/legado/releases\nGitHub 备用：\nhttps://github.com/Rimchars/legado/releases
     </string>
     <string name="sure_cache_book">是否确认开始缓存？</string>
     <string name="non_printable_set">不可视字符设定</string>
@@ -1732,6 +1732,11 @@
     <string name="theme_delete_both_confirm">Delete both local and cloud theme?</string>
     <string name="theme_export_failed">Failed to export theme: %s</string>
     <string name="theme_zip_read_failed">Unable to read theme ZIP</string>
+    <string name="theme_builtin_export_forbidden">The built-in theme cannot be exported</string>
+    <string name="theme_config_file_missing">theme.json not found</string>
+    <string name="theme_resource_not_local">Theme resource is not local</string>
+    <string name="theme_resource_not_readable">Theme resource is not readable: %s</string>
+    <string name="theme_resource_download_failed">Theme resource download failed: %d</string>
     <string name="theme_imported">Theme imported</string>
     <string name="theme_import_failed">Failed to import theme: %s</string>
     <string name="theme_apply_failed">Failed to apply theme: %s</string>
@@ -1741,6 +1746,7 @@
     <string name="theme_sync_failed">Cloud theme sync failed: %s</string>
     <string name="theme_sync_pending">%d cloud change(s) are syncing in the background.</string>
     <string name="theme_delete_applied_forbidden">Cannot delete the currently applied theme</string>
+    <string name="theme_source_builtin">Built-in</string>
     <string name="theme_source_using">In use</string>
     <string name="theme_source_local">Local</string>
     <string name="theme_source_remote">Cloud</string>
@@ -1761,7 +1767,14 @@
     <string name="cache_manage_summary_state">%1$d book(s), %2$d cached chapter(s)</string>
     <string name="cache_manage_empty">No %1$s cache</string>
     <string name="cache_manage_chapters">Cached chapters</string>
-    <string name="cache_manage_cached_count">Cached %1$d/%2$d</string>
+    <string name="cache_manage_cached_count">Cached %1$d chapter(s)</string>
+    <string name="cache_manage_local_cached_count">Local %1$d chapter(s)</string>
+    <string name="cache_manage_remote_cached_count">Cloud %1$d chapter(s)</string>
+    <string name="cache_manage_upload_strategy_title">Upload strategy</string>
+    <string name="cache_manage_download_strategy_title">Download strategy</string>
+    <string name="cache_manage_sync_action">Sync</string>
+    <string name="cache_manage_sync_overwrite">Overwrite</string>
+    <string name="cache_manage_sync_merge">Merge</string>
     <string name="cache_manage_cached">Cached</string>
     <string name="cache_manage_not_cached">Not cached</string>
     <string name="cache_manage_search_chapter">Search chapters</string>
@@ -1769,8 +1782,17 @@
     <string name="cache_manage_delete_chapter_confirm">Delete cache for “%1$s”?</string>
     <string name="cache_manage_delete_chapter_failed">Delete failed: %1$s</string>
     <string name="cache_manage_delete_book_confirm">Delete all cache for “%1$s”?</string>
+    <string name="cache_manage_delete_book_title">Delete cache for “%1$s”</string>
+    <string name="cache_manage_delete_local">Delete local</string>
+    <string name="cache_manage_delete_remote">Delete cloud</string>
+    <string name="cache_manage_delete_both">Delete both</string>
+    <string name="cache_manage_delete_none">No cache to delete</string>
+    <string name="cache_manage_delete_local_confirm">Delete local cache for %1$d item(s)?</string>
+    <string name="cache_manage_delete_remote_confirm">Delete cloud backup for %1$d item(s)?</string>
+    <string name="cache_manage_delete_both_confirm">Delete both local cache and cloud backup for %1$d item(s)? This will remove all matching backups.</string>
     <string name="cache_manage_upload">Upload</string>
     <string name="cache_manage_uploading">Packing and uploading...</string>
+    <string name="cache_manage_upload_queued">Queued for WebDAV upload</string>
     <string name="cache_manage_upload_success">Cache package uploaded to WebDAV</string>
     <string name="cache_manage_upload_failed">Upload failed: %1$s</string>
     <string name="cache_manage_no_cache">No cache to upload</string>
@@ -1862,6 +1884,36 @@ Current chapter: %4$s (chapter %5$d)
 Selected text or question:
 %6$s</string>
 
+    <string name="bottom_bar_layout_standard">Bottom navigation bar</string>
+    <string name="top_bar_manage">Top bar manager</string>
+    <string name="top_bar_manage_summary">Manage main page top bar day and night styles</string>
+    <string name="top_bar_edit">Edit top bar</string>
+    <string name="top_bar_name">Top bar name</string>
+    <string name="top_bar_custom_name">Custom top bar</string>
+    <string name="top_bar_day_default_name">Default day top bar</string>
+    <string name="top_bar_night_default_name">Default night top bar</string>
+    <string name="top_bar_name_exists">Top bar name already exists</string>
+    <string name="top_bar_config_missing">Top bar config missing</string>
+    <string name="top_bar_style">Top bar style</string>
+    <string name="top_bar_style_default">Default</string>
+    <string name="top_bar_style_regular">Regular</string>
+    <string name="top_bar_corner_scale">Top bar corner scale</string>
+    <string name="top_bar_background_color">Top bar background color</string>
+    <string name="top_bar_tag_bar_color">Tag bar background</string>
+    <string name="top_bar_tag_bar_alpha">Tag bar opacity</string>
+    <string name="top_bar_wallpaper">Top bar wallpaper</string>
+    <string name="top_bar_wallpaper_alpha">Wallpaper opacity</string>
+    <string name="top_bar_tag_selected_color">Selected tag background</string>
+    <string name="top_bar_tag_selected_alpha">Selected tag opacity</string>
+    <string name="top_bar_filter_default">Filter bar default state</string>
+    <string name="top_bar_filter_default_collapsed">Collapsed by default</string>
+    <string name="top_bar_filter_default_expanded">Expanded by default</string>
+    <string name="top_bar_follow_theme">Follow theme</string>
+    <string name="read_record_top_bar_summary">Today %1$s · This month %2$s</string>
+    <string name="read_record_select_year">Select year</string>
+    <string name="read_record_select_day">Select day</string>
+    <string name="read_record_year_value">%1$d</string>
+    <string name="read_record_month_value">%1$d</string>
     <string name="source_runtime_backup">Ignore source login and variables</string>
     <string name="book_info_manage">Book detail manager</string>
     <string name="book_info_manage_summary">Manage book detail page components and order</string>
@@ -1873,17 +1925,32 @@ Selected text or question:
     <string name="book_info_component_detail">Intro and chapters card</string>
     <string name="book_info_component_detail_hint">Intro tab, chapter preview and expanded chapter list entry.</string>
     <string name="book_info_component_keep_one">Keep at least one detail component enabled.</string>
+    <string name="catalog_page_indicator_empty">0/0</string>
+    <string name="catalog_page_indicator">%1$d/%2$d</string>
     <string name="discovery_page_layout">Discovery page layout</string>
     <string name="discovery_page_layout_summary">Current: %1$s</string>
     <string name="discovery_page_layout_list">List</string>
     <string name="discovery_page_layout_waterfall">Waterfall</string>
+    <string name="discovery_page_layout_grid">Three-column grid</string>
     <string name="cache_manage_downloading">Downloading cloud cache...</string>
+    <string name="cache_manage_download_queued">Queued for WebDAV download</string>
     <string name="cache_manage_download_success">Cloud cache downloaded</string>
     <string name="cache_manage_download_failed">Download failed: %1$s</string>
     <string name="cache_manage_download_failed_simple">Download failed</string>
     <string name="cache_manage_download_first">Download the cloud cache to local first</string>
+    <string name="cache_manage_webdav_task_title">WebDAV task</string>
+    <string name="cache_manage_webdav_task_waiting">Waiting for WebDAV task</string>
+    <string name="cache_manage_webdav_task_content">%1$s · %2$s</string>
+    <string name="cache_manage_webdav_task_cancelled">WebDAV task cancelled</string>
+    <string name="cache_manage_webdav_task_duplicate">Task already queued</string>
+    <string name="cache_manage_batch_upload_queued">Queued %1$d upload task(s)</string>
     <string name="theme_image_panel_background">Panel background</string>
     <string name="theme_image_panel_background_mode">Panel image mode</string>
+    <string name="theme_panel_border_color">Panel border color</string>
+    <string name="theme_panel_border_alpha">Panel border opacity</string>
+    <string name="bottom_bar_border_color">Bottom bar border color</string>
+    <string name="top_bar_border_color">Top bar border color</string>
+    <string name="select_color">Select color</string>
     <string name="theme_image_mode_crop">Crop fill</string>
     <string name="theme_image_mode_fit">Fit inside</string>
     <string name="theme_group_color">Color</string>
@@ -1901,4 +1968,30 @@ Selected text or question:
     <string name="cover_collection_mode_random">Random</string>
     <string name="cover_collection_mode_sequence">Sequential</string>
     <string name="cover_collection_name">Collection name</string>
+    <string name="cover_collection_no_images_to_export">No images to export</string>
+    <string name="cover_collection_export_failed_simple">Failed to export collection</string>
+    <string name="cover_collection_zip_no_images">ZIP contains no available images</string>
+    <string name="paragraph_rule_manage">Paragraph rule management</string>
+    <string name="paragraph_rule_add_hint">Add paragraph rule</string>
+    <string name="paragraph_rule_all_rules">All paragraph rules</string>
+    <string name="paragraph_rule_current_book">Current book</string>
+    <string name="paragraph_rule_disabled_for_book">Disabled for current book</string>
+    <string name="paragraph_rule_edit">Edit paragraph rule</string>
+    <string name="paragraph_rule_empty">No paragraph rules</string>
+    <string name="paragraph_rule_enabled_for_book">Enabled for current book</string>
+    <string name="paragraph_rule_manage_summary">Enable one or more rules for the current book. Long press to sort execution order.</string>
+    <string name="paragraph_rule_no_book_hint">No current book</string>
+    <string name="paragraph_rule_no_editable_vars">No editable variables</string>
+    <string name="paragraph_rule_save">Save paragraph rule</string>
+    <string name="paragraph_rule_save_invalid">Name and paragraph script cannot be empty</string>
+    <string name="paragraph_rule_script">Paragraph processing JS</string>
+    <string name="paragraph_rule_vars">Rule variables</string>
+    <string name="paragraph_rule_vars_json">Variables JSON</string>
+    <string name="cache_manage_state_none">No cache</string>
+    <string name="cache_manage_state_local">Local</string>
+    <string name="cache_manage_state_remote">Cloud</string>
+    <string name="cache_manage_state_both">Local + cloud</string>
+    <string name="cache_manage_manifest_missing">Cache manifest is missing</string>
+    <string name="cache_manage_legacy_manifest_missing">Legacy cache package is missing chapter manifest. Open the book once or re-upload from a device with chapter list.</string>
+    <string name="top_bar_style_immersive">Immersive</string>
 </resources>

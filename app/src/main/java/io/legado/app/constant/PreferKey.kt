@@ -130,8 +130,12 @@ object PreferKey {
     const val bottomBarEffectMode = "bottomBarEffectMode"
     const val bottomBarLayoutMode = "bottomBarLayoutMode"
     const val bottomBarSidebarGravity = "bottomBarSidebarGravity"
+    const val aiFloatingBallSide = "aiFloatingBallSide"
+    const val aiFloatingBallYPercent = "aiFloatingBallYPercent"
     const val navigationBarPackageDay = "navigationBarPackageDay"
     const val navigationBarPackageNight = "navigationBarPackageNight"
+    const val topBarPackageDay = "topBarPackageDay"
+    const val topBarPackageNight = "topBarPackageNight"
     const val liquidGlassLevel = "liquidGlassLevel"
     const val frostedGlassLevel = "frostedGlassLevel"
     const val uiCornerScale = "uiCornerScale"
@@ -269,6 +273,10 @@ object PreferKey {
     const val panelBgImageN = "panelBackgroundImageNight"
     const val panelBgScaleType = "panelBackgroundScaleType"
     const val panelBgScaleTypeN = "panelBackgroundScaleTypeNight"
+    const val panelBorderColor = "panelBorderColor"
+    const val panelBorderColorN = "panelBorderColorNight"
+    const val panelBorderAlpha = "panelBorderAlpha"
+    const val panelBorderAlphaN = "panelBorderAlphaNight"
 
     const val tNavBar = "transparentNavBar"
 

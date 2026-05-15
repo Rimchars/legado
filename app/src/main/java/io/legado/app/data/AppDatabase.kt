@@ -19,6 +19,7 @@ import io.legado.app.data.dao.CookieDao
 import io.legado.app.data.dao.DictRuleDao
 import io.legado.app.data.dao.HttpTTSDao
 import io.legado.app.data.dao.KeyboardAssistsDao
+import io.legado.app.data.dao.ParagraphRuleDao
 import io.legado.app.data.dao.ReadRecentBookDao
 import io.legado.app.data.dao.ReadRecordDao
 import io.legado.app.data.dao.ReadRecordDailyDao
@@ -35,6 +36,7 @@ import io.legado.app.data.dao.TxtTocRuleDao
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.BookGroup
+import io.legado.app.data.entities.BookParagraphRule
 import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.BookSourcePart
 import io.legado.app.data.entities.Bookmark
@@ -43,6 +45,8 @@ import io.legado.app.data.entities.Cookie
 import io.legado.app.data.entities.DictRule
 import io.legado.app.data.entities.HttpTTS
 import io.legado.app.data.entities.KeyboardAssist
+import io.legado.app.data.entities.ParagraphRule
+import io.legado.app.data.entities.ParagraphRuleVar
 import io.legado.app.data.entities.ReadRecentBook
 import io.legado.app.data.entities.ReadRecord
 import io.legado.app.data.entities.ReadRecordDaily
@@ -71,7 +75,7 @@ val appDb by lazy {
 }
 
 @Database(
-    version = 91,
+    version = 93,
     exportSchema = true,
     entities = [Book::class, BookGroup::class, BookSource::class, BookChapter::class,
         ReplaceRule::class, SearchBook::class, SearchKeyword::class, Cookie::class,
@@ -79,7 +83,8 @@ val appDb by lazy {
         RssStar::class, TxtTocRule::class, ReadRecord::class, ReadRecordDaily::class,
         HttpTTS::class, Cache::class,
         RuleSub::class, DictRule::class, KeyboardAssist::class, Server::class,
-        ReadRecentBook::class],
+        ReadRecentBook::class, ParagraphRule::class, BookParagraphRule::class,
+        ParagraphRuleVar::class],
     views = [BookSourcePart::class],
     autoMigrations = [
         AutoMigration(from = 43, to = 44),
@@ -128,7 +133,8 @@ val appDb by lazy {
         AutoMigration(from = 86, to = 87),
         AutoMigration(from = 87, to = 88),
         AutoMigration(from = 88, to = 89),
-        AutoMigration(from = 89, to = 90)
+        AutoMigration(from = 89, to = 90),
+        AutoMigration(from = 92, to = 93)
     ]
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -156,6 +162,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val dictRuleDao: DictRuleDao
     abstract val keyboardAssistsDao: KeyboardAssistsDao
     abstract val serverDao: ServerDao
+    abstract val paragraphRuleDao: ParagraphRuleDao
 
     companion object {
 

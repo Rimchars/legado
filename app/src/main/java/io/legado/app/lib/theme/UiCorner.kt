@@ -16,13 +16,16 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.StateListDrawable
 import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.toColorInt
 import io.legado.app.R
 import io.legado.app.constant.PreferKey
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.utils.BitmapUtils
 import io.legado.app.utils.dpToPx
+import io.legado.app.utils.getPrefInt
 import io.legado.app.utils.getPrefString
+import splitties.init.appCtx
 import java.io.File
 
 object UiCorner {
@@ -96,14 +99,24 @@ object UiCorner {
     }
 
     fun panelRounded(context: Context, color: Int, radius: Float): Drawable {
+        val border = panelBorderColor(context)
+        val base = if (border != null) {
+            roundedStroke(color, radius, 1.dpToPx(), border)
+        } else {
+            rounded(color, radius)
+        }
         val image = panelImageDrawable(context, radius)
         if (image == null) {
-            return rounded(color, radius)
+            return base
+        }
+        if (border == null) {
+            return LayerDrawable(arrayOf(base, image))
         }
         return LayerDrawable(
             arrayOf(
-                rounded(color, radius),
-                image
+                base,
+                image,
+                strokeOnly(radius, 1.dpToPx(), border)
             )
         )
     }
@@ -115,9 +128,10 @@ object UiCorner {
         strokeWidth: Int,
         strokeColor: Int
     ): Drawable {
-        val base = roundedStroke(color, radius, strokeWidth, strokeColor)
+        val border = applyPanelBorderAlpha(context, strokeColor)
+        val base = roundedStroke(color, radius, strokeWidth, border)
         val image = panelImageDrawable(context, radius) ?: return base
-        return LayerDrawable(arrayOf(base, image))
+        return LayerDrawable(arrayOf(base, image, strokeOnly(radius, strokeWidth, border)))
     }
 
     fun panelImageDrawable(context: Context, radius: Float): Drawable? {
@@ -131,8 +145,24 @@ object UiCorner {
         return RoundedBitmapDrawable(bitmap, radius, mode == ThemeConfig.PANEL_BG_FIT)
     }
 
+    fun warmPanelBitmap(context: Context = appCtx) {
+        val path = context.getPrefString(
+            if (AppConfig.isNightTheme) PreferKey.panelBgImageN else PreferKey.panelBgImage
+        )
+        loadPanelBitmap(path)
+    }
+
     fun roundedStroke(color: Int, radius: Float, strokeWidth: Int, strokeColor: Int): GradientDrawable {
         return rounded(color, radius).apply {
+            setStroke(strokeWidth, strokeColor)
+        }
+    }
+
+    fun strokeOnly(radius: Float, strokeWidth: Int, strokeColor: Int): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = radius
+            setColor(Color.TRANSPARENT)
             setStroke(strokeWidth, strokeColor)
         }
     }
@@ -195,6 +225,22 @@ object UiCorner {
             panelBitmapKey = key
             panelBitmap = it
         }
+    }
+
+    fun panelBorderColor(context: Context): Int? {
+        val key = if (AppConfig.isNightTheme) PreferKey.panelBorderColorN else PreferKey.panelBorderColor
+        val value = context.getPrefString(key)?.takeIf { it.isNotBlank() } ?: return null
+        return runCatching { applyPanelBorderAlpha(context, value.toColorInt()) }.getOrNull()
+    }
+
+    fun panelBorderAlpha(context: Context): Int {
+        val key = if (AppConfig.isNightTheme) PreferKey.panelBorderAlphaN else PreferKey.panelBorderAlpha
+        return context.getPrefInt(key, 100).coerceIn(0, 100)
+    }
+
+    private fun applyPanelBorderAlpha(context: Context, color: Int): Int {
+        val alpha = panelBorderAlpha(context) * 255 / 100
+        return ColorUtils.setAlphaComponent(color, alpha.coerceIn(0, 255))
     }
 
     class RoundedBitmapDrawable(

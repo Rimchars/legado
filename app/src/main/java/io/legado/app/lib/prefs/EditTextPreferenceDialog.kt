@@ -10,7 +10,9 @@ import androidx.preference.PreferenceDialogFragmentCompat
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.dialogSurfaceBackground
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.dpToPx
 
 class EditTextPreferenceDialog : EditTextPreferenceDialogFragmentCompat() {
@@ -35,6 +37,7 @@ class EditTextPreferenceDialog : EditTextPreferenceDialogFragmentCompat() {
                 getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(accentColor)
                 getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(accentColor)
                 getButton(AlertDialog.BUTTON_NEUTRAL)?.setTextColor(accentColor)
+                window?.decorView?.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
             }
         }
         return dialog

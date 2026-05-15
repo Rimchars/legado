@@ -95,6 +95,7 @@ object NavigationBarIconConfig {
         var opacity: Int = 72,
         var updatedAt: Long = System.currentTimeMillis(),
         var sidebarBackgroundPath: String? = null,
+        var borderColor: Int? = null,
         var icons: MutableMap<String, String> = linkedMapOf()
     )
 
@@ -140,7 +141,7 @@ object NavigationBarIconConfig {
     suspend fun loadEntries(isNight: Boolean, includeRemote: Boolean): List<Entry> {
         migrateLegacyIconsIfNeeded(isNight)
         val local = loadLocal(isNight).associateBy { it.dirName }
-        val remote = if (includeRemote && AppConfig.syncThemePackages) {
+        val remote = if (includeRemote) {
             loadRemoteOrCache(isNight).associateBy { it.dirName }
         } else {
             emptyMap()
@@ -219,6 +220,33 @@ object NavigationBarIconConfig {
         AppConfig.frostedGlassLevel = config.opacity
         if (config.layoutMode == "sidebar") {
             appCtx.putPrefBoolean(PreferKey.mergeDiscoveryRss, false)
+        }
+    }
+
+    suspend fun restoreApplied(isNight: Boolean): Entry? {
+        val dirName = activeDirName(isNight)
+        if (dirName == DEFAULT_DIR_NAME) {
+            applyCurrentBottomConfig(isNight)
+            return defaultEntry(isNight)
+        }
+        readEntry(localDir(isNight, dirName))?.let {
+            clearRuntimeCache()
+            if (isNight == AppConfig.isNightTheme) apply(it)
+            return it
+        }
+        val remoteEntries = loadRemoteOrCache(isNight)
+        val remote = remoteEntries.firstOrNull { it.dirName == dirName }
+            ?: remoteEntries.firstOrNull { it.config.name.normalizeFileName() == dirName }
+            ?: run {
+                io.legado.app.constant.AppLog.put("恢复底栏包未找到: $dirName")
+                return null
+            }
+        return runCatching { download(remote) }.onSuccess {
+            clearRuntimeCache()
+            if (it.dirName != dirName || isNight == AppConfig.isNightTheme) apply(it)
+        }.getOrElse {
+            io.legado.app.constant.AppLog.put("恢复底栏包下载失败: $dirName\n${it.localizedMessage}", it)
+            null
         }
     }
 
@@ -450,10 +478,13 @@ object NavigationBarIconConfig {
     }
 
     private suspend fun loadRemoteOrCache(isNight: Boolean): List<Entry> {
+        val cached = readRemoteCache(isNight)
         return runCatching {
-            loadRemote(isNight).also { writeRemoteCache(isNight, it) }
+            loadRemote(isNight)
+        }.onSuccess { remote ->
+            writeRemoteCache(isNight, remote)
         }.getOrElse {
-            readRemoteCache(isNight)
+            cached
         }
     }
 
@@ -491,7 +522,7 @@ object NavigationBarIconConfig {
                 updatedAt = it.remoteUpdatedAt.takeIf { time -> time > 0L } ?: it.config.updatedAt
             )
         }
-        remoteCacheFile(isNight).writeText(GSON.toJson(cache))
+        remoteCacheFile(isNight).writeTextIfChanged(GSON.toJson(cache))
     }
 
     private fun readEntry(dir: File): Entry? {
@@ -685,7 +716,7 @@ object NavigationBarIconConfig {
 
     private fun normalizeConfig(config: Config): Config {
         val layoutMode = runCatching { config.layoutMode }.getOrNull()
-            ?.takeIf { it in setOf("floating", "sidebar") }
+            ?.takeIf { it in setOf("floating", "sidebar", "standard") }
             ?: "floating"
         val sidebarGravity = runCatching { config.sidebarGravity }.getOrNull()
             ?.takeIf { it in setOf("start", "end") }

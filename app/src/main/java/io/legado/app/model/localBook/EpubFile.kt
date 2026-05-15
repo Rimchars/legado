@@ -17,10 +17,12 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.MD5Utils
 import io.legado.app.utils.SvgUtils
+import io.legado.app.utils.compressPreservingAlpha
 import io.legado.app.utils.decodeBase64DataUrlBytes
 import io.legado.app.utils.encodeURI
 import io.legado.app.utils.isXml
 import io.legado.app.utils.printOnDebug
+import io.legado.app.utils.preferredCoverExtension
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import me.ag2s.epublib.domain.EpubBook
 import me.ag2s.epublib.domain.Resource
@@ -1919,7 +1921,7 @@ class EpubFile(var book: Book) {
         return try {
             epubBook?.let {
                 if (book.coverUrl.isNullOrEmpty()) {
-                    book.coverUrl = LocalBook.getCoverPath(book)
+                    book.coverUrl = LocalBook.findCoverPath(book) ?: LocalBook.getCoverPath(book)
                 }
                 if (fastCheck && File(book.coverUrl!!).exists()) {
                     return true
@@ -1932,8 +1934,10 @@ class EpubFile(var book: Book) {
                     AppLog.putDebug("Epub: 封面获取为空. path: ${book.bookUrl}")
                     return false
                 }
-                FileOutputStream(FileUtils.createFileIfNotExist(book.coverUrl!!)).use { out ->
-                    cover.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                val coverPath = LocalBook.resolveCoverPath(book, cover.preferredCoverExtension())
+                book.coverUrl = coverPath
+                FileOutputStream(FileUtils.createFileIfNotExist(coverPath)).use { out ->
+                    cover.compressPreservingAlpha(out, 90)
                     out.flush()
                 }
                 return true

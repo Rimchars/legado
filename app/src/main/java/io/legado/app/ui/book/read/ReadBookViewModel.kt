@@ -159,10 +159,17 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
                 syncBookProgress(book)
             }
         }
-        if (!book.isLocal && ReadBook.bookSource == null) {
+        if (shouldAutoChangeSourceForCurrentChapter(book)) {
             autoChangeSource(book.name, book.author)
             return
         }
+    }
+
+    private fun shouldAutoChangeSourceForCurrentChapter(book: Book): Boolean {
+        if (book.isLocal || ReadBook.bookSource != null) return false
+        val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex)
+            ?: return true
+        return !BookHelp.hasContent(book, chapter)
     }
 
     private fun checkLocalBookFileExist(book: Book): Boolean {

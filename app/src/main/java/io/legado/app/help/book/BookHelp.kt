@@ -199,6 +199,28 @@ object BookHelp {
         }
     }
 
+    fun ensureLegacyContentAlias(
+        book: Book,
+        bookChapter: BookChapter,
+        content: String? = null,
+        suffix: String = "nb"
+    ) {
+        val legacyFile = getLegacyContentFile(book, bookChapter, suffix) ?: return
+        if (legacyFile.exists() && legacyFile.length() > 0) return
+        val sourceFile = getContentFileCandidates(book, bookChapter, suffix)
+            .firstOrNull { it.exists() && it.length() > 0 }
+        legacyFile.parentFile?.mkdirs()
+        if (sourceFile != null && sourceFile.absolutePath != legacyFile.absolutePath) {
+            kotlin.runCatching {
+                sourceFile.copyTo(legacyFile, overwrite = true)
+            }
+            return
+        }
+        if (!content.isNullOrEmpty()) {
+            legacyFile.createFileIfNotExist().writeText(content)
+        }
+    }
+
     fun flowImages(bookChapter: BookChapter, content: String): Flow<String> {
         return flow {
             val matcher = AppPattern.imgPattern.matcher(content)

@@ -102,16 +102,19 @@ class SourceLoginJsExtensions(
         if (callbackRef.get()?.showBrowser(url, html, preloadJs, config) == true) {
             return
         }
-        activity.showDialogFragment(
-            BottomWebViewDialog(
-                source.getKey(),
-                bookType,
-                url,
-                html,
-                preloadJs,
-                config
+        activity.runOnUiThread {
+            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+            activity.showDialogFragment(
+                BottomWebViewDialog(
+                    source.getKey(),
+                    bookType,
+                    url,
+                    html,
+                    preloadJs,
+                    config
+                )
             )
-        )
+        }
     }
 
 }

@@ -48,6 +48,7 @@ object ModernActionPopup {
             popupSize.second,
             true
         ).apply {
+            animationStyle = R.style.AnimPopupMenu
             isOutsideTouchable = true
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {

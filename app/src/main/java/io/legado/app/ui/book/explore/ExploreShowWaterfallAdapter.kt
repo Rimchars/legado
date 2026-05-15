@@ -13,7 +13,9 @@ import io.legado.app.data.entities.SearchBook
 import io.legado.app.databinding.ItemSearchWaterfallBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.UiCorner
-import io.legado.app.utils.dpToPx
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
+import io.legado.app.ui.widget.WaterfallCardMetrics
 import io.legado.app.utils.gone
 import io.legado.app.utils.visible
 
@@ -25,19 +27,16 @@ class ExploreShowWaterfallAdapter(
 
     override fun getViewBinding(parent: ViewGroup): ItemSearchWaterfallBinding {
         return ItemSearchWaterfallBinding.inflate(inflater, parent, false).apply {
-            val parentWidth = parent.width.takeIf { it > 0 }
-                ?: parent.resources.displayMetrics.widthPixels
-            val horizontalSpace = parent.paddingStart + parent.paddingEnd + columns * 8.dpToPx()
-            val cardWidth = ((parentWidth - horizontalSpace) / columns).coerceAtLeast(82.dpToPx())
-            val cardHeight = (cardWidth * 2.08f).toInt().coerceAtLeast(260.dpToPx())
+            root.applyUiBodyTypefaceDeep(context.uiTypeface())
+            val metrics = WaterfallCardMetrics.resolve(parent, columns)
             root.layoutParams = (root.layoutParams ?: ViewGroup.MarginLayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )).apply {
-                height = cardHeight
+                height = metrics.cardHeight
             }
             ivCover.layoutParams = ivCover.layoutParams.apply {
-                height = (cardWidth * 1.36f).toInt().coerceAtLeast(108.dpToPx())
+                height = metrics.coverHeight
             }
             root.background = UiCorner.panelRounded(
                 root.context,

@@ -37,9 +37,10 @@ suspend fun RssSource.sortUrls(): List<Pair<String, String>> {
                     }
                 }
                 str?.split("(&&|\n)+".toRegex())?.forEach { sort ->
-                    val name = sort.substringBefore("::")
-                    val url = sort.substringAfter("::", "")
-                    if (url.isNotEmpty()) {
+                    val name = sort.substringBefore("::").trim()
+                    val rawUrl = sort.substringAfter("::", "").trim()
+                    val url = rawUrl.takeUnless { it.equals("null", ignoreCase = true) }.orEmpty()
+                    if (name.isNotBlank() || url.isNotBlank()) {
                         add(Pair(name, url))
                     }
                 }

@@ -13,8 +13,7 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.ActivityCacheManageBinding
-import io.legado.app.help.AppWebDav
-import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.dialogs.AndroidAlertBuilder
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.accentColor
@@ -108,8 +107,24 @@ class CacheManageActivity :
                 }
             }
         }
+        lifecycleScope.launch {
+            WebDavTaskManager.states.collectLatest { states ->
+                adapter.updateWebDavTaskStates(states)
+                reloadItemsWhenWebDavTaskFinished(states)
+            }
+        }
     }
 
+    private fun reloadItemsWhenWebDavTaskFinished(states: Map<String, WebDavTaskState>) {
+        states.values
+            .filter { !it.active && it.status.isTerminalForListRefresh() }
+            .forEach { state ->
+                val key = "webdav:${state.key}:${state.type}:${state.status}"
+                if (handledTerminalTaskReloads.add(key)) {
+                    viewModel.load()
+                }
+            }
+    }
     private fun reloadAudioItemsWhenNeeded(states: Map<String, AudioCacheTaskState>) {
         val stateValues = states.values
         val activeTaskBookUrls = stateValues
@@ -178,34 +193,30 @@ class CacheManageActivity :
     }
 
     override fun upload(item: CacheBookItem) {
-        lifecycleScope.launch {
-            toastOnUi(R.string.cache_manage_uploading)
-            kotlin.runCatching {
-                viewModel.uploadCacheItem(item)
-            }.onSuccess {
-                toastOnUi(R.string.cache_manage_upload_success)
-                viewModel.load()
-            }.onFailure {
-                toastOnUi(getString(R.string.cache_manage_upload_failed, it.localizedMessage))
+        selectSyncStrategy(R.string.cache_manage_upload_strategy_title) { strategy ->
+            val queued = WebDavTaskManager.enqueueCacheUpload(item) {
+                viewModel.uploadCacheItem(item, strategy)
             }
+            toastOnUi(if (queued) R.string.cache_manage_upload_queued else R.string.cache_manage_webdav_task_duplicate)
         }
     }
 
     override fun download(item: CacheBookItem) {
-        lifecycleScope.launch {
-            toastOnUi(R.string.cache_manage_downloading)
-            kotlin.runCatching {
-                viewModel.downloadRemoteCache(item)
-            }.onSuccess { success ->
-                if (success) {
-                    toastOnUi(R.string.cache_manage_download_success)
-                    viewModel.load()
-                } else {
-                    toastOnUi(R.string.cache_manage_download_failed_simple)
-                }
-            }.onFailure {
-                toastOnUi(getString(R.string.cache_manage_download_failed, it.localizedMessage))
+        selectSyncStrategy(R.string.cache_manage_download_strategy_title) { strategy ->
+            val queued = WebDavTaskManager.enqueueCacheDownload(item) {
+                viewModel.downloadRemoteCache(item, strategy)
             }
+            toastOnUi(if (queued) R.string.cache_manage_download_queued else R.string.cache_manage_webdav_task_duplicate)
+        }
+    }
+
+    override fun selectSyncAction(item: CacheBookItem) {
+        val actions = listOf(
+            R.string.cache_manage_upload to { upload(item) },
+            R.string.action_download to { download(item) }
+        )
+        selector(getString(R.string.cache_manage_sync_action), actions.map { getString(it.first) }) { _, index ->
+            actions.getOrNull(index)?.second?.invoke()
         }
     }
 
@@ -230,13 +241,16 @@ class CacheManageActivity :
     }
 
     override fun deleteBookCache(item: CacheBookItem) {
-        alert(getString(R.string.delete), getString(R.string.cache_manage_delete_book_confirm, item.book.name)) {
-            yesButton {
-                viewModel.deleteBookCache(item.book) {
-                    toastOnUi(R.string.delete_success)
+        selectDeleteTarget(
+            item = item,
+            localAvailable = item.localCachedCount > 0,
+            remoteAvailable = item.hasRemoteCache()
+        ) { target ->
+            confirmDeleteTarget(target, 1) {
+                viewModel.deleteBookCache(item, target) { result ->
+                    toastDeleteResult(result)
                 }
             }
-            noButton()
         }
     }
 
@@ -257,13 +271,7 @@ class CacheManageActivity :
                     }
                 )
                 append(" · ")
-                append(
-                    getString(
-                        R.string.cache_manage_cached_count,
-                        variant.cachedCount,
-                        variant.totalChapterCount
-                    )
-                )
+                append(variant.cacheCountText(this@CacheManageActivity))
             }
         }
         selector(getString(R.string.cache_manage_select_source), labels) { _, index ->
@@ -273,45 +281,106 @@ class CacheManageActivity :
     }
 
     private fun uploadAll() {
-        val items = adapter.getItems().filter { it.cachedCount > 0 && !it.hasLockedAudioTask() }
+        val items = adapter.getItems().filter { it.cachedCount > 0 && !it.hasLockedCacheTask() }
         if (items.isEmpty()) {
             toastOnUi(R.string.cache_manage_batch_empty)
             return
         }
-        lifecycleScope.launch {
-            toastOnUi(R.string.cache_manage_uploading)
-            var success = 0
-            var failed = 0
-            items.forEach { item ->
-                kotlin.runCatching {
-                    viewModel.uploadCacheItem(item)
-                }.onSuccess {
-                    success++
-                }.onFailure {
-                    failed++
-                }
+        val queued = items.count { item ->
+            WebDavTaskManager.enqueueCacheUpload(item) {
+                viewModel.uploadCacheItem(item)
             }
-            toastOnUi(getString(R.string.cache_manage_batch_upload_done, success, failed))
         }
+        toastOnUi(getString(R.string.cache_manage_batch_upload_queued, queued))
     }
 
     private fun deleteAll() {
-        val items = adapter.getItems().filter { it.cachedCount > 0 && !it.hasLockedAudioTask() }
+        val items = adapter.getItems().filter {
+            !it.hasLockedCacheTask() && (it.localCachedCount > 0 || it.hasRemoteCache())
+        }
         if (items.isEmpty()) {
             toastOnUi(R.string.cache_manage_batch_empty)
             return
         }
-        alert(
-            getString(R.string.delete),
-            getString(R.string.cache_manage_delete_all_confirm, items.size)
-        ) {
-            yesButton {
-                viewModel.deleteBookCaches(items.map { it.book }) {
-                    toastOnUi(R.string.delete_success)
+        val localAvailable = items.any { it.localCachedCount > 0 }
+        val remoteAvailable = items.any { it.hasRemoteCache() }
+        selectDeleteTarget(localAvailable = localAvailable, remoteAvailable = remoteAvailable) { target ->
+            val targets = items.filter { item -> target.canDelete(item) }
+            if (targets.isEmpty()) {
+                toastOnUi(R.string.cache_manage_batch_empty)
+                return@selectDeleteTarget
+            }
+            confirmDeleteTarget(target, targets.size) {
+                viewModel.deleteBookCaches(targets, target) { result ->
+                    toastDeleteResult(result)
                 }
             }
-            noButton()
         }
+    }
+
+    private fun selectDeleteTarget(
+        item: CacheBookItem? = null,
+        localAvailable: Boolean,
+        remoteAvailable: Boolean,
+        onSelected: (CacheDeleteTarget) -> Unit
+    ) {
+        val targets = CacheDeleteTarget.entries.filter { target ->
+            when (target) {
+                CacheDeleteTarget.LOCAL -> localAvailable
+                CacheDeleteTarget.REMOTE -> remoteAvailable
+                CacheDeleteTarget.BOTH -> localAvailable && remoteAvailable
+            }
+        }
+        if (targets.isEmpty()) {
+            toastOnUi(R.string.cache_manage_no_cache)
+            return
+        }
+        if (targets.size == 1) {
+            onSelected(targets.first())
+            return
+        }
+        val title = item?.let { getString(R.string.cache_manage_delete_book_title, it.book.name) }
+            ?: getString(R.string.delete)
+        selector(title, targets.map { getString(it.labelRes) }) { _, index ->
+            targets.getOrNull(index)?.let(onSelected)
+        }
+    }
+
+    private fun confirmDeleteTarget(
+        target: CacheDeleteTarget,
+        count: Int,
+        onConfirmed: () -> Unit
+    ) {
+        val message = when (target) {
+            CacheDeleteTarget.LOCAL -> getString(R.string.cache_manage_delete_local_confirm, count)
+            CacheDeleteTarget.REMOTE -> getString(R.string.cache_manage_delete_remote_confirm, count)
+            CacheDeleteTarget.BOTH -> getString(R.string.cache_manage_delete_both_confirm, count)
+        }
+        AndroidAlertBuilder(this).apply {
+            setTitle(R.string.delete)
+            setMessage(message)
+            yesButton { onConfirmed() }
+            noButton()
+            show()
+        }
+    }
+
+    private fun selectSyncStrategy(
+        titleRes: Int,
+        onSelected: (CacheSyncStrategy) -> Unit
+    ) {
+        val strategies = CacheSyncStrategy.entries
+        selector(getString(titleRes), strategies.map { getString(it.labelRes) }) { _, index ->
+            strategies.getOrNull(index)?.let(onSelected)
+        }
+    }
+
+    private fun toastDeleteResult(result: CacheDeleteResult) {
+        result.messageRes?.let {
+            toastOnUi(it)
+            return
+        }
+        toastOnUi(result.errorMessage ?: getString(R.string.error))
     }
 
     override fun onCacheChanged() {
@@ -340,15 +409,33 @@ private fun CacheTaskStatus.isTerminalForListRefresh(): Boolean {
         this == CacheTaskStatus.FAILED
 }
 
+private fun WebDavTaskStatus.isTerminalForListRefresh(): Boolean {
+    return this == WebDavTaskStatus.COMPLETED ||
+        this == WebDavTaskStatus.CANCELLED ||
+        this == WebDavTaskStatus.FAILED
+}
+
 private const val MISSING_TASK_RELOAD_INTERVAL_MS = 2500L
 private const val MISSING_TASK_RELOAD_DELAY_MS = 250L
 private const val TERMINAL_TASK_RELOAD_DELAY_MS = 600L
 
-private fun CacheBookItem.hasLockedAudioTask(): Boolean {
+private fun CacheBookItem.hasLockedCacheTask(): Boolean {
     if (AudioCacheTaskManager.snapshot(book.bookUrl).locksCacheActions()) return true
-    return sourceVariants.any { AudioCacheTaskManager.snapshot(it.book.bookUrl).locksCacheActions() }
+    if (WebDavTaskManager.snapshot(cacheKey)?.active == true) return true
+    return sourceVariants.any {
+        AudioCacheTaskManager.snapshot(it.book.bookUrl).locksCacheActions() ||
+            WebDavTaskManager.snapshot(it.cacheKey)?.active == true
+    }
 }
 
 private fun AudioCacheTaskState?.locksCacheActions(): Boolean {
     return this?.active == true || this?.status == CacheTaskStatus.PAUSED
+}
+
+private fun CacheDeleteTarget.canDelete(item: CacheBookItem): Boolean {
+    return when (this) {
+        CacheDeleteTarget.LOCAL -> item.localCachedCount > 0
+        CacheDeleteTarget.REMOTE -> item.hasRemoteCache()
+        CacheDeleteTarget.BOTH -> item.localCachedCount > 0 || item.hasRemoteCache()
+    }
 }

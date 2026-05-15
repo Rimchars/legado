@@ -17,6 +17,8 @@ import io.legado.app.databinding.ActivityCoverCollectionDetailBinding
 import io.legado.app.databinding.ItemCoverCollectionImageBinding
 import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.launch
@@ -45,6 +47,7 @@ class CoverCollectionDetailActivity : BaseActivity<ActivityCoverCollectionDetail
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         isNight = intent.getBooleanExtra("isNight", false)
         collectionId = intent.getStringExtra("id")
+        binding.root.applyUiBodyTypefaceDeep(uiTypeface())
         adapter = Adapter()
         binding.recyclerView.layoutManager = GridLayoutManager(this, 3)
         binding.recyclerView.adapter = adapter
@@ -73,6 +76,7 @@ class CoverCollectionDetailActivity : BaseActivity<ActivityCoverCollectionDetail
     private fun bindCollection() {
         val current = collection ?: return
         title = current.name
+        binding.titleBar.title = current.name
         adapter?.setItems(current.images)
     }
 

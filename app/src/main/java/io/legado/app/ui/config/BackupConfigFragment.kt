@@ -360,7 +360,10 @@ class BackupConfigFragment : PreferenceFragment(),
     }
 
     private suspend fun showRestoreDialog(context: Context) {
-        val names = withContext(IO) { AppWebDav.getBackupNames() }
+        val names = withContext(IO) {
+            AppWebDav.upConfig()
+            AppWebDav.getBackupNames()
+        }
         if (AppWebDav.isJianGuoYun && names.size > 700) {
             context.toastOnUi("由于坚果云限制列出文件数量，部分备份可能未显示，请及时清理旧备份")
         }

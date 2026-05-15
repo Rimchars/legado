@@ -215,14 +215,38 @@ object LocalBook {
     }
 
     fun getCoverPath(book: Book): String {
-        return getCoverPath(book.bookUrl)
+        return getCoverPath(book.bookUrl, "jpg")
     }
 
-    private fun getCoverPath(bookUrl: String): String {
+    fun getCoverPath(book: Book, extension: String): String {
+        return getCoverPath(book.bookUrl, extension)
+    }
+
+    fun findCoverPath(book: Book): String? {
+        return listOf("png", "jpg", "webp")
+            .asSequence()
+            .map { getCoverPath(book.bookUrl, it) }
+            .firstOrNull { File(it).exists() }
+    }
+
+    fun resolveCoverPath(book: Book, extension: String): String {
+        val current = book.coverUrl
+        if (!current.isNullOrBlank() && !isManagedCoverPath(book, current)) {
+            return current
+        }
+        return getCoverPath(book.bookUrl, extension)
+    }
+
+    private fun isManagedCoverPath(book: Book, path: String): Boolean {
+        return listOf("png", "jpg", "webp").any { path == getCoverPath(book.bookUrl, it) }
+    }
+
+    private fun getCoverPath(bookUrl: String, extension: String): String {
+        val safeExtension = extension.substringAfterLast('.').ifBlank { "jpg" }.lowercase()
         return FileUtils.getPath(
             appCtx.externalFiles,
             "covers",
-            "${MD5Utils.md5Encode16(bookUrl)}.jpg"
+            "${MD5Utils.md5Encode16(bookUrl)}.$safeExtension"
         )
     }
 

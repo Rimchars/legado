@@ -48,22 +48,36 @@ jobs:
             echo "tag=${TAG_NAME}"
           } >> "$GITHUB_OUTPUT"
 
-          cat > release-notes.md <<EOF
-          阅读Archive 第五版
+          cat > release-notes.md <<'EOF'
+          阅读Archive 第六版
 
           新增：
-          - 支持标题字体和界面字体设置。
-          - 支持阅读目标和阅读时长排行桌面组件。
-          - 支持圆角布局卡片壁纸。
-          - 支持云端缓存加入书架。
-          - 最小兼容 md3 版备份恢复。
+          - 新增正文段落规则管理。
+          - 段落规则独立于书源存在，可在阅读页右上角「段落规则管理」中为当前书单独启用。
+          - 段落规则仅对 TXT 和书源正文生效，EPUB 暂不生效。
+          - 支持对整章正文进行一次性批量处理，App 会先整理出当前章节全部段落，再交给规则处理，不会逐段重复调用。
+          - 支持同时启用多个规则，并按规则顺序依次处理正文。
+          - 支持规则导入、导出、编辑、删除、排序、变量管理、登录配置和章节调试。
+          - 段落规则支持读取当前上下文，包括整章正文、段落表、当前书籍信息、当前章节信息、规则信息和规则变量。
+          - 段落规则支持返回字符串、段落数组或段落替换表，可直接替换整章正文、重组段落或按段落序号替换指定段落。
+          - 发现页新增三列书封布局。
+          - 详情页新增独立目录组件，支持目录作为页面级组件展示。
 
           修复：
-          - 修复部分 EPUB 导入、封面读取、背景图显示、内置字体加载和复杂排版异常。
-          - 修复 EPUB 含背景图页面加载慢、频繁重新加载和预加载不足的问题。
-          - 修复纯 URL 订阅在新版订阅页中没有按原逻辑跳转的问题。
-          - 修复主题背景图可能被背景色覆盖的问题。
-          - 修复发现页默认封面模式下列表与详情页图集封面不一致的问题。
+          - 修复段评弹窗在部分设备上启动卡顿、白屏、样式加载异常的问题。
+          - 修复 Huawei / Honor 设备 showBrowser 圆角可能失效的问题。
+          - 修复段评 WebView 复用异常，降低正文段评打开时的卡顿和混乱概率。
+          - 修复 PNG 透明封面在发现页、书架页、详情页显示不正确的问题。
+          - 修复主题图片导入走裁剪工具后可能解码失败的问题。
+          - 修复详情页简介、目录组件在部分情况下高度异常、截断或滑动异常的问题。
+          - 修复图片点击规则在部分缓存章节中找不到章节内容的问题。
+          - 修复详情页 useWeb 简介组件切换后可能不刷新或显示异常的问题。
+
+          优化：
+          - 优化段评弹窗启动响应和 WebView 保活策略。
+          - 优化段评样式加载，减少重复打开时的白闪和等待感。
+          - 优化详情页组件分页与目录展示逻辑。
+          - 优化缓存、主题、顶栏、底栏等管理页的部分读取和恢复逻辑。
           EOF
 
       - name: Build arm64 release APK
@@ -112,7 +126,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: 阅读Archive 第五版 ${{ steps.version.outputs.name }}
+          name: 阅读Archive 第六版 ${{ steps.version.outputs.name }}
           prerelease: false
           make_latest: true
           generate_release_notes: false
@@ -144,14 +158,18 @@ jobs:
       - name: Sync release to Gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          TAG_NAME: ${{ steps.version.outputs.tag }}
-          RELEASE_NAME: 阅读Archive 第五版 ${{ steps.version.outputs.name }}
         run: |
-          set -euo pipefail
-          if [ -z "${GITEE_TOKEN:-}" ]; then
+          if [ -z "$GITEE_TOKEN" ]; then
             echo "GITEE_TOKEN is not configured, skip Gitee release sync."
             exit 0
           fi
+
+          set +e
+          API="https://gitee.com/api/v5/repos/zziji/legado"
+          TAG_NAME="${{ steps.version.outputs.tag }}"
+          RELEASE_NAME="阅读Archive 第六版 ${{ steps.version.outputs.name }}"
+          CHANNEL_TAG="latest-arm64-release"
+          TOKEN_QUERY="$(python3 -c 'import os, urllib.parse; print(urllib.parse.urlencode({"access_token": os.environ["GITEE_TOKEN"]}))')"
 
           if ! git rev-parse -q --verify "refs/tags/$TAG_NAME" >/dev/null; then
             git fetch origin "refs/tags/$TAG_NAME:refs/tags/$TAG_NAME"
@@ -165,15 +183,11 @@ jobs:
             echo "Pushed Gitee tag: $TAG_NAME"
           fi
 
-          API="https://gitee.com/api/v5/repos/zziji/legado"
-          TOKEN_QUERY="$(python3 -c 'import os, urllib.parse; print(urllib.parse.urlencode({"access_token": os.environ["GITEE_TOKEN"]}))')"
-
           find_release_id() {
-            local tag_name="$1"
-            curl -sS -G \
+            curl -fsS -G \
               --data-urlencode "access_token=$GITEE_TOKEN" \
-              "$API/releases/tags/$tag_name" \
-              | python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("id", ""))'
+              "$API/releases/tags/$1" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))'
           }
 
           upsert_release() {
@@ -196,18 +210,17 @@ jobs:
                 --data-urlencode "name=$release_name" \
                 --data-urlencode "body=$(cat release-notes.md)" \
                 --data-urlencode "prerelease=false" \
-                | python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("id", ""))')"
-            fi
-            if [ -z "$release_id" ]; then
-              echo "Unable to resolve Gitee release id for $tag_name."
-              exit 1
+                | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))')"
             fi
             echo "$release_id"
           }
 
           upload_apks() {
             local release_id="$1"
-            curl -sS -G \
+            if [ -z "$release_id" ]; then
+              return 1
+            fi
+            curl -fsS -G \
               --data-urlencode "access_token=$GITEE_TOKEN" \
               "$API/releases/$release_id/attach_files" \
               | python3 -c 'import json,sys; data=json.load(sys.stdin); [print(item.get("id")) for item in data if str(item.get("name", "")).endswith(".apk")]' \
@@ -217,32 +230,15 @@ jobs:
                   fi
                 done
             for apk in release-apks/*.apk; do
-              echo "Uploading $(basename "$apk") to Gitee release $release_id"
               curl -fsS -X POST "$API/releases/$release_id/attach_files" \
                 -F "access_token=$GITEE_TOKEN" \
-                -F "file=@$apk" >/dev/null
+                -F "file=@$apk" >/dev/null || return 1
             done
           }
 
-          VERSIONED_ID="$(upsert_release "$TAG_NAME" "$RELEASE_NAME")"
-          upload_apks "$VERSIONED_ID"
-          echo "Gitee versioned release sync finished: $TAG_NAME"
-
-      - name: Sync update channel to Gitee
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${GITEE_TOKEN:-}" ]; then
-            echo "GITEE_TOKEN is not configured, skip Gitee update channel sync."
-            exit 0
-          fi
-
-          API="https://gitee.com/api/v5/repos/zziji/legado"
-          CHANNEL_TAG="latest-arm64-release"
-          CHANNEL_NAME="阅读Archive 更新通道"
-          TOKEN_QUERY="$(python3 -c 'import os, urllib.parse; print(urllib.parse.urlencode({"access_token": os.environ["GITEE_TOKEN"]}))')"
-          GITEE_REMOTE="https://oauth2:${GITEE_TOKEN}@gitee.com/zziji/legado.git"
+          SYNC_FAILED=0
+          VERSIONED_ID="$(upsert_release "$TAG_NAME" "$RELEASE_NAME")" || SYNC_FAILED=1
+          upload_apks "$VERSIONED_ID" || SYNC_FAILED=1
 
           if git ls-remote --exit-code --tags "$GITEE_REMOTE" "refs/tags/$CHANNEL_TAG" >/dev/null 2>&1; then
             echo "Gitee update channel tag already exists: $CHANNEL_TAG"
@@ -251,49 +247,11 @@ jobs:
             echo "Pushed Gitee update channel tag: $CHANNEL_TAG"
           fi
 
-          find_release_id() {
-            curl -sS -G \
-              --data-urlencode "access_token=$GITEE_TOKEN" \
-              "$API/releases/tags/$CHANNEL_TAG" \
-              | python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("id", ""))'
-          }
+          CHANNEL_ID="$(upsert_release "$CHANNEL_TAG" "阅读Archive 更新通道")" || SYNC_FAILED=1
+          upload_apks "$CHANNEL_ID" || SYNC_FAILED=1
 
-          RELEASE_ID="$(find_release_id 2>/dev/null || true)"
-          if [ -n "$RELEASE_ID" ]; then
-            curl -fsS -X PATCH "$API/releases/$RELEASE_ID" \
-              --data-urlencode "access_token=$GITEE_TOKEN" \
-              --data-urlencode "tag_name=$CHANNEL_TAG" \
-              --data-urlencode "name=$CHANNEL_NAME" \
-              --data-urlencode "body=$(cat release-notes.md)" \
-              --data-urlencode "prerelease=false" >/dev/null
-          else
-            RELEASE_ID="$(curl -fsS -X POST "$API/releases" \
-              --data-urlencode "access_token=$GITEE_TOKEN" \
-              --data-urlencode "tag_name=$CHANNEL_TAG" \
-              --data-urlencode "target_commitish=$CHANNEL_TAG" \
-              --data-urlencode "name=$CHANNEL_NAME" \
-              --data-urlencode "body=$(cat release-notes.md)" \
-              --data-urlencode "prerelease=false" \
-              | python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("id", ""))')"
+          if [ "$SYNC_FAILED" -ne 0 ]; then
+            echo "Gitee release sync failed, GitHub release has already been published."
+            exit 0
           fi
-          if [ -z "$RELEASE_ID" ]; then
-            echo "Unable to resolve Gitee update channel release id."
-            exit 1
-          fi
-
-          curl -sS -G \
-            --data-urlencode "access_token=$GITEE_TOKEN" \
-            "$API/releases/$RELEASE_ID/attach_files" \
-            | python3 -c 'import json,sys; data=json.load(sys.stdin); [print(item.get("id")) for item in data if str(item.get("name", "")).endswith(".apk")]' \
-            | while read -r attach_id; do
-                if [ -n "$attach_id" ]; then
-                  curl -fsS -X DELETE "$API/releases/$RELEASE_ID/attach_files/$attach_id?$TOKEN_QUERY" >/dev/null
-                fi
-              done
-          for apk in release-apks/*.apk; do
-            echo "Uploading $(basename "$apk") to Gitee update channel"
-            curl -fsS -X POST "$API/releases/$RELEASE_ID/attach_files" \
-              -F "access_token=$GITEE_TOKEN" \
-              -F "file=@$apk" >/dev/null
-          done
-          echo "Gitee update channel sync finished."
+          echo "Gitee release sync finished."

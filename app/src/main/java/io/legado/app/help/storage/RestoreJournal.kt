@@ -6,6 +6,7 @@ import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
+import io.legado.app.help.config.TopBarConfig
 import io.legado.app.model.VideoPlay.VIDEO_PREF_NAME
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.GSON
@@ -67,6 +68,9 @@ object RestoreJournal {
         }
         if (File(path, "navigationBarPackages").isDirectory) {
             targets.add(NavigationBarIconConfig.rootDir)
+        }
+        if (File(path, "topBarPackages").isDirectory) {
+            targets.add(TopBarConfig.rootDir)
         }
         if (File(path, "coverCollections").isDirectory) {
             targets.add(CoverCollectionManager.rootDir)

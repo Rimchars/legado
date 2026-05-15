@@ -131,10 +131,15 @@ android {
 
     android.applicationVariants.configureEach { variant ->
         def variantName = variant.name.capitalize()
-        def copyTask = tasks.register("copy${variantName}ApkToCurrentDir", Exec) {
-            workingDir rootProject.projectDir
-            commandLine "sh", "-c",
-                    "cp -f app/build/outputs/apk/${variant.flavorName}/${variant.buildType.name}/*.apk '${rootProject.projectDir.parentFile.absolutePath}/'"
+        def copyTask = tasks.register("copy${variantName}ApkToCurrentDir") {
+            doLast {
+                copy {
+                    from(layout.buildDirectory.dir("outputs/apk/${variant.flavorName}/${variant.buildType.name}")) {
+                        include("*.apk")
+                    }
+                    into(rootProject.projectDir.parentFile)
+                }
+            }
         }
         tasks.named("assemble${variantName}").configure {
             finalizedBy(copyTask)

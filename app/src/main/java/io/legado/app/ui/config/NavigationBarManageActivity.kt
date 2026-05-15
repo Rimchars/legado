@@ -16,6 +16,8 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
+import com.jaredrummler.android.colorpicker.ColorPickerDialog
+import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
 import io.legado.app.constant.EventBus
@@ -27,12 +29,14 @@ import io.legado.app.help.config.NavigationBarIconConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.UiCorner
-import io.legado.app.lib.theme.applyUiInputStyle
 import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.lib.theme.uiTypeface
+import io.legado.app.ui.book.cache.WebDavTaskManager
+import io.legado.app.ui.book.cache.WebDavTaskStatus
+import io.legado.app.ui.book.cache.WebDavTaskType
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.image.ImageCropContract
 import io.legado.app.ui.widget.number.NumberPickerDialog
@@ -45,6 +49,7 @@ import io.legado.app.utils.putPrefBoolean
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -53,7 +58,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
+class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>(), ColorPickerDialogListener {
 
     override val binding by viewBinding(ActivityThemeManageBinding::inflate)
 
@@ -62,8 +67,10 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
     private var editingEntry: NavigationBarIconConfig.Entry? = null
     private var editingDialog: LinearLayout? = null
     private var pendingConfig: NavigationBarIconConfig.Config? = null
+    private var pendingColorTarget = 0
     private var pendingIconRequest: IconRequest? = null
     private var pendingSidebarBackgroundEntry: NavigationBarIconConfig.Entry? = null
+    private val handledWebDavTasks = mutableSetOf<String>()
     private val dateFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
     private val selectIcon = registerForActivityResult(HandleFileContract()) { result ->
@@ -164,6 +171,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         binding.titleBar.title = getString(R.string.navigation_bar_manage)
         initView()
         loadPackages()
+        observeWebDavTasks()
     }
 
     override fun observeLiveBus() {
@@ -249,7 +257,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         lifecycleScope.launch {
             kotlin.runCatching {
                 withContext(Dispatchers.IO) {
-                    NavigationBarIconConfig.loadEntries(isNightMode, includeRemote = AppConfig.syncThemePackages)
+                    NavigationBarIconConfig.loadEntries(isNightMode, includeRemote = true)
                 }
             }.onSuccess {
                 adapter.submit(it, NavigationBarIconConfig.activeDirName(isNightMode))
@@ -306,27 +314,21 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
             orientation = LinearLayout.VERTICAL
             setPadding(2, 2, 2, 4)
             applyUiBodyTypefaceDeep(this@NavigationBarManageActivity.uiTypeface())
-            val name = EditText(this@NavigationBarManageActivity).apply {
-                tag = "name"
-                setText(config.name)
-                hint = getString(R.string.navigation_bar_name)
-                applyUiInputStyle(this@NavigationBarManageActivity)
-                background = UiCorner.opaqueRounded(
-                    ContextCompat.getColor(context, R.color.background_card),
-                    UiCorner.actionRadius(context)
-                )
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 44.dp)
-            }
-            addView(name)
+            addView(PackageManageUi.nameInput(this@NavigationBarManageActivity, config.name, getString(R.string.navigation_bar_name)))
             addView(optionRow(getString(R.string.bottom_bar_layout_mode), layoutModeLabel(config.layoutMode)) {
                 selector(
                     getString(R.string.bottom_bar_layout_mode),
                     listOf(
                         getString(R.string.bottom_bar_layout_floating),
+                        getString(R.string.bottom_bar_layout_standard),
                         getString(R.string.bottom_bar_layout_sidebar)
                     )
                 ) { _, index ->
-                    config.layoutMode = if (index == 1) "sidebar" else "floating"
+                    config.layoutMode = when (index) {
+                        1 -> "standard"
+                        2 -> "sidebar"
+                        else -> "floating"
+                    }
                     refreshEditDialog()
                 }
             })
@@ -370,6 +372,16 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                             config.opacity = it.coerceIn(0, 100)
                             refreshEditDialog()
                         }
+                })
+                addView(optionRow(
+                    getString(R.string.bottom_bar_border_color),
+                    config.borderColor?.let(::colorLabel) ?: getString(R.string.disable)
+                ) {
+                    showOptionalColorSelector(
+                        getString(R.string.bottom_bar_border_color),
+                        config.borderColor,
+                        COLOR_BORDER
+                    )
                 })
             } else {
                 addView(optionRow(
@@ -424,32 +436,41 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
     }
 
     private fun optionRow(title: String, value: String, onClick: () -> Unit): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(14.dp, 0, 14.dp, 0)
-            background = UiCorner.opaqueRounded(
-                ContextCompat.getColor(context, R.color.background_card),
-                UiCorner.actionRadius(context)
-            )
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 46.dp).apply {
-                topMargin = 8.dp
+        return PackageManageUi.optionRow(this, title, value, onClick)
+    }
+
+    private fun showOptionalColorSelector(title: String, color: Int?, target: Int) {
+        selector(title, listOf(getString(R.string.disable), getString(R.string.select_color))) { _, index ->
+            if (index == 0) {
+                if (target == COLOR_BORDER) {
+                    pendingConfig?.borderColor = null
+                }
+                refreshEditDialog()
+            } else {
+                showColorPicker(target, color ?: ContextCompat.getColor(this, R.color.accent))
             }
-            addView(TextView(context).apply {
-                text = title
-                textSize = 15f
-                setTextColor(primaryTextColor)
-                typeface = this@NavigationBarManageActivity.uiTypeface()
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            })
-            addView(TextView(context).apply {
-                text = value
-                textSize = 13f
-                setTextColor(secondaryTextColor)
-                typeface = this@NavigationBarManageActivity.uiTypeface()
-            })
-            setOnClickListener { onClick() }
         }
+    }
+
+    private fun showColorPicker(target: Int, color: Int) {
+        pendingColorTarget = target
+        ColorPickerDialog.newBuilder()
+            .setDialogId(target)
+            .setColor(color)
+            .setShowAlphaSlider(false)
+            .setDialogType(ColorPickerDialog.TYPE_CUSTOM)
+            .show(this)
+    }
+
+    override fun onColorSelected(dialogId: Int, color: Int) {
+        if (dialogId == COLOR_BORDER) {
+            pendingConfig?.borderColor = color
+            refreshEditDialog()
+        }
+    }
+
+    override fun onDialogDismissed(dialogId: Int) {
+        pendingColorTarget = 0
     }
 
     private fun iconRow(item: NavigationBarIconConfig.NavItem): View {
@@ -551,7 +572,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 NavAction.APPLY -> applyPackage(entry)
                 NavAction.EDIT -> showEditDialog(entry)
                 NavAction.EXPORT -> exportPackage(entry)
-                NavAction.UPLOAD -> runAction { NavigationBarIconConfig.upload(entry) }
+                NavAction.UPLOAD -> enqueueUpload(entry)
                 NavAction.DOWNLOAD -> runAction { NavigationBarIconConfig.download(entry) }
                 NavAction.DELETE_LOCAL -> confirmDelete(entry, getString(R.string.navigation_bar_delete_local_confirm)) {
                     NavigationBarIconConfig.deleteLocal(entry)
@@ -591,6 +612,33 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 loadPackages()
             }.onFailure {
                 toastOnUi(it.localizedMessage)
+            }
+        }
+    }
+
+    private fun enqueueUpload(entry: NavigationBarIconConfig.Entry) {
+        val queued = WebDavTaskManager.enqueueUpload(
+            key = "navigation_bar_upload:${entry.config.isNightMode}:${entry.dirName}",
+            name = entry.config.name,
+            type = WebDavTaskType.NAVIGATION_BAR_PACKAGE_UPLOAD,
+            runningMessage = getString(R.string.navigation_bar_upload)
+        ) {
+            NavigationBarIconConfig.upload(entry)
+        }
+        toastOnUi(if (queued) R.string.cache_manage_upload_queued else R.string.cache_manage_webdav_task_duplicate)
+    }
+
+    private fun observeWebDavTasks() {
+        lifecycleScope.launch {
+            WebDavTaskManager.states.collectLatest { states ->
+                states.values
+                    .filter { it.type == WebDavTaskType.NAVIGATION_BAR_PACKAGE_UPLOAD }
+                    .filter { it.status == WebDavTaskStatus.COMPLETED }
+                    .forEach { state ->
+                        if (handledWebDavTasks.add("${state.key}:${state.status}")) {
+                            loadPackages()
+                        }
+                    }
             }
         }
     }
@@ -658,8 +706,13 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
     private fun layoutModeLabel(value: String): String {
         return when (value) {
             "sidebar" -> getString(R.string.bottom_bar_layout_sidebar)
+            "standard" -> getString(R.string.bottom_bar_layout_standard)
             else -> getString(R.string.bottom_bar_layout_floating)
         }
+    }
+
+    private fun colorLabel(color: Int): String {
+        return "#${Integer.toHexString(color).takeLast(6).uppercase(Locale.ROOT)}"
     }
 
     private fun nextPackageName(): String {
@@ -682,6 +735,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
 
     private companion object {
         const val requestSidebarBackground = 7001
+        const val COLOR_BORDER = 7002
     }
 
     private enum class NavAction(val titleRes: Int) {
@@ -755,19 +809,12 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                         append(dateFormat.format(Date(maxOf(entry.config.updatedAt, entry.remoteUpdatedAt))))
                     }
                 }
-                tvSource.text = when {
-                    entry.dirName == activeDirName -> getString(R.string.theme_source_using)
-                    entry.source == NavigationBarIconConfig.Source.BUILTIN -> getString(R.string.theme_source_local)
-                    entry.source == NavigationBarIconConfig.Source.REMOTE -> getString(R.string.theme_source_remote)
-                    entry.source == NavigationBarIconConfig.Source.BOTH -> getString(R.string.theme_source_both)
-                    else -> getString(R.string.theme_source_local)
-                }
+                tvSource.visibility = View.GONE
                 tvName.setTextColor(primaryTextColor)
                 tvInfo.setTextColor(secondaryTextColor)
-                tvSource.setTextColor(accentColor)
-                listOf(btnApply, btnEdit, btnMore, tvSource).forEach {
+                listOf(btnApply, btnEdit, btnMore).forEach {
                     it.background = UiCorner.actionSelector(
-                        ContextCompat.getColor(this@NavigationBarManageActivity, R.color.background_card),
+                        android.graphics.Color.TRANSPARENT,
                         ContextCompat.getColor(this@NavigationBarManageActivity, R.color.background_menu),
                         UiCorner.actionRadius(this@NavigationBarManageActivity)
                     )
@@ -775,6 +822,12 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 cardPreview.visibility = View.GONE
                 btnApply.text = getString(if (entry.dirName == activeDirName) R.string.theme_applied_state else R.string.theme_apply)
                 btnEdit.text = getString(R.string.edit)
+                btnApply.setTextColor(accentColor)
+                btnEdit.setTextColor(primaryTextColor)
+                btnMore.setTextColor(primaryTextColor)
+                listOf(btnApply, btnEdit, btnMore).forEach {
+                    it.typeface = this@NavigationBarManageActivity.uiTypeface()
+                }
                 btnApply.setOnClickListener { applyPackage(entry) }
                 btnEdit.setOnClickListener { showEditDialog(entry) }
                 btnMore.setOnClickListener { showActions(entry) }

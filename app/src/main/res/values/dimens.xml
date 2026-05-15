@@ -46,12 +46,17 @@
     <dimen name="main_bottom_bar_corner_radius">24dp</dimen>
     <dimen name="main_bottom_nav_horizontal_padding">6dp</dimen>
     <dimen name="main_bottom_nav_icon_size">23dp</dimen>
+    <dimen name="main_bottom_standard_height">66dp</dimen>
+    <dimen name="main_bottom_standard_icon_size">24dp</dimen>
     <dimen name="main_bottom_indicator_width">52dp</dimen>
     <dimen name="main_bottom_indicator_height">40dp</dimen>
     <dimen name="main_bottom_indicator_margin_start">6dp</dimen>
     <dimen name="main_bottom_indicator_corner_radius">20dp</dimen>
     <dimen name="bookshelf_tag_indicator_width">44dp</dimen>
     <dimen name="main_search_button_size">48dp</dimen>
+    <dimen name="main_ai_floating_ball_size">52dp</dimen>
+    <dimen name="main_ai_floating_ball_icon_padding">13dp</dimen>
+    <dimen name="main_ai_floating_ball_safe_margin">24dp</dimen>
     <dimen name="main_search_button_elevation">14dp</dimen>
     <dimen name="main_search_button_icon_size">22dp</dimen>
     <dimen name="main_content_bottom_bar_padding">90dp</dimen>
@@ -88,6 +93,7 @@
     <dimen name="bookshelf_title_arrow_size">18dp</dimen>
     <dimen name="bookshelf_title_arrow_margin_start">0dp</dimen>
     <dimen name="bookshelf_tag_bar_height">38dp</dimen>
+    <dimen name="top_bar_immersive_action_size">36dp</dimen>
     <dimen name="bookshelf_tag_bar_margin_horizontal">16dp</dimen>
     <dimen name="bookshelf_tag_bar_margin_top">8dp</dimen>
     <dimen name="bookshelf_tag_bar_radius">10dp</dimen>
@@ -101,6 +107,12 @@
     <dimen name="bookshelf_tag_item_max_width">96dp</dimen>
     <dimen name="bookshelf_tag_item_padding_horizontal">12dp</dimen>
     <dimen name="bookshelf_content_margin_top">12dp</dimen>
+    <dimen name="bookshelf_top_overlay_gap">6dp</dimen>
+    <dimen name="top_bar_regular_action_size">36dp</dimen>
+    <dimen name="waterfall_card_gap">8dp</dimen>
+    <dimen name="waterfall_card_min_width">82dp</dimen>
+    <dimen name="waterfall_card_min_height">260dp</dimen>
+    <dimen name="waterfall_cover_min_height">108dp</dimen>
 
     <!-- Shared modern UI shape tokens -->
     <dimen name="ui_panel_radius">10dp</dimen>

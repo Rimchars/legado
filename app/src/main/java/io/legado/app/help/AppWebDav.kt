@@ -37,7 +37,7 @@ import splitties.init.appCtx
 import java.io.File
 
 /**
- * webDav初始化会访问网络,不要放到主线�?
+ * webDav初始化会访问网络,不要放到主线�?
  */
 object AppWebDav {
     private const val defaultWebDavUrl = "https://dav.jianguoyun.com/dav/"
@@ -46,6 +46,8 @@ object AppWebDav {
     private val bgWebDavUrl get() = "${rootWebDavUrl}background/"
     private val themesWebDavUrl get() = "${rootWebDavUrl}themes/"
     private val navigationBarsWebDavUrl get() = "${rootWebDavUrl}navigationBars/"
+    private val topBarsWebDavUrl get() = "${rootWebDavUrl}topBars/"
+    private val coverCollectionsWebDavUrl get() = "${rootWebDavUrl}coverCollections/"
 
     var authorization: Authorization? = null
         private set
@@ -90,6 +92,8 @@ object AppWebDav {
                 WebDav(bgWebDavUrl, mAuthorization).makeAsDir()
                 WebDav(themesWebDavUrl, mAuthorization).makeAsDir()
                 WebDav(navigationBarsWebDavUrl, mAuthorization).makeAsDir()
+                WebDav(topBarsWebDavUrl, mAuthorization).makeAsDir()
+                WebDav(coverCollectionsWebDavUrl, mAuthorization).makeAsDir()
                 val rootBooksUrl = "${rootWebDavUrl}books/"
                 defaultBookWebDav = RemoteBookWebDav(rootBooksUrl, mAuthorization)
                 authorization = mAuthorization
@@ -163,7 +167,7 @@ object AppWebDav {
 
     /**
      * webDav备份
-     * @param fileName 备份文件�?
+     * @param fileName 备份文件�?
      */
     @Throws(Exception::class)
     suspend fun backUpWebDav(fileName: String) {
@@ -175,8 +179,8 @@ object AppWebDav {
     }
 
     suspend fun listThemePackages(isNightTheme: Boolean): List<WebDavFile> {
-        val authorization = authorization ?: return emptyList()
-        if (!NetworkUtils.isAvailable()) return emptyList()
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val dirUrl = getThemeTypeUrl(isNightTheme)
         WebDav(dirUrl, authorization).makeAsDir()
         return WebDav(dirUrl, authorization).listFiles()
@@ -205,9 +209,20 @@ object AppWebDav {
         val currentAuthorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
         if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         zipFile.parentFile?.mkdirs()
-        WebDav(exportsWebDavUrl + normalizeCachePackageFileName(fileName), currentAuthorization)
-            .downloadTo(zipFile.absolutePath, true)
+        var lastError: Throwable? = null
+        cachePackageFileNameCandidates(fileName).forEach { candidate ->
+            runCatching {
+                WebDav(exportsWebDavUrl + candidate, currentAuthorization)
+                    .downloadTo(zipFile.absolutePath, true)
+            }.onSuccess {
+                return
+            }.onFailure {
+                lastError = it
+            }
+        }
+        throw lastError ?: NoStackTraceException("Cache package not found")
     }
+
 
     suspend fun deleteCachePackage(fileName: String) {
         val currentAuthorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
@@ -252,8 +267,8 @@ object AppWebDav {
     }
 
     suspend fun listNavigationBarPackages(isNightTheme: Boolean): List<WebDavFile> {
-        val authorization = authorization ?: return emptyList()
-        if (!NetworkUtils.isAvailable()) return emptyList()
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
         val dirUrl = getNavigationBarTypeUrl(isNightTheme)
         WebDav(dirUrl, authorization).makeAsDir()
         return WebDav(dirUrl, authorization).listFiles()
@@ -285,6 +300,39 @@ object AppWebDav {
         WebDav(getNavigationBarTypeUrl(isNightTheme) + fileName, authorization).delete()
     }
 
+    suspend fun listTopBarPackages(isNightTheme: Boolean): List<WebDavFile> {
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        val dirUrl = getTopBarTypeUrl(isNightTheme)
+        WebDav(dirUrl, authorization).makeAsDir()
+        return WebDav(dirUrl, authorization).listFiles()
+            .filter { !it.isDir && it.displayName.endsWith(".zip", ignoreCase = true) }
+    }
+
+    suspend fun uploadTopBarPackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        val typeUrl = getTopBarTypeUrl(isNightTheme)
+        WebDav(typeUrl, authorization).makeAsDir()
+        WebDav(typeUrl + fileName, authorization).upload(zipFile)
+    }
+
+    suspend fun downloadTopBarPackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        zipFile.parentFile?.mkdirs()
+        WebDav(getTopBarTypeUrl(isNightTheme) + fileName, authorization)
+            .downloadTo(zipFile.absolutePath, true)
+    }
+
+    suspend fun deleteTopBarPackage(isNightTheme: Boolean, remoteDirName: String) {
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        WebDav(getTopBarTypeUrl(isNightTheme) + fileName, authorization).delete()
+    }
     private fun getThemeTypeUrl(isNightTheme: Boolean): String {
         return themesWebDavUrl + if (isNightTheme) "night/" else "day/"
     }
@@ -293,8 +341,50 @@ object AppWebDav {
         return navigationBarsWebDavUrl + if (isNightTheme) "night/" else "day/"
     }
 
+    private fun getTopBarTypeUrl(isNightTheme: Boolean): String {
+        return topBarsWebDavUrl + if (isNightTheme) "night/" else "day/"
+    }
+
+    suspend fun listCoverCollectionPackages(isNightTheme: Boolean): List<WebDavFile> {
+        val authorization = authorization ?: return emptyList()
+        if (!NetworkUtils.isAvailable()) return emptyList()
+        val dirUrl = getCoverCollectionTypeUrl(isNightTheme)
+        WebDav(dirUrl, authorization).makeAsDir()
+        return WebDav(dirUrl, authorization).listFiles()
+            .filter { !it.isDir && it.displayName.endsWith(".zip", ignoreCase = true) }
+    }
+
+    suspend fun uploadCoverCollectionPackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        val typeUrl = getCoverCollectionTypeUrl(isNightTheme)
+        WebDav(typeUrl, authorization).makeAsDir()
+        WebDav(typeUrl + fileName, authorization).upload(zipFile)
+    }
+
+    suspend fun downloadCoverCollectionPackage(isNightTheme: Boolean, remoteDirName: String, zipFile: File) {
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        zipFile.parentFile?.mkdirs()
+        WebDav(getCoverCollectionTypeUrl(isNightTheme) + fileName, authorization)
+            .downloadTo(zipFile.absolutePath, true)
+    }
+
+    suspend fun deleteCoverCollectionPackage(isNightTheme: Boolean, remoteDirName: String) {
+        val authorization = authorization ?: throw NoStackTraceException("WebDAV not configured")
+        if (!NetworkUtils.isAvailable()) throw NoStackTraceException("Network unavailable")
+        val fileName = "${remoteDirName.trimEnd('/').removeSuffix(".zip")}.zip"
+        WebDav(getCoverCollectionTypeUrl(isNightTheme) + fileName, authorization).delete()
+    }
+
+    private fun getCoverCollectionTypeUrl(isNightTheme: Boolean): String {
+        return coverCollectionsWebDavUrl + if (isNightTheme) "night/" else "day/"
+    }
+
     /**
-     * 获取云端所有背景名�?
+     * 获取云端所有背景名�?
      */
     private suspend fun getAllBgWebDavFiles(): Result<List<WebDavFile>> {
         return kotlin.runCatching {
@@ -340,7 +430,7 @@ object AppWebDav {
         if (!NetworkUtils.isAvailable()) return
         try {
             authorization?.let {
-                // 如果导出的本地文件存�?开始上�?
+                // 如果导出的本地文件存�?开始上�?
                 val putUrl = exportsWebDavUrl + fileName
                 WebDav(putUrl, it).upload(byteArray, "text/plain")
             }
@@ -354,7 +444,7 @@ object AppWebDav {
         if (!NetworkUtils.isAvailable()) return
         try {
             authorization?.let {
-                // 如果导出的本地文件存�?开始上�?
+                // 如果导出的本地文件存�?开始上�?
                 val putUrl = exportsWebDavUrl + fileName
                 WebDav(putUrl, it).upload(uri, "text/plain")
             }
@@ -459,6 +549,17 @@ object AppWebDav {
             }
         }
     }
+
+    private fun cachePackageFileNameCandidates(fileName: String): List<String> {
+        val raw = fileName.trimEnd('/')
+        val withZip = if (raw.endsWith(".zip", ignoreCase = true)) raw else "$raw.zip"
+        val normalized = normalizeCachePackageFileName(fileName)
+        val normalizedWithZip = normalizeCachePackageFileName(withZip)
+        return linkedSetOf(withZip, raw, normalized, normalizedWithZip)
+            .filter { it.isNotBlank() }
+            .toList()
+    }
+
 
     private fun normalizeCachePackageFileName(fileName: String): String {
         val safeFileName = UrlUtil.replaceReservedChar(

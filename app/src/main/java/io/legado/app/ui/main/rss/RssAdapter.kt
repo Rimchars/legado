@@ -14,6 +14,8 @@ import io.legado.app.data.entities.RssSource
 import io.legado.app.databinding.ItemRssBinding
 import io.legado.app.help.glide.ImageLoader
 import io.legado.app.help.glide.OkHttpModelLoader
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.ui.widget.ModernActionPopup
 import splitties.views.onLongClick
 
@@ -27,7 +29,9 @@ class RssAdapter(
     private var modernMenuPopup: PopupWindow? = null
 
     override fun getViewBinding(parent: ViewGroup): ItemRssBinding {
-        return ItemRssBinding.inflate(inflater, parent, false)
+        return ItemRssBinding.inflate(inflater, parent, false).apply {
+            root.applyUiBodyTypefaceDeep(context.uiTypeface())
+        }
     }
 
     override fun convert(

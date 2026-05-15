@@ -11,6 +11,7 @@ import io.legado.app.BuildConfig
 import io.legado.app.R
 import io.legado.app.constant.AppConst.androidId
 import io.legado.app.constant.AppLog
+import io.legado.app.constant.EventBus
 import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
@@ -29,16 +30,19 @@ import io.legado.app.data.entities.SearchKeyword
 import io.legado.app.data.entities.Server
 import io.legado.app.data.entities.TxtTocRule
 import io.legado.app.data.entities.BaseSource
+import io.legado.app.help.AppWebDav
 import io.legado.app.help.DirectLinkUpload
 import io.legado.app.help.LauncherIconHelp
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.upType
+import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.config.NavigationBarIconConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
+import io.legado.app.help.config.TopBarConfig
 import io.legado.app.model.VideoPlay.VIDEO_PREF_NAME
 import io.legado.app.model.BookCover
 import io.legado.app.model.localBook.LocalBook
@@ -59,6 +63,7 @@ import io.legado.app.utils.getSharedPreferences
 import io.legado.app.utils.isContentScheme
 import io.legado.app.utils.isJsonArray
 import io.legado.app.utils.openInputStream
+import io.legado.app.utils.postEvent
 import io.legado.app.utils.toastOnUi
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.delay
@@ -82,7 +87,9 @@ object Restore {
         PreferKey.bgImage,
         PreferKey.bgImageN,
         PreferKey.bookInfoBgImage,
-        PreferKey.bookInfoBgImageN
+        PreferKey.bookInfoBgImageN,
+        PreferKey.panelBgImage,
+        PreferKey.panelBgImageN
     )
 
     suspend fun restore(context: Context, uri: Uri) {
@@ -270,6 +277,7 @@ object Restore {
         restoreBackgroundAssets(path)
         restoreThemePackages(path)
         restoreNavigationIcons(path)
+        restoreTopBarPackages(path)
         restoreCoverCollections(path)
         restoreSourceRuntime(path)
         //AppWebDav.downBgs()
@@ -307,13 +315,8 @@ object Restore {
         }
         normalizeBackgroundPrefs()
         normalizeStringPrefs()
-        kotlin.runCatching {
-            ThemePackageManager.ensureLocalAppliedTheme(appCtx, false)
-            ThemePackageManager.ensureLocalAppliedTheme(appCtx, true)
-            ThemePackageManager.reapplyRestoredAppliedThemes(appCtx)
-        }.onFailure {
-            AppLog.put("恢复默认主题包出错\n${it.localizedMessage}", it)
-        }
+        refreshWebDavAfterRestore()
+        restoreAppliedUiPackages()
         appCtx.getSharedPreferences(path, "videoConfig")?.all?.let { map ->
             appCtx.getSharedPreferences(VIDEO_PREF_NAME, Context.MODE_PRIVATE).edit().apply {
                 map.forEach { (key, value) ->
@@ -510,6 +513,44 @@ object Restore {
         }
     }
 
+    private fun restoreTopBarPackages(path: String) {
+        val sourceDir = File(path, "topBarPackages")
+        if (!sourceDir.exists() || !sourceDir.isDirectory) return
+        val targetDir = TopBarConfig.rootDir
+        kotlin.runCatching {
+            FileUtils.delete(targetDir, deleteRootDir = true)
+            copyDir(sourceDir, targetDir)
+        }.onFailure {
+            AppLog.put("恢复顶栏包出错\n${it.localizedMessage}", it)
+        }
+    }
+
+    private suspend fun refreshWebDavAfterRestore() {
+        kotlin.runCatching {
+            AppWebDav.upConfig()
+        }.onFailure {
+            AppLog.put("refresh WebDAV after restore failed\n${it.localizedMessage}", it)
+        }
+    }
+
+    private suspend fun restoreAppliedUiPackages() {
+        kotlin.runCatching {
+            ThemePackageManager.restoreAppliedThemes(appCtx)
+        }.onFailure {
+            AppLog.put("恢复主题包出错\n${it.localizedMessage}", it)
+        }
+        listOf(false, true).forEach { isNight ->
+            kotlin.runCatching { TopBarConfig.restoreApplied(isNight) }.onFailure {
+                AppLog.put("恢复顶栏包出错\n${it.localizedMessage}", it)
+            }
+            kotlin.runCatching { NavigationBarIconConfig.restoreApplied(isNight) }.onFailure {
+                AppLog.put("恢复底栏包出错\n${it.localizedMessage}", it)
+            }
+        }
+        postEvent(EventBus.RECREATE, "")
+        postEvent(EventBus.TOP_BAR_CHANGED, AppConfig.isNightTheme)
+        postEvent(EventBus.NAVIGATION_BAR_CHANGED, AppConfig.isNightTheme)
+    }
     private fun restoreCoverCollections(path: String) {
         val sourceDir = File(path, "coverCollections")
         if (!sourceDir.exists() || !sourceDir.isDirectory) return
@@ -605,7 +646,6 @@ object Restore {
             PreferKey.mangaFooterConfig,
             PreferKey.mangaColorFilter,
             PreferKey.contentSelectMenuConfig,
-            PreferKey.contentSelectActions,
             PreferKey.contentSelectDefaultOpen,
             PreferKey.advancedTitleConfig,
             PreferKey.advancedTitleLottieJson,
@@ -631,6 +671,8 @@ object Restore {
             PreferKey.bookInfoBgImage,
             PreferKey.bgImageN,
             PreferKey.bookInfoBgImageN,
+            PreferKey.panelBgImage,
+            PreferKey.panelBgImageN,
             PreferKey.navigationBarPackageDay,
             PreferKey.navigationBarPackageNight
         )

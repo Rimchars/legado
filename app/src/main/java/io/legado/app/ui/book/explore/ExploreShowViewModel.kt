@@ -11,6 +11,7 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.SearchBook
 import io.legado.app.help.book.isNotShelf
+import io.legado.app.help.webView.WebViewPool
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.utils.printOnDebug
 import io.legado.app.utils.stackTraceStr
@@ -76,7 +77,13 @@ class ExploreShowViewModel(application: Application) : BaseViewModel(application
         val source = bookSource
         val url = exploreUrl
         if (source == null || url == null) return
-        WebBook.exploreBook(viewModelScope, source, url, page)
+        WebBook.exploreBook(
+            viewModelScope,
+            source,
+            url,
+            page,
+            webViewPoolScope = WebViewPool.Scope.DISCOVERY
+        )
             .timeout(if (BuildConfig.DEBUG) 0L else 60000L)
             .onSuccess(IO) { searchBooks ->
                 val newBooks = linkedSetOf<SearchBook>()
@@ -102,7 +109,13 @@ class ExploreShowViewModel(application: Application) : BaseViewModel(application
         val source = bookSource
         val url = exploreUrl
         if (source == null || url == null) return
-        WebBook.exploreBook(viewModelScope, source, url, page)
+        WebBook.exploreBook(
+            viewModelScope,
+            source,
+            url,
+            page,
+            webViewPoolScope = WebViewPool.Scope.DISCOVERY
+        )
             .timeout(if (BuildConfig.DEBUG) 0L else 60000L)
             .onSuccess(IO) { searchBooks ->
                 books.addAll(searchBooks)
@@ -126,6 +139,11 @@ class ExploreShowViewModel(application: Application) : BaseViewModel(application
 
     fun sourceTypeHint(): Int? {
         return bookSource?.bookSourceType
+    }
+
+    override fun onCleared() {
+        WebViewPool.destroyScope(WebViewPool.Scope.DISCOVERY)
+        super.onCleared()
     }
 
 }

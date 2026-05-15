@@ -5,6 +5,9 @@ import android.app.Dialog
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.Outline
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -15,6 +18,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
@@ -28,6 +32,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
@@ -39,6 +44,7 @@ import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.BaseSource
 import io.legado.app.databinding.DialogWebViewBinding
+import io.legado.app.help.book.ParagraphRuleJsExtensions
 import io.legado.app.help.WebCacheManager
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.webView.PooledWebView
@@ -82,6 +88,7 @@ import io.legado.app.utils.ACache
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.get
+import io.legado.app.utils.isHuaweiSystemDevice
 import io.legado.app.utils.writeBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
@@ -94,14 +101,22 @@ import androidx.core.graphics.createBitmap
 
 class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view), WebJsExtensions.Callback {
 
+    private companion object {
+        const val PARAGRAPH_RULE_SOURCE_PREFIX = "paragraph_rule_"
+    }
+
     constructor(
         sourceKey: String,
         bookType: Int,
         url: String,
         html: String? = null,
         preloadJs: String? = null,
-        config: String? = null
+        config: String? = null,
+        webViewSession: CommentWebViewSession? = null,
+        onDismiss: (() -> Unit)? = null
     ) : this() {
+        this.webViewSession = webViewSession
+        this.onDismissAction = onDismiss
         arguments = Bundle().apply {
             putString("sourceKey", sourceKey)
             putInt("bookType", bookType)
@@ -109,18 +124,15 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             putString("html", html)
             putString("preloadJs", preloadJs)
             putString("config", config)
+            putBoolean("useCommentWebViewSession", webViewSession != null)
         }
     }
 
     private val binding by viewBinding(DialogWebViewBinding::bind)
-    private val bottomSheet by lazy {
-        dialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-    }
-    private val behavior by lazy {
-        bottomSheet?.let { sheet ->
-            BottomSheetBehavior.from(sheet)
-        }
-    }
+    private val bottomSheet: View?
+        get() = dialog?.findViewById(com.google.android.material.R.id.design_bottom_sheet)
+    private val behavior: BottomSheetBehavior<View>?
+        get() = bottomSheet?.let { sheet -> BottomSheetBehavior.from(sheet) }
     private val displayMetrics by lazy { resources.displayMetrics }
     private val selectImageDir = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
@@ -130,16 +142,24 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     }
     private lateinit var pooledWebView: PooledWebView
     private lateinit var currentWebView: WebView
+    private var webViewSession: CommentWebViewSession? = null
+    private var onDismissAction: (() -> Unit)? = null
+    private var dismissActionNotified = false
     private var source: BaseSource? = null
     private var preloadJs: String? = null
     private var isFullScreen = false
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var originOrientation: Int? = null
     private var needClearHistory = true
+    private var pendingConfig: Config? = null
+    private var pendingConfigFirst = false
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
-        pooledWebView = WebViewPool.acquire(context)
+        val session = webViewSession ?: if (arguments?.getBoolean("useCommentWebViewSession") == true) {
+            CommentWebViewSession.shared.also { webViewSession = it }
+        } else null
+        pooledWebView = session?.acquire(context) ?: WebViewPool.acquire(context)
         currentWebView = pooledWebView.realWebView
     }
 
@@ -156,6 +176,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     override fun onStart() {
         super.onStart()
         setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        applyPendingConfig()
+        bottomSheet?.post { applyPendingConfig() }
     }
 
     override fun show(manager: FragmentManager, tag: String?) {
@@ -164,6 +186,21 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             super.show(manager, tag)
         }.onFailure {
             AppLog.put("显示对话框失败 tag:$tag", it)
+            notifyDismissAction()
+        }
+    }
+
+    private fun submitConfig(config: Config, first: Boolean = false) {
+        pendingConfig = config
+        pendingConfigFirst = pendingConfigFirst || first
+        applyPendingConfig()
+    }
+
+    private fun applyPendingConfig() {
+        val config = pendingConfig ?: return
+        setConfig(config, pendingConfigFirst)
+        if (bottomSheet != null) {
+            pendingConfigFirst = false
         }
     }
 
@@ -195,55 +232,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             val radius = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, it, displayMetrics
             )
-            bottomSheet?.let { sheet ->
-                if (radius > 0) {
-                    sheet.backgroundTintList = null
-                    val shapeDrawable =
-                        android.graphics.drawable.GradientDrawable().apply {
-                            cornerRadius = 0f
-                            cornerRadii = floatArrayOf(
-                                radius, radius,
-                                radius, radius,
-                                0f, 0f,
-                                0f, 0f
-                            )
-                        }
-                    sheet.background = shapeDrawable
-                    sheet.clipToOutline = true
-                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-                        currentWebView.outlineProvider =
-                            object : android.view.ViewOutlineProvider() {
-                                override fun getOutline(
-                                    view: View,
-                                    outline: android.graphics.Outline
-                                ) {
-                                    outline.setRoundRect(0, 0, view.width, view.height, radius)
-                                }
-                            }
-                        currentWebView.clipToOutline = true
-                        binding.customWebView.outlineProvider =
-                            object : android.view.ViewOutlineProvider() {
-                                override fun getOutline(
-                                    view: View,
-                                    outline: android.graphics.Outline
-                                ) {
-                                    outline.setRoundRect(0, 0, view.width, view.height, radius)
-                                }
-                            }
-                        binding.customWebView.clipToOutline = true
-                    }
-                } else { //取消圆角
-                    sheet.backgroundTintList = null
-                    sheet.background = null
-                    sheet.clipToOutline = false
-                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-                        currentWebView.outlineProvider = null
-                        currentWebView.clipToOutline = false
-                        binding.customWebView.outlineProvider = null
-                        binding.customWebView.clipToOutline = false
-                    }
-                }
-            }
+            applySheetCorners(radius)
         }
 
         dialog?.let { dialog ->
@@ -366,6 +355,83 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
+    private fun applySheetCorners(radius: Float) {
+        val hasRadius = radius > 0f
+        val surfaceColor = ContextCompat.getColor(requireContext(), R.color.dialog_surface)
+        bottomSheet?.let { sheet ->
+            sheet.backgroundTintList = null
+            sheet.background = if (hasRadius) topRoundDrawable(Color.TRANSPARENT, radius) else null
+            sheet.clipToOutline = hasRadius
+            setTopRoundOutline(sheet, radius)
+        }
+        binding.nativeSheetSurface.background = if (hasRadius) {
+            topRoundDrawable(surfaceColor, radius)
+        } else {
+            topRoundDrawable(surfaceColor, 0f)
+        }
+        listOf(binding.nativeSheetSurface, binding.webViewContainer, binding.customWebView).forEach { view ->
+            view.clipToPadding = false
+            view.clipToOutline = hasRadius
+            setTopRoundOutline(view, radius)
+        }
+        currentWebView.setBackgroundColor(Color.TRANSPARENT)
+        val clipWebView = isHuaweiSystemDevice && hasRadius
+        currentWebView.clipToOutline = clipWebView
+        setTopRoundOutline(currentWebView, if (clipWebView) radius else 0f)
+        if (clipWebView) {
+            currentWebView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+        } else {
+            currentWebView.setLayerType(View.LAYER_TYPE_NONE, null)
+        }
+        logConfigApply(radius)
+    }
+
+    private fun resetWebViewPresentationState() {
+        currentWebView.run {
+            setLayerType(View.LAYER_TYPE_NONE, null)
+            outlineProvider = null
+            clipToOutline = false
+            setBackgroundColor(Color.TRANSPARENT)
+        }
+    }
+
+    private fun topRoundDrawable(color: Int, radius: Float): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(color)
+            cornerRadii = floatArrayOf(
+                radius, radius,
+                radius, radius,
+                0f, 0f,
+                0f, 0f
+            )
+        }
+    }
+
+    private fun setTopRoundOutline(view: View, radius: Float) {
+        if (radius <= 0f) {
+            view.outlineProvider = null
+            return
+        }
+        view.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height + radius.toInt(), radius)
+            }
+        }
+    }
+
+    private fun logConfigApply(radius: Float) {
+        AppLog.putDebug(
+            "BottomWebViewDialog configApply " +
+                "radius=$radius " +
+                "sdk=${Build.VERSION.SDK_INT} " +
+                "manufacturer=${Build.MANUFACTURER} " +
+                "brand=${Build.BRAND} " +
+                "huaweiFallback=$isHuaweiSystemDevice " +
+                "sheetAttached=${bottomSheet != null} " +
+                "webAttached=${currentWebView.parent != null}"
+        )
+    }
+
     private fun setLongClickSaveImg() {
         currentWebView.setOnLongClickListener {
             val hitTestResult = currentWebView.hitTestResult
@@ -401,6 +467,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         super.onViewCreated(view, savedInstanceState)
         view.setBackgroundColor(0)
         binding.webViewContainer.addView(currentWebView)
+        binding.webViewContainer.post { applyPendingConfig() }
+        currentWebView.post { applyPendingConfig() }
         lifecycleScope.launch(IO) {
             val args = arguments
             if (args == null) {
@@ -414,7 +482,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                     try {
                         GSON.fromJsonObject<Config>(json).getOrThrow().let { config ->
                             activity?.runOnUiThread {
-                                setConfig(config, true)
+                                submitConfig(config, true)
                             }
                         }
                         true
@@ -437,13 +505,49 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         }
                     }
                 }
+                source = if (sourceKey.startsWith(PARAGRAPH_RULE_SOURCE_PREFIX)) {
+                    val ruleId = sourceKey.removePrefix(PARAGRAPH_RULE_SOURCE_PREFIX).toLongOrNull()
+                    val rule = ruleId?.let { appDb.paragraphRuleDao.get(it) }
+                    if (rule == null) {
+                        activity?.toastOnUi("no find paragraphRule")
+                        dismiss()
+                        return@launch
+                    }
+                    ParagraphRuleJsExtensions(rule)
+                } else {
+                    appDb.bookSourceDao.getBookSource(sourceKey).also {
+                        if (it == null) {
+                            activity?.toastOnUi("no find bookSource")
+                            dismiss()
+                            return@launch
+                        }
+                    }
+                }
+                source.let {
+                    if (it == null) {
+                        activity?.toastOnUi("no find bookSource")
+                        dismiss()
+                        return@launch
+                    }
+                }
+                preloadJs = args.getString("preloadJs")
+                val argHtml = args.getString("html")
                 val analyzeUrl =
                     AnalyzeUrl(url, source = source, coroutineContext = coroutineContext)
-                val html = args.getString("html") ?: analyzeUrl.getStrResponseAwait().body
+                val bookType = args.getInt("bookType", 0)
+                if (shouldLoadUrlDirectly(url, argHtml, preloadJs)) {
+                    currentWebView.post {
+                        currentWebView.onResume()
+                        applyPendingConfig()
+                        initWebViewForUrl(analyzeUrl.url, analyzeUrl.headerMap, bookType)
+                        currentWebView.clearHistory()
+                    }
+                    return@runCatching
+                }
+                val html = argHtml ?: analyzeUrl.getStrResponseAwait().body
                 if (html.isNullOrEmpty()) {
                     throw NoStackTraceException("html is NullOrEmpty")
                 }
-                preloadJs = args.getString("preloadJs")
                 val spliceHtml = if (preloadJs.isNullOrEmpty()) {
                     html
                 } else {
@@ -460,17 +564,9 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         JS_URL + html
                     }
                 }
-                appDb.bookSourceDao.getBookSource(sourceKey).let {
-                    if (it == null) {
-                        activity?.toastOnUi("no find bookSource")
-                        dismiss()
-                        return@launch
-                    }
-                    source = it
-                }
-                val bookType = args.getInt("bookType", 0)
                 currentWebView.post {
                     currentWebView.onResume() //缓存库拿的需要激活
+                    applyPendingConfig()
                     initWebView(analyzeUrl.url, spliceHtml, analyzeUrl.headerMap, bookType)
                     currentWebView.clearHistory()
                 }
@@ -478,6 +574,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                 currentWebView.post {
                     currentWebView.resumeTimers()
                     currentWebView.onResume()
+                    applyPendingConfig()
                     currentWebView.loadDataWithBaseURL(
                         url,
                         it.stackTraceToString(),
@@ -536,9 +633,37 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
+    private fun shouldLoadUrlDirectly(rawUrl: String, html: String?, preloadJs: String?): Boolean {
+        if (webViewSession == null || html != null || !preloadJs.isNullOrEmpty()) return false
+        val url = rawUrl.trim()
+        return URLUtil.isNetworkUrl(url) &&
+            !url.contains(",{", ignoreCase = false) &&
+            !url.contains("{{", ignoreCase = false) &&
+            !url.contains("}}", ignoreCase = false) &&
+            !url.contains("@js", ignoreCase = true) &&
+            !url.contains("<js", ignoreCase = true)
+    }
+
+    private fun initWebViewForUrl(
+        url: String,
+        headerMap: HashMap<String, String>,
+        bookType: Int
+    ) {
+        prepareWebView(headerMap, bookType)
+        currentWebView.loadUrl(url, webViewExtraHeaders(headerMap))
+    }
+
     private fun initWebView(
         url: String,
         html: String,
+        headerMap: HashMap<String, String>,
+        bookType: Int
+    ) {
+        prepareWebView(headerMap, bookType)
+        currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+    }
+
+    private fun prepareWebView(
         headerMap: HashMap<String, String>,
         bookType: Int
     ) {
@@ -555,8 +680,16 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             currentWebView.addJavascriptInterface(source, nameSource)
             currentWebView.addJavascriptInterface(WebCacheManager, nameCache)
         }
-        currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
     }
+
+    private fun webViewExtraHeaders(headerMap: HashMap<String, String>): Map<String, String> {
+        return HashMap(headerMap).apply {
+            remove(AppConst.UA_NAME)
+            remove("User-Agent")
+            remove("user-agent")
+        }
+    }
+
 
     private fun saveImage(webPic: String) {
         val path = ACache.get().getAsString(imagePathKey)
@@ -603,9 +736,18 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         }
     }
 
+    private fun notifyDismissAction() {
+        if (dismissActionNotified) return
+        dismissActionNotified = true
+        onDismissAction?.invoke()
+        onDismissAction = null
+    }
+
     override fun onDestroyView() {
         customWebViewCallback?.onCustomViewHidden()
-        WebViewPool.release(pooledWebView)
+        resetWebViewPresentationState()
+        webViewSession?.detachForReuse(pooledWebView) ?: WebViewPool.release(pooledWebView)
+        notifyDismissAction()
         originOrientation?.let {
             activity?.requestedOrientation = it
         }
@@ -616,7 +758,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         try {
             lifecycleScope.launch(Dispatchers.Main) {
                 GSON.fromJsonObject<Config>(config).getOrThrow().let { config ->
-                    setConfig(config)
+                    submitConfig(config)
                 }
             }
         } catch (e: Exception) {

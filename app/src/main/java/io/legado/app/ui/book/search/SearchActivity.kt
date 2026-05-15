@@ -3,7 +3,6 @@ package io.legado.app.ui.book.search
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -38,6 +37,7 @@ import io.legado.app.help.book.isVideo
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.Selector
+import io.legado.app.lib.theme.TopBarSearchStyle
 import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
@@ -146,11 +146,6 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
         binding.root.applyStatusBarPadding()
         binding.btnMenu.setColorFilter(secondaryTextColor)
         val isNight = AppConfig.isNightTheme
-        val searchSurfaceColor = if (isNight) {
-            ColorUtils.adjustAlpha(Color.rgb(52, 52, 56), 0.42f)
-        } else {
-            ColorUtils.adjustAlpha(Color.rgb(120, 120, 128), 0.18f)
-        }
         val cardColor = if (isNight) {
             ColorUtils.adjustAlpha(Color.rgb(44, 44, 46), 0.45f)
         } else {
@@ -166,12 +161,8 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
         } else {
             ContextCompat.getColor(this, R.color.background_menu)
         }
-        val strokeColor = ColorUtils.adjustAlpha(primaryTextColor, if (isNight) 0.10f else 0.08f)
-        binding.searchView.background = GradientDrawable().apply {
-            cornerRadius = UiCorner.searchRadius(18f)
-            setColor(searchSurfaceColor)
-            setStroke(1.dpToPx(), strokeColor)
-        }
+        val strokeColor = TopBarSearchStyle.strokeColor(this)
+        TopBarSearchStyle.apply(binding.searchView)
         binding.llBookshelfHintCard.background = UiCorner.roundedStroke(
             cardColor,
             UiCorner.searchRadius(20f),

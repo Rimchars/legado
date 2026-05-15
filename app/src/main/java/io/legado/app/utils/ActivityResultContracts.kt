@@ -23,9 +23,11 @@ class SelectImageContract : ActivityResultContract<Int?, SelectImageContract.Res
 
     override fun createIntent(context: Context, input: Int?): Intent {
         requestCode = input
+        useFallback = false
         val intent = Intent(Intent.ACTION_GET_CONTENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType("image/*")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         if (intent.resolveActivity(appCtx.packageManager) == null) {
             useFallback = true
             val request = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)

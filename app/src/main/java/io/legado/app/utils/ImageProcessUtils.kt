@@ -29,19 +29,27 @@ object ImageProcessUtils {
         } else {
             bitmap
         }
+        val extension = scaled.preferredCoverExtension()
         val file = if (outputPath.isNullOrBlank()) {
             val dir = context.externalFiles.getFile(dirName).apply { mkdirs() }
-            File(dir, "${prefix}_${System.currentTimeMillis()}.jpg")
+            File(dir, "${prefix}_${System.currentTimeMillis()}.$extension")
         } else {
-            File(outputPath).apply {
+            File(outputPath).withExtension(extension).apply {
                 parentFile?.mkdirs()
             }
         }
         FileOutputStream(file).use {
-            scaled.compress(Bitmap.CompressFormat.JPEG, 92, it)
+            scaled.compressPreservingAlpha(it, 92)
         }
         if (scaled !== bitmap) scaled.recycle()
         return file.absolutePath
+    }
+
+    private fun File.withExtension(extension: String): File {
+        if (this.extension.equals(extension, ignoreCase = true)) {
+            return this
+        }
+        return File(parentFile, "$nameWithoutExtension.$extension")
     }
 
     fun calculateSampleSize(width: Int, height: Int, targetWidth: Int, targetHeight: Int): Int {
