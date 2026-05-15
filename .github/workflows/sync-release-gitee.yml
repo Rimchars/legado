@@ -125,6 +125,7 @@ jobs:
             if [ -n "$release_id" ]; then
               curl -fsS -X PATCH "$API/releases/$release_id" \
                 --data-urlencode "access_token=$GITEE_TOKEN" \
+                --data-urlencode "tag_name=$tag_name" \
                 --data-urlencode "name=$release_name" \
                 --data-urlencode "body=$(cat release-body.md)" \
                 --data-urlencode "prerelease=false" >/dev/null
@@ -195,6 +196,7 @@ jobs:
           if [ -n "$RELEASE_ID" ]; then
             curl -fsS -X PATCH "$API/releases/$RELEASE_ID" \
               --data-urlencode "access_token=$GITEE_TOKEN" \
+              --data-urlencode "tag_name=$CHANNEL_TAG" \
               --data-urlencode "name=$CHANNEL_NAME" \
               --data-urlencode "body=$(cat release-body.md)" \
               --data-urlencode "prerelease=false" >/dev/null
