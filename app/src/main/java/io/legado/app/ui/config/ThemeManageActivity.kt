@@ -31,6 +31,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.help.config.ThemePackageManager
 import io.legado.app.help.glide.ImageLoader
+import io.legado.app.lib.dialogs.AndroidAlertBuilder
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.ThemeStore
@@ -45,6 +46,9 @@ import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.lib.theme.titleTypeface
 import io.legado.app.lib.theme.uiTypeface
+import io.legado.app.ui.book.cache.WebDavTaskManager
+import io.legado.app.ui.book.cache.WebDavTaskStatus
+import io.legado.app.ui.book.cache.WebDavTaskType
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.font.FontSelectDialog
 import io.legado.app.ui.image.ImageCropContract
@@ -53,6 +57,7 @@ import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.ImageCropHelper
+import io.legado.app.utils.applyTint
 import io.legado.app.utils.externalFiles
 import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.getCompatColor
@@ -63,12 +68,14 @@ import io.legado.app.utils.getPrefString
 import io.legado.app.utils.hexString
 import io.legado.app.utils.putPrefString
 import io.legado.app.utils.removePref
+import io.legado.app.utils.setLayout
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
@@ -94,6 +101,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private var pendingBookInfoBackgroundPath: String? = null
     private var pendingPanelBackgroundPath: String? = null
     private var pendingPanelBackgroundScaleType = ThemeConfig.PANEL_BG_CROP
+    private var pendingPanelBorderColor: String? = null
+    private var pendingPanelBorderAlpha = 100
     private var pendingUiCornerScale = 1f
     private var pendingUiLayoutAlpha = 100
     private var pendingFontScale = 0
@@ -109,6 +118,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private var appliedDayThemeOverride: String? = null
     private var appliedNightThemeOverride: String? = null
     private var pendingImageCropRequest: ImageCropHelper.Request? = null
+    private val handledWebDavTasks = mutableSetOf<String>()
     private val selectImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
             startImageCrop(uri, it.requestCode)
@@ -164,6 +174,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             loadThemes()
         }
         flushPendingRemoteSyncTasks()
+        observeWebDavTasks()
     }
 
     private fun initView() = binding.run {
@@ -217,38 +228,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         binding.tvSummary.text = appendPendingRemoteSummary(getString(R.string.theme_package_summary_default))
         lifecycleScope.launch {
             kotlin.runCatching {
-                ThemePackageManager.loadLocalOnly(isNightTheme)
-            }.onSuccess {
-                if (version != loadVersion) return@launch
-                adapter.items = it
-                binding.tvSummary.text = appendPendingRemoteSummary(
-                    if (it.isEmpty()) {
-                        getString(
-                            R.string.theme_package_empty,
-                            getString(if (isNightTheme) R.string.theme_night_short else R.string.theme_day_short)
-                        )
-                    } else {
-                        getString(R.string.theme_package_summary_default)
-                    }
-                )
-                if (useCloud) {
-                    loadThemesRemote(version)
-                }
-            }.onFailure {
-                if (it.isJobCancellation()) return@onFailure
-                if (version != loadVersion) return@launch
-                binding.tvSummary.text = if (useCloud) {
-                    getString(R.string.theme_package_cloud_load_failed, it.localizedMessage)
-                } else {
-                    getString(R.string.theme_package_load_failed, it.localizedMessage)
-                }
-            }
-        }
-    }
-
-    private fun loadThemesRemote(version: Int) {
-        lifecycleScope.launch {
-            kotlin.runCatching {
                 ThemePackageManager.load(isNightTheme)
             }.onSuccess {
                 if (version != loadVersion) return@onSuccess
@@ -266,9 +245,11 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 if (version != loadVersion) return@onFailure
-                binding.tvSummary.text = appendPendingRemoteSummary(
+                binding.tvSummary.text = if (useCloud) {
                     getString(R.string.theme_package_cloud_load_failed, it.localizedMessage)
-                )
+                } else {
+                    getString(R.string.theme_package_load_failed, it.localizedMessage)
+                }
             }
         }
     }
@@ -293,16 +274,21 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         val dialogBinding = createEditBinding(currentConfig(), null)
         editDialogBinding = dialogBinding
         editingEntry = null
-        val dialog = alert(getString(R.string.theme_manual_add)) {
+        val dialog = AndroidAlertBuilder(this).apply {
+            setTitle(getString(R.string.theme_manual_add))
             customView { dialogBinding.root }
-            applyThemeEditFonts(dialogBinding)
             onDismiss {
                 editDialogBinding = null
                 editingEntry = null
             }
+        }.build()
+        dialog.setOnShowListener {
+            dialog.applyTint()
+            applyThemeEditDialogSize(dialog)
         }
+        applyThemeEditFonts(dialogBinding)
         bindThemeEditDialogActions(dialog, dialogBinding)
-        applyThemeEditDialogSize(dialog)
+        dialog.show()
     }
 
     private fun showEditDialog(entry: ThemePackageManager.Entry) {
@@ -317,16 +303,21 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 val dialogBinding = createEditBinding(ThemePackageManager.getConfig(localEntry), localEntry)
                 editDialogBinding = dialogBinding
                 editingEntry = localEntry
-                val dialog = alert(getString(R.string.theme_edit)) {
+                val dialog = AndroidAlertBuilder(this@ThemeManageActivity).apply {
+                    setTitle(getString(R.string.theme_edit))
                     customView { dialogBinding.root }
-                    applyThemeEditFonts(dialogBinding)
                     onDismiss {
                         editDialogBinding = null
                         editingEntry = null
                     }
+                }.build()
+                dialog.setOnShowListener {
+                    dialog.applyTint()
+                    applyThemeEditDialogSize(dialog)
                 }
+                applyThemeEditFonts(dialogBinding)
                 bindThemeEditDialogActions(dialog, dialogBinding)
-                applyThemeEditDialogSize(dialog)
+                dialog.show()
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(getString(R.string.theme_package_read_failed, it.localizedMessage))
@@ -342,6 +333,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         pendingBookInfoBackgroundPath = current.bookInfoBackgroundImgPath
         pendingPanelBackgroundPath = current.panelBackgroundImgPath
         pendingPanelBackgroundScaleType = current.panelBackgroundScaleType ?: ThemeConfig.PANEL_BG_CROP
+        pendingPanelBorderColor = current.panelBorderColor
+        pendingPanelBorderAlpha = current.panelBorderAlpha ?: 100
         pendingBlur = current.backgroundImgBlur
         pendingUiCornerScale = current.uiCornerScale ?: AppConfig.uiCornerScale
         pendingUiLayoutAlpha = current.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha
@@ -412,6 +405,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private fun setupInterfaceRows(binding: DialogThemePackageEditBinding) = binding.run {
         setupCornerScaleRow(rowCornerScale)
         setupLayoutAlphaRow(rowLayoutAlpha)
+        setupPanelBorderColorRow(rowPanelBorderColor)
+        setupPanelBorderAlphaRow(rowPanelBorderAlpha)
         setupFontScaleRow(rowFontScale)
         setupUiFontRow(rowUiFont)
         setupTitleFontRow(rowTitleFont)
@@ -430,9 +425,14 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
     private fun applyThemeEditDialogSize(dialog: androidx.appcompat.app.AlertDialog) {
         val metrics = resources.displayMetrics
-        dialog.window?.setLayout(
+        val heightRatio = if (metrics.heightPixels < 1600) {
+            EDIT_DIALOG_HEIGHT_RATIO_COMPACT
+        } else {
+            EDIT_DIALOG_HEIGHT_RATIO
+        }
+        dialog.setLayout(
             (metrics.widthPixels * EDIT_DIALOG_WIDTH_RATIO).toInt(),
-            (metrics.heightPixels * EDIT_DIALOG_HEIGHT_RATIO).toInt()
+            (metrics.heightPixels * heightRatio).toInt()
         )
     }
 
@@ -451,6 +451,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             binding.rowPanelBackgroundMode.tvTitle,
             binding.rowCornerScale.tvTitle,
             binding.rowLayoutAlpha.tvTitle,
+            binding.rowPanelBorderColor.tvTitle,
+            binding.rowPanelBorderAlpha.tvTitle,
             binding.rowFontScale.tvTitle,
             binding.rowUiFont.tvTitle,
             binding.rowTitleFont.tvTitle,
@@ -624,6 +626,54 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
     }
 
+    private fun setupPanelBorderColorRow(row: ItemThemePackageOptionBinding) {
+        applyOptionRowBackground(row)
+        row.tvTitle.text = getString(R.string.theme_panel_border_color)
+        val colorText = pendingPanelBorderColor?.takeIf { it.isNotBlank() }
+        row.viewSwatch.visibility = if (colorText == null) View.INVISIBLE else View.VISIBLE
+        row.tvValue.text = colorText?.uppercase(Locale.ROOT) ?: getString(R.string.disable)
+        colorText?.let { runCatching { updateSwatch(row, normalizeColor(it).toColorInt()) } }
+        row.root.setOnClickListener {
+            selector(
+                getString(R.string.theme_panel_border_color),
+                listOf(getString(R.string.disable), getString(R.string.select_color))
+            ) { _, index ->
+                if (index == 0) {
+                    pendingPanelBorderColor = null
+                    setupPanelBorderColorRow(row)
+                } else {
+                    ColorPickerDialog.newBuilder()
+                        .setColor((pendingPanelBorderColor ?: "#${accentColor.hexString}").toColorInt())
+                        .setShowAlphaSlider(false)
+                        .setDialogType(ColorPickerDialog.TYPE_CUSTOM)
+                        .setDialogId(colorPanelBorder)
+                        .show(this)
+                }
+            }
+        }
+    }
+    private fun setupPanelBorderAlphaRow(row: ItemThemePackageOptionBinding) {
+        applyOptionRowBackground(row)
+        row.tvTitle.text = getString(R.string.theme_panel_border_alpha)
+        row.viewSwatch.visibility = View.INVISIBLE
+        row.tvValue.text = getString(R.string.ui_layout_alpha_value, pendingPanelBorderAlpha)
+        row.root.setOnClickListener {
+            NumberPickerDialog(this)
+                .setTitle(getString(R.string.theme_panel_border_alpha))
+                .setMaxValue(100)
+                .setMinValue(0)
+                .setValue(pendingPanelBorderAlpha)
+                .setCustomButton(R.string.btn_default_s) {
+                    pendingPanelBorderAlpha = 100
+                    row.tvValue.text = getString(R.string.ui_layout_alpha_value, pendingPanelBorderAlpha)
+                }
+                .show {
+                    pendingPanelBorderAlpha = it.coerceIn(0, 100)
+                    row.tvValue.text = getString(R.string.ui_layout_alpha_value, pendingPanelBorderAlpha)
+                }
+        }
+    }
+
     private fun updateImageRow(row: ItemThemePackageOptionBinding, target: ThemeImageTarget) {
         val path = when (target) {
             ThemeImageTarget.MAIN -> pendingMainBackgroundPath
@@ -767,6 +817,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 bookInfoBackgroundImgPath = pendingBookInfoBackgroundPath,
                 panelBackgroundImgPath = pendingPanelBackgroundPath,
                 panelBackgroundScaleType = pendingPanelBackgroundScaleType,
+                panelBorderColor = pendingPanelBorderColor,
+                panelBorderAlpha = pendingPanelBorderAlpha,
                 uiCornerScale = pendingUiCornerScale,
                 uiLayoutAlpha = pendingUiLayoutAlpha,
                 uiCornerSearchFollow = pendingUiCornerSearchFollow,
@@ -819,16 +871,32 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
     }
 
-    private fun enqueueUploadIfNeeded(entry: ThemePackageManager.Entry) {
-        if (!AppConfig.syncThemePackages) return
-        enqueueRemoteSync(
-            RemoteSyncTask(
-                key = "upload:${entry.packageInfo.isNightTheme}:${entry.dirName}",
-                type = RemoteSyncTask.Type.UPLOAD,
-                isNightTheme = entry.packageInfo.isNightTheme,
-                dirName = entry.dirName
-            )
-        )
+    private fun enqueueUploadIfNeeded(entry: ThemePackageManager.Entry): Boolean {
+        if (!AppConfig.syncThemePackages) return false
+        return WebDavTaskManager.enqueueUpload(
+            key = "theme_upload:${entry.packageInfo.isNightTheme}:${entry.dirName}",
+            name = entry.packageInfo.name,
+            type = WebDavTaskType.THEME_PACKAGE_UPLOAD,
+            runningMessage = getString(R.string.theme_upload_remote),
+            successMessage = getString(R.string.theme_sync_done)
+        ) {
+            ThemePackageManager.upload(entry)
+        }
+    }
+
+    private fun observeWebDavTasks() {
+        lifecycleScope.launch {
+            WebDavTaskManager.states.collectLatest { states ->
+                states.values
+                    .filter { it.type == WebDavTaskType.THEME_PACKAGE_UPLOAD }
+                    .filter { it.status == WebDavTaskStatus.COMPLETED }
+                    .forEach { state ->
+                        if (handledWebDavTasks.add("${state.key}:${state.status}")) {
+                            loadThemes()
+                        }
+                    }
+            }
+        }
     }
 
     private fun currentConfig(): ThemeConfig.Config {
@@ -863,6 +931,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             panelBackgroundImgPath = getPrefString(if (isNightTheme) PreferKey.panelBgImageN else PreferKey.panelBgImage),
             panelBackgroundScaleType = getPrefString(if (isNightTheme) PreferKey.panelBgScaleTypeN else PreferKey.panelBgScaleType)
                 ?: ThemeConfig.PANEL_BG_CROP,
+            panelBorderColor = getPrefString(if (isNightTheme) PreferKey.panelBorderColorN else PreferKey.panelBorderColor),
+            panelBorderAlpha = getPrefInt(if (isNightTheme) PreferKey.panelBorderAlphaN else PreferKey.panelBorderAlpha, 100),
             uiCornerScale = AppConfig.uiCornerScale,
             uiLayoutAlpha = AppConfig.uiLayoutAlpha,
             uiCornerSearchFollow = AppConfig.uiCornerSearchFollow,
@@ -981,7 +1051,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             add(ThemeAction.EDIT)
             if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.EXPORT)
             if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DOWNLOAD)
-            if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.UPLOAD)
+            if (AppConfig.syncThemePackages && entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.UPLOAD)
             if (!isApplied(entry)) {
                 if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.DELETE_LOCAL)
                 if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DELETE_REMOTE)
@@ -995,8 +1065,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 ThemeAction.EXPORT -> exportThemeZip(entry)
                 ThemeAction.DOWNLOAD -> runAction(getString(R.string.theme_downloaded)) { ThemePackageManager.download(entry) }
                 ThemeAction.UPLOAD -> {
-                    enqueueUploadIfNeeded(entry)
-                    toastOnUi(getString(R.string.theme_sync_queued))
+                    val queued = enqueueUploadIfNeeded(entry)
+                    toastOnUi(if (queued) R.string.theme_sync_queued else R.string.cache_manage_webdav_task_duplicate)
                 }
                 ThemeAction.DELETE_LOCAL -> confirmDeleteTheme(entry, getString(R.string.theme_delete_local_confirm)) {
                     ThemePackageManager.deleteLocal(entry)
@@ -1287,10 +1357,10 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 tvInfo.text = buildString {
                     if (isApplied(entry)) {
                         append(getString(R.string.theme_current_applied))
-                        append(" · ")
+                        append(" 路 ")
                     }
                     append(getString(if (pkg.isNightTheme) R.string.theme_night_short else R.string.theme_day_short))
-                    append(" · ")
+                    append(" 路 ")
                     val time = maxOf(pkg.updatedAt, entry.remoteUpdatedAt)
                     append(if (time > 0) dateFormat.format(Date(time)) else getString(R.string.theme_time_unknown))
                 }
@@ -1364,8 +1434,12 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             colorAccent -> binding.rowAccent
             colorBackground -> binding.rowBackground
             colorBottomBackground -> binding.rowBottomBackground
+            colorPanelBorder -> binding.rowPanelBorderColor
             else -> null
         } ?: return
+        if (dialogId == colorPanelBorder) {
+            pendingPanelBorderColor = hex
+        }
         row.tvValue.text = hex
         updateSwatch(row, color)
     }
@@ -1378,8 +1452,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
     companion object {
         private val themeRemoteSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        private const val EDIT_DIALOG_WIDTH_RATIO = 0.92f
-        private const val EDIT_DIALOG_HEIGHT_RATIO = 0.62f
+        private const val EDIT_DIALOG_WIDTH_RATIO = 0.94f
+        private const val EDIT_DIALOG_HEIGHT_RATIO = 0.68f
+        private const val EDIT_DIALOG_HEIGHT_RATIO_COMPACT = 0.74f
         private const val requestMainBackground = 301
         private const val requestBookInfoBackground = 302
         private const val requestPanelBackground = 303
@@ -1387,6 +1462,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         private const val colorAccent = 402
         private const val colorBackground = 403
         private const val colorBottomBackground = 404
+        private const val colorPanelBorder = 405
     }
 
     private enum class ThemeAction(val titleRes: Int) {

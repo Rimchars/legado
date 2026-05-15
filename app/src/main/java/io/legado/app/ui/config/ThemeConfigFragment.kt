@@ -163,13 +163,27 @@ class ThemeConfigFragment : PreferenceFragment(),
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         menuInflater.inflate(R.menu.theme_config, menu)
+        updateThemeModeMenu(menu)
         menu.applyTint(requireContext())
+    }
+
+    private fun updateThemeModeMenu(menu: Menu) {
+        menu.findItem(R.id.menu_theme_mode)?.setIcon(themeModeIconRes())
+    }
+
+    private fun themeModeIconRes(): Int {
+        return if (AppConfig.isNightTheme) {
+            R.drawable.ic_daytime
+        } else {
+            R.drawable.ic_brightness
+        }
     }
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
         when (menuItem.itemId) {
             R.id.menu_theme_mode -> {
                 AppConfig.isNightTheme = !AppConfig.isNightTheme
+                menuItem.setIcon(themeModeIconRes())
                 ThemeConfig.applyDayNight(requireContext())
                 return true
             }
@@ -221,6 +235,7 @@ class ThemeConfigFragment : PreferenceFragment(),
             "themeList" -> startActivity<ThemeManageActivity>()
             "theme_manage" -> startActivity<ThemeManageActivity>()
             "navigation_bar_manage" -> startActivity<NavigationBarManageActivity>()
+            "top_bar_manage" -> startActivity<TopBarManageActivity>()
             "book_info_manage" -> startActivity<BookInfoManageActivity>()
             "saveDayTheme",
             "saveNightTheme" -> alertSaveTheme(key)

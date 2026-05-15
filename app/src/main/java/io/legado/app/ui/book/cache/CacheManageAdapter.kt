@@ -18,6 +18,7 @@ class CacheManageAdapter(
 ) : DiffRecyclerAdapter<CacheBookItem, ItemCacheManageBookBinding>(context) {
 
     private var taskStates: Map<String, AudioCacheTaskState> = emptyMap()
+    private var webDavTaskStates: Map<String, WebDavTaskState> = emptyMap()
 
     override val diffItemCallback: DiffUtil.ItemCallback<CacheBookItem> =
         object : DiffUtil.ItemCallback<CacheBookItem>() {
@@ -37,6 +38,10 @@ class CacheManageAdapter(
                     oldItem.taskState == newItem.taskState &&
                     oldItem.inBookshelf == newItem.inBookshelf &&
                     oldItem.sourceAvailable == newItem.sourceAvailable &&
+                    oldItem.remoteAvailable == newItem.remoteAvailable &&
+                    oldItem.remoteCachedCount == newItem.remoteCachedCount &&
+                    oldItem.remoteUpdatedAt == newItem.remoteUpdatedAt &&
+                    oldItem.remoteZipFileName == newItem.remoteZipFileName &&
                     oldItem.sourceVariants == newItem.sourceVariants
             }
         }
@@ -80,14 +85,17 @@ class CacheManageAdapter(
         } else {
             context.getString(R.string.cache_manage_source_deleted_chip, item.sourceName)
         }
-        btnUpload.setText(if (item.shouldDownloadRemote()) R.string.action_download else R.string.cache_manage_upload)
+        btnUpload.setText(
+            when {
+                item.hasLocalCache() && item.hasRemoteCache() -> R.string.cache_manage_sync_action
+                item.hasRemoteCache() && !item.hasLocalCache() -> R.string.action_download
+                else -> R.string.cache_manage_upload
+            }
+        )
         btnSource.isEnabled = item.sourceVariants.size > 1
         btnSource.alpha = if (item.sourceVariants.size > 1) 1f else 0.72f
-        tvCache.text = context.getString(
-            R.string.cache_manage_cached_count,
-            item.cachedCount,
-            item.totalChapterCount
-        )
+        tvCache.text = item.cacheCountText(context)
+        tvCacheState.text = context.getString(item.cacheStateLabelRes())
         btnBookshelf.setText(
             if (item.inBookshelf) R.string.cache_manage_use_cache
             else R.string.cache_manage_add_bookshelf
@@ -99,17 +107,24 @@ class CacheManageAdapter(
     }
 
     private fun updateTaskViews(binding: ItemCacheManageBookBinding, item: CacheBookItem) = binding.run {
-        val taskState = taskStateFor(item)
-        val isCaching = taskState?.active == true
-        val isPaused = taskState?.status == CacheTaskStatus.PAUSED
+        val audioState = taskStateFor(item)
+        val webDavState = webDavTaskStateFor(item)
+        val isCaching = audioState?.active == true
+        val isPaused = audioState?.status == CacheTaskStatus.PAUSED
+        val webDavActive = webDavState?.active == true
         if (isCaching || isPaused) {
             tvTask.visible()
-            tvTask.text = taskState?.message
+            tvTask.text = audioState.message
             btnStop.setText(if (isPaused) R.string.resume else R.string.pause)
             btnStop.visible()
+        } else if (webDavActive) {
+            tvTask.visible()
+            tvTask.text = webDavState.message
+            btnStop.gone()
         } else {
-            val lastMessage = taskState?.message
-            if (!lastMessage.isNullOrBlank() && taskState.status != CacheTaskStatus.COMPLETED) {
+            val lastMessage = webDavState?.takeIf { it.status != WebDavTaskStatus.COMPLETED }?.message
+                ?: audioState?.takeIf { it.status != CacheTaskStatus.COMPLETED }?.message
+            if (!lastMessage.isNullOrBlank()) {
                 tvTask.visible()
                 tvTask.text = lastMessage
             } else {
@@ -118,11 +133,13 @@ class CacheManageAdapter(
             btnStop.gone()
         }
         val hasCache = item.hasLocalCache()
-        val taskLocked = isCaching || isPaused
-        btnUpload.isEnabled = (hasCache || item.shouldDownloadRemote()) && !taskLocked
-        btnDelete.isEnabled = hasCache && !taskLocked
-        btnUpload.alpha = if ((hasCache || item.shouldDownloadRemote()) && !taskLocked) 1f else 0.45f
-        btnDelete.alpha = if (hasCache && !taskLocked) 1f else 0.45f
+        val canSync = hasCache || item.hasRemoteCache()
+        val taskLocked = isCaching || isPaused || webDavActive
+        btnUpload.isEnabled = canSync && !taskLocked
+        val canDelete = (hasCache || item.hasRemoteCache()) && !taskLocked
+        btnDelete.isEnabled = canDelete
+        btnUpload.alpha = if (canSync && !taskLocked) 1f else 0.45f
+        btnDelete.alpha = if (canDelete) 1f else 0.45f
     }
 
     override fun registerListener(holder: ItemViewHolder, binding: ItemCacheManageBookBinding) {
@@ -134,7 +151,11 @@ class CacheManageAdapter(
         }
         binding.btnUpload.setOnClickListener {
             getItem(holder.layoutPosition)?.let {
-                if (it.shouldDownloadRemote()) callback.download(it) else callback.upload(it)
+                when {
+                    it.hasLocalCache() && it.hasRemoteCache() -> callback.selectSyncAction(it)
+                    it.hasRemoteCache() && !it.hasLocalCache() -> callback.download(it)
+                    else -> callback.upload(it)
+                }
             }
         }
         binding.btnBookshelf.setOnClickListener {
@@ -163,10 +184,23 @@ class CacheManageAdapter(
         }
     }
 
+    fun updateWebDavTaskStates(states: Map<String, WebDavTaskState>) {
+        val changedCacheKeys = (webDavTaskStates.keys + states.keys)
+            .filterTo(hashSetOf<String>()) { webDavTaskStates[it] != states[it] }
+        webDavTaskStates = states
+        if (changedCacheKeys.isEmpty()) return
+        getItems().forEachIndexed { index, item ->
+            if (item.containsCacheKey(changedCacheKeys)) {
+                notifyItemChanged(index, PAYLOAD_TASK_STATE)
+            }
+        }
+    }
+
     interface Callback {
         fun openChapters(item: CacheBookItem)
         fun upload(item: CacheBookItem)
         fun download(item: CacheBookItem)
+        fun selectSyncAction(item: CacheBookItem)
         fun restoreToBookshelf(item: CacheBookItem)
         fun deleteBookCache(item: CacheBookItem)
         fun stopAudioCache(item: CacheBookItem)
@@ -175,6 +209,10 @@ class CacheManageAdapter(
 
     private fun CacheBookItem.containsBookUrl(bookUrls: Set<String>): Boolean {
         return book.bookUrl in bookUrls || sourceVariants.any { it.book.bookUrl in bookUrls }
+    }
+
+    private fun CacheBookItem.containsCacheKey(cacheKeys: Set<String>): Boolean {
+        return cacheKey in cacheKeys || sourceVariants.any { it.cacheKey in cacheKeys }
     }
 
     private fun taskStateFor(item: CacheBookItem): AudioCacheTaskState? {
@@ -186,13 +224,55 @@ class CacheManageAdapter(
         return item.taskState
     }
 
+    private fun webDavTaskStateFor(item: CacheBookItem): WebDavTaskState? {
+        webDavTaskStates[item.cacheKey]?.let { return it }
+        item.sourceVariants.forEach { variant ->
+            webDavTaskStates[variant.cacheKey]?.let { return it }
+        }
+        return null
+    }
+
     private companion object {
         private val PAYLOAD_TASK_STATE = Any()
     }
 }
 
+private fun CacheBookItem.cacheCountText(context: Context): String {
+    return buildCacheCountText(context, localCachedCount, remoteCachedCount, totalChapterCount, remoteAvailable)
+}
+
+fun CacheBookSourceVariant.cacheCountText(context: Context): String {
+    return buildCacheCountText(context, localCachedCount, remoteCachedCount, totalChapterCount, remoteAvailable)
+}
+
+private fun buildCacheCountText(
+    context: Context,
+    localCount: Int,
+    remoteCount: Int,
+    totalCount: Int,
+    remoteAvailable: Boolean
+): String {
+    val parts = arrayListOf<String>()
+    if (localCount > 0) {
+        parts += context.getString(R.string.cache_manage_local_cached_count, localCount)
+    }
+    if (remoteAvailable && remoteCount > 0) {
+        parts += context.getString(R.string.cache_manage_remote_cached_count, remoteCount)
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+        ?: context.getString(R.string.cache_manage_cached_count, localCount)
+}
+
+
 private fun CacheBookItem.hasLocalCache(): Boolean = localCachedCount > 0
 
-private fun CacheBookItem.shouldDownloadRemote(): Boolean {
-    return remoteAvailable && localCachedCount <= 0 && !remoteZipFileName.isNullOrBlank()
+private fun CacheBookItem.cacheStateLabelRes(): Int {
+    val local = hasLocalCache()
+    val remote = hasRemoteCache()
+    return when {
+        local && remote -> R.string.cache_manage_state_both
+        local -> R.string.cache_manage_state_local
+        remote -> R.string.cache_manage_state_remote
+        else -> R.string.cache_manage_state_none
+    }
 }

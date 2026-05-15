@@ -233,6 +233,50 @@ object BitmapUtils {
 
 }
 
+fun Bitmap.hasTransparentPixels(): Boolean {
+    if (!hasAlpha() || width <= 0 || height <= 0 || isRecycled) return false
+    return runCatching {
+        val pixelCount = width.toLong() * height.toLong()
+        if (pixelCount <= TRANSPARENT_PIXEL_FULL_SCAN_LIMIT) {
+            val row = IntArray(width)
+            for (y in 0 until height) {
+                getPixels(row, 0, width, 0, y, width, 1)
+                for (pixel in row) {
+                    if (Color.alpha(pixel) < 255) return true
+                }
+            }
+            return false
+        }
+        val step = ceil(sqrt(pixelCount.toDouble() / TRANSPARENT_PIXEL_FULL_SCAN_LIMIT)).toInt()
+            .coerceAtLeast(2)
+        var y = 0
+        while (y < height) {
+            var x = 0
+            while (x < width) {
+                if (Color.alpha(getPixel(x, y)) < 255) return true
+                x += step
+            }
+            y += step
+        }
+        false
+    }.getOrDefault(hasAlpha())
+}
+
+private const val TRANSPARENT_PIXEL_FULL_SCAN_LIMIT = 512_000L
+
+fun Bitmap.preferredCoverExtension(): String {
+    return if (hasTransparentPixels()) "png" else "jpg"
+}
+
+fun Bitmap.compressPreservingAlpha(outputStream: OutputStream, jpegQuality: Int = 90): Boolean {
+    val usePng = hasTransparentPixels()
+    return compress(
+        if (usePng) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG,
+        if (usePng) 100 else jpegQuality,
+        outputStream
+    )
+}
+
 /**
  * 获取指定宽高的图片
  */

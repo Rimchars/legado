@@ -11,6 +11,8 @@ import io.legado.app.databinding.ItemBookshelfListBinding
 import io.legado.app.databinding.ItemBookshelfListGroupBinding
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.applyUiTitleTypeface
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.gone
 import io.legado.app.utils.invisible
 import io.legado.app.utils.visible
@@ -58,6 +60,11 @@ class BooksAdapterList(context: Context, callBack: CallBack) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun onBind(item: Book, position: Int) = binding.run {
+            tvName.applyUiTitleTypeface(context)
+            val uiTypeface = context.uiTypeface()
+            tvAuthor.typeface = uiTypeface
+            tvRead.typeface = uiTypeface
+            tvLast.typeface = uiTypeface
             tvName.text = item.name
             tvAuthor.text = item.author
             tvRead.text = item.durChapterTitle
@@ -127,6 +134,11 @@ class BooksAdapterList(context: Context, callBack: CallBack) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun onBind(item: Book, position: Int) = binding.run {
+            tvName.applyUiTitleTypeface(context)
+            val uiTypeface = context.uiTypeface()
+            tvAuthor.typeface = uiTypeface
+            tvRead.typeface = uiTypeface
+            tvLast.typeface = uiTypeface
             tvName.text = item.name
             tvAuthor.text = item.author
             tvRead.text = item.durChapterTitle
@@ -192,6 +204,11 @@ class BooksAdapterList(context: Context, callBack: CallBack) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun onBind(item: BookGroup, position: Int) = binding.run {
+            tvName.applyUiTitleTypeface(context)
+            val uiTypeface = context.uiTypeface()
+            tvAuthor.typeface = uiTypeface
+            tvRead.typeface = uiTypeface
+            tvLast.typeface = uiTypeface
             tvName.text = item.groupName
             ivCover.load(item.cover)
             flHasNew.gone()

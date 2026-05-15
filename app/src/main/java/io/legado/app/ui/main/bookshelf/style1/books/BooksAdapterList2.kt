@@ -10,6 +10,8 @@ import io.legado.app.data.entities.Book
 import io.legado.app.databinding.ItemBookshelfList2Binding
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.applyUiTitleTypeface
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.invisible
 import io.legado.app.utils.toTimeAgo
 import splitties.views.onLongClick
@@ -35,6 +37,12 @@ class BooksAdapterList2(
         payloads: MutableList<Any>
     ) = binding.run {
         if (payloads.isEmpty()) {
+            tvName.applyUiTitleTypeface(context)
+            val uiTypeface = context.uiTypeface()
+            tvAuthor.typeface = uiTypeface
+            tvRead.typeface = uiTypeface
+            tvLast.typeface = uiTypeface
+            tvLastUpdateTime.typeface = uiTypeface
             tvName.text = item.name
             tvAuthor.text = item.author
             tvRead.text = item.durChapterTitle

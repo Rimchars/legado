@@ -68,7 +68,12 @@ abstract class BaseDialogFragment(
                 }
             })
         } else {
-            dialog?.window?.setBackgroundDrawableResource(R.color.transparent)
+            dialog?.window?.let {
+                val attr = it.attributes
+                attr.windowAnimations = R.style.AnimDialogCenter
+                it.attributes = attr
+                it.setBackgroundDrawableResource(R.color.transparent)
+            }
         }
     }
 

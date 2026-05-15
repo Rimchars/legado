@@ -20,7 +20,9 @@ class PreferenceGroupBackgroundDrawable(
     private val panelImage: Drawable? = null,
     private val panelImageKey: String? = null,
     private val groupHeight: Int = 0,
-    private val offsetY: Int = 0
+    private val offsetY: Int = 0,
+    @ColorInt private val borderColor: Int? = null,
+    private val borderWidth: Float = 1f
 ) : Drawable() {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -38,7 +40,9 @@ class PreferenceGroupBackgroundDrawable(
         dividerInset: Float,
         panelImageKey: String?,
         groupHeight: Int,
-        offsetY: Int
+        offsetY: Int,
+        @ColorInt borderColor: Int?,
+        borderWidth: Float
     ): Boolean {
         return this.normalColor == normalColor &&
                 this.pressedColor == pressedColor &&
@@ -49,7 +53,9 @@ class PreferenceGroupBackgroundDrawable(
                 this.dividerInset == dividerInset &&
                 this.panelImageKey == panelImageKey &&
                 this.groupHeight == groupHeight &&
-                this.offsetY == offsetY
+                this.offsetY == offsetY &&
+                this.borderColor == borderColor &&
+                this.borderWidth == borderWidth
     }
 
     override fun draw(canvas: Canvas) {
@@ -66,6 +72,13 @@ class PreferenceGroupBackgroundDrawable(
         if (pressed) {
             paint.color = pressedColor
             canvas.drawPath(path, paint)
+        }
+        borderColor?.let { color ->
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = borderWidth
+            paint.color = color
+            canvas.drawPath(path, paint)
+            paint.style = Paint.Style.FILL
         }
         if (hasNext) {
             paint.color = dividerColor

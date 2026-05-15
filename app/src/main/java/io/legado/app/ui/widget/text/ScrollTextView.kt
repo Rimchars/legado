@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
-import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.ViewConfiguration
@@ -40,6 +39,7 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
 
     //滑动距离的最大边界
     private var mOffsetHeight: Int = 0
+    var onScrollInterceptChange: ((Boolean) -> Unit)? = null
 
     //f(x) = (x-1)^5 + 1
     private val sQuinticInterpolator = Interpolator {
@@ -47,33 +47,6 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
         t -= 1.0f
         t * t * t * t * t + 1.0f
     }
-
-    private val gestureDetector = GestureDetector(context,
-        object : GestureDetector.SimpleOnGestureListener() {
-
-            override fun onDown(e: MotionEvent): Boolean {
-                disallowIntercept = true
-                return super.onDown(e)
-            }
-
-            override fun onScroll(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                distanceX: Float,
-                distanceY: Float
-            ): Boolean {
-                val y = scrollY + distanceY
-                if (y < 0 || y > mOffsetHeight) {
-                    disallowIntercept = false
-                    //这里触发父布局或祖父布局的滑动事件
-                    parent.requestDisallowInterceptTouchEvent(false)
-                } else {
-                    disallowIntercept = true
-                }
-                return true
-            }
-
-        })
 
     init {
         val vc = ViewConfiguration.get(context)
@@ -106,18 +79,18 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (canScroll()) {
-            gestureDetector.onTouchEvent(event)
-        }
         velocityTracker.addMovement(event)
-        when (event.action) {
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 setScrollState(scrollStateIdle)
                 mLastTouchY = (event.y + 0.5f).toInt()
+                updateParentIntercept(canScroll())
             }
             MotionEvent.ACTION_MOVE -> {
                 val y = (event.y + 0.5f).toInt()
                 var dy = mLastTouchY - y
+                val canScrollInDirection = canScrollVertically(dy)
+                updateParentIntercept(canScrollInDirection)
                 if (mScrollState != scrollStateDragging) {
                     var startScroll = false
 
@@ -127,7 +100,7 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
                         } else {
                             dy += mTouchSlop
                         }
-                        startScroll = true
+                        startScroll = canScrollInDirection
                     }
                     if (startScroll) {
                         setScrollState(scrollStateDragging)
@@ -140,7 +113,7 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
             MotionEvent.ACTION_UP -> {
                 velocityTracker.computeCurrentVelocity(1000, mMaxFlingVelocity.toFloat())
                 val yVelocity = velocityTracker.yVelocity
-                if (abs(yVelocity) > mMinFlingVelocity) {
+                if (abs(yVelocity) > mMinFlingVelocity && canScrollVertically(-yVelocity.toInt())) {
                     mViewFling.fling(-yVelocity.toInt())
                 } else {
                     setScrollState(scrollStateIdle)
@@ -156,13 +129,21 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val result = super.onTouchEvent(event)
-        //如果是需要拦截，则再拦截，这个方法会在onScrollChanged方法之后再调用一次
-        if (disallowIntercept && canScroll()) {
-            parent.requestDisallowInterceptTouchEvent(true)
-        }
+        return super.onTouchEvent(event)
+    }
 
-        return result
+    override fun canScrollVertically(direction: Int): Boolean {
+        return when {
+            direction > 0 -> scrollY < mOffsetHeight
+            direction < 0 -> scrollY > 0
+            else -> canScroll()
+        }
+    }
+
+    private fun updateParentIntercept(disallow: Boolean) {
+        disallowIntercept = disallow
+        parent.requestDisallowInterceptTouchEvent(disallow)
+        onScrollInterceptChange?.invoke(disallow)
     }
 
     override fun scrollTo(x: Int, y: Int) {
@@ -200,6 +181,7 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
     }
 
     private fun resetTouch() {
+        updateParentIntercept(false)
         velocityTracker.clear()
     }
 

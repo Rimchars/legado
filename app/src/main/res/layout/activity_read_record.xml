@@ -12,6 +12,12 @@
         android:layout_height="wrap_content"
         app:title="@string/read_record" />
 
+    <io.legado.app.ui.widget.MainTopBarView
+        android:id="@+id/top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
     <androidx.core.widget.NestedScrollView
         android:id="@+id/scroll_view"
         android:layout_width="match_parent"

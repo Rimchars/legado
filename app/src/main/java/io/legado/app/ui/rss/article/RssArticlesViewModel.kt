@@ -5,10 +5,12 @@ import android.os.Bundle
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import io.legado.app.base.BaseViewModel
+import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.RssArticle
 import io.legado.app.data.entities.RssSource
+import io.legado.app.help.webView.WebViewPool
 import io.legado.app.model.rss.Rss
 import io.legado.app.utils.stackTraceStr
 import kotlinx.coroutines.Dispatchers.IO
@@ -20,6 +22,7 @@ class RssArticlesViewModel(application: Application) : BaseViewModel(application
     var isLoading = true
     var order = System.currentTimeMillis()
     private var nextPageUrl: String? = null
+    private var loadJob: Coroutine<Pair<MutableList<RssArticle>, String?>>? = null
     var sortName: String = ""
     var sortUrl: String = ""
     var searchKey: String? = null
@@ -37,7 +40,16 @@ class RssArticlesViewModel(application: Application) : BaseViewModel(application
         isLoading = true
         page = 1
         order = System.currentTimeMillis()
-        Rss.getArticles(viewModelScope, sortName, sortUrl, rssSource, page, searchKey).onSuccess(IO) {
+        loadJob?.cancel()
+        loadJob = Rss.getArticles(
+            viewModelScope,
+            sortName,
+            sortUrl,
+            rssSource,
+            page,
+            searchKey,
+            webViewPoolScope = WebViewPool.Scope.RSS
+        ).onSuccess(IO) {
             nextPageUrl = it.second
             val articles = it.first
             articles.forEach { rssArticle ->
@@ -65,7 +77,16 @@ class RssArticlesViewModel(application: Application) : BaseViewModel(application
             loadFinallyLiveData.postValue(false)
             return
         }
-        Rss.getArticles(viewModelScope, sortName, pageUrl, rssSource, page, searchKey).onSuccess(IO) {
+        loadJob?.cancel()
+        loadJob = Rss.getArticles(
+            viewModelScope,
+            sortName,
+            pageUrl,
+            rssSource,
+            page,
+            searchKey,
+            webViewPoolScope = WebViewPool.Scope.RSS
+        ).onSuccess(IO) {
             nextPageUrl = it.second
             loadMoreSuccess(it.first)
             isLoading = false
@@ -93,6 +114,18 @@ class RssArticlesViewModel(application: Application) : BaseViewModel(application
             }
             appDb.rssArticleDao.append(*articles.toTypedArray())
         }
+    }
+
+    fun cancelLoading() {
+        loadJob?.cancel()
+        loadJob = null
+        isLoading = false
+    }
+
+    override fun onCleared() {
+        cancelLoading()
+        WebViewPool.destroyScope(WebViewPool.Scope.RSS)
+        super.onCleared()
     }
 
 }

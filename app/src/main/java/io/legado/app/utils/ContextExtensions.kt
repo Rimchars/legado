@@ -22,7 +22,6 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.net.ConnectivityManager
 import android.net.Uri
@@ -46,7 +45,6 @@ import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isVideo
 import io.legado.app.help.config.AppConfig
-import io.legado.app.help.config.ThemeConfig
 import io.legado.app.ui.book.audio.AudioPlayActivity
 import io.legado.app.ui.video.VideoPlayerActivity
 import io.legado.app.ui.book.manga.ReadMangaActivity
@@ -234,19 +232,38 @@ fun Context.putPrefString(key: String, value: String?) =
 fun Context.getPrefStringSet(
     key: String,
     defValue: MutableSet<String>? = null,
-): MutableSet<String>? = defaultSharedPreferences.getStringSet(key, defValue)
+): MutableSet<String>? {
+    return try {
+        defaultSharedPreferences.getStringSet(key, defValue)
+    } catch (_: ClassCastException) {
+        val value = defaultSharedPreferences.all[key] ?: return defValue
+        val set = value.toCompatStringSet() ?: return defValue
+        defaultSharedPreferences.edit { putStringSet(key, set) }
+        set
+    }
+}
 
 fun Context.putPrefStringSet(key: String, value: MutableSet<String>) =
     defaultSharedPreferences.edit { putStringSet(key, value) }
+
+private fun Any.toCompatStringSet(): MutableSet<String>? {
+    return when (this) {
+        is Set<*> -> mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }.toMutableSet()
+        is String -> trim()
+            .removeSurrounding("[", "]")
+            .split(',', ';', '|', '\n')
+            .map { it.trim().removeSurrounding("\"").removeSurrounding("'") }
+            .filter { it.isNotBlank() }
+            .toMutableSet()
+        else -> null
+    }
+}
 
 fun Context.removePref(key: String) =
     defaultSharedPreferences.edit { remove(key) }
 
 
 fun Context.getCompatColor(@ColorRes id: Int): Int {
-    if (id == R.color.background && !AppConfig.isEInkMode && ThemeConfig.hasUsableBgImage(this)) {
-        return Color.TRANSPARENT
-    }
     return ContextCompat.getColor(this, id)
 }
 

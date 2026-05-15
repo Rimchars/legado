@@ -10,6 +10,7 @@ import androidx.preference.PreferenceViewHolder
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.utils.ColorUtils
 
@@ -28,6 +29,7 @@ class PreferenceCategory(context: Context, attrs: AttributeSet) :
         if (view is TextView) {  //  && !view.isInEditMode
             view.text = title
             if (view.isInEditMode) return
+            view.applyUiTitleTypeface(context)
             view.setTextColor(context.accentColor)
             view.isVisible = !title.isNullOrEmpty()
 

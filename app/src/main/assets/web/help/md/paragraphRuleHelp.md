@@ -143,36 +143,3 @@ java.put("key", "value");
 ```
 
 `ctx.vars` 是执行开始时的变量快照。如果需要修改变量，使用 `source.put` 或 `java.put`。
-
-## 键值 pclick
-
-段落规则新增键值 `pclick`，作用等同于书源中的 `click`，用于绑定点击后执行的 JS。
-
-```js
-function process(ctx) {
-  return ctx.paragraphs.map(function(p) {
-    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="220" height="80">' +
-      '<text x="20" y="50" font-size="30">打开</text></svg>';
-
-    var option = JSON.stringify({
-      type: "paragraph",
-      style: "FULL",
-      pclick: "openPanel(" + p.index + ")"
-    });
-
-    var img = '<img src="data:image/svg+xml;base64,' +
-      java.base64Encode(svg) + ',' + option + '">';
-
-    return {
-      index: p.index,
-      text: p.text + img
-    };
-  });
-}
-
-function openPanel(index) {
-  java.showBrowser("https://example.com/?index=" + index);
-}
-```
-
-`pclick` 的值是点击时执行的 JS 字符串。点击时会在当前段落规则环境中执行，因此可以调用规则中定义的函数。

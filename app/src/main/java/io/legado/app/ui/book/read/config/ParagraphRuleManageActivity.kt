@@ -27,6 +27,8 @@ import io.legado.app.data.entities.ParagraphRuleVar
 import io.legado.app.databinding.ActivityThemeManageBinding
 import io.legado.app.databinding.DialogEditTextBinding
 import io.legado.app.databinding.ItemThemePackageBinding
+import io.legado.app.help.http.newCallResponseBody
+import io.legado.app.help.http.okHttpClient
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.UiCorner
@@ -85,7 +87,21 @@ class ParagraphRuleManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
     }
 
     private val exportRuleResult = registerForActivityResult(HandleFileContract()) { result ->
-        result.uri?.let { toastOnUi(R.string.export_success) }
+        result.uri?.let { uri ->
+            val url = uri.toString()
+            if (url.startsWith("http://", true) || url.startsWith("https://", true)) {
+                alert(R.string.upload_url) {
+                    setMessage(url)
+                    positiveButton(R.string.copy_text) {
+                        sendToClip(url)
+                        toastOnUi(R.string.copy_complete)
+                    }
+                    negativeButton(R.string.cancel)
+                }
+            } else {
+                toastOnUi(R.string.export_success)
+            }
+        }
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -133,11 +149,7 @@ class ParagraphRuleManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
 
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            MENU_IMPORT -> importDoc.launch {
-                mode = HandleFileContract.FILE
-                title = getString(R.string.import_str)
-                allowExtensions = arrayOf("json")
-            }
+            MENU_IMPORT -> showImportActions()
             MENU_HELP -> showHelp("paragraphRuleHelp")
         }
         return true
@@ -146,15 +158,67 @@ class ParagraphRuleManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
     private fun showAddActions() {
         selector(
             getString(R.string.paragraph_rule_manage),
-            listOf(getString(R.string.add), getString(R.string.import_str))
+            listOf(getString(R.string.add), getString(R.string.import_str), getString(R.string.import_on_line))
         ) { _, index ->
             when (index) {
                 0 -> openEditRule()
-                1 -> importDoc.launch {
-                    mode = HandleFileContract.FILE
-                    title = getString(R.string.import_str)
-                    allowExtensions = arrayOf("json")
+                1 -> launchImportFile()
+                2 -> showImportUrlDialog()
+            }
+        }
+    }
+
+    private fun showImportActions() {
+        selector(
+            getString(R.string.import_str),
+            listOf(getString(R.string.import_str), getString(R.string.import_on_line))
+        ) { _, index ->
+            when (index) {
+                0 -> launchImportFile()
+                1 -> showImportUrlDialog()
+            }
+        }
+    }
+
+    private fun launchImportFile() {
+        importDoc.launch {
+            mode = HandleFileContract.FILE
+            title = getString(R.string.import_str)
+            allowExtensions = arrayOf("json")
+        }
+    }
+
+    private fun showImportUrlDialog() {
+        alert(R.string.import_on_line) {
+            val dialogBinding = DialogEditTextBinding.inflate(layoutInflater).apply {
+                editView.hint = "https://..."
+            }
+            customView { dialogBinding.root }
+            okButton {
+                val url = dialogBinding.editView.text?.toString().orEmpty().trim()
+                if (url.isNotEmpty()) importRulesFromUrl(url)
+            }
+            cancelButton()
+        }
+    }
+
+    private fun importRulesFromUrl(url: String) {
+        lifecycleScope.launch {
+            kotlin.runCatching {
+                val text = withContext(Dispatchers.IO) {
+                    okHttpClient.newCallResponseBody { url(url) }.use { it.string() }
                 }
+                parseImportedRules(text)
+            }.onSuccess { rules ->
+                if (rules.isEmpty()) {
+                    toastOnUi(R.string.wrong_format)
+                } else {
+                    withContext(Dispatchers.IO) { insertImportedRules(rules) }
+                    load()
+                    toastOnUi(R.string.success)
+                }
+            }.onFailure {
+                toastOnUi(it.localizedMessage ?: getString(R.string.wrong_format))
             }
         }
     }

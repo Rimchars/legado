@@ -21,6 +21,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 import androidx.fragment.app.DialogFragment
 import io.legado.app.R
+import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.ThemeConfig
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.ui.widget.dialog.TextDialog
 
@@ -119,12 +121,21 @@ fun Activity.setStatusBarColorAuto(
     isTransparent: Boolean,
     fullScreen: Boolean
 ) {
-    val iconReferenceColor = if (isTransparent && fullScreen) {
+    val rawIconReferenceColor = if (isTransparent && fullScreen) {
         ThemeStore.backgroundColor(this)
     } else {
         color
     }
-    val isLightBar = ColorUtils.isColorLight(iconReferenceColor)
+    val iconReferenceColor = if (Color.alpha(rawIconReferenceColor) == 0) {
+        ThemeConfig.getFallbackBackgroundColor(this)
+    } else {
+        rawIconReferenceColor
+    }
+    val isLightBar = if (isTransparent && fullScreen) {
+        !AppConfig.isNightTheme
+    } else {
+        ColorUtils.isColorLight(iconReferenceColor)
+    }
     if (fullScreen) {
         if (isTransparent) {
             window.statusBarColor = Color.TRANSPARENT
@@ -135,6 +146,9 @@ fun Activity.setStatusBarColorAuto(
         window.statusBarColor = color
     }
     setLightStatusBar(isLightBar)
+    if (isTransparent && fullScreen) {
+        window.decorView.post { setLightStatusBar(isLightBar) }
+    }
 }
 
 @SuppressLint("ObsoleteSdkInt")

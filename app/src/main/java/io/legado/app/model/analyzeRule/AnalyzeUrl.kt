@@ -37,6 +37,7 @@ import io.legado.app.help.http.postForm
 import io.legado.app.help.http.postJson
 import io.legado.app.help.http.postMultipart
 import io.legado.app.help.source.getShareScope
+import io.legado.app.help.webView.WebViewPool
 import io.legado.app.model.Debug
 import io.legado.app.utils.EncoderUtils
 import io.legado.app.utils.GSON
@@ -93,7 +94,8 @@ class AnalyzeUrl(
     private var coroutineContext: CoroutineContext = EmptyCoroutineContext,
     headerMapF: Map<String, String>? = null,
     hasLoginHeader: Boolean = true,
-    private val infoMap: MutableMap<String, String>? = null
+    private val infoMap: MutableMap<String, String>? = null,
+    private val webViewPoolScope: WebViewPool.Scope = WebViewPool.Scope.GLOBAL
 ) : JsExtensions {
     constructor(mUrl: String) : this(mUrl, null)
 
@@ -461,7 +463,8 @@ class AnalyzeUrl(
                             javaScript = webJs ?: jsStr,
                             sourceRegex = sourceRegex,
                             headerMap = headerMap,
-                            delayTime = webViewDelayTime
+                            delayTime = webViewDelayTime,
+                            poolScope = webViewPoolScope
                         ).getStrResponse()
                     }
 
@@ -471,7 +474,8 @@ class AnalyzeUrl(
                         javaScript = webJs ?: jsStr,
                         sourceRegex = sourceRegex,
                         headerMap = headerMap,
-                        delayTime = webViewDelayTime
+                        delayTime = webViewDelayTime,
+                        poolScope = webViewPoolScope
                     ).getStrResponse()
                 }
             } else {

@@ -623,13 +623,18 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
         strokeColor: Int,
         radiusDp: Float
     ): Drawable {
-        return UiCorner.panelRoundedStroke(
-            this,
-            fillColor,
-            UiCorner.scaledDp(radiusDp),
-            1.dpToPx(),
-            if (UiCorner.effectMode() == "solid") strokeColor else UiCorner.effectStrokeColor(fillColor)
-        )
+        val borderColor = UiCorner.panelBorderColor(this)
+        return if (borderColor != null) {
+            UiCorner.panelRoundedStroke(
+                this,
+                fillColor,
+                UiCorner.scaledDp(radiusDp),
+                1.dpToPx(),
+                borderColor
+            )
+        } else {
+            UiCorner.panelRounded(this, fillColor, UiCorner.scaledDp(radiusDp))
+        }
     }
 
     private fun createFillDrawable(fillColor: Int, radiusDp: Float): GradientDrawable {

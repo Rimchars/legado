@@ -10,8 +10,11 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.ParagraphRule
 import io.legado.app.data.entities.ParagraphRuleVar
+import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.CacheManager
+import io.legado.app.help.coroutine.ActivelyCancelException
 import io.legado.app.help.http.CookieStore
+import io.legado.app.model.Debug
 import io.legado.app.utils.GSON
 import io.legado.app.utils.MD5Utils
 import kotlinx.coroutines.TimeoutCancellationException
@@ -23,13 +26,26 @@ import org.mozilla.javascript.Scriptable
 import org.mozilla.javascript.Scriptable.NOT_FOUND
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import java.util.LinkedHashMap
 
 object ParagraphRuleProcessor {
     private const val CLICK_PREFIX = "paragraphRule:"
     private const val RULE_PREFIX = "rule:"
+    private const val PROCESS_CACHE_MAX_SIZE = 32
+    private val processCache = object : LinkedHashMap<String, BookContent>(PROCESS_CACHE_MAX_SIZE, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, BookContent>?): Boolean {
+            return size > PROCESS_CACHE_MAX_SIZE
+        }
+    }
 
     interface BrowserCallback {
-        fun showBrowser(url: String, html: String? = null, preloadJs: String? = null, config: String? = null): Boolean
+        fun showBrowser(
+            url: String,
+            html: String? = null,
+            preloadJs: String? = null,
+            config: String? = null,
+            sourceKey: String? = null
+        ): Boolean
     }
 
     data class ParagraphItem(
@@ -37,7 +53,13 @@ object ParagraphRuleProcessor {
         val text: String,
         val start: Int,
         val end: Int,
-        val separator: String
+        val separator: String,
+        val sourcePosition: Int = index - 1
+    )
+
+    data class DebugResult(
+        val content: String,
+        val logs: List<String>
     )
 
     fun isParagraphClick(click: String?): Boolean {
@@ -49,13 +71,41 @@ object ParagraphRuleProcessor {
     private fun wrapRuleClick(ruleId: Long, js: String): String = "$RULE_PREFIX$ruleId:$js"
 
     suspend fun process(book: Book, chapter: BookChapter, content: BookContent): BookContent {
+        if (book.isEpub || content.textList.isEmpty()) return content
+        val rules = appDb.paragraphRuleDao.enabledRulesForBook(book.bookUrl)
+        if (rules.isEmpty()) return content
+        val cacheKey = processCacheKey(book, chapter, content, rules)
+        synchronized(processCache) {
+            processCache[cacheKey]?.let { return it }
+        }
         val original = content.textList.joinToString("\n")
-        val processed = process(book, chapter, original)
-        if (processed == original) return content
-        return content.copy(
-            textList = processed.split("\n")
-        )
+        var result = ChapterResult(original, content.textList)
+        val context = currentCoroutineContext()
+        var hasFailure = false
+        for (rule in rules) {
+            if (rule.script.isBlank()) continue
+            result = kotlin.runCatching {
+                withTimeout(rule.validTimeout()) {
+                    applyRule(rule, book, chapter, result, context)
+                }
+            }.onFailure {
+                hasFailure = true
+                when (it) {
+                    is ActivelyCancelException -> throw it
+                    is TimeoutCancellationException -> AppLog.put("ParagraphRule:${rule.id} script timeout")
+                    else -> AppLog.put("ParagraphRule:${rule.id} script error: ${it.localizedMessage ?: it}", it)
+                }
+            }.getOrDefault(result)
+        }
+        val processed = if (result.content == original) content else content.copy(textList = result.paragraphs)
+        if (!hasFailure) {
+            synchronized(processCache) {
+                processCache[cacheKey] = processed
+            }
+        }
+        return processed
     }
+
     suspend fun process(book: Book, chapter: BookChapter, content: String): String {
         if (book.isEpub) return content
         val rules = appDb.paragraphRuleDao.enabledRulesForBook(book.bookUrl)
@@ -69,14 +119,43 @@ object ParagraphRuleProcessor {
                     applyRule(rule, book, chapter, result, context)
                 }
             }.onFailure {
-                if (it !is TimeoutCancellationException) {
-                    AppLog.put("ParagraphRule:${rule.id} script error: ${it.localizedMessage ?: it}", it)
-                } else {
-                    AppLog.put("ParagraphRule:${rule.id} script timeout")
+                when (it) {
+                    is ActivelyCancelException -> throw it
+                    is TimeoutCancellationException -> AppLog.put("ParagraphRule:${rule.id} script timeout")
+                    else -> AppLog.put("ParagraphRule:${rule.id} script error: ${it.localizedMessage ?: it}", it)
                 }
             }.getOrDefault(result)
         }
         return result
+    }
+
+    suspend fun debug(rule: ParagraphRule, book: Book, chapter: BookChapter, content: String): DebugResult {
+        if (book.isEpub) {
+            throw NoStackTraceException("Paragraph rules do not run on EPUB books.")
+        }
+        if (rule.script.isBlank()) {
+            throw NoStackTraceException("Paragraph rule script is empty.")
+        }
+        val normalizedContent = ContentProcessor.get(book.name, book.origin)
+            .getContent(book, chapter, content, includeTitle = false)
+            .textList
+            .joinToString("\n")
+        val logs = arrayListOf<String>()
+        val debugSource = "paragraph_rule_${rule.id}"
+        val callback = object : Debug.Callback {
+            override fun printLog(state: Int, msg: String) {
+                logs.add(msg)
+            }
+        }
+        val processed = Debug.withDebugSource(debugSource, callback) {
+            Debug.log(debugSource, "paragraph debug start: ${book.name} / ${chapter.title}")
+            withTimeout(rule.validTimeout()) {
+                applyRule(rule, book, chapter, normalizedContent, currentCoroutineContext())
+            }.also {
+                Debug.log(debugSource, "paragraph debug finish")
+            }
+        }
+        return DebugResult(processed, logs)
     }
 
     fun evalClick(
@@ -106,6 +185,23 @@ object ParagraphRuleProcessor {
         rule: ParagraphRule,
         book: Book,
         chapter: BookChapter,
+        current: ChapterResult,
+        coroutineContext: CoroutineContext
+    ): ChapterResult {
+        val paragraphs = parseParagraphs(current.paragraphs)
+        if (paragraphs.isEmpty()) return current
+        val ctx = buildCtx(rule, book, chapter, current.content, paragraphs)
+        val scope = buildScope(rule, book, chapter, current.content, ctx, coroutineContext, null)
+        val script = buildRuleScript(rule, ctx)
+        val jsResult = RhinoScriptEngine.eval(script, scope, coroutineContext)
+        writeVars(rule.id, ctx["vars"])
+        return applyChapterResult(current, paragraphs, jsResult).wrapPclicks(rule.id)
+    }
+
+    private fun applyRule(
+        rule: ParagraphRule,
+        book: Book,
+        chapter: BookChapter,
         content: String,
         coroutineContext: CoroutineContext
     ): String {
@@ -113,7 +209,14 @@ object ParagraphRuleProcessor {
         if (paragraphs.isEmpty()) return content
         val ctx = buildCtx(rule, book, chapter, content, paragraphs)
         val scope = buildScope(rule, book, chapter, content, ctx, coroutineContext, null)
-        val script = buildString {
+        val script = buildRuleScript(rule, ctx)
+        val jsResult = RhinoScriptEngine.eval(script, scope, coroutineContext)
+        writeVars(rule.id, ctx["vars"])
+        return wrapPclicks(rule.id, applyResult(content, paragraphs, jsResult))
+    }
+
+    private fun buildRuleScript(rule: ParagraphRule, ctx: Map<String, Any?>): String {
+        return buildString {
             append(jsCompatPrelude())
             append(jsCtxPrelude(ctx))
             if (rule.jsLib.isNotBlank()) append(rule.jsLib).append('\n')
@@ -132,9 +235,6 @@ object ParagraphRuleProcessor {
                 })();
             """.trimIndent())
         }
-        val jsResult = RhinoScriptEngine.eval(script, scope, coroutineContext)
-        writeVars(rule.id, ctx["vars"])
-        return wrapPclicks(rule.id, applyResult(content, paragraphs, jsResult))
     }
 
     private fun jsCompatPrelude(): String {
@@ -190,6 +290,7 @@ object ParagraphRuleProcessor {
         content: String,
         paragraphs: List<ParagraphItem>
     ): Map<String, Any?> {
+        val chapterRequestUrl = chapterRequestUrl(chapter)
         return linkedMapOf(
             "book" to linkedMapOf(
                 "name" to book.name,
@@ -207,7 +308,10 @@ object ParagraphRuleProcessor {
             "chapter" to linkedMapOf(
                 "bookUrl" to chapter.bookUrl,
                 "title" to chapter.title,
-                "url" to chapter.url,
+                "url" to chapterRequestUrl,
+                "rawUrl" to chapter.url,
+                "requestUrl" to chapterRequestUrl,
+                "absoluteUrl" to chapterRequestUrl,
                 "baseUrl" to chapter.baseUrl,
                 "index" to chapter.index,
                 "isVolume" to chapter.isVolume,
@@ -269,9 +373,19 @@ object ParagraphRuleProcessor {
             bindings["ruleId"] = rule.id
             bindings["vars"] = readVars(rule.id)
             bindings["ctx"] = ctx
-            bindings["baseUrl"] = chapter.url
+            bindings["baseUrl"] = chapterRequestUrl(chapter)
         }
         return RhinoScriptEngine.getRuntimeScope(bindings)
+    }
+
+    private fun chapterRequestUrl(chapter: BookChapter): String {
+        val absoluteUrl = runCatching { chapter.getAbsoluteURL() }.getOrNull().orEmpty()
+        return when {
+            absoluteUrl.startsWith("http://", true) || absoluteUrl.startsWith("https://", true) -> absoluteUrl
+            chapter.url.startsWith("http://", true) || chapter.url.startsWith("https://", true) -> chapter.url
+            chapter.baseUrl.startsWith("http://", true) || chapter.baseUrl.startsWith("https://", true) -> chapter.baseUrl
+            else -> ""
+        }
     }
 
     private fun parseContent(content: String): List<ParagraphItem> {
@@ -293,6 +407,28 @@ object ParagraphRuleProcessor {
         return list
     }
 
+    private fun parseParagraphs(paragraphs: List<String>): List<ParagraphItem> {
+        var start = 0
+        var index = 1
+        return paragraphs.mapIndexedNotNull { idx, text ->
+            val separator = if (idx < paragraphs.lastIndex) "\n" else ""
+            val item = if (text.isNotBlank()) {
+                ParagraphItem(
+                    index = index++,
+                    text = text,
+                    start = start,
+                    end = start + text.length,
+                    separator = separator,
+                    sourcePosition = idx
+                )
+            } else {
+                null
+            }
+            start += text.length + separator.length
+            item
+        }
+    }
+
     private fun applyResult(original: String, paragraphs: List<ParagraphItem>, jsResult: Any?): String {
         val result = unwrap(jsResult)
         return when (result) {
@@ -304,6 +440,27 @@ object ParagraphRuleProcessor {
             is Map<*, *> -> fromPatch(original, paragraphs, result)
             else -> result.toString()
         }
+    }
+
+    private fun applyChapterResult(
+        current: ChapterResult,
+        paragraphs: List<ParagraphItem>,
+        jsResult: Any?
+    ): ChapterResult {
+        val result = unwrap(jsResult) ?: return current
+        return when (result) {
+            is String -> chapterResultOf(result)
+            is NativeArray -> fromListResult(result.toList())
+            is List<*> -> fromListResult(result)
+            is NativeObject -> fromPatchResult(current, paragraphs, result.toMap())
+            is Map<*, *> -> fromPatchResult(current, paragraphs, result)
+            else -> chapterResultOf(result.toString())
+        }
+    }
+
+    private fun chapterResultOf(text: String): ChapterResult {
+        val paragraphs = text.split('\n').filter { it.isNotBlank() }
+        return ChapterResult(paragraphs.joinToString("\n"), paragraphs)
     }
 
     private fun fromList(list: List<*>): String {
@@ -323,6 +480,19 @@ object ParagraphRuleProcessor {
         }
     }
 
+    private fun fromListResult(list: List<*>): ChapterResult {
+        val paragraphs = arrayListOf<String>()
+        list.forEach { raw ->
+            val item = unwrap(raw)
+            val text = when (item) {
+                is Map<*, *> -> item["text"]?.toString() ?: item["content"]?.toString()
+                else -> item?.toString()
+            } ?: return@forEach
+            if (text.isNotBlank()) paragraphs.add(text)
+        }
+        return ChapterResult(paragraphs.joinToString("\n"), paragraphs)
+    }
+
     private fun fromPatch(original: String, paragraphs: List<ParagraphItem>, patch: Map<*, *>): String {
         if (patch.containsKey("content")) return patch["content"]?.toString() ?: original
         if (patch.containsKey("result")) return patch["result"]?.toString() ?: original
@@ -335,6 +505,39 @@ object ParagraphRuleProcessor {
                 append(byIndex[item.index] ?: item.text)
             }
         }
+    }
+
+    private fun fromPatchResult(
+        current: ChapterResult,
+        paragraphs: List<ParagraphItem>,
+        patch: Map<*, *>
+    ): ChapterResult {
+        if (patch.containsKey("content")) {
+            val text = patch["content"]?.toString() ?: current.content
+            return chapterResultOf(text)
+        }
+        if (patch.containsKey("result")) {
+            val text = patch["result"]?.toString() ?: current.content
+            return chapterResultOf(text)
+        }
+        val byIndex = linkedMapOf<Int, String>()
+        patch.forEach { (key, value) ->
+            key?.toString()?.toIntOrNull()?.let { byIndex[it] = value?.toString() ?: "" }
+        }
+        if (byIndex.isEmpty()) return current
+        val paragraphIndexes = paragraphs.map { it.index }.toHashSet()
+        val out = current.paragraphs.toMutableList()
+        paragraphs.forEach { item ->
+            val replace = byIndex[item.index] ?: return@forEach
+            val position = item.sourcePosition
+            if (position in out.indices) out[position] = replace
+        }
+        byIndex
+            .filterKeys { it !in paragraphIndexes }
+            .toSortedMap()
+            .values
+            .filterTo(out) { it.isNotBlank() }
+        return ChapterResult(out.joinToString("\n"), out)
     }
 
     private fun unwrap(value: Any?): Any? = when (value) {
@@ -380,7 +583,7 @@ object ParagraphRuleProcessor {
 
     private fun wrapPclicks(ruleId: Long, text: String): String {
         val regex = Regex("""("pclick"\s*:\s*")((?:\\.|[^"\\])*)(")""")
-        return regex.replace(text) { match ->
+        return dedupeParagraphRuleImages(regex.replace(text) { match ->
             val raw = match.groupValues[2]
             val decoded = kotlin.runCatching { GSON.fromJson("\"$raw\"", String::class.java) }.getOrNull() ?: raw
             if (isParagraphClick(decoded)) {
@@ -389,6 +592,21 @@ object ParagraphRuleProcessor {
                 val encoded = GSON.toJson(wrapRuleClick(ruleId, decoded)).removeSurrounding("\"")
                 match.groupValues[1] + encoded + match.groupValues[3]
             }
+        })
+    }
+
+    private fun ChapterResult.wrapPclicks(ruleId: Long): ChapterResult {
+        val wrapped = paragraphs.map { wrapPclicks(ruleId, it) }
+        return ChapterResult(wrapped.joinToString("\n"), wrapped)
+    }
+
+    private fun dedupeParagraphRuleImages(text: String): String {
+        if (!text.contains("pclick") && !text.contains("data-legado-pclick")) return text
+        val regex = Regex("""<img\b[^>]*(?:"pclick"\s*:\s*"((?:\\.|[^"\\])*)"|data-legado-pclick\s*=\s*"([^"]*)")[^>]*>""")
+        val seen = hashSetOf<String>()
+        return regex.replace(text) { match ->
+            val key = match.groupValues.getOrNull(1)?.ifBlank { match.groupValues.getOrNull(2).orEmpty() }.orEmpty()
+            if (key.isNotBlank() && !seen.add(key)) "" else match.value
         }
     }
 
@@ -410,5 +628,26 @@ object ParagraphRuleProcessor {
         return "{\"pclick\":${GSON.toJson(wrapClick(ruleId, js))}}"
     }
 
-    fun stableKey(rule: ParagraphRule): String = MD5Utils.md5Encode16("${rule.id}:${rule.updateTime}:${rule.script}")
+    fun stableKey(rule: ParagraphRule): String {
+        return MD5Utils.md5Encode16("${rule.id}:${rule.updateTime}:${rule.timeoutMillisecond}:${rule.script}:${rule.jsLib}")
+    }
+
+    private fun processCacheKey(
+        book: Book,
+        chapter: BookChapter,
+        content: BookContent,
+        rules: List<ParagraphRule>
+    ): String {
+        val rulesKey = rules.joinToString("|") { stableKey(it) }
+        val varsKey = rules.joinToString("|") { rule ->
+            appDb.paragraphRuleDao.vars(rule.id).joinToString("&") { "${it.name}=${it.value}" }
+        }
+        val contentKey = MD5Utils.md5Encode16(content.textList.joinToString("\u0001"))
+        return "${book.bookUrl}|${chapter.index}|${chapter.url}|$rulesKey|$varsKey|$contentKey"
+    }
+
+    private data class ChapterResult(
+        val content: String,
+        val paragraphs: List<String>
+    )
 }

@@ -4,6 +4,7 @@ import io.legado.app.data.entities.RssArticle
 import io.legado.app.data.entities.RssSource
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.http.StrResponse
+import io.legado.app.help.webView.WebViewPool
 import io.legado.app.model.Debug
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
@@ -25,10 +26,11 @@ object Rss {
         rssSource: RssSource,
         page: Int,
         key: String? = null,
-        context: CoroutineContext = Dispatchers.IO
+        context: CoroutineContext = Dispatchers.IO,
+        webViewPoolScope: WebViewPool.Scope = WebViewPool.Scope.GLOBAL
     ): Coroutine<Pair<MutableList<RssArticle>, String?>> {
         return Coroutine.async(scope, context) {
-            getArticlesAwait(sortName, sortUrl, rssSource, page, key)
+            getArticlesAwait(sortName, sortUrl, rssSource, page, key, webViewPoolScope)
         }
     }
 
@@ -37,7 +39,8 @@ object Rss {
         sortUrl: String,
         rssSource: RssSource,
         page: Int,
-        key: String? = null
+        key: String? = null,
+        webViewPoolScope: WebViewPool.Scope = WebViewPool.Scope.GLOBAL
     ): Pair<MutableList<RssArticle>, String?> {
         val ruleData = RuleData()
         val analyzeUrl = AnalyzeUrl(
@@ -48,7 +51,8 @@ object Rss {
             source = rssSource,
             ruleData = ruleData,
             coroutineContext = currentCoroutineContext(),
-            hasLoginHeader = false
+            hasLoginHeader = false,
+            webViewPoolScope = webViewPoolScope
         )
         val checkJs = rssSource.loginCheckJs
         val res = kotlin.runCatching {

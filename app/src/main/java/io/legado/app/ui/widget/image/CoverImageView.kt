@@ -3,6 +3,7 @@ package io.legado.app.ui.widget.image
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -14,6 +15,7 @@ import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
@@ -73,6 +75,10 @@ class CoverImageView @JvmOverloads constructor(
     private var authorHeight = 0f
     private val drawBookName = BookCover.drawBookName
     private val drawBookAuthor by lazy { BookCover.drawBookAuthor }
+
+    init {
+        setBackgroundColor(Color.TRANSPARENT)
+    }
 
     override fun setLayoutParams(params: ViewGroup.LayoutParams?) {
         if (params != null) {
@@ -379,7 +385,10 @@ class CoverImageView @JvmOverloads constructor(
                 }
                 drawNameAuthor(pathName, currentName, currentAuthor, true)
             }
-            var options = RequestOptions().set(OkHttpModelLoader.loadOnlyWifiOption, loadOnlyWifi)
+            var options = RequestOptions()
+                .format(DecodeFormat.PREFER_ARGB_8888)
+                .disallowHardwareConfig()
+                .set(OkHttpModelLoader.loadOnlyWifiOption, loadOnlyWifi)
             if (sourceOrigin != null) {
                 options = options.set(OkHttpModelLoader.sourceOriginOption, sourceOrigin)
             }

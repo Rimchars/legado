@@ -23,135 +23,18 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/title_bar">
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipChildren="false"
-            android:clipToPadding="false"
-            android:orientation="vertical"
-            android:paddingStart="@dimen/bookshelf_tag_bar_margin_horizontal"
-            android:paddingEnd="@dimen/bookshelf_tag_bar_margin_horizontal">
-
-            <LinearLayout
-                android:id="@+id/ll_rss_source_row"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingTop="@dimen/bookshelf_title_row_margin_top"
-                android:paddingBottom="0dp">
-
-                <LinearLayout
-                    android:id="@+id/ll_rss_source_select"
-                    android:layout_width="wrap_content"
-                    android:layout_height="@dimen/bookshelf_title_select_height"
-                    android:background="@drawable/bg_discover_embedded_action"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingEnd="0dp">
-
-                    <TextView
-                        android:id="@+id/tv_rss_source_select"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:includeFontPadding="false"
-                        android:maxLines="1"
-                        android:textColor="@color/primaryText"
-                        android:textSize="20sp"
-                        android:textStyle="bold"
-                        tools:text="默认订阅源" />
-
-                    <androidx.appcompat.widget.AppCompatImageView
-                        android:id="@+id/iv_rss_source_arrow"
-                        android:layout_width="@dimen/bookshelf_title_arrow_size"
-                        android:layout_height="@dimen/bookshelf_title_arrow_size"
-                        android:contentDescription="@string/rss"
-                        android:src="@drawable/ic_arrow_drop_down"
-                        app:tint="@color/primaryText" />
-
-                </LinearLayout>
-
-                <Space
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" />
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btn_rss_source_search"
-                    android:layout_width="@dimen/bookshelf_action_button_size"
-                    android:layout_height="@dimen/bookshelf_action_button_size"
-                    android:background="@drawable/bg_discover_embedded_action"
-                    android:contentDescription="@string/search"
-                    android:padding="@dimen/bookshelf_action_button_padding"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_search"
-                    android:tint="@color/primaryText"
-                    android:visibility="gone" />
-
-                <Space
-                    android:layout_width="10dp"
-                    android:layout_height="1dp" />
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btn_rss_source_star"
-                    android:layout_width="@dimen/bookshelf_action_button_size"
-                    android:layout_height="@dimen/bookshelf_action_button_size"
-                    android:background="@drawable/bg_discover_embedded_action"
-                    android:contentDescription="@string/favorite"
-                    android:padding="@dimen/bookshelf_action_button_padding"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_star"
-                    android:tint="@color/primaryText" />
-
-                <Space
-                    android:layout_width="10dp"
-                    android:layout_height="1dp" />
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btn_rss_source_refresh"
-                    android:layout_width="@dimen/bookshelf_action_button_size"
-                    android:layout_height="@dimen/bookshelf_action_button_size"
-                    android:background="@drawable/bg_discover_embedded_action"
-                    android:contentDescription="@string/refresh"
-                    android:padding="@dimen/bookshelf_action_button_padding"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_refresh_black_24dp"
-                    android:tint="@color/primaryText"
-                    android:visibility="gone" />
-
-                <Space
-                    android:layout_width="10dp"
-                    android:layout_height="1dp" />
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btn_rss_source_login"
-                    android:layout_width="@dimen/bookshelf_action_button_size"
-                    android:layout_height="@dimen/bookshelf_action_button_size"
-                    android:background="@drawable/bg_discover_embedded_action"
-                    android:contentDescription="@string/login"
-                    android:padding="@dimen/bookshelf_action_button_padding"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_bottom_person"
-                    android:tint="@color/primaryText" />
-
-            </LinearLayout>
-
-            <io.legado.app.ui.widget.RoundedTagBarView
-                android:id="@+id/rv_rss_tags"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/bookshelf_tag_bar_height"
-                android:layout_marginTop="@dimen/bookshelf_tag_bar_margin_top"
-                android:visibility="gone" />
+            android:clipToPadding="false">
 
             <FrameLayout
                 android:id="@+id/fl_rss_content"
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_marginTop="10dp"
-                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginStart="@dimen/bookshelf_tag_bar_margin_horizontal"
+                android:layout_marginEnd="@dimen/bookshelf_tag_bar_margin_horizontal"
                 android:clipToPadding="false">
 
                 <io.legado.app.ui.widget.recycler.RecyclerViewAtPager2
@@ -196,7 +79,12 @@
 
             </FrameLayout>
 
-        </LinearLayout>
+            <io.legado.app.ui.widget.MainTopBarView
+                android:id="@+id/top_bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+        </FrameLayout>
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 

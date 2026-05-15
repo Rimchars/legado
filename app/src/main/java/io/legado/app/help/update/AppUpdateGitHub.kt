@@ -63,25 +63,29 @@ object AppUpdateGitHub : AppUpdate.AppUpdateInterface {
         scope: CoroutineScope,
     ): Coroutine<AppUpdate.UpdateInfo> {
         return Coroutine.async(scope) {
-            getLatestRelease()
-                .filter { it.appVariant == checkVariant }
-                .filter { it.supportsDeviceAbi() }
-                .firstOrNull {
-                    if (it.versionCode > 0L) {
-                        it.versionCode > AppConst.appInfo.versionCode
-                    } else {
-                        it.versionName > AppConst.appInfo.versionName
-                    }
-                }
-                ?.let {
-                    return@async AppUpdate.UpdateInfo(
-                        it.versionName,
-                        it.note,
-                        it.downloadUrl,
-                        it.name
-                    )
-                }
-                ?: throw NoStackTraceException("已是最新版本")
+            checkNow()
         }.timeout(10000)
+    }
+
+    suspend fun checkNow(): AppUpdate.UpdateInfo {
+        return getLatestRelease()
+            .filter { it.appVariant == checkVariant }
+            .filter { it.supportsDeviceAbi() }
+            .firstOrNull {
+                if (it.versionCode > 0L) {
+                    it.versionCode > AppConst.appInfo.versionCode
+                } else {
+                    it.versionName > AppConst.appInfo.versionName
+                }
+            }
+            ?.let {
+                AppUpdate.UpdateInfo(
+                    it.versionName,
+                    it.note,
+                    it.downloadUrl,
+                    it.name
+                )
+            }
+            ?: throw NoStackTraceException("已是最新版本")
     }
 }

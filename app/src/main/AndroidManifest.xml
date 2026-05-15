@@ -229,22 +229,23 @@
             android:windowSoftInputMode="adjustResize|stateHidden" />
         <!-- 配置界面 -->
         <activity
+            android:name=".ui.config.ConfigActivity"
+            android:launchMode="standard" />
+        <activity
             android:name=".ui.book.read.config.ParagraphRuleManageActivity"
-            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
             android:launchMode="standard" />
         <activity
             android:name=".ui.book.read.config.ParagraphRuleEditActivity"
-            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
-            android:launchMode="singleTask"
+            android:launchMode="standard"
             android:windowSoftInputMode="adjustResize|stateHidden" />
-        <activity
-            android:name=".ui.config.ConfigActivity"
-            android:launchMode="standard" />
         <activity
             android:name=".ui.config.ThemeManageActivity"
             android:launchMode="standard" />
         <activity
             android:name=".ui.config.NavigationBarManageActivity"
+            android:launchMode="standard" />
+        <activity
+            android:name=".ui.config.TopBarManageActivity"
             android:launchMode="standard" />
         <activity
             android:name=".ui.config.BookInfoManageActivity"
@@ -315,6 +316,9 @@
         <!-- RSS条目 -->
         <activity
             android:name=".ui.rss.article.RssSortActivity"
+            android:launchMode="singleTop" />
+        <activity
+            android:name=".ui.rss.article.RssSearchActivity"
             android:launchMode="singleTop" />
         <!-- RSS阅读 -->
         <activity
@@ -531,6 +535,9 @@
             android:foregroundServiceType="dataSync" />
         <service
             android:name=".service.ExportBookService"
+            android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".service.WebDavTaskService"
             android:foregroundServiceType="dataSync" />
         <service
             android:name=".service.WebService"

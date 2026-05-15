@@ -39,6 +39,7 @@ import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.BaseSource
 import io.legado.app.databinding.DialogWebViewBinding
+import io.legado.app.help.book.ParagraphRuleJsExtensions
 import io.legado.app.help.WebCacheManager
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.webView.PooledWebView
@@ -93,6 +94,10 @@ import java.util.Date
 import androidx.core.graphics.createBitmap
 
 class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view), WebJsExtensions.Callback {
+
+    private companion object {
+        const val PARAGRAPH_RULE_SOURCE_PREFIX = "paragraph_rule_"
+    }
 
     constructor(
         sourceKey: String,
@@ -449,13 +454,30 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                         }
                     }
                 }
-                appDb.bookSourceDao.getBookSource(sourceKey).let {
+                source = if (sourceKey.startsWith(PARAGRAPH_RULE_SOURCE_PREFIX)) {
+                    val ruleId = sourceKey.removePrefix(PARAGRAPH_RULE_SOURCE_PREFIX).toLongOrNull()
+                    val rule = ruleId?.let { appDb.paragraphRuleDao.get(it) }
+                    if (rule == null) {
+                        activity?.toastOnUi("no find paragraphRule")
+                        dismiss()
+                        return@launch
+                    }
+                    ParagraphRuleJsExtensions(rule)
+                } else {
+                    appDb.bookSourceDao.getBookSource(sourceKey).also {
+                        if (it == null) {
+                            activity?.toastOnUi("no find bookSource")
+                            dismiss()
+                            return@launch
+                        }
+                    }
+                }
+                source.let {
                     if (it == null) {
                         activity?.toastOnUi("no find bookSource")
                         dismiss()
                         return@launch
                     }
-                    source = it
                 }
                 preloadJs = args.getString("preloadJs")
                 val argHtml = args.getString("html")

@@ -10,6 +10,7 @@ import io.legado.app.databinding.ItemBookshelfGrid2Binding
 import io.legado.app.databinding.ItemBookshelfGridBinding
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.utils.gone
 import io.legado.app.utils.invisible
 import io.legado.app.utils.visible
@@ -34,6 +35,7 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
         when (binding) {
             is ItemBookshelfGridBinding -> binding.run {
                 if (payloads.isEmpty()) {
+                    tvName.applyUiTitleTypeface(context)
                     if (showBookname == 0) {
                         tvName.visible()
                         tvName.text = item.name
@@ -61,6 +63,7 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
             }
             is ItemBookshelfGrid2Binding -> binding.run {
                 if (payloads.isEmpty()) {
+                    tvName.applyUiTitleTypeface(context)
                     tvName.text = item.name
                     ivCover.loadThumb(item, false)
                     upRefresh(binding, item)

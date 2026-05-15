@@ -27,8 +27,9 @@
 
     <item
         android:id="@+id/menu_refresh"
+        android:icon="@drawable/ic_refresh_black_24dp"
         android:title="@string/refresh"
-        app:showAsAction="never" />
+        app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/menu_login"

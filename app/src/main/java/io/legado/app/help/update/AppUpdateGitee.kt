@@ -28,9 +28,9 @@ object AppUpdateGitee : AppUpdate.AppUpdateInterface {
 
     private suspend fun getLatestRelease(): List<AppReleaseInfo> {
         val lastReleaseUrl = if (checkVariant.isBeta()) {
-            "https://gitee.com/api/v5/repos/lyc486/legado/releases/latest"
+            "https://gitee.com/api/v5/repos/zziji/legado/releases/latest"
         } else {
-            "https://gitee.com/api/v5/repos/lyc486/legado/releases?page=1&per_page=3&direction=desc"
+            "https://gitee.com/api/v5/repos/zziji/legado/releases?page=1&per_page=3&direction=desc"
         }
         val res = okHttpClient.newCallResponse {
             url(lastReleaseUrl)
@@ -63,24 +63,29 @@ object AppUpdateGitee : AppUpdate.AppUpdateInterface {
         scope: CoroutineScope,
     ): Coroutine<AppUpdate.UpdateInfo> {
         return Coroutine.async(scope) {
-            getLatestRelease()
-                .filter {
-                    if (AppConst.appInfo.appVariant == AppVariant.BETA_RELEASE) { //不切版本
-                        it.appVariant == AppConst.appInfo.appVariant
-                    } else {
-                        it.appVariant == checkVariant
-                    }
-                }
-                .firstOrNull { it.versionName > AppConst.appInfo.versionName }
-                ?.let {
-                    return@async AppUpdate.UpdateInfo(
-                        it.versionName,
-                        it.note,
-                        it.downloadUrl,
-                        it.name
-                    )
-                }
-            throw NoStackTraceException("已是最新版本")
+            checkNow()
         }.timeout(10000)
+    }
+
+    suspend fun checkNow(): AppUpdate.UpdateInfo {
+        return getLatestRelease()
+            .filter {
+                if (AppConst.appInfo.appVariant == AppVariant.BETA_RELEASE) { //不切版本
+                    it.appVariant == AppConst.appInfo.appVariant
+                } else {
+                    it.appVariant == checkVariant
+                }
+            }
+            .filter { it.supportsDeviceAbi() }
+            .firstOrNull { it.versionName > AppConst.appInfo.versionName }
+            ?.let {
+                AppUpdate.UpdateInfo(
+                    it.versionName,
+                    it.note,
+                    it.downloadUrl,
+                    it.name
+                )
+            }
+            ?: throw NoStackTraceException("已是最新版本")
     }
 }

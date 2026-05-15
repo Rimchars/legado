@@ -14,6 +14,7 @@ import io.legado.app.constant.PreferKey
 import io.legado.app.constant.Theme
 import io.legado.app.help.DefaultData
 import io.legado.app.lib.theme.ThemeStore
+import io.legado.app.lib.theme.UiCorner
 import io.legado.app.model.BookCover
 import io.legado.app.utils.BitmapUtils
 import io.legado.app.utils.ColorUtils
@@ -97,7 +98,7 @@ object ThemeConfig {
     }
 
     /**
-     * 获取链接获取图片文件�?
+     * 鑾峰彇閾炬帴鑾峰彇鍥剧墖鏂囦欢锟?
      */
     private fun getUrlToFile(url: String): String {
         val suffix = when {
@@ -182,9 +183,9 @@ object ThemeConfig {
     }
 
     fun upConfig() {
-        addConfigs(getConfigs())
+        configList.clear()
+        configList.addAll(getConfigs() ?: DefaultData.themeConfigs)
     }
-
     fun save() {
         val json = GSON.toJson(configList)
         FileUtils.delete(configFilePath)
@@ -290,6 +291,8 @@ object ThemeConfig {
             val panelBackgroundScaleType = config.panelBackgroundScaleType?.takeIf {
                 it == PANEL_BG_CROP || it == PANEL_BG_FIT
             } ?: PANEL_BG_CROP
+            val panelBorderColor = config.panelBorderColor?.takeIf { it.isNotBlank() }
+            val panelBorderAlpha = config.panelBorderAlpha?.coerceIn(0, 100) ?: 100
             config.uiCornerScale?.let {
                 context.putPrefString(PreferKey.uiCornerScale, it.coerceIn(0f, 3f).toPlainScale())
             }
@@ -356,6 +359,8 @@ object ThemeConfig {
                 context.putPrefString(PreferKey.bookInfoBgImageN, bookInfoBackgroundPath)
                 context.putPrefString(PreferKey.panelBgImageN, panelBackgroundPath)
                 context.putPrefString(PreferKey.panelBgScaleTypeN, panelBackgroundScaleType)
+                context.putPrefString(PreferKey.panelBorderColorN, panelBorderColor.orEmpty())
+                context.putPrefInt(PreferKey.panelBorderAlphaN, panelBorderAlpha)
             } else {
                 context.putPrefString(PreferKey.dThemeName, config.themeName)
                 context.putPrefInt(PreferKey.cPrimary, primary)
@@ -368,6 +373,8 @@ object ThemeConfig {
                 context.putPrefString(PreferKey.bookInfoBgImage, bookInfoBackgroundPath)
                 context.putPrefString(PreferKey.panelBgImage, panelBackgroundPath)
                 context.putPrefString(PreferKey.panelBgScaleType, panelBackgroundScaleType)
+                context.putPrefString(PreferKey.panelBorderColor, panelBorderColor.orEmpty())
+                context.putPrefInt(PreferKey.panelBorderAlpha, panelBorderAlpha)
             }
             if (switchNightMode) {
                 AppConfig.isNightTheme = isNightTheme
@@ -383,7 +390,7 @@ object ThemeConfig {
                 postEvent(EventBus.RECREATE, "")
             }
         } catch (e: Exception) {
-            AppLog.put("设置主题出错\n$e", e, true)
+            AppLog.put("璁剧疆涓婚鍑洪敊\n$e", e, true)
         }
     }
 
@@ -433,6 +440,10 @@ object ThemeConfig {
             context.getPrefString(PreferKey.panelBgImage)
         val panelBgScaleType =
             context.getPrefString(PreferKey.panelBgScaleType) ?: PANEL_BG_CROP
+        val panelBorderColor =
+            context.getPrefString(PreferKey.panelBorderColor)
+        val panelBorderAlpha =
+            context.getPrefInt(PreferKey.panelBorderAlpha, 100)
         val stored = configList.firstOrNull {
             it.themeName == name && !it.isNightTheme
         }
@@ -451,6 +462,8 @@ object ThemeConfig {
                 bookInfoBackgroundImgPath = bookInfoBgImgPath,
                 panelBackgroundImgPath = panelBgImgPath,
                 panelBackgroundScaleType = panelBgScaleType,
+                panelBorderColor = panelBorderColor,
+                panelBorderAlpha = panelBorderAlpha,
                 uiCornerScale = stored?.uiCornerScale ?: AppConfig.uiCornerScale,
                 uiLayoutAlpha = stored?.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha,
                 uiCornerSearchFollow = stored?.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow,
@@ -492,6 +505,10 @@ object ThemeConfig {
             context.getPrefString(PreferKey.panelBgImageN)
         val panelBgScaleType =
             context.getPrefString(PreferKey.panelBgScaleTypeN) ?: PANEL_BG_CROP
+        val panelBorderColor =
+            context.getPrefString(PreferKey.panelBorderColorN)
+        val panelBorderAlpha =
+            context.getPrefInt(PreferKey.panelBorderAlphaN, 100)
         val stored = configList.firstOrNull {
             it.themeName == name && it.isNightTheme
         }
@@ -509,6 +526,8 @@ object ThemeConfig {
                 bookInfoBackgroundImgPath = bookInfoBgImgPath,
                 panelBackgroundImgPath = panelBgImgPath,
                 panelBackgroundScaleType = panelBgScaleType,
+                panelBorderColor = panelBorderColor,
+                panelBorderAlpha = panelBorderAlpha,
                 uiCornerScale = stored?.uiCornerScale ?: AppConfig.uiCornerScale,
                 uiLayoutAlpha = stored?.uiLayoutAlpha ?: AppConfig.uiLayoutAlpha,
                 uiCornerSearchFollow = stored?.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow,
@@ -536,6 +555,8 @@ object ThemeConfig {
                 stored.panelBackgroundImgPath
             ),
             panelBackgroundScaleType = config.panelBackgroundScaleType ?: stored.panelBackgroundScaleType,
+            panelBorderColor = config.panelBorderColor ?: stored.panelBorderColor,
+            panelBorderAlpha = config.panelBorderAlpha ?: stored.panelBorderAlpha,
             backgroundImgBlur = if (config.backgroundImgPath.isNullOrBlank() && !stored.backgroundImgPath.isNullOrBlank()) {
                 stored.backgroundImgBlur
             } else {
@@ -596,7 +617,7 @@ object ThemeConfig {
     }
 
     /**
-     * 更新主题
+     * 鏇存柊涓婚
      */
     fun applyTheme(context: Context) = with(context) {
         when {
@@ -619,12 +640,10 @@ object ThemeConfig {
                     getPrefInt(PreferKey.cNBackground, getCompatColor(R.color.md_grey_900))
                 val bBackground =
                     getPrefInt(PreferKey.cNBBackground, getCompatColor(R.color.md_grey_850))
-                val appBackground =
-                    if (hasUsableBgImage(this)) Color.TRANSPARENT else ColorUtils.withAlpha(background, 1f)
                 ThemeStore.editTheme(this)
                     .primaryColor(ColorUtils.withAlpha(primary, 1f))
                     .accentColor(ColorUtils.withAlpha(accent, 1f))
-                    .backgroundColor(appBackground)
+                    .backgroundColor(ColorUtils.withAlpha(background, 1f))
                     .bottomBackground(ColorUtils.withAlpha(bBackground, 1f))
                     .transparentNavBar(true)
                     .apply()
@@ -639,16 +658,17 @@ object ThemeConfig {
                     getPrefInt(PreferKey.cBackground, getCompatColor(R.color.md_grey_100))
                 val bBackground =
                     getPrefInt(PreferKey.cBBackground, getCompatColor(R.color.md_grey_200))
-                val appBackground =
-                    if (hasUsableBgImage(this)) Color.TRANSPARENT else ColorUtils.withAlpha(background, 1f)
                 ThemeStore.editTheme(this)
                     .primaryColor(ColorUtils.withAlpha(primary, 1f))
                     .accentColor(ColorUtils.withAlpha(accent, 1f))
-                    .backgroundColor(appBackground)
+                    .backgroundColor(ColorUtils.withAlpha(background, 1f))
                     .bottomBackground(ColorUtils.withAlpha(bBackground, 1f))
                     .transparentNavBar(true)
                     .apply()
             }
+        }
+        Coroutine.async {
+            UiCorner.warmPanelBitmap(this@with)
         }
     }
 
@@ -699,6 +719,8 @@ object ThemeConfig {
         var bookInfoBackgroundImgPath: String? = null,
         var panelBackgroundImgPath: String? = null,
         var panelBackgroundScaleType: String? = PANEL_BG_CROP,
+        var panelBorderColor: String? = null,
+        var panelBorderAlpha: Int? = null,
         var uiCornerScale: Float? = null,
         var uiLayoutAlpha: Int? = null,
         var uiCornerSearchFollow: Boolean? = null,
@@ -727,6 +749,8 @@ object ThemeConfig {
                         && other.bookInfoBackgroundImgPath == bookInfoBackgroundImgPath
                         && other.panelBackgroundImgPath == panelBackgroundImgPath
                         && other.panelBackgroundScaleType == panelBackgroundScaleType
+                        && other.panelBorderColor == panelBorderColor
+                        && other.panelBorderAlpha == panelBorderAlpha
                         && other.uiCornerScale == uiCornerScale
                         && other.uiLayoutAlpha == uiLayoutAlpha
                         && other.uiCornerSearchFollow == uiCornerSearchFollow
@@ -751,6 +775,8 @@ object ThemeConfig {
             "bookInfoBackgroundImgPath" to bookInfoBackgroundImgPath,
             "panelBackgroundImgPath" to panelBackgroundImgPath,
             "panelBackgroundScaleType" to panelBackgroundScaleType,
+            "panelBorderColor" to panelBorderColor,
+            "panelBorderAlpha" to panelBorderAlpha,
             "uiCornerScale" to uiCornerScale,
             "uiLayoutAlpha" to uiLayoutAlpha,
             "uiCornerSearchFollow" to uiCornerSearchFollow,

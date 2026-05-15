@@ -21,6 +21,7 @@ object EventBus {
     const val AUDIO_SPEED = "audioSpeed"
     const val NOTIFY_MAIN = "notifyMain"
     const val NAVIGATION_BAR_CHANGED = "navigationBarChanged"
+    const val TOP_BAR_CHANGED = "topBarChanged"
     const val WEB_SERVICE = "webService"
     const val UP_DOWNLOAD = "upDownload"
     const val UP_DOWNLOAD_STATE = "upDownloadState"

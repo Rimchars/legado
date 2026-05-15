@@ -16,13 +16,16 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import io.legado.app.R
 import io.legado.app.base.BaseFragment
+import io.legado.app.constant.EventBus
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.databinding.ActivityReadRecordBinding
 import io.legado.app.databinding.ItemReadRecordDaySummaryBinding
 import io.legado.app.databinding.ItemReadRecordRecentBookBinding
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.TopBarConfig
 import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.UiCorner
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryTextColor
@@ -45,11 +48,14 @@ import io.legado.app.ui.about.showReadRecordGoalDialog
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.image.ImageCropContract
 import io.legado.app.ui.main.MainFragmentInterface
+import io.legado.app.ui.widget.MainTopBarView
+import io.legado.app.ui.widget.RoundedTagBarView
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.ImageCropHelper
 import io.legado.app.utils.applyMainBottomBarPadding
 import io.legado.app.utils.applyStatusBarPadding
 import io.legado.app.utils.dpToPx
+import io.legado.app.utils.observeEvent
 import io.legado.app.utils.registerForActivityResult
 import io.legado.app.utils.startActivityForBook
 import io.legado.app.utils.toastOnUi
@@ -102,6 +108,8 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
     private var currentTodayTime: Long = 0L
     private var currentTotalTime: Long = 0L
     private var currentReadBookCount: Int = 0
+    private var currentDashboard: ReadRecordDashboard? = null
+    private var recordDaysExpanded = false
     private var pendingAvatarUpdate: ((String) -> Unit)? = null
     private var pendingAvatarCropRequest: ImageCropHelper.Request? = null
     private val selectGoalAvatar = registerForActivityResult(HandleFileContract()) {
@@ -131,8 +139,36 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
         binding.titleBar.visibility = View.GONE
         binding.scrollView.applyMainBottomBarPadding(withInitialPadding = true)
         binding.llRecordHeader.applyStatusBarPadding(withInitialPadding = true)
+        binding.topBar.applyStatusBarPadding(withInitialPadding = true)
+        binding.topBar.setMode(MainTopBarView.Mode.READ_RECORD)
+        binding.topBar.setSearchEntryVisible(false)
+        binding.topBar.setOnFilterExpandedChangedListener {
+            recordDaysExpanded = it
+        }
+        binding.topBar.titleSelect.setOnClickListener {
+            showYearSelector()
+        }
+        binding.topBar.moreButton.setOnClickListener {
+            showComponentConfigDialog()
+        }
+        binding.topBar.primaryBar.setOnTagClickListener { index ->
+            selectMonth(index + 1)
+        }
+        binding.topBar.tagsBar.setOnTagClickListener { index ->
+            val month = YearMonth.from(selectedDate)
+            val date = month.atDay((index + 1).coerceIn(1, month.lengthOfMonth()))
+            if (selectedDate != date) {
+                selectedDate = date
+                recordDaysExpanded = false
+                loadData(force = true)
+            }
+        }
         binding.tvRecordDate.setOnClickListener {
-            showDatePicker()
+            if (isRegularReadRecordTopBar()) {
+                showYearSelector()
+            } else {
+                showDatePicker()
+            }
         }
         binding.ivComponentMenu.setOnClickListener {
             showComponentConfigDialog()
@@ -167,6 +203,15 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
             LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
         applyComponentLayout()
         preloadData()
+    }
+
+    override fun observeLiveBus() {
+        observeEvent<Boolean>(EventBus.TOP_BAR_CHANGED) {
+            if (it == AppConfig.isNightTheme) {
+                binding.topBar.refreshStyle()
+                currentDashboard?.let(::renderDateTopBar)
+            }
+        }
     }
 
     override fun onResume() {
@@ -302,6 +347,7 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
     }
 
     private fun renderDashboard(dashboard: ReadRecordDashboard) {
+        currentDashboard = dashboard
         currentHeatmapCells = dashboard.heatmapCells
         binding.tvRecordDate.text = dashboard.today.format(headlineFormatter)
         binding.tvRecordDateHint.text = getString(
@@ -343,6 +389,7 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
         currentReadBookCount = dashboard.readBookCount
         lastRecentReadTime = dashboard.latestRecentReadTime
 
+        renderDateTopBar(dashboard)
         renderRecentBooks(dashboard.recentBooks)
         renderDailyTimeline(dashboard.dailyTimeline, dashboard.hasDailyStats)
         renderRecentCovers(dashboard.recentCoverItems)
@@ -350,6 +397,68 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
         currentGoalConfig = dashboard.goalConfig
         renderGoalCard(dashboard.todayTime, dashboard.totalTime, dashboard.readBookCount)
         applyPageChrome()
+    }
+
+    private fun renderDateTopBar(dashboard: ReadRecordDashboard) {
+        val regular = isRegularReadRecordTopBar()
+        binding.topBar.isVisible = regular
+        binding.llRecordHeader.isVisible = !regular
+        if (!regular) {
+            binding.llRecordHeader.background = null
+            binding.tvRecordDate.textSize = 28f
+            binding.tvRecordDate.text = dashboard.today.format(headlineFormatter)
+            binding.tvRecordDateHint.isVisible = true
+            binding.tvRecordDateHint.text = getString(
+                if (dashboard.hasDailyStats) {
+                    R.string.read_record_stats_ready
+                } else {
+                    R.string.read_record_stats_waiting
+                }
+            )
+            return
+        }
+        val month = YearMonth.from(dashboard.today)
+        binding.topBar.setMode(MainTopBarView.Mode.READ_RECORD)
+        binding.topBar.setSearchEntryVisible(false)
+        binding.topBar.setTitle(getString(R.string.read_record_year_value, dashboard.today.year))
+        binding.topBar.setPrimaryItems(
+            (1..12).map { RoundedTagBarView.Item(getString(R.string.read_record_month_value, it)) },
+            dashboard.today.monthValue - 1
+        )
+        binding.topBar.selectsBar.submitItems(emptyList(), -1)
+        binding.topBar.showSelects(false)
+        binding.topBar.tagsBar.submitItems(
+            (1..month.lengthOfMonth()).map { RoundedTagBarView.Item(it.toString()) },
+            dashboard.today.dayOfMonth - 1
+        )
+        binding.topBar.showTags(true)
+        val defaultExpanded = TopBarConfig.currentConfig(requireContext(), AppConfig.isNightTheme).expandFiltersByDefault
+        binding.topBar.setFiltersExpanded(defaultExpanded || recordDaysExpanded)
+    }
+
+    private fun selectMonth(monthValue: Int) {
+        val targetMonth = YearMonth.of(selectedDate.year, monthValue)
+        selectedDate = targetMonth.atDay(selectedDate.dayOfMonth.coerceAtMost(targetMonth.lengthOfMonth()))
+        recordDaysExpanded = false
+        loadData(force = true)
+    }
+
+    private fun showYearSelector() {
+        val years = ((selectedDate.year - 5)..(selectedDate.year + 1)).toList()
+        requireContext().selector(
+            getString(R.string.read_record_select_year),
+            years.map { getString(R.string.read_record_year_value, it) }
+        ) { _, index ->
+            val targetYear = years[index]
+            val targetMonth = YearMonth.of(targetYear, selectedDate.monthValue)
+            selectedDate = targetMonth.atDay(selectedDate.dayOfMonth.coerceAtMost(targetMonth.lengthOfMonth()))
+            recordDaysExpanded = false
+            loadData(force = true)
+        }
+    }
+
+    private fun isRegularReadRecordTopBar(): Boolean {
+        return TopBarConfig.currentConfig(requireContext(), AppConfig.isNightTheme).style == TopBarConfig.STYLE_REGULAR
     }
 
     private fun showComponentConfigDialog() {
@@ -580,7 +689,7 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
             R.string.read_record_last_open,
             lastOpenFormatter.format(Date(book.durChapterTime))
         )
-        return parts.joinToString(" · ")
+        return parts.joinToString(" 路 ")
     }
 
     private fun buildDaySubtitle(date: LocalDate): String {
@@ -671,13 +780,18 @@ class ReadRecordFragment() : BaseFragment(R.layout.activity_read_record), MainFr
         strokeColor: Int,
         radiusDp: Float
     ): Drawable {
-        return UiCorner.panelRoundedStroke(
-            requireContext(),
-            fillColor,
-            UiCorner.scaledDp(radiusDp),
-            1.dpToPx(),
-            if (UiCorner.effectMode() == "solid") strokeColor else UiCorner.effectStrokeColor(fillColor)
-        )
+        val borderColor = UiCorner.panelBorderColor(requireContext())
+        return if (borderColor != null) {
+            UiCorner.panelRoundedStroke(
+                requireContext(),
+                fillColor,
+                UiCorner.scaledDp(radiusDp),
+                1.dpToPx(),
+                borderColor
+            )
+        } else {
+            UiCorner.panelRounded(requireContext(), fillColor, UiCorner.scaledDp(radiusDp))
+        }
     }
 
     private fun createFillDrawable(fillColor: Int, radiusDp: Float): GradientDrawable {

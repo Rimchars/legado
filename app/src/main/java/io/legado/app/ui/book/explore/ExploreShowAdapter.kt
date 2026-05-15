@@ -10,6 +10,8 @@ import io.legado.app.base.adapter.RecyclerAdapter
 import io.legado.app.data.entities.SearchBook
 import io.legado.app.databinding.ItemSearchBinding
 import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.utils.gone
 import io.legado.app.utils.visible
 
@@ -18,7 +20,9 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
     RecyclerAdapter<SearchBook, ItemSearchBinding>(context) {
 
     override fun getViewBinding(parent: ViewGroup): ItemSearchBinding {
-        return ItemSearchBinding.inflate(inflater, parent, false)
+        return ItemSearchBinding.inflate(inflater, parent, false).apply {
+            root.applyUiBodyTypefaceDeep(context.uiTypeface())
+        }
     }
 
     override fun convert(

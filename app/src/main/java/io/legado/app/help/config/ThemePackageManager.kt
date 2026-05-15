@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.annotation.Keep
 import androidx.documentfile.provider.DocumentFile
+import io.legado.app.R
+import io.legado.app.constant.AppLog
 import io.legado.app.constant.PreferKey
 import io.legado.app.help.AppWebDav
 import io.legado.app.utils.FileUtils
@@ -14,12 +16,16 @@ import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getFile
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.normalizeFileName
+import io.legado.app.help.http.newCallResponse
+import io.legado.app.help.http.okHttpClient
 import io.legado.app.utils.compress.ZipUtils
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import splitties.init.appCtx
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 
 object ThemePackageManager {
 
@@ -29,19 +35,19 @@ object ThemePackageManager {
     private const val panelBackgroundPrefix = "panel_background"
     private const val uiFontPrefix = "ui_font"
     private const val titleFontPrefix = "title_font"
+    private const val builtinDayDirName = "builtin_day"
+    private const val builtinNightDirName = "builtin_night"
+    private const val builtinDayName = "\u5185\u7f6e\u65e5\u95f4\u4e3b\u9898"
+    private const val builtinNightName = "\u5185\u7f6e\u591c\u95f4\u4e3b\u9898"
 
     val rootDir: File
         get() = appCtx.externalFiles.getFile("themePackages")
 
     suspend fun load(isNightTheme: Boolean): List<Entry> = withContext(IO) {
-        val local = loadLocal(isNightTheme).associateBy { it.dirName }
-        val remote = if (AppConfig.syncThemePackages) {
-            loadRemoteOrCache(isNightTheme).associateBy { it.dirName }
-        } else {
-            emptyMap()
-        }
+        val local = loadLocal(isNightTheme).filterNot(::isBuiltinDuplicate).associateBy { it.dirName }
+        val remote = loadRemoteOrCache(isNightTheme).associateBy { it.dirName }
         val keys = local.keys + remote.keys
-        sortEntries(keys.mapNotNull { key ->
+        val mergedEntries = keys.mapNotNull { key ->
             val localEntry = local[key]
             val remoteEntry = remote[key]
             when {
@@ -54,11 +60,12 @@ object ThemePackageManager {
                 remoteEntry != null -> remoteEntry
                 else -> null
             }
-        })
+        }
+        sortEntries(listOf(builtinEntry(isNightTheme)) + mergedEntries)
     }
 
     suspend fun loadLocalOnly(isNightTheme: Boolean): List<Entry> = withContext(IO) {
-        sortEntries(loadLocal(isNightTheme))
+        sortEntries(listOf(builtinEntry(isNightTheme)) + loadLocal(isNightTheme).filterNot(::isBuiltinDuplicate))
     }
 
     suspend fun localThemeExists(
@@ -74,7 +81,7 @@ object ThemePackageManager {
 
     suspend fun addFromCurrent(context: Context, name: String, isNightTheme: Boolean): Entry =
         withContext(IO) {
-            val normalizedName = name.trim().ifBlank { if (isNightTheme) "夜间主题" else "日间主题" }
+            val normalizedName = name.trim().ifBlank { builtinName(isNightTheme) }
             val config = ThemeConfig.getDurConfig(context).copy(
                 themeName = normalizedName,
                 isNightTheme = isNightTheme
@@ -98,15 +105,13 @@ object ThemePackageManager {
         if (localExists) {
             return@withContext true
         }
-        if (!AppConfig.syncThemePackages) {
-            return@withContext false
-        }
         loadRemoteOrCache(isNightTheme).any {
             it.dirName == normalizedDirName && it.dirName != excludeDirName
         }
     }
 
     suspend fun upload(entry: Entry) = withContext(IO) {
+        if (entry.source == Source.BUILTIN) return@withContext
         if (!AppConfig.syncThemePackages) return@withContext
         AppWebDav.uploadThemePackage(
             entry.packageInfo.isNightTheme,
@@ -118,18 +123,21 @@ object ThemePackageManager {
     suspend fun download(entry: Entry): Entry = withContext(IO) {
         val zipFile = tempDir.getFile("${entry.dirName}.zip")
         AppWebDav.downloadThemePackage(entry.packageInfo.isNightTheme, entry.dirName, zipFile)
-        importZipInternal(zipFile, entry.remoteUpdatedAt).copy(source = Source.BOTH)
+        importZipInternal(zipFile, entry.remoteUpdatedAt).copy(source = Source.BOTH, remoteUpdatedAt = entry.remoteUpdatedAt)
     }
 
     suspend fun importZip(zipFile: File): Entry = withContext(IO) {
         val pkg = peekPackage(zipFile)
         if (themeExists(pkg.isNightTheme, pkg.name)) {
-            throw IllegalArgumentException("已存在同名主题")
+            throw IllegalArgumentException(appCtx.getString(R.string.theme_name_exists))
         }
         importZipInternal(zipFile, 0L)
     }
 
     suspend fun exportZip(entry: Entry): File = withContext(IO) {
+        if (entry.source == Source.BUILTIN) {
+            throw IllegalArgumentException(appCtx.getString(R.string.theme_builtin_export_forbidden))
+        }
         val localEntry = if (entry.source == Source.REMOTE) download(entry) else entry
         val dir = localEntry.localDir ?: localDir(localEntry.packageInfo.isNightTheme, localEntry.dirName)
         val zipFile = tempDir.getFile("${localEntry.dirName}.zip")
@@ -139,16 +147,19 @@ object ThemePackageManager {
     }
 
     suspend fun deleteLocal(entry: Entry) = withContext(IO) {
+        if (entry.source == Source.BUILTIN) return@withContext
         entry.localDir?.let { FileUtils.delete(it, deleteRootDir = true) }
     }
 
     suspend fun deleteRemote(entry: Entry) = withContext(IO) {
+        if (entry.source == Source.BUILTIN) return@withContext
         AppWebDav.deleteThemePackage(entry.packageInfo.isNightTheme, entry.dirName)
     }
 
-    fun apply(context: Context, entry: Entry, switchNightMode: Boolean = true) {
-        val dir = entry.localDir ?: localDir(entry.packageInfo.isNightTheme, entry.dirName)
-        val config = resolveConfigPaths(entry.packageInfo, dir)
+    suspend fun apply(context: Context, entry: Entry, switchNightMode: Boolean = true) {
+        val config = withContext(IO) {
+            validatedConfig(entry)
+        }
         ThemeConfig.applyConfig(context, config, switchNightMode)
     }
 
@@ -156,6 +167,11 @@ object ThemePackageManager {
         val currentNight = AppConfig.isNightTheme
         reapplyRestoredAppliedTheme(context, !currentNight)
         reapplyRestoredAppliedTheme(context, currentNight)
+    }
+
+    suspend fun restoreAppliedThemes(context: Context) = withContext(IO) {
+        restoreAppliedTheme(context, false)
+        restoreAppliedTheme(context, true)
     }
 
     fun getConfig(entry: Entry): ThemeConfig.Config {
@@ -166,24 +182,37 @@ object ThemePackageManager {
     suspend fun ensureLocalAppliedTheme(context: Context, isNightTheme: Boolean): Entry =
         withContext(IO) {
             val currentConfig = ThemeConfig.getThemeConfig(context, isNightTheme)
+            val themeName = currentConfig.themeName.trim()
+            if (isBuiltinTheme(isNightTheme, themeName)) {
+                return@withContext builtinEntry(isNightTheme)
+            }
             val config = currentConfig.copy(
                 isNightTheme = isNightTheme,
-                themeName = currentConfig.themeName.trim()
-                    .ifBlank { if (isNightTheme) "夜间主题" else "日间主题" }
+                themeName = themeName.ifBlank { builtinName(isNightTheme) }
             )
+            if (isBuiltinTheme(isNightTheme, config.themeName)) {
+                return@withContext builtinEntry(isNightTheme)
+            }
             val dirName = config.themeName.normalizeFileName()
             val dir = localDir(isNightTheme, dirName)
             readPackage(dir)?.let { pkg ->
-                return@withContext Entry(pkg, Source.LOCAL, localDir = dir)
+                if (!isBuiltinPackage(pkg)) {
+                    return@withContext Entry(pkg, Source.LOCAL, localDir = dir)
+                }
             }
             saveConfig(config.copy(isNightTheme = isNightTheme))
         }
 
-    private fun reapplyRestoredAppliedTheme(context: Context, isNightTheme: Boolean) {
+    private suspend fun reapplyRestoredAppliedTheme(context: Context, isNightTheme: Boolean) {
         val themeName = context.getPrefString(
             if (isNightTheme) PreferKey.dNThemeName else PreferKey.dThemeName
         )?.trim().orEmpty()
         if (themeName.isBlank()) return
+        if (isBuiltinTheme(isNightTheme, themeName)) {
+            val config = validatedConfig(builtinEntry(isNightTheme))
+            ThemeConfig.applyConfig(context, config, switchNightMode = false, notify = false)
+            return
+        }
         val normalizedDirName = themeName.normalizeFileName()
         val directDir = localDir(isNightTheme, normalizedDirName)
         val entry = readPackage(directDir)?.let { pkg ->
@@ -191,14 +220,89 @@ object ThemePackageManager {
         } ?: loadLocal(isNightTheme).firstOrNull {
             it.dirName == normalizedDirName || it.packageInfo.name == themeName
         } ?: return
-        val dir = entry.localDir ?: localDir(isNightTheme, entry.dirName)
-        val config = resolveConfigPaths(entry.packageInfo, dir)
+        val config = validatedConfig(entry)
         ThemeConfig.applyConfig(context, config, switchNightMode = false, notify = false)
+    }
+
+    private suspend fun restoreAppliedTheme(context: Context, isNightTheme: Boolean) {
+        val themeName = context.getPrefString(
+            if (isNightTheme) PreferKey.dNThemeName else PreferKey.dThemeName
+        )?.trim().orEmpty()
+        if (themeName.isBlank()) return
+        if (isBuiltinTheme(isNightTheme, themeName)) {
+            val config = validatedConfig(builtinEntry(isNightTheme))
+            ThemeConfig.applyConfig(context, config, switchNightMode = false, notify = false)
+            return
+        }
+        val normalizedDirName = themeName.normalizeFileName()
+        val localEntry = loadLocal(isNightTheme).firstOrNull {
+            it.dirName == normalizedDirName || it.packageInfo.name == themeName
+        }
+        val localConfig = localEntry?.let { entry ->
+            runCatching { validatedConfig(entry) }.getOrElse {
+                AppLog.put("restore theme local package invalid: $themeName\n${it.localizedMessage}", it)
+                null
+            }
+        }
+        if (localConfig != null) {
+            ThemeConfig.applyConfig(context, localConfig, switchNightMode = false, notify = false)
+            return
+        }
+        val remoteEntry = loadRemoteOrCache(isNightTheme).firstOrNull {
+            it.dirName == normalizedDirName || it.packageInfo.name == themeName
+        } ?: run {
+            AppLog.put("restore theme package not found: $themeName")
+            applyBuiltinTheme(context, isNightTheme)
+            return
+        }
+        val downloadedEntry = runCatching { download(remoteEntry) }.getOrElse {
+            AppLog.put("restore theme package download failed: $themeName\n${it.localizedMessage}", it)
+            applyBuiltinTheme(context, isNightTheme)
+            return
+        }
+        val remoteConfig = runCatching { validatedConfig(downloadedEntry) }.getOrElse {
+            AppLog.put("restore theme package resource invalid: $themeName\n${it.localizedMessage}", it)
+            applyBuiltinTheme(context, isNightTheme)
+            return
+        }
+        ThemeConfig.applyConfig(context, remoteConfig, switchNightMode = false, notify = false)
+    }
+
+    private suspend fun applyBuiltinTheme(context: Context, isNightTheme: Boolean) {
+        val config = validatedConfig(builtinEntry(isNightTheme))
+        ThemeConfig.applyConfig(context, config, switchNightMode = false, notify = false)
+    }
+
+    private fun builtinEntry(isNightTheme: Boolean): Entry {
+        val name = builtinName(isNightTheme)
+        val config = ThemeConfig.Config(
+            themeName = name,
+            isNightTheme = isNightTheme,
+            primaryColor = if (isNightTheme) "#455A64" else "#795548",
+            accentColor = if (isNightTheme) "#FF8A65" else "#E53935",
+            backgroundColor = if (isNightTheme) "#212121" else "#F5F5F5",
+            bottomBackground = if (isNightTheme) "#303030" else "#EEEEEE",
+            transparentNavBar = true,
+            backgroundImgPath = null,
+            backgroundImgBlur = 0,
+            bookInfoBackgroundImgPath = null,
+            panelBackgroundImgPath = null
+        )
+        return Entry(
+            Package(
+                name = name,
+                dirName = builtinDirName(isNightTheme),
+                isNightTheme = isNightTheme,
+                updatedAt = 0L,
+                config = config
+            ),
+            Source.BUILTIN
+        )
     }
 
     private fun saveConfig(config: ThemeConfig.Config): Entry {
         val normalizedName = config.themeName.trim()
-            .ifBlank { if (config.isNightTheme) "夜间主题" else "日间主题" }
+            .ifBlank { builtinName(config.isNightTheme) }
         val dirName = normalizedName.normalizeFileName()
         val dir = localDir(config.isNightTheme, dirName).apply {
             if (!exists()) mkdirs()
@@ -228,9 +332,31 @@ object ThemePackageManager {
             }.orEmpty()
     }
 
+    private fun isBuiltinDuplicate(entry: Entry): Boolean {
+        return isBuiltinPackage(entry.packageInfo)
+    }
+
+    private fun isBuiltinPackage(pkg: Package): Boolean {
+        return isBuiltinTheme(pkg.isNightTheme, pkg.name) || pkg.dirName == builtinDirName(pkg.isNightTheme)
+    }
+
+    private fun isBuiltinTheme(isNightTheme: Boolean, name: String): Boolean {
+        return name == builtinName(isNightTheme) ||
+            name == if (isNightTheme) "Built-in night" else "Built-in day"
+    }
+
+    private fun builtinName(isNightTheme: Boolean): String {
+        return if (isNightTheme) builtinNightName else builtinDayName
+    }
+
+    private fun builtinDirName(isNightTheme: Boolean): String {
+        return if (isNightTheme) builtinNightDirName else builtinDayDirName
+    }
+
     private fun sortEntries(entries: List<Entry>): List<Entry> {
         return entries.sortedWith(
-            compareBy<Entry> { it.source == Source.REMOTE }
+            compareBy<Entry> { it.source != Source.BUILTIN }
+                .thenBy { it.source == Source.REMOTE }
                 .thenByDescending { if (it.source == Source.REMOTE) it.remoteUpdatedAt else it.packageInfo.updatedAt }
                 .thenBy { it.packageInfo.name }
                 .thenBy { it.dirName }
@@ -255,10 +381,15 @@ object ThemePackageManager {
     }
 
     private suspend fun loadRemoteOrCache(isNightTheme: Boolean): List<Entry> {
+        val cached = readRemoteCache(isNightTheme)
         return runCatching {
-            loadRemote(isNightTheme).also { writeRemoteCache(isNightTheme, it) }
+            loadRemote(isNightTheme)
+        }.onSuccess { remote ->
+            if (remote.isNotEmpty() || cached.isEmpty()) {
+                writeRemoteCache(isNightTheme, remote)
+            }
         }.getOrElse {
-            readRemoteCache(isNightTheme)
+            cached
         }
     }
 
@@ -283,7 +414,7 @@ object ThemePackageManager {
                 updatedAt = it.remoteUpdatedAt.takeIf { time -> time > 0L } ?: it.packageInfo.updatedAt
             )
         }
-        remoteCacheFile(isNightTheme).writeText(GSON.toJson(packages))
+        remoteCacheFile(isNightTheme).writeTextIfChanged(GSON.toJson(packages))
     }
 
     private fun readPackage(dir: File): Package? {
@@ -300,7 +431,7 @@ object ThemePackageManager {
         return try {
             ZipUtils.unZipToPath(zipFile, unzipDir) { it.endsWith(packageFileName) }
             val packageFile = unzipDir.walkTopDown().firstOrNull { it.isFile && it.name == packageFileName }
-                ?: throw IllegalArgumentException("未找到主题配置文件")
+                ?: throw IllegalArgumentException(appCtx.getString(R.string.theme_config_file_missing))
             GSON.fromJsonObject<Package>(packageFile.readText()).getOrThrow()
         } finally {
             FileUtils.delete(unzipDir, deleteRootDir = true)
@@ -314,7 +445,7 @@ object ThemePackageManager {
         }
         ZipUtils.unZipToPath(zipFile, unzipDir)
         val packageFile = unzipDir.walkTopDown().firstOrNull { it.isFile && it.name == packageFileName }
-            ?: throw IllegalArgumentException("未找到主题配置文件")
+            ?: throw IllegalArgumentException(appCtx.getString(R.string.theme_config_file_missing))
         val pkg = GSON.fromJsonObject<Package>(packageFile.readText()).getOrThrow()
         val dirName = pkg.dirName.ifBlank { pkg.name.normalizeFileName() }
         val targetDir = localDir(pkg.isNightTheme, dirName)
@@ -441,6 +572,68 @@ object ThemePackageManager {
         }
     }
 
+    private suspend fun validatedConfig(entry: Entry): ThemeConfig.Config {
+        val dir = entry.localDir ?: localDir(entry.packageInfo.isNightTheme, entry.dirName)
+        if (entry.source != Source.BUILTIN && !File(dir, packageFileName).isFile) {
+            throw IllegalArgumentException(appCtx.getString(R.string.theme_config_file_missing))
+        }
+        val config = resolveConfigPaths(entry.packageInfo, dir)
+        return config.copy(
+            backgroundImgPath = localResourcePath(config.backgroundImgPath, backgroundDir(config.isNightTheme)),
+            bookInfoBackgroundImgPath = localResourcePath(
+                config.bookInfoBackgroundImgPath,
+                bookInfoBackgroundDir(config.isNightTheme)
+            ),
+            panelBackgroundImgPath = localResourcePath(config.panelBackgroundImgPath, panelBackgroundDir(config.isNightTheme)),
+            uiFontPath = localResourcePath(config.uiFontPath),
+            titleFontPath = localResourcePath(config.titleFontPath)
+        )
+    }
+
+    private suspend fun localResourcePath(path: String?, remoteCacheDir: File? = null): String? {
+        if (path.isNullOrBlank()) return path
+        if (path.startsWith("http", ignoreCase = true)) {
+            val cacheDir = remoteCacheDir ?: throw IllegalArgumentException(appCtx.getString(R.string.theme_resource_not_local))
+            return downloadRemoteResource(path, cacheDir).absolutePath
+        }
+        val file = File(path)
+        if (!isReadableOwnFile(file)) {
+            throw IllegalArgumentException(appCtx.getString(R.string.theme_resource_not_readable, file.name.ifBlank { path }))
+        }
+        return path
+    }
+
+    private suspend fun downloadRemoteResource(path: String, dir: File): File {
+        dir.mkdirs()
+        val target = File(dir, remoteResourceName(path))
+        if (isReadableOwnFile(target)) return target
+        withTimeout(60_000L) {
+            okHttpClient.newCallResponse(0) {
+                url(path)
+            }.use { response ->
+                if (!response.isSuccessful) {
+                    throw IllegalArgumentException(appCtx.getString(R.string.theme_resource_download_failed, response.code))
+                }
+                response.body.byteStream().use { input ->
+                    FileOutputStream(target).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+        }
+        return target
+    }
+
+    private fun remoteResourceName(path: String): String {
+        val cleanPath = path.substringBefore('?').substringBefore('#')
+        val suffix = cleanPath.substringAfterLast('/', "")
+            .substringAfterLast('.', "")
+            .takeIf { it.isNotBlank() && it.length <= 8 }
+            ?.let { ".$it" }
+            .orEmpty()
+        return Integer.toHexString(path.hashCode()) + suffix
+    }
+
     private fun resolveConfigPaths(pkg: Package, dir: File): ThemeConfig.Config {
         val config = pkg.config ?: ThemeConfig.Config(
             themeName = pkg.name,
@@ -499,6 +692,17 @@ object ThemePackageManager {
         val ownerPackage = normalized.substring(packageStart, packageEnd)
         return ownerPackage.isNotBlank() && ownerPackage != appCtx.packageName
     }
+    private fun backgroundDir(isNightTheme: Boolean): File {
+        return appCtx.externalFiles.getFile(if (isNightTheme) PreferKey.bgImageN else PreferKey.bgImage)
+    }
+
+    private fun bookInfoBackgroundDir(isNightTheme: Boolean): File {
+        return appCtx.externalFiles.getFile(if (isNightTheme) PreferKey.bookInfoBgImageN else PreferKey.bookInfoBgImage)
+    }
+
+    private fun panelBackgroundDir(isNightTheme: Boolean): File {
+        return appCtx.externalFiles.getFile(if (isNightTheme) PreferKey.panelBgImageN else PreferKey.panelBgImage)
+    }
 
     private fun findPackagedAsset(dir: File, fileName: String): File? {
         if (fileName.isBlank()) return null
@@ -547,6 +751,7 @@ object ThemePackageManager {
     )
 
     enum class Source {
+        BUILTIN,
         LOCAL,
         REMOTE,
         BOTH

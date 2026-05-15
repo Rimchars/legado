@@ -15,6 +15,11 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/menu_debug_rule"
+        android:title="@string/debug"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/menu_copy_rule"
         android:title="@string/copy_rule"
         app:showAsAction="never" />

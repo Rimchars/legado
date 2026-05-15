@@ -6,7 +6,9 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupWindow
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentStatePagerAdapter
@@ -22,8 +24,10 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.applyUiTitleTypeface
 import io.legado.app.lib.theme.primaryColor
+import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.legado.app.ui.main.bookshelf.style1.books.BooksFragment
+import io.legado.app.ui.widget.MainTopBarView
 import io.legado.app.ui.widget.ModernActionPopup
 import io.legado.app.ui.widget.RoundedTagBarView
 import io.legado.app.utils.applyStatusBarPadding
@@ -56,6 +60,8 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
     private var selectedBookTag = ""
     private val groupBooksCache = hashMapOf<Long, List<Book>>()
     private var currentGroupIndex = 0
+    private var topOverlaySpace = 0
+    private var topOverlayEnabled = false
     override val groupId: Long get() = selectedGroup?.groupId ?: 0
 
     override val books: List<Book>
@@ -75,24 +81,28 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         get() = bookGroups.getOrNull(binding.viewPagerBookshelf.currentItem)
 
     private fun initView() {
-        binding.root.applyStatusBarPadding()
+        binding.topBar.applyStatusBarPadding(withInitialPadding = true)
         binding.viewPagerBookshelf.setEdgeEffectColor(primaryColor)
-        binding.btnMore.setOnClickListener {
+        binding.topBar.setMode(MainTopBarView.Mode.BOOKSHELF)
+        binding.topBar.moreButton.setOnClickListener {
             showModernBookshelfMenu(it)
         }
-        binding.llTitleSelect.setOnClickListener {
+        binding.topBar.setSearchHint(getString(R.string.search_book_key))
+        binding.topBar.searchEntry.setOnClickListener {
+            startActivity(android.content.Intent(requireContext(), SearchActivity::class.java))
+        }
+        binding.topBar.setOnHeightChangedListener {
+            updateTopBarOverlay()
+        }
+        binding.topBar.titleSelect.setOnClickListener {
             showGroupSwitchMenu(it)
         }
-        binding.tabBarGlassView.visibility = View.GONE
-        binding.tabBarShellOverlay.visibility = View.GONE
-        binding.tabIndicatorContainer.visibility = View.GONE
-        binding.btnMoreGlassView.visibility = View.GONE
-        binding.btnMoreShellOverlay.visibility = View.GONE
-        binding.btnMore.setBackgroundResource(R.drawable.bg_more_icon_button_clear)
-        val iconColor = ContextCompat.getColor(requireContext(), R.color.primaryText)
-        binding.btnMore.setColorFilter(iconColor)
-        binding.ivBookshelfTitleArrow.setColorFilter(iconColor)
-        binding.tabLayout.setOnTagClickListener { index ->
+        binding.topBar.primaryBar.setOnTagClickListener { index ->
+            selectedBookTag = ""
+            switchToGroup(index)
+        }
+        binding.topBar.showTags(true)
+        binding.topBar.tagsBar.setOnTagClickListener { index ->
             val tag = bookTags.getOrNull(index).orEmpty()
             if (tag == selectedBookTag) {
                 selectedGroup?.let { group ->
@@ -103,11 +113,11 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
                 }
             } else {
                 selectedBookTag = tag
-                binding.tabLayout.setSelectedIndex(index, smooth = true)
+                binding.topBar.tagsBar.setSelectedIndex(index, smooth = true)
                 fragmentMap[groupId]?.setBookTagFilter(tag)
             }
         }
-        binding.tabLayout.setOnTagLongClickListener { index ->
+        binding.topBar.tagsBar.setOnTagLongClickListener { index ->
             selectedBookTag = bookTags.getOrNull(index).orEmpty()
             fragmentMap[groupId]?.setBookTagFilter(selectedBookTag)
             true
@@ -128,12 +138,65 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
                 }
             }
         )
+        binding.topBar.doOnLayout {
+            updateTopBarOverlay()
+        }
+        binding.root.post {
+            updateTopBarOverlay()
+        }
         updateHeaderTitle()
     }
 
     override fun onResume() {
         super.onResume()
         binding.viewPagerBookshelf.swipeEnabled = AppConfig.bottomBarLayoutMode != "sidebar"
+        binding.root.post {
+            updateTopBarOverlay()
+        }
+    }
+
+    private fun updateTopBarOverlay() {
+        if (!isAdded) return
+        val overlay = binding.topBar.isOverlayMode()
+        val contentMargin = resources.getDimensionPixelSize(R.dimen.bookshelf_content_margin_top)
+        val newSpace = if (overlay) binding.topBar.height else 0
+        if (topOverlayEnabled != overlay) {
+            ConstraintSet().apply {
+                clone(binding.root)
+                clear(R.id.view_pager_bookshelf, ConstraintSet.TOP)
+                if (overlay) {
+                    connect(
+                        R.id.view_pager_bookshelf,
+                        ConstraintSet.TOP,
+                        ConstraintSet.PARENT_ID,
+                        ConstraintSet.TOP
+                    )
+                    setMargin(R.id.view_pager_bookshelf, ConstraintSet.TOP, 0)
+                } else {
+                    connect(
+                        R.id.view_pager_bookshelf,
+                        ConstraintSet.TOP,
+                        R.id.top_bar,
+                        ConstraintSet.BOTTOM
+                    )
+                    setMargin(R.id.view_pager_bookshelf, ConstraintSet.TOP, contentMargin)
+                }
+                applyTo(binding.root)
+            }
+        }
+        topOverlayEnabled = overlay
+        topOverlaySpace = newSpace
+        fragmentMap.values.forEach { fragment ->
+            fragment.setTopOverlaySpace(topOverlaySpace, topOverlayEnabled)
+        }
+        binding.topBar.bringToFront()
+    }
+
+    private fun scheduleTopBarOverlayUpdate() {
+        if (!isAdded) return
+        binding.topBar.post {
+            updateTopBarOverlay()
+        }
     }
 
     @Synchronized
@@ -144,8 +207,10 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
             bookGroups.clear()
             bookGroups.addAll(data)
             adapter.notifyDataSetChanged()
+            renderGroupSelector()
             selectSavedGroup()
         } else {
+            renderGroupSelector()
             renderGroupTags()
         }
         updateHeaderTitle()
@@ -158,7 +223,8 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
     private fun selectSavedGroup() {
         binding.viewPagerBookshelf.post {
             if (bookGroups.isEmpty()) {
-                binding.tabLayout.submitItems(emptyList(), -1)
+                binding.topBar.setPrimaryItems(emptyList(), -1)
+                binding.topBar.tagsBar.submitItems(emptyList(), -1)
                 updateHeaderTitle()
                 return@post
             }
@@ -176,8 +242,16 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
     }
 
     private fun updateHeaderTitle() {
-        binding.tvBookshelfTitle.text = selectedGroup?.groupName ?: getString(R.string.bookshelf)
-        binding.tvBookshelfTitle.applyUiTitleTypeface(requireContext())
+        binding.topBar.setTitle(selectedGroup?.groupName ?: getString(R.string.bookshelf))
+        renderGroupSelector()
+    }
+
+    private fun renderGroupSelector() {
+        binding.topBar.setPrimaryItems(
+            bookGroups.map { RoundedTagBarView.Item(it.groupName) },
+            currentGroupIndex.coerceIn(-1, bookGroups.lastIndex)
+        )
+        scheduleTopBarOverlayUpdate()
     }
 
     fun onBooksChanged(groupId: Long, books: List<Book>) {
@@ -209,10 +283,11 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
             selectedBookTag = ""
             fragmentMap[groupId]?.setBookTagFilter("")
         }
-        binding.tabLayout.submitItems(
+        binding.topBar.tagsBar.submitItems(
             bookTags.map { RoundedTagBarView.Item(it.ifBlank { allText }) },
             bookTags.indexOf(selectedBookTag).takeIf { it >= 0 } ?: 0
         )
+        scheduleTopBarOverlayUpdate()
     }
 
     private fun showGroupSwitchMenu(anchor: View) {
@@ -339,6 +414,7 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
                 fragment = super.instantiateItem(container, position) as BooksFragment
             }
             fragmentMap[group.groupId] = fragment
+            fragment.setTopOverlaySpace(topOverlaySpace, topOverlayEnabled)
             return fragment
         }
 

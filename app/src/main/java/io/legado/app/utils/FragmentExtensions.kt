@@ -69,7 +69,7 @@ fun Fragment.getPrefStringSet(
     key: String,
     defValue: MutableSet<String>? = null
 ): MutableSet<String>? =
-    requireContext().defaultSharedPreferences.getStringSet(key, defValue)
+    requireContext().getPrefStringSet(key, defValue)
 
 fun Fragment.putPrefStringSet(key: String, value: MutableSet<String>) =
     requireContext().defaultSharedPreferences.edit { putStringSet(key, value) }

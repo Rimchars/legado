@@ -12,6 +12,7 @@ import io.legado.app.help.book.removeAllBookType
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.http.StrResponse
 import io.legado.app.help.source.getBookType
+import io.legado.app.help.webView.WebViewPool
 import io.legado.app.model.Debug
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
@@ -115,9 +116,10 @@ object WebBook {
         url: String,
         page: Int? = 1,
         context: CoroutineContext = Dispatchers.IO,
+        webViewPoolScope: WebViewPool.Scope = WebViewPool.Scope.GLOBAL,
     ): Coroutine<List<SearchBook>> {
         return Coroutine.async(scope, context) {
-            exploreBookAwait(bookSource, url, page)
+            exploreBookAwait(bookSource, url, page, webViewPoolScope)
         }
     }
 
@@ -125,6 +127,7 @@ object WebBook {
         bookSource: BookSource,
         url: String,
         page: Int? = 1,
+        webViewPoolScope: WebViewPool.Scope = WebViewPool.Scope.GLOBAL,
     ): ArrayList<SearchBook> {
         val ruleData = RuleData()
         val sourceUrl = bookSource.bookSourceUrl
@@ -136,7 +139,8 @@ object WebBook {
             source = bookSource,
             ruleData = ruleData,
             coroutineContext = currentCoroutineContext(),
-            infoMap = exploreInfoMap
+            infoMap = exploreInfoMap,
+            webViewPoolScope = webViewPoolScope
         )
         val checkJs = bookSource.loginCheckJs
         val res = kotlin.runCatching {

@@ -1,8 +1,6 @@
 package io.legado.app.ui.main.my
 
 import android.content.SharedPreferences
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.content.res.XmlResourceParser
 import android.os.Bundle
 import android.view.Menu
@@ -21,10 +19,9 @@ import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.prefs.NameListPreference
 import io.legado.app.lib.prefs.SwitchPreference
 import io.legado.app.lib.prefs.fragment.PreferenceFragment
-import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.TopBarSearchStyle
 import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
 import io.legado.app.lib.theme.primaryColor
-import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.service.WebService
 import io.legado.app.ui.about.AboutActivity
@@ -44,9 +41,7 @@ import io.legado.app.ui.main.MainFragmentInterface
 import io.legado.app.ui.replace.ReplaceRuleActivity
 import io.legado.app.ui.rss.source.manage.RssSourceActivity
 import io.legado.app.utils.LogUtils
-import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.applyMainBottomBarPadding
-import io.legado.app.utils.dpToPx
 import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.observeEventSticky
 import io.legado.app.utils.openUrl
@@ -119,18 +114,7 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
 
     private fun applySearchBarStyle() {
         settingsSearchView.applyUiBodyTypefaceDeep(requireContext().uiTypeface())
-        val isNight = io.legado.app.help.config.AppConfig.isNightTheme
-        val searchSurfaceColor = if (isNight) {
-            ColorUtils.adjustAlpha(Color.rgb(52, 52, 56), 0.42f)
-        } else {
-            ColorUtils.adjustAlpha(Color.rgb(120, 120, 128), 0.18f)
-        }
-        val strokeColor = ColorUtils.adjustAlpha(primaryTextColor, if (isNight) 0.10f else 0.08f)
-        settingsSearchView.background = GradientDrawable().apply {
-            cornerRadius = UiCorner.searchRadius(18f)
-            setColor(searchSurfaceColor)
-            setStroke(1.dpToPx(), strokeColor)
-        }
+        TopBarSearchStyle.apply(settingsSearchView)
     }
 
     /**

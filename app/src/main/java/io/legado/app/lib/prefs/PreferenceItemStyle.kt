@@ -11,6 +11,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.lib.theme.UiCorner
 import io.legado.app.utils.getPrefString
+import java.io.File
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 import kotlin.math.roundToInt
@@ -60,6 +61,8 @@ object PreferenceItemStyle {
         val imageKey = panelImageKey(preference)
         val groupHeight = panel?.groupHeight ?: 0
         val offsetY = panel?.offsetY ?: 0
+        val borderColor = UiCorner.panelBorderColor(preference.context)
+        val borderWidth = itemView.dp(1).toFloat()
         val current = itemView.background as? PreferenceGroupBackgroundDrawable
         if (current == null || !current.hasSameConfig(
                 normalColor = itemColor,
@@ -71,7 +74,9 @@ object PreferenceItemStyle {
                 dividerInset = dividerInset,
                 panelImageKey = imageKey,
                 groupHeight = groupHeight,
-                offsetY = offsetY
+                offsetY = offsetY,
+                borderColor = borderColor,
+                borderWidth = borderWidth
             )
         ) {
             itemView.background = PreferenceGroupBackgroundDrawable(
@@ -85,7 +90,9 @@ object PreferenceItemStyle {
                 panelImage = panel?.drawable,
                 panelImageKey = imageKey,
                 groupHeight = groupHeight,
-                offsetY = offsetY
+                offsetY = offsetY,
+                borderColor = borderColor,
+                borderWidth = borderWidth
             )
         }
         itemView.updateGroupMargins(!hasPrev, !hasNext, parent)
@@ -212,7 +219,12 @@ object PreferenceItemStyle {
         val mode = preference.context.getPrefString(
             if (AppConfig.isNightTheme) PreferKey.panelBgScaleTypeN else PreferKey.panelBgScaleType
         ).orEmpty()
-        return "$path|$mode"
+        val fileKey = path.takeUnless { it.isBlank() || it.startsWith("http", ignoreCase = true) }
+            ?.let(::File)
+            ?.takeIf { it.exists() }
+            ?.let { "${it.absolutePath}:${it.length()}:${it.lastModified()}" }
+            ?: path
+        return "$fileKey|$mode|${UiCorner.layoutAlpha()}"
     }
 
     private fun buildPanelImage(

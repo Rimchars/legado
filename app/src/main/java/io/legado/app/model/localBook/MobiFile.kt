@@ -14,6 +14,8 @@ import io.legado.app.lib.mobi.MobiReader
 import io.legado.app.lib.mobi.entities.TOC
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.HtmlFormatter
+import io.legado.app.utils.compressPreservingAlpha
+import io.legado.app.utils.preferredCoverExtension
 import io.legado.app.utils.printOnDebug
 import org.jsoup.Jsoup
 import java.io.File
@@ -275,16 +277,18 @@ class MobiFile(var book: Book) {
         try {
             mobiBook?.let {
                 if (book.coverUrl.isNullOrEmpty()) {
-                    book.coverUrl = LocalBook.getCoverPath(book)
+                    book.coverUrl = LocalBook.findCoverPath(book) ?: LocalBook.getCoverPath(book)
                 }
                 if (fastCheck && File(book.coverUrl!!).exists()) {
                     return
                 }
                 it.getCover()?.let { bytes ->
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    val file = FileUtils.createFileIfNotExist(book.coverUrl!!)
+                    val coverPath = LocalBook.resolveCoverPath(book, bitmap.preferredCoverExtension())
+                    book.coverUrl = coverPath
+                    val file = FileUtils.createFileIfNotExist(coverPath)
                     FileOutputStream(file).use { out ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                        bitmap.compressPreservingAlpha(out, 90)
                         out.flush()
                     }
                 }

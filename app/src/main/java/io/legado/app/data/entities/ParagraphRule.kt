@@ -24,6 +24,8 @@ data class ParagraphRule(
     var loginUrl: String = "",
     @ColumnInfo(defaultValue = "")
     var loginUi: String = "",
+    @ColumnInfo(defaultValue = "0")
+    var enabledCookieJar: Boolean = false,
     @ColumnInfo(defaultValue = "")
     var script: String = "",
     @ColumnInfo(defaultValue = "3000")
@@ -34,7 +36,7 @@ data class ParagraphRule(
     var updateTime: Long = System.currentTimeMillis()
 ) : Parcelable {
 
-    fun displayName(): String = name.ifBlank { "Paragraph Rule" }
+    fun displayName(): String = name.ifBlank { "段落规则" }
 
     fun validTimeout(): Long = timeoutMillisecond.takeIf { it > 0 } ?: C.DEFAULT_MAX_SEEK_TO_PREVIOUS_POSITION_MS
 }

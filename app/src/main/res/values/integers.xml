@@ -1,0 +1,4 @@
+<resources>
+    <integer name="waterfall_card_height_ratio_x100">208</integer>
+    <integer name="waterfall_cover_height_ratio_x100">136</integer>
+</resources>

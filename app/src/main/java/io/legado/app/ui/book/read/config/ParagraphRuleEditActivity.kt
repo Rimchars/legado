@@ -13,7 +13,16 @@ import io.legado.app.R
 import io.legado.app.base.BaseActivity
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.ParagraphRule
+import io.legado.app.data.entities.BookChapter
+import io.legado.app.data.entities.Book
 import io.legado.app.databinding.ActivityParagraphRuleEditBinding
+import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.ParagraphRuleProcessor
+import io.legado.app.model.ReadBook
+import io.legado.app.model.webBook.WebBook
+import io.legado.app.lib.dialogs.alert
+import io.legado.app.lib.dialogs.selector
+import io.legado.app.utils.stackTraceStr
 import io.legado.app.ui.code.CodeEditActivity
 import io.legado.app.ui.widget.code.addJsPattern
 import io.legado.app.utils.GSON
@@ -61,6 +70,7 @@ class ParagraphRuleEditActivity : BaseActivity<ActivityParagraphRuleEditBinding>
         when (item.itemId) {
             R.id.menu_fullscreen_edit -> onFullEditClicked()
             R.id.menu_save -> save()
+            R.id.menu_debug_rule -> debugRule()
             R.id.menu_copy_rule -> sendToClip(GSON.toJson(getRule()))
             R.id.menu_paste_rule -> pasteRule()
             R.id.menu_help -> showHelp("paragraphRuleHelp")
@@ -87,6 +97,7 @@ class ParagraphRuleEditActivity : BaseActivity<ActivityParagraphRuleEditBinding>
         etName.setText(rule.name)
         etLoginUrl.setText(rule.loginUrl)
         etLoginUi.setText(rule.loginUi)
+        cbIsEnableCookie.isChecked = rule.enabledCookieJar
         etTimeout.setText(rule.validTimeout().toString())
         etScript.setText(rule.script)
         etJsLib.setText(rule.jsLib)
@@ -116,6 +127,75 @@ class ParagraphRuleEditActivity : BaseActivity<ActivityParagraphRuleEditBinding>
         else -> null
     }
 
+    private fun debugRule() {
+        val debugRule = getRule()
+        lifecycleScope.launch {
+            val pair = withContext(Dispatchers.IO) {
+                val book = ReadBook.book ?: return@withContext null
+                val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
+                book to chapters
+            }
+            val book = pair?.first
+            val chapters = pair?.second.orEmpty()
+            if (book == null) {
+                toastOnUi(R.string.paragraph_rule_no_book_hint)
+                return@launch
+            }
+            if (chapters.isEmpty()) {
+                toastOnUi("No chapters")
+                return@launch
+            }
+            val current = ReadBook.durChapterIndex
+            val start = (current - 20).coerceAtLeast(0)
+            val candidates = chapters.drop(start).take(80)
+            val labels = candidates.map { chapter ->
+                "${chapter.index + 1}. ${chapter.title}"
+            }
+            selector(getString(R.string.debug), labels) { _, index ->
+                runDebugRule(debugRule, book, candidates[index])
+            }
+        }
+    }
+
+    private fun runDebugRule(debugRule: ParagraphRule, book: Book, chapter: BookChapter) {
+        lifecycleScope.launch {
+            val message = kotlin.runCatching {
+                withContext(Dispatchers.IO) {
+                    val content = BookHelp.getContent(book, chapter) ?: run {
+                        val source = ReadBook.bookSource ?: throw IllegalStateException("No book source and no local cache")
+                        WebBook.getContentAwait(source, book, chapter, needSave = false)
+                    }
+                    val debug = ParagraphRuleProcessor.debug(debugRule, book, chapter, content)
+                    val result = debug.content
+                    buildString {
+                        appendLine("book: ${book.name}")
+                        appendLine("chapter: ${chapter.title}")
+                        appendLine("rawUrl: ${chapter.url}")
+                        appendLine("absoluteUrl: ${kotlin.runCatching { chapter.getAbsoluteURL() }.getOrNull().orEmpty()}")
+                        appendLine("paragraphs: ${result.split('\n').count { it.isNotBlank() }}")
+                        appendLine("length: ${result.length}")
+                        appendLine("imageTags: ${Regex("<img\\b", RegexOption.IGNORE_CASE).findAll(result).count()}")
+                        appendLine()
+                        appendLine("logs:")
+                        if (debug.logs.isEmpty()) {
+                            appendLine("(empty)")
+                        } else {
+                            debug.logs.forEach { appendLine(it) }
+                        }
+                        appendLine()
+                        appendLine("result:")
+                        append(result.take(4000))
+                    }
+                }
+            }.getOrElse {
+                "Paragraph rule debug failed:\n${it.localizedMessage ?: it}\n\n${it.stackTraceStr}"
+            }
+            alert(getString(R.string.debug), message) {
+                okButton()
+            }
+        }
+    }
+
     private fun pasteRule() {
         val raw = getClipText()
         val imported = GSON.fromJsonObject<ParagraphRule>(raw).getOrNull()
@@ -132,6 +212,7 @@ class ParagraphRuleEditActivity : BaseActivity<ActivityParagraphRuleEditBinding>
             name = etName.text?.toString().orEmpty().trim(),
             loginUrl = etLoginUrl.text?.toString().orEmpty(),
             loginUi = etLoginUi.text?.toString().orEmpty(),
+            enabledCookieJar = cbIsEnableCookie.isChecked,
             timeoutMillisecond = etTimeout.text?.toString()?.toLongOrNull() ?: 3000L,
             script = etScript.text?.toString().orEmpty(),
             jsLib = etJsLib.text?.toString().orEmpty(),

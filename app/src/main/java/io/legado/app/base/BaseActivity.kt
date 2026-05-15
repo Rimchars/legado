@@ -25,6 +25,8 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.lib.theme.UiCorner
+import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
+import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.lib.theme.applyUiMenuTypefaceDeep
 import io.legado.app.ui.widget.TitleBar
 import io.legado.app.utils.ColorUtils
@@ -95,6 +97,9 @@ abstract class BaseActivity<VB : ViewBinding>(
         applyPreferredRefreshRate()
         setupSystemBar()
         setContentView(binding.root)
+        if (!AppConfig.isEInkMode) {
+            binding.root.applyUiBodyTypefaceDeep(uiTypeface())
+        }
         applyRootBackgroundPolicy()
         upBackgroundImage()
         lastThemeValuesChanged = ThemeStore.valuesChanged(this)

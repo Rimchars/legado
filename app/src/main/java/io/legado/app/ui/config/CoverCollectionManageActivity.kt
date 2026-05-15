@@ -48,6 +48,9 @@ class CoverCollectionManageActivity : BaseActivity<ActivityCoverCollectionManage
     private val importZip = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri -> importZip(uri) }
     }
+    private val exportZip = registerForActivityResult(HandleFileContract()) {
+        it.uri?.let { toastOnUi(R.string.export_success) }
+    }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         initView()
@@ -103,7 +106,7 @@ class CoverCollectionManageActivity : BaseActivity<ActivityCoverCollectionManage
 
     private fun loadCollections() {
         lifecycleScope.launch {
-            val items = CoverCollectionManager.load(isNight)
+            val items = CoverCollectionManager.loadEntries(isNight)
             adapter?.setItems(items)
         }
     }
@@ -146,6 +149,26 @@ class CoverCollectionManageActivity : BaseActivity<ActivityCoverCollectionManage
         }
     }
 
+    private fun showRenameDialog(entry: CoverCollectionManager.Entry) {
+        if (entry.source == CoverCollectionManager.Source.REMOTE) return
+        alert(R.string.cover_collection_name) {
+            val dialogBinding = DialogEditTextBinding.inflate(layoutInflater).apply {
+                editView.hint = getString(R.string.cover_collection_name)
+                editView.setText(entry.collection.name)
+            }
+            customView { dialogBinding.root }
+            okButton {
+                val name = dialogBinding.editView.text?.toString().orEmpty()
+                lifecycleScope.launch {
+                    kotlin.runCatching { CoverCollectionManager.rename(entry.collection, name) }
+                        .onFailure { toastOnUi(it.localizedMessage) }
+                    loadCollections()
+                }
+            }
+            cancelButton()
+        }
+    }
+
     private fun importZip(uri: Uri) {
         lifecycleScope.launch {
             kotlin.runCatching {
@@ -165,15 +188,63 @@ class CoverCollectionManageActivity : BaseActivity<ActivityCoverCollectionManage
         }
     }
 
-    private fun openDetail(item: CoverCollectionManager.Collection) {
+    private fun openDetail(entry: CoverCollectionManager.Entry) {
+        if (entry.source == CoverCollectionManager.Source.REMOTE) {
+            runAction { CoverCollectionManager.download(entry) }
+            return
+        }
+        val item = entry.collection
         startActivity<CoverCollectionDetailActivity> {
             putExtra("isNight", item.isNight)
             putExtra("id", item.id)
         }
     }
 
+    private fun exportCollection(entry: CoverCollectionManager.Entry) {
+        lifecycleScope.launch {
+            kotlin.runCatching { CoverCollectionManager.exportZip(entry) }
+                .onSuccess { zipFile ->
+                    exportZip.launch {
+                        mode = HandleFileContract.EXPORT
+                        showUploadUrl = false
+                        fileData = HandleFileContract.FileData(zipFile.name, zipFile, "application/zip")
+                    }
+                }
+                .onFailure { toastOnUi(it.localizedMessage) }
+        }
+    }
+
+    private fun runAction(block: suspend () -> Unit) {
+        lifecycleScope.launch {
+            kotlin.runCatching { block() }
+                .onFailure { toastOnUi(it.localizedMessage) }
+            loadCollections()
+        }
+    }
+
+    private fun showActions(entry: CoverCollectionManager.Entry) {
+        val actions = buildList {
+            if (entry.source != CoverCollectionManager.Source.REMOTE) add(CoverAction.RENAME)
+            if (entry.source != CoverCollectionManager.Source.REMOTE) add(CoverAction.EXPORT)
+            if (entry.source != CoverCollectionManager.Source.REMOTE) add(CoverAction.UPLOAD)
+            if (entry.source != CoverCollectionManager.Source.LOCAL) add(CoverAction.DOWNLOAD)
+            if (entry.source != CoverCollectionManager.Source.REMOTE) add(CoverAction.DELETE_LOCAL)
+            if (entry.source != CoverCollectionManager.Source.LOCAL) add(CoverAction.DELETE_REMOTE)
+        }
+        selector(entry.collection.name, actions.map { getString(it.titleRes) }) { _, index ->
+            when (actions[index]) {
+                CoverAction.RENAME -> showRenameDialog(entry)
+                CoverAction.EXPORT -> exportCollection(entry)
+                CoverAction.UPLOAD -> runAction { CoverCollectionManager.upload(entry) }
+                CoverAction.DOWNLOAD -> runAction { CoverCollectionManager.download(entry) }
+                CoverAction.DELETE_LOCAL -> runAction { CoverCollectionManager.deleteLocal(entry) }
+                CoverAction.DELETE_REMOTE -> runAction { CoverCollectionManager.deleteRemote(entry) }
+            }
+        }
+    }
+
     private inner class Adapter :
-        RecyclerAdapter<CoverCollectionManager.Collection, ItemCoverCollectionBinding>(this@CoverCollectionManageActivity) {
+        RecyclerAdapter<CoverCollectionManager.Entry, ItemCoverCollectionBinding>(this@CoverCollectionManageActivity) {
 
         override fun getViewBinding(parent: ViewGroup): ItemCoverCollectionBinding {
             return ItemCoverCollectionBinding.inflate(inflater, parent, false).apply {
@@ -193,25 +264,22 @@ class CoverCollectionManageActivity : BaseActivity<ActivityCoverCollectionManage
         override fun convert(
             holder: ItemViewHolder,
             binding: ItemCoverCollectionBinding,
-            item: CoverCollectionManager.Collection,
+            item: CoverCollectionManager.Entry,
             payloads: MutableList<Any>
         ) = binding.run {
-            tvName.text = item.name
-            tvInfo.text = getString(R.string.cover_collection_images_count, item.images.size)
+            val collection = item.collection
+            tvName.text = collection.name
+            val source = getString(when (item.source) {
+                CoverCollectionManager.Source.LOCAL -> R.string.theme_source_local
+                CoverCollectionManager.Source.REMOTE -> R.string.theme_source_remote
+                CoverCollectionManager.Source.BOTH -> R.string.theme_source_both
+            })
+            tvInfo.text = "${getString(R.string.cover_collection_images_count, collection.images.size)} · $source"
             tvName.applyUiSectionTitleStyle(context)
             tvInfo.applyUiLabelStyle(context)
             tvInfo.setTextColor(secondaryTextColor)
-            Glide.with(ivPreview).load(item.images.firstOrNull()).centerCrop().into(ivPreview)
-            btnMore.setOnClickListener {
-                selector(arrayListOf(getString(R.string.delete))) { _, index ->
-                    if (index == 0) {
-                        lifecycleScope.launch {
-                            CoverCollectionManager.delete(item)
-                            loadCollections()
-                        }
-                    }
-                }
-            }
+            Glide.with(ivPreview).load(collection.images.firstOrNull()).centerCrop().into(ivPreview)
+            btnMore.setOnClickListener { showActions(item) }
         }
 
         override fun registerListener(holder: ItemViewHolder, binding: ItemCoverCollectionBinding) {
@@ -219,5 +287,14 @@ class CoverCollectionManageActivity : BaseActivity<ActivityCoverCollectionManage
                 getItem(holder.bindingAdapterPosition - getHeaderCount())?.let { openDetail(it) }
             }
         }
+    }
+
+    private enum class CoverAction(val titleRes: Int) {
+        RENAME(R.string.edit),
+        EXPORT(R.string.theme_export_zip),
+        UPLOAD(R.string.theme_upload_remote),
+        DOWNLOAD(R.string.theme_download_local),
+        DELETE_LOCAL(R.string.theme_delete_local),
+        DELETE_REMOTE(R.string.theme_delete_remote)
     }
 }

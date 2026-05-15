@@ -1468,9 +1468,10 @@ class ReadBookActivity : BaseReadBookActivity(),
                 url: String,
                 html: String?,
                 preloadJs: String?,
-                config: String?
+                config: String?,
+                sourceKey: String?
             ): Boolean {
-                val source = ReadBook.bookSource ?: return false
+                val browserSourceKey = sourceKey ?: ReadBook.bookSource?.getKey() ?: return false
                 commentBrowserShowing = true
                 runOnUiThread {
                     if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
@@ -1480,7 +1481,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                     }
                     showDialogFragment(
                         BottomWebViewDialog(
-                            source.getKey(),
+                            browserSourceKey,
                             BookType.text,
                             url,
                             html,

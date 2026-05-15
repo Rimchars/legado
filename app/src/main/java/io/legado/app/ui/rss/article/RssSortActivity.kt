@@ -52,6 +52,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
     private val fragmentMap = hashMapOf<String, Fragment>()
     private val orientation by lazy { resources.configuration.orientation }
     private var shouldFocusSearch = false
+    private var pureSearch = false
     private val editSourceResult = registerForActivityResult(
         StartActivityContract(RssSourceEditActivity::class.java)
     ) {
@@ -209,6 +210,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
         super.onNewIntent(intent)
         setIntent(intent) // 更新当前intent
         shouldFocusSearch = intent.getBooleanExtra("focusSearch", false)
+        pureSearch = intent.getBooleanExtra("pureSearch", false)
         // 重新初始化数据，复用时重建
         viewModel.initData(intent) {
             upFragments()
@@ -217,6 +219,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         shouldFocusSearch = intent.getBooleanExtra("focusSearch", false)
+        pureSearch = intent.getBooleanExtra("pureSearch", false)
         binding.viewPager.adapter = adapter
         binding.viewPager.addOnPageChangeListener(object : ViewPager.SimpleOnPageChangeListener() {
             override fun onPageSelected(position: Int) {
@@ -227,6 +230,10 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
             upFragments()
         }
         onBackPressedDispatcher.addCallback(this) { //监听返回
+            if (pureSearch) {
+                finish()
+                return@addCallback
+            }
             if (viewModel.searchKey != null) {
                 // 退出搜索
                 viewModel.searchKey = null
@@ -272,6 +279,19 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.rss_articles, menu)
+        if (pureSearch) {
+            listOf(
+                R.id.menu_login,
+                R.id.menu_refresh_sort,
+                R.id.menu_set_source_variable,
+                R.id.menu_edit_source,
+                R.id.menu_clear,
+                R.id.menu_switch_layout,
+                R.id.menu_read_record
+            ).forEach { id ->
+                menu.findItem(id)?.isVisible = false
+            }
+        }
         menu.findItem(R.id.menu_search)?.apply {
             val source = viewModel.rssSource
             val searchUrl = source?.searchUrl ?: return@apply
@@ -284,7 +304,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
                     setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                         override fun onQueryTextSubmit(query: String): Boolean {
                             clearFocus()
-                            start(this@RssSortActivity ,null,source.sourceUrl, query)
+                            start(this@RssSortActivity, null, source.sourceUrl, query, pureSearch = pureSearch)
                             return true
                         }
 
@@ -315,6 +335,9 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
     }
 
     override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
+        if (pureSearch) {
+            return super.onMenuOpened(featureId, menu)
+        }
         menu.findItem(R.id.menu_login)?.isVisible =
             !viewModel.rssSource?.loginUrl.isNullOrBlank()
         return super.onMenuOpened(featureId, menu)
@@ -367,6 +390,11 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
                 upFragmentsView()
                 return@launch
             }
+            if (pureSearch) {
+                sortList.clear()
+                upFragmentsView()
+                return@launch
+            }
             viewModel.sortUrl?.takeIf { it.isNotBlank() }?.let { url ->
                 val urls: List<Pair<String, String>> = try {
                     if (url.isJsonObject()) {
@@ -400,6 +428,12 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
         }
     }
     private fun upFragmentsView() {
+        if (pureSearch) {
+            binding.titleBar.title = viewModel.searchKey ?: getString(R.string.rss_search_hint)
+            binding.tabsContainer.gone()
+            adapter.notifyDataSetChanged()
+            return
+        }
         if (sortList.size == 1) {
             sortList.first().first.takeIf { it.isNotEmpty() }?.let {
                 binding.titleBar.title = viewModel.searchKey ?: it
@@ -474,13 +508,15 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
             sortUrl: String?,
             sourceUrl: String,
             key: String? = null,
-            focusSearch: Boolean = false
+            focusSearch: Boolean = false,
+            pureSearch: Boolean = false
         ) {
             context.startActivity<RssSortActivity> {
                 putExtra("sortUrl", sortUrl)
                 putExtra("sourceUrl", sourceUrl)
                 putExtra("key", key)
                 putExtra("focusSearch", focusSearch)
+                putExtra("pureSearch", pureSearch)
             }
         }
     }

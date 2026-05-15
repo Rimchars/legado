@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import io.legado.app.utils.MD5Utils
+import io.legado.app.utils.compressPreservingAlpha
+import io.legado.app.utils.preferredCoverExtension
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,16 +18,21 @@ object CoverThumbnailCache {
 
     private const val thumbWidth = 240
     private const val thumbHeight = 320
+    private const val dirName = "cover_thumbs_v2"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    fun file(context: Context, key: String?): File? {
+    private fun file(context: Context, key: String?, extension: String): File? {
         if (key.isNullOrBlank()) return null
-        val dir = File(context.cacheDir, "cover_thumbs")
-        return File(dir, "${MD5Utils.md5Encode(key)}.jpg")
+        val dir = File(context.cacheDir, dirName)
+        return File(dir, "${MD5Utils.md5Encode(key)}.$extension")
     }
 
     fun existing(context: Context, key: String?): File? {
-        return file(context, key)?.takeIf { it.length() > 0L && it.exists() }
+        if (key.isNullOrBlank()) return null
+        return listOf("png", "jpg")
+            .asSequence()
+            .mapNotNull { file(context, key, it) }
+            .firstOrNull { it.exists() && it.length() > 0L }
     }
 
     fun saveAsync(context: Context, key: String?, drawable: Drawable) {
@@ -35,15 +42,17 @@ object CoverThumbnailCache {
         val appContext = context.applicationContext
         scope.launch {
             runCatching {
-                val target = file(appContext, key) ?: return@runCatching
-                if (target.length() > 0L && target.exists()) return@runCatching
-                target.parentFile?.mkdirs()
                 val thumb = Bitmap.createScaledBitmap(source, thumbWidth, thumbHeight, true)
-                FileOutputStream(target).use { out ->
-                    thumb.compress(Bitmap.CompressFormat.JPEG, 86, out)
-                }
-                if (thumb !== source) {
-                    thumb.recycle()
+                try {
+                    val extension = thumb.preferredCoverExtension()
+                    val target = file(appContext, key, extension) ?: return@runCatching
+                    if (target.exists() && target.length() > 0L) return@runCatching
+                    target.parentFile?.mkdirs()
+                    FileOutputStream(target).use { out ->
+                        thumb.compressPreservingAlpha(out, 86)
+                    }
+                } finally {
+                    if (thumb !== source) thumb.recycle()
                 }
             }
         }

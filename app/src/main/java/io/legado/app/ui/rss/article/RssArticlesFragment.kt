@@ -13,7 +13,6 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import io.legado.app.R
 import io.legado.app.base.VMBaseFragment
 import io.legado.app.constant.AppLog
@@ -21,12 +20,14 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.RssArticle
 import io.legado.app.databinding.FragmentRssArticlesBinding
 import io.legado.app.databinding.ViewLoadMoreBinding
+import io.legado.app.help.webView.WebViewPool
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.rss.read.ReadRss
 import io.legado.app.ui.widget.recycler.LoadMoreView
 import io.legado.app.ui.widget.recycler.VerticalDivider
 import io.legado.app.utils.applyMainBottomBarPadding
+import io.legado.app.utils.dpToPx
 import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
@@ -72,6 +73,8 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
     override val isGridLayout: Boolean
         get() = activityViewModel.articleStyle == 2
     private var fullRefresh = true
+    private var topOverlaySpace = 0
+    private var topOverlayEnabled = false
     private val embeddedInModernRss: Boolean
         get() = parentFragment is io.legado.app.ui.main.rss.RssFragment
 
@@ -103,15 +106,15 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                         parent: RecyclerView,
                         state: RecyclerView.State
                     ) {
-                        val space = 8
+                        val space = resources.getDimensionPixelSize(R.dimen.waterfall_card_gap)
                         outRect.set(space, space, space, space)
                     }
                 })
                 recyclerView.itemAnimator = null
                 if (orientation == Configuration.ORIENTATION_LANDSCAPE) { //横屏三列
-                    StaggeredGridLayoutManager(3, StaggeredGridLayoutManager.VERTICAL)
+                    GridLayoutManager(requireContext(), 3)
                 } else {
-                    StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
+                    GridLayoutManager(requireContext(), 2)
                 }
             }
             2 -> {
@@ -129,6 +132,7 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
         }
         recyclerView.layoutManager = layoutManager
         recyclerView.adapter = adapter
+        applyTopOverlaySpace()
         adapter.addFooterView {
             ViewLoadMoreBinding.bind(loadMoreView)
         }
@@ -142,11 +146,10 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                     scrollToBottom()
                     return
                 }
-                if (layoutManager is StaggeredGridLayoutManager) {
+                if (layoutManager is GridLayoutManager) {
                     val visibleItemCount = layoutManager.childCount
                     val totalItemCount = layoutManager.itemCount
-                    val firstVisibleItemPositions = layoutManager.findFirstVisibleItemPositions(null)
-                    val firstVisibleItemPosition = firstVisibleItemPositions?.minOrNull() ?: 0
+                    val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
                     if (isPreload  && (visibleItemCount + firstVisibleItemPosition) >= (totalItemCount - 5)) {
                         scrollToBottom()
                     }
@@ -167,6 +170,30 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
                 this@launch.cancel()
             }
         } //只刷新可见页面,非预加载时使用
+    }
+
+    fun setTopOverlaySpace(space: Int, overlay: Boolean) {
+        topOverlaySpace = space
+        topOverlayEnabled = overlay
+        view?.post {
+            applyTopOverlaySpace()
+        }
+    }
+
+    private fun applyTopOverlaySpace() {
+        if (view == null || !embeddedInModernRss) return
+        binding.recyclerView.clipToPadding = true
+        binding.recyclerView.setPadding(
+            binding.recyclerView.paddingLeft,
+            topOverlaySpace,
+            binding.recyclerView.paddingRight,
+            binding.recyclerView.paddingBottom
+        )
+        binding.refreshLayout.setProgressViewOffset(
+            true,
+            (topOverlaySpace - 28.dpToPx()).coerceAtLeast(0),
+            topOverlaySpace + 56.dpToPx()
+        )
     }
 
     private fun initData() {
@@ -218,7 +245,17 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
     override fun onPause() {
         isResumed = false
         adapter.upResumed(isResumed)
+        viewModel.cancelLoading()
+        WebViewPool.scheduleDestroyScope(WebViewPool.Scope.RSS)
         super.onPause()
+    }
+
+    override fun onDestroyView() {
+        articlesFlowJob?.cancel()
+        articlesFlowJob = null
+        viewModel.cancelLoading()
+        WebViewPool.destroyScope(WebViewPool.Scope.RSS)
+        super.onDestroyView()
     }
 
     private fun loadArticles() {

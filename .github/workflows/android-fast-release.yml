@@ -49,21 +49,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           cat > release-notes.md <<EOF
-          阅读Archive 第五版
-
-          新增：
-          - 支持标题字体和界面字体设置。
-          - 支持阅读目标和阅读时长排行桌面组件。
-          - 支持圆角布局卡片壁纸。
-          - 支持云端缓存加入书架。
-          - 最小兼容 md3 版备份恢复。
-
           修复：
-          - 修复部分 EPUB 导入、封面读取、背景图显示、内置字体加载和复杂排版异常。
-          - 修复 EPUB 含背景图页面加载慢、频繁重新加载和预加载不足的问题。
-          - 修复纯 URL 订阅在新版订阅页中没有按原逻辑跳转的问题。
-          - 修复主题背景图可能被背景色覆盖的问题。
-          - 修复发现页默认封面模式下列表与详情页图集封面不一致的问题。
+          - 修复普通备份异常变大的问题。
+          - 请务必更新。
           EOF
 
       - name: Build arm64 release APK
@@ -140,3 +128,83 @@ jobs:
               --title "阅读Archive 更新通道" \
               --notes-file release-notes.md
           fi
+
+      - name: Sync release to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "GITEE_TOKEN is not configured, skip Gitee release sync."
+            exit 0
+          fi
+
+          set +e
+          API="https://gitee.com/api/v5/repos/zziji/legado"
+          TAG_NAME="${{ steps.version.outputs.tag }}"
+          RELEASE_NAME="阅读Archive 第五版 ${{ steps.version.outputs.name }}"
+          CHANNEL_TAG="latest-arm64-release"
+          TOKEN_QUERY="$(python3 -c 'import os, urllib.parse; print(urllib.parse.urlencode({"access_token": os.environ["GITEE_TOKEN"]}))')"
+
+          find_release_id() {
+            curl -fsS -G \
+              --data-urlencode "access_token=$GITEE_TOKEN" \
+              "$API/releases/tags/$1" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))'
+          }
+
+          upsert_release() {
+            local tag_name="$1"
+            local release_name="$2"
+            local release_id
+            release_id="$(find_release_id "$tag_name" 2>/dev/null || true)"
+            if [ -n "$release_id" ]; then
+              curl -fsS -X PATCH "$API/releases/$release_id" \
+                --data-urlencode "access_token=$GITEE_TOKEN" \
+                --data-urlencode "name=$release_name" \
+                --data-urlencode "body=$(cat release-notes.md)" \
+                --data-urlencode "prerelease=false" >/dev/null
+            else
+              release_id="$(curl -fsS -X POST "$API/releases" \
+                --data-urlencode "access_token=$GITEE_TOKEN" \
+                --data-urlencode "tag_name=$tag_name" \
+                --data-urlencode "name=$release_name" \
+                --data-urlencode "body=$(cat release-notes.md)" \
+                --data-urlencode "prerelease=false" \
+                | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))')"
+            fi
+            echo "$release_id"
+          }
+
+          upload_apks() {
+            local release_id="$1"
+            if [ -z "$release_id" ]; then
+              return 1
+            fi
+            curl -fsS -G \
+              --data-urlencode "access_token=$GITEE_TOKEN" \
+              "$API/releases/$release_id/attach_files" \
+              | python3 -c 'import json,sys; data=json.load(sys.stdin); [print(item.get("id")) for item in data if str(item.get("name", "")).endswith(".apk")]' \
+              | while read -r attach_id; do
+                  if [ -n "$attach_id" ]; then
+                    curl -fsS -X DELETE "$API/releases/$release_id/attach_files/$attach_id?$TOKEN_QUERY" >/dev/null
+                  fi
+                done
+            for apk in release-apks/*.apk; do
+              curl -fsS -X POST "$API/releases/$release_id/attach_files" \
+                -F "access_token=$GITEE_TOKEN" \
+                -F "file=@$apk" >/dev/null || return 1
+            done
+          }
+
+          SYNC_FAILED=0
+          VERSIONED_ID="$(upsert_release "$TAG_NAME" "$RELEASE_NAME")" || SYNC_FAILED=1
+          upload_apks "$VERSIONED_ID" || SYNC_FAILED=1
+
+          CHANNEL_ID="$(upsert_release "$CHANNEL_TAG" "阅读Archive 更新通道")" || SYNC_FAILED=1
+          upload_apks "$CHANNEL_ID" || SYNC_FAILED=1
+
+          if [ "$SYNC_FAILED" -ne 0 ]; then
+            echo "Gitee release sync failed, GitHub release has already been published."
+            exit 0
+          fi
+          echo "Gitee release sync finished."

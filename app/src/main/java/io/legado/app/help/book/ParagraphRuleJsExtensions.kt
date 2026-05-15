@@ -11,6 +11,7 @@ import io.legado.app.data.entities.ParagraphRuleVar
 import io.legado.app.help.CacheManager
 import io.legado.app.help.http.CookieStore
 import io.legado.app.help.http.StrResponse
+import io.legado.app.model.Debug
 import io.legado.app.model.SharedJsScope
 
 class ParagraphRuleJsExtensions(
@@ -22,7 +23,7 @@ class ParagraphRuleJsExtensions(
     override var loginUrl: String? = rule.loginUrl
     override var loginUi: String? = rule.loginUi
     override var header: String? = null
-    override var enabledCookieJar: Boolean? = false
+    override var enabledCookieJar: Boolean? = rule.enabledCookieJar
     override var jsLib: String? = rule.jsLib
 
     override fun getTag(): String = "ParagraphRule:${rule.id}:${rule.displayName()}"
@@ -71,6 +72,29 @@ class ParagraphRuleJsExtensions(
     @JavascriptInterface
     override fun get(key: String): String = CacheManager.get("v_${getKey()}_${key}") ?: ""
 
+    override fun ajax(url: Any): String? {
+        return ajax(url, null)
+    }
+
+    override fun ajax(url: Any, callTimeout: Long?): String? {
+        val urlStr = if (url is List<*>) {
+            url.firstOrNull().toString()
+        } else {
+            url.toString()
+        }
+        Debug.log(getKey(), "paragraph ajax: $urlStr")
+        return super.ajax(url, callTimeout).also {
+            if (it == null) {
+                Debug.log(getKey(), "paragraph ajax result: null")
+            } else {
+                Debug.log(getKey(), "paragraph ajax result length=${it.length}")
+                if (it.length <= 500) {
+                    Debug.log(getKey(), "paragraph ajax result body=$it")
+                }
+            }
+        }
+    }
+
     @JavascriptInterface
     override fun put(key: String, value: String): String {
         CacheManager.put("v_${getKey()}_${key}", value)
@@ -88,7 +112,7 @@ class ParagraphRuleJsExtensions(
 
     @JavascriptInterface
     fun showBrowser(url: String, html: String?, preloadJs: String?, config: String?): Boolean {
-        return browserCallback?.showBrowser(url, html, preloadJs, config) == true
+        return browserCallback?.showBrowser(url, html, preloadJs, config, getKey()) == true
     }
 
     override fun evalJS(jsStr: String, bindingsConfig: ScriptBindings.() -> Unit): Any? {

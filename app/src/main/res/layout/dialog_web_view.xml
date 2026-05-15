@@ -4,9 +4,26 @@
     android:layout_height="match_parent">
 
     <FrameLayout
-        android:id="@+id/web_view_container"
+        android:id="@+id/native_sheet_surface"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:layout_gravity="bottom"
+        android:background="@color/dialog_surface"
+        android:clickable="true"
+        android:focusable="true">
+
+        <FrameLayout
+            android:id="@+id/web_view_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <FrameLayout
+            android:id="@+id/web_view_placeholder"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <FrameLayout
         android:id="@+id/custom_web_view"
