@@ -24,6 +24,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Resolve GitHub release
         id: release
         env:
@@ -65,6 +70,29 @@ jobs:
             echo "name=$RELEASE_NAME"
             echo "apk_count=$APK_COUNT"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Ensure Gitee release tag
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          TAG_NAME: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITEE_TOKEN:-}" ]; then
+            echo "GITEE_TOKEN is not configured."
+            exit 1
+          fi
+
+          if ! git rev-parse -q --verify "refs/tags/$TAG_NAME" >/dev/null; then
+            git fetch origin "refs/tags/$TAG_NAME:refs/tags/$TAG_NAME"
+          fi
+
+          GITEE_REMOTE="https://oauth2:${GITEE_TOKEN}@gitee.com/zziji/legado.git"
+          if git ls-remote --exit-code --tags "$GITEE_REMOTE" "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+            echo "Gitee tag already exists: $TAG_NAME"
+          else
+            git push "$GITEE_REMOTE" "refs/tags/$TAG_NAME:refs/tags/$TAG_NAME"
+            echo "Pushed Gitee tag: $TAG_NAME"
+          fi
 
       - name: Sync versioned release to Gitee
         env:
