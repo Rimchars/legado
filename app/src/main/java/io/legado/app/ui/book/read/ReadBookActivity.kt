@@ -1505,9 +1505,11 @@ class ReadBookActivity : BaseReadBookActivity(),
         if (urlMatcher.find()) {
             val urlOptionStr = src.substring(urlMatcher.end())
             val urlOptionMap = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()
-            val click = urlOptionMap?.get("pclick") ?: urlOptionMap?.get("click")
-            if (click != null) {
-                if (evalParagraphRuleClick(click, src)) return true
+            val pclick = urlOptionMap?.get("pclick")
+            if (!pclick.isNullOrBlank() && evalParagraphRuleClick(pclick, src)) return true
+            val click = urlOptionMap?.get("click")
+                ?.takeUnless { ParagraphRuleProcessor.isParagraphClick(it) }
+            if (!click.isNullOrBlank()) {
                 Coroutine.async(lifecycleScope,IO) {
                     val source = ReadBook.bookSource ?: return@async
                     val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)

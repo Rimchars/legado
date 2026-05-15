@@ -24,6 +24,7 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookContent
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.ParagraphRuleProcessor
 import io.legado.app.help.book.getBookSource
 import io.legado.app.help.book.isEpub
 import io.legado.app.help.config.AppConfig
@@ -1504,7 +1505,11 @@ class TextChapterLayout(
             .ifBlank { element.cssWidth() }
             .ifBlank { imageInfo.width.orEmpty() }
         val click = element.attr("data-legado-pclick")
-            .ifBlank { element.attr("data-legado-click") }
+            .ifBlank {
+                element.attr("data-legado-click")
+                    .takeUnless { ParagraphRuleProcessor.isParagraphClick(it) }
+                    .orEmpty()
+            }
             .ifBlank { imageInfo.click.orEmpty() }
             .ifBlank { null }
         var imgSize = ImageProvider.getImageSize(book, imageInfo.renderSrc, ReadBook.bookSource)
@@ -2364,11 +2369,15 @@ class TextChapterLayout(
                 src
             }
         }
+        val pclick = urlOption["pclick"]?.takeIf { it.isNotBlank() }
+        val click = urlOption["click"]
+            ?.takeIf { it.isNotBlank() }
+            ?.takeUnless { ParagraphRuleProcessor.isParagraphClick(it) }
         return ImageInfo(
             renderSrc = renderSrc,
             style = urlOption["style"],
             width = urlOption["width"],
-            click = urlOption["pclick"] ?: urlOption["click"]
+            click = pclick ?: click
         ).also { imageInfoCache[src] = it }
     }
 
