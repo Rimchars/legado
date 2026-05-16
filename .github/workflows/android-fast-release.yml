@@ -49,6 +49,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           cat > release-notes.md <<'EOF'
+          - 华为设备 showBrowser/段评弹窗补丁：移除 WebView 软件渲染路径，降低打开和滚动卡顿。
           阅读Archive 第六版
 
           新增：
