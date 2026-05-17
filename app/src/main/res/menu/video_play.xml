@@ -17,7 +17,7 @@
         android:title="@string/favorite"
         android:visible="false"
         app:showAsAction="always"
-        tools:visible="true"/>
+        tools:visible="true" />
 
     <item
         android:id="@+id/menu_float_window"
@@ -28,11 +28,6 @@
     <item
         android:id="@+id/menu_config_settings"
         android:title="@string/config_settings"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/menu_fetch_danmaku"
-        android:title="弹幕"
         app:showAsAction="never" />
 
     <item

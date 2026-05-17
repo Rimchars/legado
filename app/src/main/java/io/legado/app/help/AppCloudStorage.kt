@@ -14,7 +14,6 @@ import io.legado.app.help.storage.Restore
 import io.legado.app.lib.cloud.CloudStorageBackend
 import io.legado.app.lib.cloud.CloudStorageFile
 import io.legado.app.lib.cloud.CloudStorageType
-import io.legado.app.lib.cloud.S3BackupIndex
 import io.legado.app.lib.cloud.S3BackupIndexItem
 import io.legado.app.lib.cloud.S3CloudStorageBackend
 import io.legado.app.lib.cloud.S3Container
@@ -47,7 +46,6 @@ object AppCloudStorage {
     private const val NAVIGATION_BARS_DIR = "navigationBars/"
     private const val TOP_BARS_DIR = "topBars/"
     private const val COVER_COLLECTIONS_DIR = "coverCollections/"
-    private const val BACKUP_INDEX_FILE = "backup_index.json"
 
     private val webDavBackend = WebDavCloudStorageBackend()
     private val s3Backend = S3CloudStorageBackend()
@@ -114,15 +112,12 @@ object AppCloudStorage {
     }
 
     suspend fun backup(fileName: String) {
-        if (!NetworkUtils.isAvailable()) return
+        ensureNetwork()
         storage(S3ContainerScope.MAIN_BACKUP).upload(fileName, Backup.zipFilePath)
-        if (type == CloudStorageType.S3) {
-            writeBackupIndex(fileName, File(Backup.zipFilePath).length())
-        }
     }
 
     suspend fun backupToWebDav(fileName: String) {
-        if (!NetworkUtils.isAvailable()) return
+        ensureNetwork()
         webDavBackend.upConfig()
         webDavBackend.upload(fileName, Backup.zipFilePath)
     }
@@ -385,19 +380,7 @@ object AppCloudStorage {
 
     private suspend fun backupFiles(): List<CloudStorageFile> {
         return if (type == CloudStorageType.S3) {
-            readBackupIndex().items
-                .sortedByDescending { it.time }
-                .map { item ->
-                    CloudStorageFile(
-                        path = item.fileName,
-                        displayName = item.fileName,
-                        size = item.size,
-                        lastModify = item.time,
-                        isDir = false
-                    )
-                }
-                .takeIf { it.isNotEmpty() }
-                ?: scanBackupFiles()
+            scanBackupFiles()
         } else {
             storage(S3ContainerScope.MAIN_BACKUP).listFiles("")
                 .filter { it.displayName.startsWith("backup") }
@@ -405,37 +388,7 @@ object AppCloudStorage {
     }
 
     private suspend fun findBackupLocation(fileName: String): S3BackupIndexItem? {
-        val indexItem = readBackupIndex().items.firstOrNull { it.fileName == fileName }
-        if (indexItem != null) return indexItem
         return scanBackupIndexItems().firstOrNull { it.fileName == fileName }
-    }
-
-    private suspend fun readBackupIndex(): S3BackupIndex {
-        if (type != CloudStorageType.S3) return S3BackupIndex()
-        val items = S3ContainerManager.listContainers()
-            .filter { it.enabled }
-            .flatMap { container ->
-                runCatching {
-                    val bytes = s3Backend.download(container.id, BACKUP_INDEX_FILE)
-                    GSON.fromJsonObject<S3BackupIndex>(String(bytes)).getOrNull()?.items.orEmpty()
-                }.getOrDefault(emptyList())
-            }
-            .distinctBy { it.fileName }
-            .sortedByDescending { it.time }
-        return S3BackupIndex(items)
-    }
-
-    private suspend fun writeBackupIndex(fileName: String, size: Long) {
-        if (type != CloudStorageType.S3) return
-        val containerId = S3ContainerManager.selectedContainerId(S3ContainerScope.MAIN_BACKUP).orEmpty()
-        val item = S3BackupIndexItem(fileName, System.currentTimeMillis(), size, containerId)
-        val items = (listOf(item) + readBackupIndex().items.filterNot { it.fileName == fileName })
-            .sortedByDescending { it.time }
-        storage(S3ContainerScope.MAIN_BACKUP).upload(
-            BACKUP_INDEX_FILE,
-            GSON.toJson(S3BackupIndex(items)).toByteArray(),
-            "application/json"
-        )
     }
 
     private suspend fun scanBackupFiles(): List<CloudStorageFile> {

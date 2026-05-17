@@ -1896,9 +1896,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         Coroutine.async {
             BookHelp.clearInvalidCache()
         }
-        if (!BuildConfig.DEBUG) {
-            Backup.autoBack(this)
-        }
+        Backup.autoBack(this)
     }
 
     /**

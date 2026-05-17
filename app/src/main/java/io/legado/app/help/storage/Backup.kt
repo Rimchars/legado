@@ -12,6 +12,7 @@ import io.legado.app.help.AppCloudStorage
 import io.legado.app.help.DirectLinkUpload
 import io.legado.app.lib.cloud.S3CapacityFullException
 import io.legado.app.lib.cloud.S3ContainerManager
+import io.legado.app.lib.cloud.CloudStorageType
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.config.ReadBookConfig
@@ -113,21 +114,21 @@ object Backup {
     }
 
     fun autoBack(context: Context) {
-        if (shouldBackup()) {
-            Coroutine.async {
-                mutex.withLock {
-                    if (shouldBackup()) {
-                        val backupZipFileName = getNowZipFileName()
-                        if (!AppCloudStorage.hasBackup(backupZipFileName)) {
-                            backup(context, AppConfig.backupPath)
-                        } else {
-                            LocalConfig.lastBackup = System.currentTimeMillis()
-                        }
-                    }
+        Coroutine.async {
+            mutex.withLock {
+                if (shouldBackup()) {
+                    AppLog.put("自动备份触发")
+                    AppLog.put("Auto backup trigger")
+                    LogUtils.d(TAG, "auto backup trigger")
+                    backup(context, AppConfig.backupPath)
+                } else {
+                    AppLog.put("自动备份跳过: 今日已备份")
+                    AppLog.put("Auto backup skipped: already backed up today")
+                    LogUtils.d(TAG, "auto backup skipped by interval")
                 }
-            }.onError {
-                AppLog.put("自动备份失败\n${it.localizedMessage}")
             }
+        }.onError {
+            AppLog.put("自动备份失败\n${it.localizedMessage}", it)
         }
     }
 
@@ -151,7 +152,6 @@ object Backup {
         uploadWebDavFallback: Boolean = false
     ) {
         LogUtils.d(TAG, "开始备份 path:$path")
-        LocalConfig.lastBackup = System.currentTimeMillis()
         val aes = BackupAES()
         FileUtils.delete(backupPath)
         writeListToJson(appDb.bookDao.all, "bookshelf.json", backupPath)
@@ -257,6 +257,7 @@ object Backup {
         } else {
             zipFileName
         }
+        var backupSuccess = false
         if (ZipUtils.zipFiles(paths, zipFilePath)) {
             when {
                 path.isNullOrBlank() -> {
@@ -272,19 +273,22 @@ object Backup {
                 }
             }
             if (uploadCloud) {
-                try {
-                    if (uploadWebDavFallback) {
-                        AppCloudStorage.backupToWebDav(zipFileName)
-                    } else {
-                        AppCloudStorage.backup(zipFileName)
-                    }
-                } catch (e: S3CapacityFullException) {
-                    throw e
-                } catch (e: Exception) {
-                    AppLog.put("上传备份至云端失败\n$e", e)
-                    if (uploadWebDavFallback) throw e
+                val cloudType = if (uploadWebDavFallback) CloudStorageType.WEBDAV else AppCloudStorage.type
+                AppLog.put("Upload cloud backup: ${cloudType.name} $zipFileName")
+                if (uploadWebDavFallback) {
+                    AppCloudStorage.backupToWebDav(zipFileName)
+                } else {
+                    AppCloudStorage.backup(zipFileName)
                 }
+                AppLog.put("Cloud backup finished: ${cloudType.name} $zipFileName")
             }
+            backupSuccess = true
+        } else {
+            throw NoStackTraceException("创建备份压缩包失败")
+        }
+        if (backupSuccess) {
+            LocalConfig.lastBackup = System.currentTimeMillis()
+            LogUtils.d(TAG, "备份完成")
         }
         FileUtils.delete(backupPath)
         FileUtils.delete(zipFilePath)

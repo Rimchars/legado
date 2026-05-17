@@ -1769,6 +1769,8 @@
 %6$s</string>
 
     <string name="source_runtime_backup">忽略书源登录与变量</string>
+    <string name="auto_refresh_media_toc">自动刷新空媒体目录链接</string>
+    <string name="auto_refresh_media_toc_summary">音频或视频章节链接为空或失效时，自动刷新一次目录后重试</string>
     <string name="book_info_manage">详情页管理</string>
     <string name="book_info_manage_summary">管理详情页组件与显示顺序</string>
     <string name="book_info_components_hint">勾选启用组件，拖动调整顺序。重新打开详情页后生效。</string>
@@ -1998,4 +2000,48 @@
     <string name="webdav_account_manage_summary">配置服务器地址、账号和密钥</string>
     <string name="sync_theme_packages">同步云端主题</string>
     <string name="sync_theme_packages_summary">开启后主题管理会后台同步云端主题包</string>
+    <string name="s3_container_manage">管理 S3 容器</string>
+    <string name="s3_container_manage_summary">添加、编辑、测试和设置备份用 S3 容器</string>
+    <string name="s3_auto_switch_container">自动切换 S3 容器</string>
+    <string name="s3_auto_switch_container_summary">当前容器空间不足时，允许备份使用下一个可用容器</string>
+    <string name="s3_container_add">添加 S3 容器</string>
+    <string name="s3_container_edit">编辑 S3 容器</string>
+    <string name="s3_container_delete">删除 S3 容器</string>
+    <string name="s3_container_delete_confirm">确定删除 %1$s 吗？</string>
+    <string name="s3_container_name">容器名称</string>
+    <string name="s3_container_capacity_gb">容量（GB，0 或留空表示不限制）</string>
+    <string name="s3_container_advanced_show">显示高级设置</string>
+    <string name="s3_container_advanced_hide">隐藏高级设置</string>
+    <string name="s3_container_enabled">启用</string>
+    <string name="s3_container_disabled">停用</string>
+    <string name="s3_container_enable">启用</string>
+    <string name="s3_container_disable">停用</string>
+    <string name="s3_container_test">测试连接</string>
+    <string name="s3_container_test_success">S3 连接测试成功</string>
+    <string name="s3_container_test_failed">S3 连接测试失败：%1$s</string>
+    <string name="s3_container_set_default">设为默认</string>
+    <string name="s3_container_set_default_success">已设为默认容器</string>
+    <string name="s3_container_refresh_capacity">刷新容量</string>
+    <string name="s3_container_capacity_refreshed">已刷新容量状态</string>
+    <string name="s3_container_endpoint_bucket_required">Endpoint 和 Bucket 不能为空</string>
+    <string name="s3_container_key_required">Access Key 和 Secret Key 不能为空</string>
+    <string name="s3_container_default_name">%1$s（默认）</string>
+    <string name="s3_container_capacity_line">容量 %1$s，已用 %2$s，剩余 %3$s，已满：%4$s</string>
+    <string name="s3_container_capacity_unlimited_line">容量不限制，已用 %1$s</string>
+    <string name="s3_container_state_line">状态：%1$s</string>
+    <string name="s3_full_webdav_fallback_title">S3 容器已满</string>
+    <string name="s3_full_webdav_fallback_message">主备份 S3 容器已无可用空间。检测到 WebDAV 已配置，是否本次上传到 WebDAV？</string>
+    <string name="s3_full_no_webdav_fallback_message">主备份 S3 容器已无可用空间。WebDAV 未配置，本次只会保留本地备份。</string>
+    <string name="s3_full_webdav_fallback_ignore">本次忽略</string>
+    <string name="s3_full_webdav_fallback_upload">上传到 WebDAV</string>
+    <string name="s3_full_webdav_fallback_never">永不提醒</string>
+    <string name="s3_endpoint">Endpoint</string>
+    <string name="s3_endpoint_summary">S3/R2 Endpoint</string>
+    <string name="s3_bucket">Bucket</string>
+    <string name="s3_region">Region</string>
+    <string name="s3_prefix">Prefix</string>
+    <string name="s3_access_key">Access Key</string>
+    <string name="s3_secret_key">Secret Key</string>
+    <string name="s3_session_token">Session Token</string>
+    <string name="s3_path_style">Path style</string>
 </resources>

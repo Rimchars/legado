@@ -11,6 +11,7 @@ import android.view.Window
 import androidx.core.content.edit
 import com.shuyu.gsyvideoplayer.listener.GSYMediaPlayerListener
 import com.shuyu.gsyvideoplayer.utils.CommonUtil
+import com.shuyu.gsyvideoplayer.video.base.GSYBaseVideoPlayer
 import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
 import io.legado.app.R
 import io.legado.app.constant.AppLog
@@ -27,8 +28,8 @@ import io.legado.app.data.entities.RssSource
 import io.legado.app.data.entities.RssStar
 import io.legado.app.exception.ContentEmptyException
 import io.legado.app.help.CacheManager
-import io.legado.app.help.book.getDanmaku
 import io.legado.app.help.book.update
+import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.gsyVideo.ExoVideoManager
 import io.legado.app.help.gsyVideo.ExoVideoManager.Companion.FULLSCREEN_ID
@@ -107,27 +108,6 @@ object VideoPlay : CoroutineScope by MainScope(){
         set(value) {
             videoPrefs.edit { putFloat("danmakuSpeed", value.coerceIn(0.5f, 3f)) }
         }
-    var danmakuBaseUrl
-        get() = videoPrefs.getString("danmakuBaseUrl", "https://api.dandanplay.net")
-            ?: "https://api.dandanplay.net"
-        set(value) {
-            videoPrefs.edit { putString("danmakuBaseUrl", value.trim().ifBlank { "https://api.dandanplay.net" }) }
-        }
-    var danmakuAppId
-        get() = videoPrefs.getString("danmakuAppId", "").orEmpty()
-        set(value) {
-            videoPrefs.edit { putString("danmakuAppId", value.trim()) }
-        }
-    var danmakuAppSecret
-        get() = videoPrefs.getString("danmakuAppSecret", "").orEmpty()
-        set(value) {
-            videoPrefs.edit { putString("danmakuAppSecret", value.trim()) }
-        }
-    var danmakuCompatibleUrl
-        get() = videoPrefs.getString("danmakuCompatibleUrl", "").orEmpty()
-        set(value) {
-            videoPrefs.edit { putString("danmakuCompatibleUrl", value.trim()) }
-        }
     /**  锁屏  **/
     var lockCurScreen = false
     /**  竖屏视频  **/
@@ -158,18 +138,16 @@ object VideoPlay : CoroutineScope by MainScope(){
     var rssStar: RssStar? = null
     /**  订阅历史记录,收藏优先  **/
     var rssRecord: RssReadRecord? = null
-    /**  弹幕相关  **/
-    var danmakuFile: File? = null
-    var danmakuStr: String? = null
-    var danmakuShow = true
 
     /**
      * 开始播放
      */
     fun startPlay(player: StandardGSYVideoPlayer) {
+        startPlay(player, false)
+    }
+
+    private fun startPlay(player: GSYBaseVideoPlayer, refreshedToc: Boolean) {
         if (source == null) return
-        danmakuStr = null
-        danmakuFile = null
         val player = player.getCurrentPlayer()
         if (singleUrl) {
             val mUrl = videoUrl ?: return
@@ -289,16 +267,16 @@ object VideoPlay : CoroutineScope by MainScope(){
             return
         }
         val chapterSource = source as BookSource
+        if (!refreshedToc && MediaTocRefresh.shouldRefresh(chapter)) {
+            refreshTocAndRetry(player, chapterSource, book)
+            return
+        }
         val chapterCacheKey = buildChapterCacheKey(chapterSource, book, chapter)
         val cached = chapterLinkCache[chapterCacheKey]?.takeIf {
             System.currentTimeMillis() - it.createdAt <= CHAPTER_LINK_CACHE_TTL
         }
         if (cached != null) {
             videoUrl = cached.mediaUrl
-            when (val danmaku = chapter.getDanmaku()) {
-                is String -> danmakuStr = danmaku
-                is File -> danmakuFile = danmaku
-            }
             player.mapHeadData = cached.headers.toMutableMap()
             player.setUp(cached.playUrl, false, File(appCtx.externalCache, "exoplayer"), chapter.title)
             if (autoPlay) {
@@ -328,10 +306,6 @@ object VideoPlay : CoroutineScope by MainScope(){
                     ruleData = book,
                     chapter = chapter
                 )
-                when (val danmaku = chapter.getDanmaku()) {
-                    is String -> danmakuStr = danmaku
-                    is File -> danmakuFile = danmaku
-                }
                 val playUrl = analyzeUrl.url
                 chapterLinkCache[chapterCacheKey] = CachedPlayLink(
                     playUrl = playUrl,
@@ -348,9 +322,50 @@ object VideoPlay : CoroutineScope by MainScope(){
                 }
                 preloadNextEpisode(chapterSource, book)
             }.onError {
+                if (!refreshedToc && AppConfig.autoRefreshMediaToc) {
+                    refreshTocAndRetry(player, chapterSource, book, it)
+                    return@onError
+                }
                 AppLog.put("获取资源链接出错\n$it", it, true)
             }
         isLoading = false
+    }
+
+    private fun refreshTocAndRetry(
+        player: GSYBaseVideoPlayer,
+        source: BookSource,
+        book: Book,
+        cause: Throwable? = null
+    ) {
+        Coroutine.async(loadScope, IO) {
+            val currentIndex = if (volumes.isEmpty()) chapterInVolumeIndex else {
+                (durVolume?.index ?: 0) + chapterInVolumeIndex + 1
+            }
+            MediaTocRefresh.refresh(
+                source = source,
+                book = book,
+                index = currentIndex,
+                runPreUpdateJs = true,
+                fromBookInfo = true
+            )
+        }.onSuccess(IO) {
+            if (this@VideoPlay.book?.bookUrl != book.bookUrl || this@VideoPlay.source?.getKey() != source.getKey()) {
+                return@onSuccess
+            }
+            toc = appDb.bookChapterDao.getChapterList(book.bookUrl)
+            volumes.clear()
+            toc?.forEach { chapter ->
+                if (chapter.isVolume) {
+                    volumes.add(chapter)
+                }
+            }
+            upEpisodes()
+            withContext(Main) {
+                startPlay(player, true)
+            }
+        }.onError {
+            AppLog.put("refresh media catalog failed\n${cause ?: it}", cause ?: it, true)
+        }
     }
 
     private fun buildChapterCacheKey(source: BookSource, book: Book, chapter: BookChapter): String {
@@ -359,15 +374,15 @@ object VideoPlay : CoroutineScope by MainScope(){
 
     private fun preloadNextEpisode(source: BookSource, book: Book) {
         val nextChapter = episodes?.getOrNull(chapterInVolumeIndex + 1) ?: return
-        val nextKey = buildChapterCacheKey(source, book, nextChapter)
-        val exists = chapterLinkCache[nextKey]?.let {
+        val cacheKey = buildChapterCacheKey(source, book, nextChapter)
+        val exists = chapterLinkCache[cacheKey]?.let {
             System.currentTimeMillis() - it.createdAt <= CHAPTER_LINK_CACHE_TTL
         } == true
-        if (exists || !preloadingKeys.add(nextKey)) return
+        if (exists || !preloadingKeys.add(cacheKey)) return
         Coroutine.async(loadScope, IO) {
             preloadMutex.withLock {
                 try {
-                    if (chapterLinkCache[nextKey]?.let {
+                    if (chapterLinkCache[cacheKey]?.let {
                             System.currentTimeMillis() - it.createdAt <= CHAPTER_LINK_CACHE_TTL
                         } == true
                     ) return@withLock
@@ -387,7 +402,7 @@ object VideoPlay : CoroutineScope by MainScope(){
                         ruleData = book,
                         chapter = nextChapter
                     )
-                    chapterLinkCache[nextKey] = CachedPlayLink(
+                    chapterLinkCache[cacheKey] = CachedPlayLink(
                         playUrl = analyzeUrl.url,
                         headers = analyzeUrl.headerMap.toMap(),
                         mediaUrl = mUrl,
@@ -395,7 +410,7 @@ object VideoPlay : CoroutineScope by MainScope(){
                     )
                 } catch (_: Throwable) {
                 } finally {
-                    preloadingKeys.remove(nextKey)
+                    preloadingKeys.remove(cacheKey)
                 }
             }
         }
@@ -446,8 +461,6 @@ object VideoPlay : CoroutineScope by MainScope(){
             inBookshelf = true
             rssStar = null
             rssRecord = null
-            danmakuStr = null
-            danmakuFile = null
             lockCurScreen = false
             isPortraitVideo = false
             release()

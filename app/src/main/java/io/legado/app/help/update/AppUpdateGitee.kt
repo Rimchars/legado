@@ -47,8 +47,8 @@ object AppUpdateGitee : AppUpdate.AppUpdateInterface {
                 .getOrElse {
                     throw NoStackTraceException("获取新版本出错 " + it.localizedMessage)
                 }
-                .first { !it.prerelease }
-                .gitReleaseToAppReleaseInfo()
+                .filterNot { it.prerelease }
+                .flatMap { it.gitReleaseToAppReleaseInfo() }
                 .sortedByDescending { it.createdAt }
         }
         return GSON.fromJsonObject<GiteeRelease>(body)
@@ -77,7 +77,13 @@ object AppUpdateGitee : AppUpdate.AppUpdateInterface {
                 }
             }
             .filter { it.supportsDeviceAbi() }
-            .firstOrNull { it.versionName > AppConst.appInfo.versionName }
+            .firstOrNull {
+                if (it.versionCode > 0L) {
+                    it.versionCode > AppConst.appInfo.versionCode
+                } else {
+                    it.versionName > AppConst.appInfo.versionName
+                }
+            }
             ?.let {
                 AppUpdate.UpdateInfo(
                     it.versionName,

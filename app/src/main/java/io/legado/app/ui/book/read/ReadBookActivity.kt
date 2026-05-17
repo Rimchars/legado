@@ -290,6 +290,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         window.setBackgroundDrawable(null)
         upScreenTimeOut()
         ReadBook.register(this)
+        Backup.autoBack(this)
         onBackPressedDispatcher.addCallback(this) {
             if (binding.readAiPanel.isVisible) {
                 binding.readAiPanel.close()
@@ -397,15 +398,12 @@ class ReadBookActivity : BaseReadBookActivity(),
         ReadBook.cancelPreDownloadTask()
         unregisterReceiver(timeBatteryReceiver)
         upSystemUiVisibility()
-        if (!BuildConfig.DEBUG && ReadBook.inBookshelf) {
+        if (ReadBook.inBookshelf) {
             if (AppConfig.syncBookProgressPlus) {
                 ReadBook.syncProgress()
             } else {
                 ReadBook.uploadProgress()
             }
-        }
-        if (!BuildConfig.DEBUG) {
-            Backup.autoBack(this)
         }
         justInitData = false
         networkChangedListener.unRegister()
@@ -1834,7 +1832,6 @@ class ReadBookActivity : BaseReadBookActivity(),
                 AppCloudStorage.uploadBookProgress(it)
                 ensureActive()
                 it.update()
-                Backup.autoBack(this@ReadBookActivity)
             }
         }
     }
@@ -1895,9 +1892,6 @@ class ReadBookActivity : BaseReadBookActivity(),
         handler.removeCallbacksAndMessages(null) // 清理Handler消息
         if (!ReadBook.inBookshelf && !isChangingConfigurations) {
             viewModel.removeFromBookshelf(null)
-        }
-        if (!BuildConfig.DEBUG) {
-            Backup.autoBack(this)
         }
     }
 

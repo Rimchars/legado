@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Bundle
 import android.view.Menu
@@ -27,9 +28,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import com.shuyu.gsyvideoplayer.listener.GSYSampleCallBack
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
+import io.legado.app.constant.AppLog
 import io.legado.app.constant.BookType
 import io.legado.app.constant.EventBus
 import io.legado.app.data.appDb
@@ -39,10 +43,9 @@ import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.RssSource
 import io.legado.app.databinding.ActivityVideoPlayerBinding
 import io.legado.app.help.GlideImageGetter
-import io.legado.app.help.RuleBigDataHelp
 import io.legado.app.help.TextViewTagHandler
 import io.legado.app.help.WebCacheManager
-import io.legado.app.help.gsyVideo.DandanplayDanmakuHelper
+import io.legado.app.help.glide.ImageLoader
 import io.legado.app.help.book.addType
 import io.legado.app.help.book.removeType
 import io.legado.app.help.config.AppConfig
@@ -63,6 +66,7 @@ import io.legado.app.lib.theme.secondaryTextColor
 import io.legado.app.model.VideoPlay
 import io.legado.app.model.VideoPrepareManager
 import io.legado.app.service.VideoPlayService
+import io.legado.app.ui.book.SearchBookOpenHelper
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.model.SourceCallBack
 import io.legado.app.ui.association.OnLineImportActivity
@@ -92,6 +96,7 @@ import io.legado.app.utils.setMarkdown
 import io.legado.app.utils.setTintMutate
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
+import io.legado.app.utils.statusBarHeight
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.toggleSystemBar
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -158,6 +163,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
     private var orientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private var menuCustomBtn: MenuItem? = null
     private var playerMenuPopup: PopupWindow? = null
+    private var coverTarget: CustomTarget<Drawable>? = null
     private val bookSourceEditResult =
         registerForActivityResult(StartActivityContract(BookSourceEditActivity::class.java)) {
             if (it.resultCode == RESULT_OK) {
@@ -197,9 +203,11 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
     @OptIn(UnstableApi::class)
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         playerView.enlargeImageRes = R.drawable.ic_fullscreen
+        binding.root.setPadding(0, statusBarHeight, 0, 0)
         isNew = intent.getBooleanExtra("isNew", true)
         setupPlayerView()
         setupDetailTabs()
+        showVideoCover(intent.getStringExtra(SearchBookOpenHelper.EXTRA_COVER_URL))
         if (isNew) {
             intent.getStringExtra("videoUrl")?.let {
                 VideoPlay.videoUrl = it
@@ -250,6 +258,7 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             binding.bottomPanel.invisible()
             return
         }
+        showVideoCover()
         binding.bottomPanel.visible()
         showBook(book)
         if (VideoPlay.episodes.isNullOrEmpty()) {
@@ -265,6 +274,25 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             showVolumes(VideoPlay.volumes)
         }
         selectVideoDetailTab(detailTabIndex)
+    }
+
+    private fun showVideoCover(coverUrl: String? = null) {
+        val cover = coverUrl?.takeIf { it.isNotBlank() } ?: VideoPlay.getDisplayCover()
+        if (cover.isNullOrBlank()) return
+        coverTarget?.let { Glide.with(this).clear(it) }
+        coverTarget = object : CustomTarget<Drawable>() {
+            override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
+                playerView.setCoverDrawable(resource)
+            }
+
+            override fun onLoadCleared(placeholder: Drawable?) {
+                playerView.setCoverDrawable(placeholder)
+            }
+        }.also {
+            ImageLoader.load(this, cover)
+                .centerCrop()
+                .into(it)
+        }
     }
 
     private fun setupDetailTabs() {
@@ -855,7 +883,6 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             }
             R.id.menu_float_window -> startFloatingWindow()
             R.id.menu_config_settings -> showDialogFragment(SettingsDialog(this))
-            R.id.menu_fetch_danmaku -> showDanmakuActions()
             R.id.menu_login -> VideoPlay.source?.let {s ->
                when (s) {
                     is BookSource -> {
@@ -917,147 +944,6 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
             R.id.menu_log -> showDialogFragment<AppLogDialog>()
         }
         return super.onCompatOptionsItemSelected(item)
-    }
-
-    private fun showDanmakuActions() {
-        selector(
-            "弹幕",
-            listOf("匹配官方弹幕", "使用兼容弹幕源", "清除本集弹幕")
-        ) { _, index ->
-            when (index) {
-                0 -> fetchOfficialDanmaku()
-                1 -> fetchCompatibleDanmaku()
-                2 -> clearCurrentDanmaku()
-            }
-        }
-    }
-
-    private fun fetchOfficialDanmaku() {
-        val book = VideoPlay.book ?: run {
-            toastOnUi("未找到视频信息")
-            return
-        }
-        val chapter = VideoPlay.chapter ?: run {
-            toastOnUi("未找到当前集")
-            return
-        }
-        val appId = VideoPlay.danmakuAppId
-        val appSecret = VideoPlay.danmakuAppSecret
-        if (appId.isBlank() || appSecret.isBlank()) {
-            toastOnUi("请先在视频设置中填写弹幕 AppId 和 AppSecret")
-            return
-        }
-        val waitDialog = WaitDialog(this).setText("正在匹配弹幕")
-        waitDialog.show()
-        lifecycleScope.launch {
-            val result = withContext(IO) {
-                runCatching {
-                    DandanplayDanmakuHelper.searchEpisodes(
-                        VideoPlay.danmakuBaseUrl,
-                        listOf(book.name, chapter.title).filter { it.isNotBlank() }.joinToString(" "),
-                        appId,
-                        appSecret
-                    )
-                }
-            }
-            waitDialog.dismiss()
-            result.onSuccess { episodes ->
-                if (episodes.isEmpty()) {
-                    toastOnUi("未匹配到弹幕")
-                    return@onSuccess
-                }
-                selector("选择弹幕", episodes.map { it.label }) { _, index ->
-                    fetchOfficialDanmakuEpisode(episodes[index])
-                }
-            }.onFailure {
-                toastOnUi(it.localizedMessage ?: "弹幕匹配失败")
-            }
-        }
-    }
-
-    private fun fetchOfficialDanmakuEpisode(episode: DandanplayDanmakuHelper.Episode) {
-        val book = VideoPlay.book ?: return
-        val chapter = VideoPlay.chapter ?: return
-        val waitDialog = WaitDialog(this).setText("正在加载弹幕")
-        waitDialog.show()
-        lifecycleScope.launch {
-            val result = withContext(IO) {
-                runCatching {
-                    DandanplayDanmakuHelper.fetchXml(
-                        VideoPlay.danmakuBaseUrl,
-                        episode.episodeId,
-                        VideoPlay.danmakuAppId,
-                        VideoPlay.danmakuAppSecret
-                    )
-                }
-            }
-            waitDialog.dismiss()
-            result.onSuccess { xml ->
-                saveCurrentDanmaku(book, chapter, xml)
-            }.onFailure {
-                toastOnUi(it.localizedMessage ?: "弹幕加载失败")
-            }
-        }
-    }
-
-    private fun fetchCompatibleDanmaku() {
-        val book = VideoPlay.book ?: run {
-            toastOnUi("未找到视频信息")
-            return
-        }
-        val chapter = VideoPlay.chapter ?: run {
-            toastOnUi("未找到当前集")
-            return
-        }
-        if (VideoPlay.danmakuCompatibleUrl.isBlank()) {
-            toastOnUi("请先在视频设置中填写兼容弹幕源")
-            return
-        }
-        val waitDialog = WaitDialog(this).setText("正在加载弹幕")
-        waitDialog.show()
-        lifecycleScope.launch {
-            val result = withContext(IO) {
-                runCatching {
-                    DandanplayDanmakuHelper.fetchCompatibleXml(
-                        VideoPlay.danmakuCompatibleUrl,
-                        book.name,
-                        chapter.title
-                    )
-                }
-            }
-            waitDialog.dismiss()
-            result.onSuccess { xml ->
-                saveCurrentDanmaku(book, chapter, xml)
-            }.onFailure {
-                toastOnUi(it.localizedMessage ?: "弹幕加载失败")
-            }
-        }
-    }
-
-    private fun saveCurrentDanmaku(book: Book, chapter: BookChapter, xml: String) {
-        if (!xml.trimStart().startsWith("<")) {
-            toastOnUi("弹幕数据格式不支持")
-            return
-        }
-        lifecycleScope.launch(IO) {
-            RuleBigDataHelp.putChapterVariable(book.bookUrl, chapter.url, "danmaku", xml)
-            withContext(kotlinx.coroutines.Dispatchers.Main) {
-                toastOnUi("弹幕已加载")
-                VideoPlay.startPlay(playerView)
-            }
-        }
-    }
-
-    private fun clearCurrentDanmaku() {
-        val book = VideoPlay.book ?: return
-        val chapter = VideoPlay.chapter ?: return
-        lifecycleScope.launch(IO) {
-            RuleBigDataHelp.putChapterVariable(book.bookUrl, chapter.url, "danmaku", null)
-            withContext(kotlinx.coroutines.Dispatchers.Main) {
-                toastOnUi("弹幕已清除")
-                VideoPlay.startPlay(playerView)
-            }
-        }
     }
 
     private fun startFloatingWindow() {
@@ -1141,14 +1027,28 @@ class VideoPlayerActivity : VMBaseActivity<ActivityVideoPlayerBinding, VideoPlay
 
     override fun onDestroy() {
         destroyWeb()
-        super.onDestroy()
-        if (initGetter) {
-            glideImageGetter.clear()
+        runCatching {
+            if (initGetter) {
+                glideImageGetter.clear()
+            }
+        }.onFailure {
+            AppLog.put("video destroy clear intro images failed", it)
         }
-        VideoPlay.saveRead()
-        VideoPlay.stopLoading()
-        playerView.getCurrentPlayer().release()
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        runCatching {
+            coverTarget?.let { Glide.with(this).clear(it) }
+            coverTarget = null
+        }.onFailure {
+            AppLog.put("video destroy clear cover failed", it)
+        }
+        runCatching {
+            VideoPlay.saveRead()
+            VideoPlay.stopLoading()
+            playerView.getCurrentPlayer().release()
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }.onFailure {
+            AppLog.put("video destroy release player failed", it)
+        }
+        super.onDestroy()
     }
 
     private fun destroyWeb() {

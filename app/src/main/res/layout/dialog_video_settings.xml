@@ -99,54 +99,6 @@
             android:textColor="@color/primaryText"
             android:textSize="16sp" />
 
-        <TextView
-            android:id="@+id/tv_danmaku_base_url"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
-            android:text="弹幕接口"
-            android:textColor="@color/primaryText"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/tv_danmaku_app_id"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
-            android:text="弹幕 AppId"
-            android:textColor="@color/primaryText"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/tv_danmaku_app_secret"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
-            android:text="弹幕 AppSecret"
-            android:textColor="@color/primaryText"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/tv_danmaku_compatible_url"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
-            android:text="兼容弹幕源"
-            android:textColor="@color/primaryText"
-            android:textSize="16sp" />
-
     </LinearLayout>
 
 </androidx.core.widget.NestedScrollView>

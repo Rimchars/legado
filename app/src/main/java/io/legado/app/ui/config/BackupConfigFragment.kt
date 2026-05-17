@@ -238,12 +238,20 @@ class BackupConfigFragment : PreferenceFragment(),
 
     private fun hasCloudStorageAccount(): Boolean {
         return when (CloudStorageType.from(getPrefString(PreferKey.cloudStorageType))) {
-            CloudStorageType.WEBDAV -> !getPrefString(PreferKey.webDavAccount).isNullOrBlank()
-                    && !getPrefString(PreferKey.webDavPassword).isNullOrBlank()
-            CloudStorageType.S3 -> AppCloudStorage.listContainers().any {
-                it.enabled && it.endpoint.isNotBlank() && it.bucket.isNotBlank()
-                        && it.accessKey.isNotBlank() && it.secretKey.isNotBlank()
-            }
+            CloudStorageType.WEBDAV -> hasWebDavAccount()
+            CloudStorageType.S3 -> hasS3Account()
+        }
+    }
+
+    private fun hasWebDavAccount(): Boolean {
+        return !getPrefString(PreferKey.webDavAccount).isNullOrBlank()
+                && !getPrefString(PreferKey.webDavPassword).isNullOrBlank()
+    }
+
+    private fun hasS3Account(): Boolean {
+        return AppCloudStorage.listContainers().any {
+            it.enabled && it.endpoint.isNotBlank() && it.bucket.isNotBlank()
+                    && it.accessKey.isNotBlank() && it.secretKey.isNotBlank()
         }
     }
 
@@ -542,7 +550,7 @@ class BackupConfigFragment : PreferenceFragment(),
 
     private suspend fun showRestoreDialog(context: Context) {
         val names = withContext(IO) {
-            AppCloudStorage.upConfig()
+            ensureCloudStorageForRestore()
             AppCloudStorage.getBackupNames()
         }
         if (AppCloudStorage.isJianGuoYun && names.size > 700) {
@@ -565,6 +573,31 @@ class BackupConfigFragment : PreferenceFragment(),
         } else {
             throw NoStackTraceException("Cloud storage backup file not found")
         }
+    }
+
+    private suspend fun ensureCloudStorageForRestore() {
+        val currentType = CloudStorageType.from(getPrefString(PreferKey.cloudStorageType))
+        if (currentType == CloudStorageType.S3 && hasS3Account()) {
+            AppCloudStorage.upConfig()
+            return
+        }
+        if (currentType == CloudStorageType.WEBDAV && hasWebDavAccount()) {
+            AppCloudStorage.upConfig()
+            return
+        }
+        val fallbackType = when {
+            hasS3Account() -> CloudStorageType.S3
+            hasWebDavAccount() -> CloudStorageType.WEBDAV
+            else -> throw NoStackTraceException("Cloud storage is not configured")
+        }
+        appCtx.defaultSharedPreferences.edit {
+            putString(PreferKey.cloudStorageType, fallbackType.name)
+        }
+        withContext(Main) {
+            updateCloudStorageVisibility()
+            upPreferenceSummary(PreferKey.cloudStorageType, fallbackType.name)
+        }
+        AppCloudStorage.upConfig()
     }
 
     private fun restoreWebDav(name: String) {

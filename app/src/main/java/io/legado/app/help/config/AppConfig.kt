@@ -1322,6 +1322,12 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefBoolean(PreferKey.openBookInfoByClickTitle, value)
         }
 
+    var autoRefreshMediaToc: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.autoRefreshMediaToc, true)
+        set(value) {
+            appCtx.putPrefBoolean(PreferKey.autoRefreshMediaToc, value)
+        }
+
     var showBookshelfFastScroller: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.showBookshelfFastScroller, false)
         set(value) {

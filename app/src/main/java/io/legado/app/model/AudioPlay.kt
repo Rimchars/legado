@@ -168,7 +168,7 @@ object AudioPlay : CoroutineScope by MainScope() {
 
     fun loadOrUpPlayUrl() {
         if (durPlayUrl.isEmpty()) {
-            loadPlayUrl()
+            loadPlayUrl(false)
         } else {
             upPlayUrl()
         }
@@ -177,7 +177,7 @@ object AudioPlay : CoroutineScope by MainScope() {
     /**
      * 加载播放URL
      */
-    private fun loadPlayUrl() {
+    private fun loadPlayUrl(refreshedToc: Boolean = false) {
         val index = durChapterIndex
         if (addLoading(index)) {
             val book = book
@@ -210,11 +210,19 @@ object AudioPlay : CoroutineScope by MainScope() {
                     removeLoading(index)
                     return
                 }
+                if (!refreshedToc && MediaTocRefresh.shouldRefresh(chapter)) {
+                    refreshTocAndRetry(index)
+                    return
+                }
                 upLoading(true)
                 WebBook.getContent(this, bookSource, book, chapter)
                     .onSuccess { content ->
                         val content = content.trim()
                         if (content.isEmpty()) {
+                            if (!refreshedToc && AppConfig.autoRefreshMediaToc) {
+                                refreshTocAndRetry(index)
+                                return@onSuccess
+                            }
                             appCtx.toastOnUi(R.string.cache_manage_audio_url_empty)
                         } else {
                             contentLoadFinish(chapter, content)
@@ -238,6 +246,35 @@ object AudioPlay : CoroutineScope by MainScope() {
     /**
      * 加载完成
      */
+    private fun refreshTocAndRetry(index: Int) {
+        val book = book
+        val source = bookSource
+        if (book == null || source == null) {
+            upLoading(false)
+            removeLoading(index)
+            return
+        }
+        Coroutine.async {
+            MediaTocRefresh.refresh(source, book, index)
+        }.onSuccess {
+            chapterSize = appDb.bookChapterDao.getChapterCount(book.bookUrl)
+            simulatedChapterSize = if (book.readSimulating()) {
+                book.simulatedTotalChapterNum()
+            } else {
+                chapterSize
+            }
+            upDurChapter()
+            durPlayUrl = ""
+            durLyric = null
+            removeLoading(index)
+            loadPlayUrl(true)
+        }.onError {
+            AppLog.put("refresh media catalog failed\n$it", it, true)
+            upLoading(false)
+            removeLoading(index)
+        }
+    }
+
     private fun contentLoadFinish(chapter: BookChapter, content: String) {
         if (chapter.index == book?.durChapterIndex) {
             kotlin.runCatching {

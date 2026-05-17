@@ -21,15 +21,6 @@
             android:singleLine="true" />
 
         <EditText
-            android:id="@+id/edit_address"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/s3_container_address"
-            android:inputType="textUri"
-            android:singleLine="true" />
-
-        <EditText
             android:id="@+id/edit_endpoint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -44,24 +35,6 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:hint="@string/s3_bucket"
-            android:inputType="text"
-            android:singleLine="true" />
-
-        <EditText
-            android:id="@+id/edit_prefix"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/s3_prefix"
-            android:inputType="text"
-            android:singleLine="true" />
-
-        <EditText
-            android:id="@+id/edit_region"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/s3_region"
             android:inputType="text"
             android:singleLine="true" />
 
@@ -84,30 +57,62 @@
             android:singleLine="true" />
 
         <EditText
+            android:id="@+id/edit_capacity"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/s3_container_capacity_gb"
+            android:inputType="numberDecimal"
+            android:singleLine="true" />
+
+        <CheckBox
+            android:id="@+id/cb_enabled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="@string/s3_container_enabled" />
+
+        <TextView
+            android:id="@+id/tv_advanced_toggle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:text="@string/s3_container_advanced_show" />
+
+        <LinearLayout
+            android:id="@+id/layout_advanced"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+        <EditText
+            android:id="@+id/edit_prefix"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/s3_prefix"
+            android:inputType="text"
+            android:singleLine="true" />
+
+        <EditText
+            android:id="@+id/edit_region"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/s3_region"
+            android:inputType="text"
+            android:singleLine="true" />
+
+        <EditText
             android:id="@+id/edit_session_token"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:hint="@string/s3_session_token"
             android:inputType="textPassword"
-            android:singleLine="true" />
-
-        <EditText
-            android:id="@+id/edit_capacity"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/s3_container_capacity_mb"
-            android:inputType="number"
-            android:singleLine="true" />
-
-        <EditText
-            android:id="@+id/edit_used"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/s3_container_used_mb"
-            android:inputType="number"
             android:singleLine="true" />
 
         <CheckBox
@@ -117,12 +122,7 @@
             android:layout_marginTop="8dp"
             android:text="@string/s3_path_style" />
 
-        <CheckBox
-            android:id="@+id/cb_enabled"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            android:text="@string/s3_container_enabled" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

@@ -432,18 +432,12 @@
                     android:layout_weight="1"
                     android:orientation="vertical">
 
-                <androidx.core.widget.NestedScrollView
+                <LinearLayout
                     android:id="@+id/scroll_view_r"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"
-                    android:scrollbarStyle="outsideOverlay"
-                    tools:ignore="NestedWeights">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
+                    android:orientation="vertical">
 
                         <FrameLayout
                             android:id="@+id/tv_intro_container"
@@ -467,9 +461,7 @@
                             android:textSize="13sp"
                             android:visibility="gone" />
 
-                    </LinearLayout>
-
-                </androidx.core.widget.NestedScrollView>
+                </LinearLayout>
 
                 </LinearLayout>
 

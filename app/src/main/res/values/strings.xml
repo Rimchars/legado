@@ -1916,6 +1916,8 @@ Selected text or question:
     <string name="read_record_year_value">%1$d</string>
     <string name="read_record_month_value">%1$d</string>
     <string name="source_runtime_backup">Ignore source login and variables</string>
+    <string name="auto_refresh_media_toc">Auto refresh empty media catalog link</string>
+    <string name="auto_refresh_media_toc_summary">Refresh the catalog once when an audio or video chapter link is empty or invalid</string>
     <string name="book_info_manage">Book detail manager</string>
     <string name="book_info_manage_summary">Manage book detail page components and order</string>
     <string name="book_info_components_hint">Enable components and drag to reorder. Changes apply when the detail page is opened again.</string>
@@ -2010,9 +2012,9 @@ Selected text or question:
     <string name="s3_container_delete">&#21024;&#38500; S3 &#23481;&#22120;</string>
     <string name="s3_container_delete_confirm">&#30830;&#23450;&#21024;&#38500; %1$s &#21527;&#65311;</string>
     <string name="s3_container_name">&#23481;&#22120;&#21517;&#31216;</string>
-    <string name="s3_container_address">&#31896;&#36148; R2/S3 &#22320;&#22336;</string>
-    <string name="s3_container_capacity_mb">&#23481;&#37327;&#65288;MB&#65292;0 &#34920;&#31034;&#19981;&#38480;&#21046;&#65289;</string>
-    <string name="s3_container_used_mb">&#24050;&#29992;&#65288;MB&#65289;</string>
+    <string name="s3_container_capacity_gb">Capacity (GB, 0 or empty means unlimited)</string>
+    <string name="s3_container_advanced_show">Show advanced settings</string>
+    <string name="s3_container_advanced_hide">Hide advanced settings</string>
     <string name="s3_container_enabled">&#21551;&#29992;</string>
     <string name="s3_container_disabled">&#20572;&#29992;</string>
     <string name="s3_container_enable">&#21551;&#29992;</string>
@@ -2024,10 +2026,11 @@ Selected text or question:
     <string name="s3_container_set_default_success">&#24050;&#35774;&#20026;&#40664;&#35748;&#23481;&#22120;</string>
     <string name="s3_container_refresh_capacity">&#21047;&#26032;&#23481;&#37327;</string>
     <string name="s3_container_capacity_refreshed">&#24050;&#21047;&#26032;&#23481;&#37327;&#29366;&#24577;</string>
-    <string name="s3_container_endpoint_bucket_required">Endpoint &#21644; Bucket &#19981;&#33021;&#20026;&#31354;</string>
+    <string name="s3_container_endpoint_bucket_required">Endpoint and Bucket cannot be empty</string>
+    <string name="s3_container_key_required">Access Key and Secret Key cannot be empty</string>
     <string name="s3_container_default_name">%1$s &#65288;&#40664;&#35748;&#65289;</string>
-    <string name="s3_container_capacity_line">&#23481;&#37327; %1$d MB&#65292;&#24050;&#29992; %2$d MB&#65292;&#21097;&#20313; %3$d MB&#65292;&#24050;&#28385;&#65306;%4$s</string>
-    <string name="s3_container_capacity_unlimited_line">&#23481;&#37327;&#19981;&#38480;&#21046;&#65292;&#24050;&#29992; %1$d MB</string>
+    <string name="s3_container_capacity_line">Capacity %1$s, used %2$s, remaining %3$s, full: %4$s</string>
+    <string name="s3_container_capacity_unlimited_line">Unlimited capacity, used %1$s</string>
     <string name="s3_container_state_line">&#29366;&#24577;&#65306;%1$s</string>
     <string name="s3_full_webdav_fallback_title">S3 &#23481;&#22120;&#24050;&#28385;</string>
     <string name="s3_full_webdav_fallback_message">&#20027;&#22791;&#20221; S3 &#23481;&#22120;&#24050;&#26080;&#21487;&#29992;&#31354;&#38388;&#12290;&#26816;&#27979;&#21040; WebDAV &#24050;&#37197;&#32622;&#65292;&#26159;&#21542;&#26412;&#27425;&#19978;&#20256;&#21040; WebDAV&#65311;</string>

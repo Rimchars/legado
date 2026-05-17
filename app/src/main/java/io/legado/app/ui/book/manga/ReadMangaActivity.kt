@@ -215,6 +215,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         ReadManga.register(this)
+        Backup.autoBack(this)
         upSystemUiVisibility(false)
         initRecyclerView()
         binding.tvRetry.setOnClickListener {
@@ -427,16 +428,11 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         super.onPause()
         if (ReadManga.inBookshelf) {
             ReadManga.saveRead()
-            if (!BuildConfig.DEBUG) {
-                if (AppConfig.syncBookProgressPlus) {
-                    ReadManga.syncProgress()
-                } else {
-                    ReadManga.uploadProgress()
-                }
+            if (AppConfig.syncBookProgressPlus) {
+                ReadManga.syncProgress()
+            } else {
+                ReadManga.uploadProgress()
             }
-        }
-        if (!BuildConfig.DEBUG) {
-            Backup.autoBack(this)
         }
         ReadManga.cancelPreDownloadTask()
         networkChangedListener.unRegister()

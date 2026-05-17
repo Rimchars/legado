@@ -250,6 +250,7 @@ object PreferKey {
     const val batchChangeSourceDelay = "batchChangeSourceDelay"
     const val openBookInfoByClickTitle = "openBookInfoByClickTitle"
     const val bookInfoComponents = "bookInfoComponents"
+    const val autoRefreshMediaToc = "autoRefreshMediaToc"
     const val defaultHomePage = "defaultHomePage"
     const val showBookshelfFastScroller = "showBookshelfFastScroller"
     const val importKeepEnable = "importKeepEnable"

@@ -27,7 +27,8 @@ class WebDavCloudStorageBackend : CloudStorageBackend {
 
     private data class ConfiguredWebDav(
         val config: WebDavConfig,
-        val authorization: Authorization
+        val authorization: Authorization,
+        val rootReady: Boolean = false
     )
 
     private val defaultWebDavUrl = "https://dav.jianguoyun.com/dav/"
@@ -159,7 +160,9 @@ class WebDavCloudStorageBackend : CloudStorageBackend {
             if (required) throw NoStackTraceException("WebDAV not configured")
             return ConfiguredWebDav(WebDavConfig(normalizedRootUrl(), "", ""), Authorization("", ""))
         }
-        configuredWebDav?.takeIf { it.config == latestConfig }?.let { return it }
+        configuredWebDav?.takeIf { it.config == latestConfig }?.let { configured ->
+            if (configured.rootReady) return configured
+        }
         return configMutex.withLock {
             val lockedConfig = latestConfigOrNull()
             if (lockedConfig == null) {
@@ -168,11 +171,15 @@ class WebDavCloudStorageBackend : CloudStorageBackend {
                 if (required) throw NoStackTraceException("WebDAV not configured")
                 return@withLock ConfiguredWebDav(WebDavConfig(normalizedRootUrl(), "", ""), Authorization("", ""))
             }
-            configuredWebDav?.takeIf { it.config == lockedConfig }?.let { return@withLock it }
+            configuredWebDav?.takeIf { it.config == lockedConfig }?.let { configured ->
+                if (configured.rootReady) return@withLock configured
+            }
             val auth = Authorization(lockedConfig.account, lockedConfig.password)
-            checkAuthorization(lockedConfig.rootUrl, auth)
+            if (configuredWebDav?.config != lockedConfig) {
+                checkAuthorization(lockedConfig.rootUrl, auth)
+            }
             makeRootDirs(lockedConfig.rootUrl, auth)
-            ConfiguredWebDav(lockedConfig, auth).also {
+            ConfiguredWebDav(lockedConfig, auth, rootReady = true).also {
                 defaultBookWebDav = RemoteBookWebDav("${lockedConfig.rootUrl}books/", auth)
                 configuredWebDav = it
             }

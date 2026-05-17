@@ -40,6 +40,14 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
     //滑动距离的最大边界
     private var mOffsetHeight: Int = 0
     var onScrollInterceptChange: ((Boolean) -> Unit)? = null
+    var notifyParentIntercept = true
+    var onHorizontalSwipe: ((Int) -> Unit)? = null
+    var onTopPullRefresh: (() -> Unit)? = null
+    var pullRefreshThreshold: Int = 0
+    private var mDownX = 0f
+    private var mDownY = 0f
+    private var mGestureDirection = 0
+    private var mPullRefreshArmed = false
 
     //f(x) = (x-1)^5 + 1
     private val sQuinticInterpolator = Interpolator {
@@ -83,12 +91,28 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 setScrollState(scrollStateIdle)
+                mDownX = event.x
+                mDownY = event.y
                 mLastTouchY = (event.y + 0.5f).toInt()
+                mGestureDirection = 0
+                mPullRefreshArmed = false
                 updateParentIntercept(canScroll())
             }
             MotionEvent.ACTION_MOVE -> {
                 val y = (event.y + 0.5f).toInt()
                 var dy = mLastTouchY - y
+                val dxAbs = abs(event.x - mDownX)
+                val dyAbs = abs(event.y - mDownY)
+                if (mGestureDirection == 0) {
+                    mGestureDirection = when {
+                        onHorizontalSwipe != null && dxAbs > mTouchSlop && dxAbs > dyAbs * 1.35f -> 1
+                        dyAbs > mTouchSlop && dyAbs > dxAbs -> 2
+                        else -> 0
+                    }
+                }
+                if (mGestureDirection == 1) {
+                    return true
+                }
                 val canScrollInDirection = canScrollVertically(dy)
                 updateParentIntercept(canScrollInDirection)
                 if (mScrollState != scrollStateDragging) {
@@ -107,18 +131,42 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
                     }
                 }
                 if (mScrollState == scrollStateDragging) {
+                    scrollBy(0, dy)
                     mLastTouchY = y
+                    return true
+                } else if (mGestureDirection == 2 && onTopPullRefresh != null) {
+                    mPullRefreshArmed = event.y - mDownY > pullRefreshThreshold &&
+                        !canScrollVertically(-1)
+                    return canScroll() || mPullRefreshArmed
                 }
             }
             MotionEvent.ACTION_UP -> {
-                velocityTracker.computeCurrentVelocity(1000, mMaxFlingVelocity.toFloat())
-                val yVelocity = velocityTracker.yVelocity
-                if (abs(yVelocity) > mMinFlingVelocity && canScrollVertically(-yVelocity.toInt())) {
-                    mViewFling.fling(-yVelocity.toInt())
-                } else {
-                    setScrollState(scrollStateIdle)
+                var flingStarted = false
+                when {
+                    mGestureDirection == 1 -> {
+                        onHorizontalSwipe?.invoke(if (event.x < mDownX) 1 else -1)
+                    }
+                    mPullRefreshArmed -> {
+                        onTopPullRefresh?.invoke()
+                    }
+                    else -> {
+                        velocityTracker.computeCurrentVelocity(1000, mMaxFlingVelocity.toFloat())
+                        val yVelocity = velocityTracker.yVelocity
+                        if (abs(yVelocity) > mMinFlingVelocity && canScrollVertically(-yVelocity.toInt())) {
+                            mViewFling.fling(-yVelocity.toInt())
+                            flingStarted = true
+                        } else {
+                            setScrollState(scrollStateIdle)
+                        }
+                    }
                 }
-                resetTouch()
+                val handled = mGestureDirection != 0 || mPullRefreshArmed
+                resetTouch(releaseParent = !flingStarted)
+                if (handled) {
+                    return true
+                } else {
+                    return super.dispatchTouchEvent(event)
+                }
             }
             MotionEvent.ACTION_CANCEL -> {
                 resetTouch()
@@ -142,8 +190,10 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
 
     private fun updateParentIntercept(disallow: Boolean) {
         disallowIntercept = disallow
-        parent.requestDisallowInterceptTouchEvent(disallow)
-        onScrollInterceptChange?.invoke(disallow)
+        if (notifyParentIntercept) {
+            parent.requestDisallowInterceptTouchEvent(disallow)
+            onScrollInterceptChange?.invoke(disallow)
+        }
     }
 
     override fun scrollTo(x: Int, y: Int) {
@@ -180,8 +230,12 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
         initOffsetHeight()
     }
 
-    private fun resetTouch() {
-        updateParentIntercept(false)
+    private fun resetTouch(releaseParent: Boolean = true) {
+        if (releaseParent) {
+            updateParentIntercept(false)
+        }
+        mGestureDirection = 0
+        mPullRefreshArmed = false
         velocityTracker.clear()
     }
 
@@ -212,12 +266,23 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
                 val y = scroller.currY
                 val dy = y - mLastFlingY
                 mLastFlingY = y
+                var consumed = false
                 if (dy < 0 && scrollY > 0) {
                     scrollBy(0, max(dy, -scrollY))
+                    consumed = true
                 } else if (dy > 0 && scrollY < mOffsetHeight) {
                     scrollBy(0, min(dy, mOffsetHeight - scrollY))
+                    consumed = true
                 }
-                postOnAnimation()
+                if (consumed && !scroller.isFinished) {
+                    postOnAnimation()
+                } else {
+                    stop()
+                    setScrollState(scrollStateIdle)
+                }
+            } else {
+                stop()
+                setScrollState(scrollStateIdle)
             }
             enableRunOnAnimationRequests()
         }
@@ -241,6 +306,7 @@ class ScrollTextView(context: Context, attrs: AttributeSet?) :
         fun stop() {
             removeCallbacks(this)
             mScroller.abortAnimation()
+            updateParentIntercept(false)
         }
 
         private fun disableRunOnAnimationRequests() {

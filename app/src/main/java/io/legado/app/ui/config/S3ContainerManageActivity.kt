@@ -1,10 +1,9 @@
 package io.legado.app.ui.config
 
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -33,6 +32,8 @@ import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
+import kotlin.math.ceil
 import kotlin.math.max
 
 class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>() {
@@ -69,32 +70,25 @@ class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>
     private fun showEditDialog(item: S3Container? = null) {
         val dialogBinding = DialogS3ContainerEditBinding.inflate(LayoutInflater.from(this))
         dialogBinding.bind(item)
-        var applyingAddress = false
-        dialogBinding.editAddress.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-            override fun afterTextChanged(s: Editable?) {
-                if (applyingAddress) return
-                val text = s?.toString().orEmpty()
-                if (text.isBlank()) return
-                val parsed = S3Config.parseAddress(
-                    text,
-                    dialogBinding.editBucket.text?.toString().orEmpty(),
-                    dialogBinding.editRegion.text?.toString().orEmpty(),
-                    dialogBinding.cbPathStyle.isChecked
-                )
-                applyingAddress = true
-                dialogBinding.editEndpoint.setText(parsed.endpoint)
-                if (parsed.bucket.isNotBlank()) dialogBinding.editBucket.setText(parsed.bucket)
-                if (parsed.region.isNotBlank()) dialogBinding.editRegion.setText(parsed.region)
-                dialogBinding.cbPathStyle.isChecked = parsed.pathStyle
-                applyingAddress = false
-            }
-        })
+        dialogBinding.tvAdvancedToggle.setOnClickListener {
+            val show = !dialogBinding.layoutAdvanced.isVisible
+            dialogBinding.layoutAdvanced.isVisible = show
+            dialogBinding.tvAdvancedToggle.setText(
+                if (show) R.string.s3_container_advanced_hide else R.string.s3_container_advanced_show
+            )
+        }
+        if (item != null && item.hasAdvancedConfig()) {
+            dialogBinding.layoutAdvanced.isVisible = true
+            dialogBinding.tvAdvancedToggle.setText(R.string.s3_container_advanced_hide)
+        }
         alert(if (item == null) R.string.s3_container_add else R.string.s3_container_edit) {
             customView { dialogBinding.root }
             okButton {
-                saveDialogItem(item, dialogBinding)
+                saveDialogItem(item, dialogBinding)?.let { saved ->
+                    if (item == null) {
+                        refreshCapacity(saved, showWait = false)
+                    }
+                }
             }
             cancelButton()
         }
@@ -109,28 +103,29 @@ class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>
         editAccessKey.setText(item?.accessKey.orEmpty())
         editSecretKey.setText(item?.secretKey.orEmpty())
         editSessionToken.setText(item?.sessionToken.orEmpty())
-        editCapacity.setText((item?.capacityMb ?: 1024L).coerceAtLeast(0L).toString())
-        editUsed.setText(bytesToMb(item?.usedBytes ?: 0L).toString())
+        editCapacity.setText(capacityMbToGbText(item?.capacityMb ?: DEFAULT_CAPACITY_MB))
         cbPathStyle.isChecked = item?.pathStyle ?: true
         cbEnabled.isChecked = item?.enabled ?: true
     }
 
-    private fun saveDialogItem(oldItem: S3Container?, binding: DialogS3ContainerEditBinding) {
+    private fun saveDialogItem(oldItem: S3Container?, binding: DialogS3ContainerEditBinding): S3Container? {
         val parsed = S3Config.parseAddress(
             binding.editEndpoint.text?.toString().orEmpty(),
             binding.editBucket.text?.toString().orEmpty(),
             binding.editRegion.text?.toString().orEmpty(),
             binding.cbPathStyle.isChecked
         )
-        val capacityMb = max(binding.editCapacity.text?.toString()?.toLongOrNull() ?: 0L, 0L)
-        val usedBytes = mbToBytes(
-            max(binding.editUsed.text?.toString()?.toLongOrNull() ?: bytesToMb(oldItem?.usedBytes ?: 0L), 0L)
-        ).let { used ->
-            if (capacityMb > 0) used.coerceAtMost(mbToBytes(capacityMb)) else used
-        }
+        val capacityMb = gbTextToCapacityMb(binding.editCapacity.text?.toString().orEmpty())
+        val usedBytes = oldItem?.usedBytes?.coerceAtLeast(0L) ?: 0L
         if (parsed.endpoint.isBlank() || parsed.bucket.isBlank()) {
             toastOnUi(R.string.s3_container_endpoint_bucket_required)
-            return
+            return null
+        }
+        if (binding.editAccessKey.text?.toString().orEmpty().isBlank()
+            || binding.editSecretKey.text?.toString().orEmpty().isBlank()
+        ) {
+            toastOnUi(R.string.s3_container_key_required)
+            return null
         }
         val newItem = S3Container(
             id = oldItem?.id ?: S3Container.newId(),
@@ -144,7 +139,7 @@ class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>
             sessionToken = binding.editSessionToken.text?.toString()?.trim().orEmpty().ifBlank { null },
             pathStyle = parsed.pathStyle,
             capacityMb = capacityMb,
-            usedBytes = usedBytes,
+            usedBytes = if (capacityMb > 0) usedBytes.coerceAtMost(mbToBytes(capacityMb)) else usedBytes,
             lastRefreshTime = oldItem?.lastRefreshTime ?: 0L,
             isFull = capacityMb > 0 && usedBytes >= mbToBytes(capacityMb),
             enabled = binding.cbEnabled.isChecked
@@ -154,6 +149,7 @@ class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>
             AppCloudStorage.selectContainer(S3ContainerScope.DEFAULT, newItem.id)
         }
         reload()
+        return newItem
     }
 
     private fun showActions(item: S3Container) {
@@ -219,9 +215,11 @@ class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>
         }
     }
 
-    private fun refreshCapacity(item: S3Container) {
-        waitDialog.setText(R.string.loading)
-        waitDialog.show()
+    private fun refreshCapacity(item: S3Container, showWait: Boolean = true) {
+        if (showWait) {
+            waitDialog.setText(R.string.loading)
+            waitDialog.show()
+        }
         lifecycleScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) { AppCloudStorage.refreshUsage(item.id) }
@@ -231,7 +229,7 @@ class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>
             }.onFailure {
                 toastOnUi(it.localizedMessage.orEmpty())
             }
-            waitDialog.dismiss()
+            if (showWait) waitDialog.dismiss()
         }
     }
 
@@ -267,17 +265,18 @@ class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>
             }
             tvPath.text = "${item.bucket}/${item.prefix.trim('/')}"
             val capacityMb = item.capacityMb.coerceAtLeast(0)
-            val usedMb = bytesToMb(item.usedBytes)
+            val usedBytes = item.usedBytes.coerceAtLeast(0)
             tvCapacity.text = if (capacityMb > 0) {
+                val capacityBytes = mbToBytes(capacityMb)
                 getString(
                     R.string.s3_container_capacity_line,
-                    capacityMb,
-                    usedMb,
-                    (capacityMb - usedMb).coerceAtLeast(0),
+                    formatBytes(capacityBytes),
+                    formatBytes(usedBytes),
+                    formatBytes((capacityBytes - usedBytes).coerceAtLeast(0)),
                     if (item.isFull) getString(R.string.yes) else getString(R.string.no)
                 )
             } else {
-                getString(R.string.s3_container_capacity_unlimited_line, usedMb)
+                getString(R.string.s3_container_capacity_unlimited_line, formatBytes(usedBytes))
             }
             tvState.text = getString(
                 R.string.s3_container_state_line,
@@ -309,7 +308,44 @@ class S3ContainerManageActivity : BaseActivity<ActivityS3ContainerManageBinding>
     }
 
     private companion object {
+        const val DEFAULT_CAPACITY_MB = 5L * 1024L
         fun mbToBytes(value: Long): Long = value.coerceAtLeast(0L) * 1024L * 1024L
-        fun bytesToMb(value: Long): Long = value.coerceAtLeast(0L) / 1024L / 1024L
+        fun gbTextToCapacityMb(value: String): Long {
+            val gb = value.trim().toDoubleOrNull() ?: return 0L
+            if (gb <= 0.0) return 0L
+            return max(ceil(gb * 1024.0).toLong(), 1L)
+        }
+
+        fun capacityMbToGbText(value: Long): String {
+            if (value <= 0L) return ""
+            val gb = value / 1024.0
+            return if (value % 1024L == 0L) {
+                (value / 1024L).toString()
+            } else {
+                String.format(Locale.US, "%.2f", gb).trimEnd('0').trimEnd('.')
+            }
+        }
+
+        fun formatBytes(value: Long): String {
+            val bytes = value.coerceAtLeast(0L).toDouble()
+            val gb = bytes / 1024.0 / 1024.0 / 1024.0
+            return if (gb >= 1.0) {
+                "${formatDecimal(gb)} GB"
+            } else {
+                val mb = bytes / 1024.0 / 1024.0
+                "${max(mb.toLong(), 0L)} MB"
+            }
+        }
+
+        fun formatDecimal(value: Double): String {
+            return String.format(Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
+        }
+
+        fun S3Container.hasAdvancedConfig(): Boolean {
+            return prefix != "legado"
+                || region !in setOf("auto", "us-east-1")
+                || pathStyle != true
+                || !sessionToken.isNullOrBlank()
+        }
     }
 }

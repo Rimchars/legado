@@ -11,15 +11,21 @@ import io.legado.app.help.book.isNotShelf
 import io.legado.app.model.webBook.WebBook
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 object VideoPrepareManager {
 
     private const val CACHE_TTL = 10 * 60 * 1000L
+    private val warmScope = CoroutineScope(SupervisorJob() + IO)
+    private val warmSemaphore = Semaphore(2)
 
     data class PreparedVideo(
         val book: Book,
@@ -34,6 +40,7 @@ object VideoPrepareManager {
 
     private val cache = ConcurrentHashMap<String, PreparedVideo>()
     private val locks = ConcurrentHashMap<String, Mutex>()
+    private val warmingKeys = ConcurrentHashMap.newKeySet<String>()
 
     fun cacheKey(origin: String?, bookUrl: String?): String {
         return "${origin.orEmpty()}|${bookUrl.orEmpty()}"
@@ -45,6 +52,32 @@ object VideoPrepareManager {
             cache.remove(key)
             null
         }
+    }
+
+    fun warm(searchBook: SearchBook) {
+        val key = cacheKey(searchBook.origin, searchBook.bookUrl)
+        if (cache[key]?.isFresh == true) return
+        if (!warmingKeys.add(key)) return
+        warmScope.async(IO) {
+            try {
+                warmSemaphore.withPermit {
+                    runCatching { prepare(this, searchBook) }
+                }
+            } finally {
+                warmingKeys.remove(key)
+            }
+        }
+    }
+
+    fun warm(searchBooks: List<SearchBook>, limit: Int = 6) {
+        searchBooks.asSequence()
+            .filter { it.origin.isNotBlank() && it.bookUrl.isNotBlank() }
+            .take(limit)
+            .forEach { warm(it) }
+    }
+
+    fun cancelWarm() {
+        warmScope.coroutineContext.cancelChildren()
     }
 
     suspend fun prepare(scope: CoroutineScope, searchBook: SearchBook): PreparedVideo = withContext(IO) {

@@ -11,13 +11,7 @@
         android:layout_height="match_parent"
         android:gravity="center" />
 
-    <master.flame.danmaku.ui.widget.DanmakuView
-        android:id="@+id/danmaku_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
-
-    <RelativeLayout
+        <RelativeLayout
         android:id="@+id/thumb"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -25,8 +19,15 @@
         android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
         android:layout_alignParentBottom="true"
-        android:background="#000000"
-        android:scaleType="fitCenter" />
+        android:background="#000000">
+
+        <ImageView
+            android:id="@+id/thumb_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop" />
+
+    </RelativeLayout>
 
     <LinearLayout
         android:id="@+id/layout_top"
@@ -108,18 +109,7 @@
             android:text="00:00"
             android:textColor="#ffffff" />
 
-        <TextView
-            android:id="@+id/toggle_danmaku"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:minEms="2"
-            android:text="关弹幕"
-            android:textColor="#ffffff"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
-        <ImageView
+                <ImageView
             android:id="@+id/fullscreen"
             android:layout_width="wrap_content"
             android:layout_height="fill_parent"

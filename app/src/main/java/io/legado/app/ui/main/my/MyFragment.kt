@@ -268,7 +268,6 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                 Triple("coverConfig", R.xml.pref_config_cover, ConfigTag.COVER_CONFIG),
                 Triple("ai_setting", R.xml.pref_config_ai, ConfigTag.AI_CONFIG),
                 Triple("setting", R.xml.pref_config_other, ConfigTag.OTHER_CONFIG),
-                Triple("setting", R.xml.pref_config_read, ConfigTag.OTHER_CONFIG),
                 Triple(
                     "setting",
                     R.xml.pref_config_discovery_subscription,

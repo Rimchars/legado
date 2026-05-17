@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.content.res.Configuration
-import android.view.LayoutInflater
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
@@ -16,8 +15,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewConfiguration
-import android.graphics.Rect
-import io.legado.app.ui.widget.text.ScrollTextView
 import android.view.textclassifier.TextClassifier
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -34,6 +31,7 @@ import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.widget.doAfterTextChanged
+import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -253,12 +251,6 @@ class BookInfoActivity :
     private val book get() = viewModel.getBook(false)
     private var introRawText: CharSequence = ""
     private var detailIntroOnly = false
-    private var blockRefreshForIntroTouch = false
-    private var allowRefreshForIntroTouch = false
-    private var pageTouchDownX = 0f
-    private var pageTouchDownY = 0f
-    private var pageTouchDirection = 0
-    private val tempHitRect = Rect()
     private var bookInfoComponentsReady = false
     private var lastBookInfoBgPath: String? = null
 
@@ -267,25 +259,23 @@ class BookInfoActivity :
     private var initIntroView = false
     private val introTextView by lazy {
         initIntroView = true
-        val inflater = LayoutInflater.from(this)
-        val view = inflater.inflate(R.layout.view_book_intro, binding.tvIntroContainer, false) as ScrollTextView
-        view.onScrollInterceptChange = { disallow ->
-            requestBookInfoPagerDisallowIntercept(
-                disallow || (blockRefreshForIntroTouch && !allowRefreshForIntroTouch)
+        createIntroTextView()
+    }
+    private val introScrollView by lazy {
+        NestedScrollView(this).apply {
+            isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isNestedScrollingEnabled = true
+            setBackgroundColor(Color.TRANSPARENT)
+            setOnTouchListener(childScrollTouchListener())
+            addView(
+                introTextView,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
             )
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-            view.revealOnFocusHint = false
-        }
-        view.typeface = uiTypeface()
-        view.setOnTouchListener(
-            verticalScrollTouchListener(
-                target = view,
-                preferVertical = true,
-                blockRefreshArea = true
-            )
-        )
-        view
     }
 
     private var pooledWebView: PooledWebView? = null
@@ -312,6 +302,29 @@ class BookInfoActivity :
                 viewModel.onButtonClick(this@BookInfoActivity, "info button $name" , click)
             }
         })
+    }
+
+    private fun createIntroTextView(): TextView {
+        return TextView(this).apply {
+            id = R.id.tv_intro
+            setBackgroundColor(Color.TRANSPARENT)
+            isClickable = false
+            isFocusable = false
+            minHeight = 48.dpToPx()
+            setLineSpacing(3.dpToPx().toFloat(), 1f)
+            setPadding(12.dpToPx(), 10.dpToPx(), 12.dpToPx(), 10.dpToPx())
+            setTextColor(ContextCompat.getColor(this@BookInfoActivity, R.color.secondaryText))
+            textSize = 13.5f
+            includeFontPadding = true
+            typeface = uiTypeface()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+                revealOnFocusHint = false
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                setTextClassifier(TextClassifier.NO_OP)
+            }
+            setTextIsSelectable(false)
+        }
     }
 
     @SuppressLint("PrivateResource")
@@ -514,13 +527,9 @@ class BookInfoActivity :
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             refreshLayout.layoutParams = params
         }
-        refreshLayout.setOnTouchListener { _, event ->
-            handlePagedRefreshTouch(event)
-            false
-        }
-        refreshLayout.setOnChildScrollUpCallback { _, _ ->
-            shouldBlockPagedRefresh()
-        }
+        refreshLayout.isEnabled = false
+        refreshLayout.setOnTouchListener(null)
+        refreshLayout.setOnChildScrollUpCallback(null)
         flAction.visibility = View.GONE
     }
 
@@ -619,7 +628,6 @@ class BookInfoActivity :
                 )
                 return@forEach
             }
-
             val topMargin = if (current.isEmpty()) 0 else gap
             val naturalHeight = measureBookInfoComponent(view, pageWidth, 0)
             val remaining = pageHeight - usedHeight - topMargin
@@ -826,118 +834,64 @@ class BookInfoActivity :
         }
     }
 
-    private fun handlePagedRefreshTouch(event: MotionEvent) {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                pageTouchDownX = event.rawX
-                pageTouchDownY = event.rawY
-                pageTouchDirection = 0
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val dx = kotlin.math.abs(event.rawX - pageTouchDownX)
-                val dy = kotlin.math.abs(event.rawY - pageTouchDownY)
-                val slop = ViewConfiguration.get(this).scaledTouchSlop
-                if (pageTouchDirection == 0) {
-                    pageTouchDirection = when {
-                        dx > slop && dx > dy * 1.15f -> 1
-                        dy > slop && dy > dx * 0.75f -> 2
-                        else -> 0
-                    }
-                }
-            }
-            MotionEvent.ACTION_UP,
-            MotionEvent.ACTION_CANCEL -> {
-                pageTouchDirection = 0
-            }
-        }
-    }
-
-    private fun shouldBlockPagedRefresh(): Boolean {
-        if (pageTouchDirection == 1) return true
-        return activeDetailScrollChild()
-            ?.takeIf { it.isShown && hitView(it, pageTouchDownX.toInt(), pageTouchDownY.toInt()) }
-            ?.canScrollVertically(-1) == true
-    }
-
-    private fun activeDetailScrollChild(): View? = binding.run {
-        if (llCatalogPanel.isShown) return rvCatalog
-        if (llDetailContentPanel.isShown && llIntroPage.isShown) {
-            tvIntroContainer.getChildAt(0)?.let { return it }
-        }
-        if (llDetailContentPanel.isShown && llTocPage.isShown) {
-            return tocScrollView
-        }
-        null
-    }
-
-    private fun hitView(view: View, rawX: Int, rawY: Int): Boolean {
-        view.getGlobalVisibleRect(tempHitRect)
-        return tempHitRect.contains(rawX, rawY)
-    }
-
-    private fun verticalScrollTouchListener(
-        target: View? = null,
-        preferVertical: Boolean = false,
-        blockRefreshArea: Boolean = false
-    ): View.OnTouchListener {
+    private fun childScrollTouchListener(): View.OnTouchListener {
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
-        val horizontalSlop = (touchSlop * 0.55f).coerceAtLeast(1f)
-        val verticalSlop = (touchSlop * 0.75f).coerceAtLeast(2f)
         var downX = 0f
         var downY = 0f
-        var lastY = 0f
         var direction = 0
-        var refreshEnabledBeforeTouch = true
         return View.OnTouchListener { view, event ->
-            val scrollView = target ?: view
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = event.x
                     downY = event.y
-                    lastY = event.y
                     direction = 0
-                    refreshEnabledBeforeTouch = binding.refreshLayout.isEnabled
-                    if (blockRefreshArea) {
-                        blockRefreshForIntroTouch = true
-                        allowRefreshForIntroTouch = false
-                        binding.refreshLayout.isEnabled = false
-                    }
-                    requestBookInfoPagerDisallowIntercept(scrollView.canScrollVertically(-1) || scrollView.canScrollVertically(1))
+                    requestBookInfoPagerDisallowIntercept(true)
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = kotlin.math.abs(event.x - downX)
                     val dy = kotlin.math.abs(event.y - downY)
                     if (direction == 0) {
                         direction = when {
-                            !preferVertical && dx > horizontalSlop && dx > dy * 0.9f -> 1
-                            dy > verticalSlop && dy > dx * if (preferVertical) 0.55f else 1.05f -> 2
-                            preferVertical && dx > horizontalSlop && dx > dy * 1.8f -> 1
+                            dy > touchSlop && dy >= dx -> 2
+                            dx > touchSlop && dx > dy * 1.35f -> 1
                             else -> 0
                         }
                     }
-                    if (direction == 1) {
-                        requestBookInfoPagerDisallowIntercept(false)
-                    } else if (direction == 2) {
-                        val dragDown = event.y > lastY
-                        val allowRefresh = blockRefreshArea && dragDown && !scrollView.canScrollVertically(-1)
-                        allowRefreshForIntroTouch = allowRefresh
-                        requestBookInfoPagerDisallowIntercept(!allowRefresh)
-                        binding.refreshLayout.isEnabled = allowRefresh
-                    }
-                    lastY = event.y
+                    requestBookInfoPagerDisallowIntercept(direction != 1)
                 }
                 MotionEvent.ACTION_UP,
                 MotionEvent.ACTION_CANCEL -> {
                     direction = 0
-                    blockRefreshForIntroTouch = false
-                    allowRefreshForIntroTouch = false
-                    binding.refreshLayout.isEnabled = refreshEnabledBeforeTouch
                     requestBookInfoPagerDisallowIntercept(false)
                 }
             }
             false
         }
     }
+
+    private fun webIntroTouchListener(): View.OnTouchListener {
+        return View.OnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (::bookInfoPager.isInitialized) {
+                        bookInfoPager.isUserInputEnabled = false
+                    }
+                    requestBookInfoPagerDisallowIntercept(true)
+                }
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL -> {
+                    view.postDelayed({
+                        requestBookInfoPagerDisallowIntercept(false)
+                        if (::bookInfoPager.isInitialized) {
+                            bookInfoPager.isUserInputEnabled = true
+                        }
+                    }, 160L)
+                }
+            }
+            false
+        }
+    }
+
     private fun requestBookInfoPagerDisallowIntercept(disallow: Boolean) {
         binding.scrollView.requestDisallowInterceptTouchEvent(disallow)
         if (::bookInfoPager.isInitialized) {
@@ -1119,17 +1073,6 @@ class BookInfoActivity :
         }
     }
 
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (initIntroView && ev.action == MotionEvent.ACTION_DOWN) {
-            currentFocus?.let {
-                if (it === introTextView && introTextView.hasSelection()) {
-                    it.clearFocus()
-                }
-            }
-        }
-        return super.dispatchTouchEvent(ev)
-    }
-
     private fun isEventInsideView(view: View, event: MotionEvent): Boolean {
         val location = IntArray(2)
         view.getLocationOnScreen(location)
@@ -1262,14 +1205,8 @@ class BookInfoActivity :
             }
             val webView = pooledWebView.realWebView
             webView.setBackgroundColor(Color.TRANSPARENT)
-            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-            webView.setOnTouchListener(
-                verticalScrollTouchListener(
-                    target = webView,
-                    preferVertical = true,
-                    blockRefreshArea = true
-                )
-            )
+            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            webView.setOnTouchListener(webIntroTouchListener())
             if (initIntroView || this.pooledWebView == null) {
                 initIntroView = false
                 this.pooledWebView = pooledWebView
@@ -1304,7 +1241,7 @@ class BookInfoActivity :
             destroyWeb()
             binding.tvIntroContainer.removeAllViews()
             binding.tvIntroContainer.addView(
-                introTextView,
+                introScrollView,
                 ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -1399,7 +1336,7 @@ class BookInfoActivity :
             return
         }
         tvIntro.text = rawText
-        tvIntro.refreshScrollBounds()
+        introScrollView.scrollTo(0, 0)
     }
 
     private fun upKinds(book: Book) = binding.run {
@@ -1510,7 +1447,7 @@ class BookInfoActivity :
                 scrollY + view.height >= child.height - 48.dpToPx() -> appendTocPreviewBatch()
             }
         }
-        tocScrollView.setOnTouchListener(verticalScrollTouchListener(tocScrollView))
+        tocScrollView.setOnTouchListener(childScrollTouchListener())
         showDetailPage(DetailPage.INTRO)
     }
 
@@ -1518,7 +1455,7 @@ class BookInfoActivity :
         rvCatalog.layoutManager = LinearLayoutManager(this@BookInfoActivity)
         rvCatalog.adapter = catalogAdapter
         rvCatalog.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-        rvCatalog.setOnTouchListener(verticalScrollTouchListener(rvCatalog))
+        rvCatalog.setOnTouchListener(childScrollTouchListener())
 
         etCatalogSearch.doAfterTextChanged { renderCatalogPager(viewModel.chapterListData.value) }
         rvCatalog.doOnLayout { renderCatalogPager(viewModel.chapterListData.value) }
@@ -1629,7 +1566,6 @@ class BookInfoActivity :
 
     private fun updateDetailContentPanelHeight() = binding.run {
         tvIntroContainer.post {
-            (tvIntroContainer.getChildAt(0) as? ScrollTextView)?.refreshScrollBounds()
             renderCatalogPager(viewModel.chapterListData.value)
         }
     }
@@ -1637,11 +1573,9 @@ class BookInfoActivity :
     private fun relayoutUseWebIntro(webView: WebView? = binding.tvIntroContainer.getChildAt(0) as? WebView) {
         val target = webView ?: return
         if (target.parent !== binding.tvIntroContainer) return
-        target.requestLayout()
-        binding.tvIntroContainer.requestLayout()
-        binding.llIntroPage.requestLayout()
-        binding.llDetailContentPanel.requestLayout()
-        updateDetailContentPanelHeight()
+        if (binding.llDetailContentPanel.height <= 0 || binding.tvIntroContainer.height <= 0) {
+            binding.root.post { applyBookInfoComponents() }
+        }
     }
 
     private fun tocPreviewText(text: CharSequence, selected: Boolean): TextView {
@@ -1740,7 +1674,6 @@ class BookInfoActivity :
                     container.orientation = LinearLayout.VERTICAL
                     bindColumn(container, page.items)
                 }
-                container.post { updateDetailContentPanelHeight() }
             }
 
             private fun bindLandscapePage(page: BookInfoPage) {
@@ -2016,9 +1949,9 @@ class BookInfoActivity :
             }
             true
         }
+        refreshLayout.isEnabled = false
         refreshLayout.setOnRefreshListener {
             refreshLayout.isRefreshing = false
-            refreshBook()
         }
     }
 
