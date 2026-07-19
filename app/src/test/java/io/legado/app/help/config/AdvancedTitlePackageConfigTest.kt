@@ -52,4 +52,10 @@ class AdvancedTitlePackageConfigTest {
         assertEquals(" ", config.splitRuleOrNull()?.delimiter)
         assertEquals(120, config.normalizedHeightFactorOrNull())
     }
+
+    @Test
+    fun largeTemplatesHaveSeparateEditableAndSafetyLimits() {
+        assertEquals(2L * 1024L * 1024L, AdvancedTitlePackageManager.MAX_EDITABLE_JSON_BYTES)
+        assertEquals(16L * 1024L * 1024L, AdvancedTitlePackageManager.MAX_JSON_BYTES)
+    }
 }

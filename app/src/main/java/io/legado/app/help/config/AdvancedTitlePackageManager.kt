@@ -267,9 +267,13 @@ object AdvancedTitlePackageManager {
     }
 
     fun validateEditableJson(json: String) {
-        validateJson(json)
-        require(json.toByteArray(Charsets.UTF_8).size <= MAX_EDITABLE_JSON_BYTES) {
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        require(bytes.isNotEmpty()) { appCtx.getString(R.string.advanced_title_invalid_json) }
+        require(bytes.size <= MAX_EDITABLE_JSON_BYTES) {
             appCtx.getString(R.string.large_config_read_only)
+        }
+        require(AdvancedTitleConfig.isValidLottieJson(json)) {
+            appCtx.getString(R.string.advanced_title_invalid_json)
         }
     }
 

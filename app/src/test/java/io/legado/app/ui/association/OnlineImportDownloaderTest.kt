@@ -19,6 +19,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 class OnlineImportDownloaderTest {
 
     @Test
+    fun bubblePackagesUseSeparateSoftAndHardLimits() {
+        assertEquals(32L * 1024L * 1024L, OnlineImportPayloadType.BUBBLE_PACKAGE.softLimitBytes)
+        assertEquals(256L * 1024L * 1024L, OnlineImportPayloadType.BUBBLE_PACKAGE.maxDownloadBytes)
+    }
+
+    @Test
     fun productionClientUsesDirectConnectionsAndManualRedirects() {
         assertEquals(Proxy.NO_PROXY, secureOnlineImportClient.proxy)
         assertFalse(secureOnlineImportClient.followRedirects)
