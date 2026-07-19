@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import splitties.init.appCtx
 import java.io.File
 import java.io.IOException
+import java.lang.ref.SoftReference
 import java.util.UUID
 
 object AdvancedTitlePackageManager {
@@ -70,6 +71,8 @@ object AdvancedTitlePackageManager {
     private var cachedStamp: Long = Long.MIN_VALUE
     @Volatile
     private var cachedJson: String? = null
+    @Volatile
+    private var cachedLargeJson: SoftReference<String>? = null
     @Volatile
     private var builtinJsonCache: String? = null
     private val mutationLock = Any()
@@ -224,11 +227,18 @@ object AdvancedTitlePackageManager {
     fun apply(entry: Entry) = synchronized(mutationLock) {
         val json = readTemplate(entry)
         validateJson(json)
+        if (entry.isBuiltin) {
+            AdvancedTitleConfig.lottieJson = json
+            AdvancedTitleConfig.lottiePath = null
+        } else {
+            // Local packages already have an atomic on-disk copy. Keeping their complete JSON in
+            // SharedPreferences duplicates large templates, inflates the preferences XML and can
+            // make every process start retain a multi-megabyte String.
+            val directory = requireNotNull(entry.directory) { "Missing advanced title directory" }
+            AdvancedTitleConfig.lottiePath = lottieFile(directory).absolutePath
+            AdvancedTitleConfig.lottieJson = null
+        }
         appCtx.putPrefString(PreferKey.advancedTitlePackage, entry.id)
-        // Keep the active JSON in the legacy backup field as a recovery copy. Rendering still
-        // uses the bounded file cache above, so chapter changes do not repeatedly parse prefs.
-        AdvancedTitleConfig.lottieJson = json
-        AdvancedTitleConfig.lottiePath = null
         entry.config.splitRuleOrNull()?.let { AdvancedTitleConfig.globalRule = it }
         entry.config.normalizedHeightFactorOrNull()?.let { AdvancedTitleConfig.heightFactor = it }
         invalidate()
@@ -258,18 +268,18 @@ object AdvancedTitlePackageManager {
     }
 
     fun validateJson(json: String) {
-        val bytes = json.toByteArray(Charsets.UTF_8)
-        require(bytes.isNotEmpty()) { appCtx.getString(R.string.advanced_title_invalid_json) }
-        require(bytes.size <= MAX_JSON_BYTES) { appCtx.getString(R.string.advanced_title_too_large) }
+        require(json.isNotEmpty()) { appCtx.getString(R.string.advanced_title_invalid_json) }
+        require(utf8SizeUpTo(json, MAX_JSON_BYTES) <= MAX_JSON_BYTES) {
+            appCtx.getString(R.string.advanced_title_too_large)
+        }
         require(AdvancedTitleConfig.isValidLottieJson(json)) {
             appCtx.getString(R.string.advanced_title_invalid_json)
         }
     }
 
     fun validateEditableJson(json: String) {
-        val bytes = json.toByteArray(Charsets.UTF_8)
-        require(bytes.isNotEmpty()) { appCtx.getString(R.string.advanced_title_invalid_json) }
-        require(bytes.size <= MAX_EDITABLE_JSON_BYTES) {
+        require(json.isNotEmpty()) { appCtx.getString(R.string.advanced_title_invalid_json) }
+        require(utf8SizeUpTo(json, MAX_EDITABLE_JSON_BYTES) <= MAX_EDITABLE_JSON_BYTES) {
             appCtx.getString(R.string.large_config_read_only)
         }
         require(AdvancedTitleConfig.isValidLottieJson(json)) {
@@ -281,6 +291,7 @@ object AdvancedTitlePackageManager {
         cachedId = null
         cachedStamp = Long.MIN_VALUE
         cachedJson = null
+        cachedLargeJson = null
     }
 
     private fun loadLocalEntries(): List<Entry> {
@@ -336,17 +347,18 @@ object AdvancedTitlePackageManager {
             return
         }
         val builtin = builtinJson()
-        val activeJson: String
         if (legacy == builtin) {
             appCtx.putPrefString(PreferKey.advancedTitlePackage, BUILTIN_ID)
-            activeJson = builtin
+            AdvancedTitleConfig.lottieJson = builtin
+            AdvancedTitleConfig.lottiePath = null
         } else {
             val migrated = addOrUpdate(appCtx.getString(R.string.advanced_title_migrated), legacy)
+            AdvancedTitleConfig.lottiePath = lottieFile(
+                requireNotNull(migrated.directory) { "Missing migrated advanced title directory" }
+            ).absolutePath
+            AdvancedTitleConfig.lottieJson = null
             appCtx.putPrefString(PreferKey.advancedTitlePackage, migrated.id)
-            activeJson = legacy
         }
-        AdvancedTitleConfig.lottieJson = activeJson
-        AdvancedTitleConfig.lottiePath = null
         invalidate()
     }
 
@@ -359,9 +371,18 @@ object AdvancedTitlePackageManager {
     private fun readCached(id: String, file: File): String? {
         if (!file.isFile) return null
         val stamp = file.lastModified() xor file.length()
-        if (cachedId == id && cachedStamp == stamp) return cachedJson
+        if (cachedId == id && cachedStamp == stamp) {
+            cachedJson?.let { return it }
+            cachedLargeJson?.get()?.let { return it }
+        }
         return runCatching { readJsonFile(file) }.getOrNull()?.also { json ->
-            cachedJson = json
+            if (file.length() <= MAX_EDITABLE_JSON_BYTES) {
+                cachedJson = json
+                cachedLargeJson = null
+            } else {
+                cachedJson = null
+                cachedLargeJson = SoftReference(json)
+            }
             cachedStamp = stamp
             cachedId = id
         }
@@ -391,6 +412,28 @@ object AdvancedTitlePackageManager {
         return value.trim().replace(Regex("[\\r\\n\\t]+"), " ")
             .take(100)
             .ifBlank { appCtx.getString(R.string.advanced_title_unnamed) }
+    }
+
+    internal fun utf8SizeUpTo(value: String, limit: Long): Long {
+        var size = 0L
+        var index = 0
+        while (index < value.length) {
+            val char = value[index]
+            size += when {
+                char.code <= 0x7f -> 1L
+                char.code <= 0x7ff -> 2L
+                Character.isHighSurrogate(char) &&
+                    index + 1 < value.length &&
+                    Character.isLowSurrogate(value[index + 1]) -> {
+                    index++
+                    4L
+                }
+                else -> 3L
+            }
+            if (size > limit) return limit + 1L
+            index++
+        }
+        return size
     }
 
     private fun isValidId(value: String): Boolean = value.matches(Regex("^[A-Za-z0-9_-]{1,64}$"))

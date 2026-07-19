@@ -85,7 +85,6 @@ import io.legado.app.ui.book.read.page.entities.column.TextBaseColumn
 import io.legado.app.ui.book.read.page.provider.ChapterProvider.reviewChar
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
-import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -792,12 +791,9 @@ class TextChapterLayout(
     }
 
     private fun resolveAdvancedTitleAspectRatio(lottieJson: String): Float {
-        return runCatching {
-            val root = JSONObject(lottieJson)
-            val width = root.optDouble("w", DEFAULT_LOTTIE_WIDTH.toDouble()).toFloat()
-            val height = root.optDouble("h", DEFAULT_LOTTIE_HEIGHT.toDouble()).toFloat()
-            if (width > 0f && height > 0f) height / width else DEFAULT_LOTTIE_HEIGHT / DEFAULT_LOTTIE_WIDTH
-        }.getOrDefault(DEFAULT_LOTTIE_HEIGHT / DEFAULT_LOTTIE_WIDTH)
+        val dimensions = AdvancedTitleConfig.lottieDimensions(lottieJson)
+        return dimensions?.let { (width, height) -> (height / width).toFloat() }
+            ?: (DEFAULT_LOTTIE_HEIGHT / DEFAULT_LOTTIE_WIDTH)
     }
 
     private suspend fun setTypeNativeEpubLayout(layout: EpubLayoutDocument) {

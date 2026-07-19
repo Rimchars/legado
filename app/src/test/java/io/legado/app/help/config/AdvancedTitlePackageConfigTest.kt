@@ -58,4 +58,10 @@ class AdvancedTitlePackageConfigTest {
         assertEquals(2L * 1024L * 1024L, AdvancedTitlePackageManager.MAX_EDITABLE_JSON_BYTES)
         assertEquals(16L * 1024L * 1024L, AdvancedTitlePackageManager.MAX_JSON_BYTES)
     }
+
+    @Test
+    fun utf8SizeCountingStopsAtLimitWithoutAllocatingEncodedCopy() {
+        assertEquals(8L, AdvancedTitlePackageManager.utf8SizeUpTo("a中😀", 10L))
+        assertEquals(5L, AdvancedTitlePackageManager.utf8SizeUpTo("中文", 4L))
+    }
 }

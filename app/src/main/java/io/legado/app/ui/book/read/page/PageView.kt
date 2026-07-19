@@ -747,14 +747,13 @@ class PageView(context: Context) : FrameLayout(context) {
         lottieView.setFontAssetDelegate(defaultFontAssetDelegate)
         val json = block.payload?.takeIf { it.isNotBlank() }
         val resolvedJson = json?.let { applyLottieTextFallbackStyle(it, advancedTitleTextLayerScale(block, pageWidth)) }
-        val compositionSize = resolvedJson?.let(::lottieCompositionSize)
         lottieView.setMaintainOriginalImageBounds(true)
         lottieView.setImageAssetDelegate(
             dataUriImageAssetDelegate(
                 viewWidth = targetWidth,
                 viewHeight = targetHeight,
-                compositionWidth = compositionSize?.first ?: targetWidth,
-                compositionHeight = compositionSize?.second ?: targetHeight
+                compositionWidth = targetWidth,
+                compositionHeight = targetHeight
             )
         )
         lottieView.setCacheComposition(resolvedJson == null)
@@ -865,9 +864,18 @@ class PageView(context: Context) : FrameLayout(context) {
         val fallbackHex = String.format("#%06X", 0xFFFFFF and fallbackColor)
         val fallbackFont = "legado_default_font"
         val normalizedTextScale = textScale.coerceIn(1f, 2.5f)
-        val cacheKey = "${rawJson.hashCode()}:$fallbackHex:${"%.3f".format(normalizedTextScale)}"
-        synchronized(styledLottieJsonCache) {
-            styledLottieJsonCache[cacheKey]?.let { return it }
+        // A styled JSON is another complete copy of the Lottie document. Do not let image-heavy
+        // templates occupy all six LRU slots; the active Lottie view/composition remains cached by
+        // Lottie itself, while this auxiliary cache is reserved for small templates.
+        val cacheKey = if (rawJson.length <= MAX_STYLED_LOTTIE_CACHE_SOURCE_CHARS) {
+            "${rawJson.hashCode()}:$fallbackHex:${"%.3f".format(normalizedTextScale)}"
+        } else {
+            null
+        }
+        if (cacheKey != null) {
+            synchronized(styledLottieJsonCache) {
+                styledLottieJsonCache[cacheKey]?.let { return it }
+            }
         }
         return runCatching {
             val root = JSONObject(rawJson)
@@ -913,8 +921,10 @@ class PageView(context: Context) : FrameLayout(context) {
             }
             root.toString()
         }.getOrDefault(rawJson).also { styledJson ->
-            synchronized(styledLottieJsonCache) {
-                styledLottieJsonCache[cacheKey] = styledJson
+            if (cacheKey != null) {
+                synchronized(styledLottieJsonCache) {
+                    styledLottieJsonCache[cacheKey] = styledJson
+                }
             }
         }
     }
@@ -979,15 +989,6 @@ class PageView(context: Context) : FrameLayout(context) {
             put(Color.green(color) / 255.0)
             put(Color.blue(color) / 255.0)
         }
-    }
-
-    private fun lottieCompositionSize(json: String): Pair<Int, Int>? {
-        return runCatching {
-            val root = JSONObject(json)
-            val width = root.optInt("w")
-            val height = root.optInt("h")
-            if (width > 0 && height > 0) width to height else null
-        }.getOrNull()
     }
 
     private fun dataUriImageAssetDelegate(
@@ -1091,5 +1092,7 @@ class PageView(context: Context) : FrameLayout(context) {
         const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
         const val ADVANCED_TITLE_WIDTH_FACTOR = 0.86f
         const val MAX_STYLED_LOTTIE_CACHE_SIZE = 6
+        // About 2 MiB as a UTF-16 String, matching the editable-template working-set budget.
+        const val MAX_STYLED_LOTTIE_CACHE_SOURCE_CHARS = 1024 * 1024
     }
 }
