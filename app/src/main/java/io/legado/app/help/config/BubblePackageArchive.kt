@@ -14,14 +14,18 @@ internal data class ExtractedBubblePackage(
 
 internal object BubblePackageArchive {
     private const val MANIFEST_NAME = "bubble.json"
-    private const val MAX_ENTRIES = 128
-    private const val MAX_SINGLE_FILE_BYTES = 8L * 1024L * 1024L
-    private const val MAX_TOTAL_BYTES = 32L * 1024L * 1024L
+    private const val MAX_ARCHIVE_BYTES = 256L * 1024L * 1024L
+    private const val MAX_ENTRIES = 2_048
+    private const val MAX_SINGLE_FILE_BYTES = 128L * 1024L * 1024L
+    private const val MAX_TOTAL_BYTES = 512L * 1024L * 1024L
     private const val MAX_MANIFEST_BYTES = 512L * 1024L
     private const val MAX_COMPRESSION_RATIO = 250L
 
     fun extract(zipFile: File, destination: File): ExtractedBubblePackage {
         require(zipFile.isFile) { "bubble package ZIP does not exist" }
+        if (zipFile.length() > MAX_ARCHIVE_BYTES) {
+            throw IOException("bubble package exceeds the 256 MiB safety limit")
+        }
         require(!destination.exists()) { "bubble extraction directory already exists" }
         check(destination.mkdirs()) { "failed to create bubble extraction directory" }
 

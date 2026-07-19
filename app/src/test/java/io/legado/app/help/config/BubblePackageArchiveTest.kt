@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.io.path.createTempDirectory
@@ -66,6 +67,19 @@ class BubblePackageArchiveTest {
         try {
             val zip = File(root, "package.zip")
             writeZip(zip, mapOf("bubble.json" to "{}", "asset.txt" to "a".repeat(2_000_000)))
+
+            expectIOException { BubblePackageArchive.extract(zip, File(root, "out")) }
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun rejectsArchiveBeyondHardLimitBeforeExtraction() {
+        val root = createTempDirectory("bubble-archive-").toFile()
+        try {
+            val zip = File(root, "package.zip")
+            RandomAccessFile(zip, "rw").use { it.setLength(256L * 1024L * 1024L + 1L) }
 
             expectIOException { BubblePackageArchive.extract(zip, File(root, "out")) }
         } finally {
