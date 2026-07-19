@@ -5,6 +5,8 @@ import org.junit.Test
 
 class BubblePackageEntryMergeTest {
 
+    // Legacy constructors intentionally omit the optional versioned resource fields.
+
     @Test
     fun mergesLocalAndRemoteCopiesWithoutLosingLocalConfig() {
         val local = entry("shared", "Local name", 200L, BubblePackageManager.Source.LOCAL)

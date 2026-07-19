@@ -34,7 +34,9 @@ object AdvancedTitlePackageManager {
         val splitMode: Int? = null,
         val delimiter: String? = null,
         val regex: String? = null,
-        val heightFactor: Int? = null
+        val heightFactor: Int? = null,
+        val formatVersion: Int = 1,
+        val resources: List<PackageResource> = emptyList()
     ) {
         fun splitRuleOrNull(): AdvancedTitleConfig.SplitRule? {
             if (splitMode == null && delimiter == null && regex == null) return null
@@ -198,7 +200,9 @@ object AdvancedTitlePackageManager {
             splitMode = splitRule?.mode,
             delimiter = splitRule?.delimiter,
             regex = splitRule?.regex,
-            heightFactor = heightFactor?.coerceIn(30, 120)
+            heightFactor = heightFactor?.coerceIn(30, 120),
+            formatVersion = editableOld?.config?.formatVersion ?: 1,
+            resources = editableOld?.config?.resources.orEmpty()
         )
         try {
             staging.mkdirs()

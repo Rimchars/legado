@@ -67,7 +67,9 @@ object BubblePackageManager {
         var dayEmphasisColor: String? = null,
         var nightNormalColor: String? = null,
         var nightEmphasisColor: String? = null,
-        var updatedAt: Long = System.currentTimeMillis()
+        var updatedAt: Long = System.currentTimeMillis(),
+        var formatVersion: Int = 1,
+        var resources: List<PackageResource> = emptyList()
     )
 
     data class Entry(
