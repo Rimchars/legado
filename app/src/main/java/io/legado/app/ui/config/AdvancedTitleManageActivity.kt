@@ -114,7 +114,11 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                         loading = loadingState.value,
                         previewProvider = { entry ->
                             withContext(Dispatchers.IO) {
-                                runCatching { AdvancedTitlePackageManager.readTemplate(entry) }.getOrNull()
+                                if (!entry.isBuiltin && !AdvancedTitlePackageManager.isEditable(entry)) {
+                                    null
+                                } else {
+                                    runCatching { AdvancedTitlePackageManager.readTemplate(entry) }.getOrNull()
+                                }
                             }
                         },
                         onApply = ::applyEntry,
@@ -237,6 +241,10 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     }
 
     private fun editEntry(entry: AdvancedTitlePackageManager.Entry) {
+        if (!AdvancedTitlePackageManager.isEditable(entry)) {
+            toastOnUi(R.string.large_config_read_only)
+            return
+        }
         lifecycleScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) { AdvancedTitlePackageManager.readTemplate(entry) }
@@ -284,6 +292,7 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         lifecycleScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
+                    AdvancedTitlePackageManager.validateEditableJson(json)
                     val updated = AdvancedTitlePackageManager.addOrUpdate(
                         name = name,
                         json = json,

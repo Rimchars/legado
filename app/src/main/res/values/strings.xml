@@ -2117,7 +2117,9 @@ function login() {
     <string name="advanced_title_builtin">Built-in advanced title</string>
     <string name="advanced_title_migrated">Migrated advanced title</string>
     <string name="advanced_title_unnamed">Unnamed advanced title</string>
-    <string name="advanced_title_too_large">Lottie JSON exceeds the 2 MB limit</string>
+    <string name="advanced_title_too_large">Lottie JSON exceeds the 16 MB safety limit</string>
+    <string name="large_config_read_only">This configuration exceeds the editable size and is available in read-only mode</string>
+    <string name="read_only">Read only</string>
     <string name="advanced_title_package_limit">Up to 64 advanced titles can be stored</string>
     <string name="advanced_title_apply">Apply</string>
     <string name="advanced_title_applied">Applied</string>

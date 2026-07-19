@@ -19,7 +19,8 @@ import java.util.UUID
 object AdvancedTitlePackageManager {
 
     const val BUILTIN_ID = "builtin_default"
-    const val MAX_JSON_BYTES = 2L * 1024L * 1024L
+    const val MAX_EDITABLE_JSON_BYTES = 2L * 1024L * 1024L
+    const val MAX_JSON_BYTES = 16L * 1024L * 1024L
     private const val MAX_PACKAGES = 64
     private const val MANIFEST_FILE = "package.json"
     private const val LOTTIE_FILE = "title.json"
@@ -138,6 +139,17 @@ object AdvancedTitlePackageManager {
         }
     }
 
+    fun templateSize(entry: Entry): Long {
+        if (entry.isBuiltin) return 0L
+        val directory = entry.directory ?: return 0L
+        return lottieFile(directory).takeIf { it.isFile }?.length() ?: 0L
+    }
+
+    fun isEditable(entry: Entry): Boolean {
+        if (entry.isBuiltin) return false
+        return templateSize(entry) in 1..MAX_EDITABLE_JSON_BYTES
+    }
+
     fun readTemplate(id: String): String {
         if (id == BUILTIN_ID) return builtinJson()
         require(isValidId(id)) { "Invalid advanced title id" }
@@ -251,6 +263,13 @@ object AdvancedTitlePackageManager {
         require(bytes.size <= MAX_JSON_BYTES) { appCtx.getString(R.string.advanced_title_too_large) }
         require(AdvancedTitleConfig.isValidLottieJson(json)) {
             appCtx.getString(R.string.advanced_title_invalid_json)
+        }
+    }
+
+    fun validateEditableJson(json: String) {
+        validateJson(json)
+        require(json.toByteArray(Charsets.UTF_8).size <= MAX_EDITABLE_JSON_BYTES) {
+            appCtx.getString(R.string.large_config_read_only)
         }
     }
 

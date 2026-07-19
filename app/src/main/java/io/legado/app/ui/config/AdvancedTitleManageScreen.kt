@@ -139,6 +139,7 @@ private fun AdvancedTitleItem(
     onEdit: () -> Unit,
     moreActions: List<AppManagementMenuAction>
 ) {
+    val editable = AdvancedTitlePackageManager.isEditable(entry)
     AppManagementCard(
         palette = palette,
         modifier = Modifier.fillMaxWidth(),
@@ -185,10 +186,12 @@ private fun AdvancedTitleItem(
                     )
                     if (!entry.isBuiltin) {
                         AdvancedTitleActionButton(
-                            text = LocalContext.current.getString(R.string.edit),
+                            text = LocalContext.current.getString(
+                                if (editable) R.string.edit else R.string.read_only
+                            ),
                             palette = palette.miuix,
                             accent = false,
-                            enabled = true,
+                            enabled = editable,
                             onClick = onEdit
                         )
                     }
@@ -311,6 +314,10 @@ private fun buildEntryInfo(
             else R.string.advanced_title_source_local
         )
     )
+    if (!entry.isBuiltin && !AdvancedTitlePackageManager.isEditable(entry)) {
+        append(" · ")
+        append(LocalContext.current.getString(R.string.read_only))
+    }
     if (entry.updatedAt > 0L) {
         append(" · ")
         append(advancedTitleDateFormat.format(Date(entry.updatedAt)))

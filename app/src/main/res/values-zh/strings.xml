@@ -1868,7 +1868,9 @@
     <string name="advanced_title_builtin">&#20869;&#32622;&#39640;&#32423;&#26631;&#39064;</string>
     <string name="advanced_title_migrated">&#24050;&#36801;&#31227;&#39640;&#32423;&#26631;&#39064;</string>
     <string name="advanced_title_unnamed">&#26410;&#21629;&#21517;&#39640;&#32423;&#26631;&#39064;</string>
-    <string name="advanced_title_too_large">Lottie JSON &#36229;&#36807; 2 MB &#38480;&#21046;</string>
+    <string name="advanced_title_too_large">Lottie JSON &#36229;&#36807; 16 MB &#23433;&#20840;&#19978;&#38480;</string>
+    <string name="large_config_read_only">&#35813;&#37197;&#32622;&#36229;&#36807;&#21487;&#32534;&#36753;&#22823;&#23567;&#65292;&#24050;&#20197;&#21482;&#35835;&#27169;&#24335;&#21152;&#36733;</string>
+    <string name="read_only">&#21482;&#35835;</string>
     <string name="advanced_title_package_limit">&#26368;&#22810;&#21487;&#20445;&#23384; 64 &#20010;&#39640;&#32423;&#26631;&#39064;</string>
     <string name="advanced_title_apply">&#24212;&#29992;</string>
     <string name="advanced_title_applied">&#24050;&#24212;&#29992;</string>
