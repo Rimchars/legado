@@ -18,14 +18,17 @@ object ParagraphRulePackageParser {
     private const val MAX_VAR_VALUE_CHARS = 65_536
 
     fun parse(file: File): ParagraphRuleImportPackage {
+        ParagraphRuleImportPolicy.requirePackageFile(file)
         val root = file.bufferedReader(Charsets.UTF_8).use { reader ->
             JsonParser.parseReader(reader)
         }
         return parseElement(root)
     }
 
-    internal fun parse(raw: String): ParagraphRuleImportPackage =
-        parseElement(JsonParser.parseString(raw))
+    internal fun parse(raw: String): ParagraphRuleImportPackage {
+        ParagraphRuleImportPolicy.requirePackageText(raw)
+        return parseElement(JsonParser.parseString(raw))
+    }
 
     private fun parseElement(root: JsonElement): ParagraphRuleImportPackage {
         val entries: List<ParagraphRuleImportEntry>

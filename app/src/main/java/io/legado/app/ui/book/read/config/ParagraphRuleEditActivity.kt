@@ -22,6 +22,7 @@ import io.legado.app.model.ReadBook
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.utils.stackTraceStr
 import io.legado.app.ui.code.CodeEditActivity
+import io.legado.app.ui.association.ParagraphRuleImportPolicy
 import io.legado.app.ui.widget.compose.showComposeChoiceListDialog
 import io.legado.app.ui.widget.compose.showComposeConfirmDialog
 import io.legado.app.ui.widget.code.addJsPattern
@@ -59,6 +60,11 @@ class ParagraphRuleEditActivity : BaseActivity<ActivityParagraphRuleEditBinding>
         val id = intent.getLongExtra("id", 0L)
         lifecycleScope.launch {
             rule = withContext(Dispatchers.IO) { appDb.paragraphRuleDao.get(id) } ?: ParagraphRule()
+            if (id > 0L && !ParagraphRuleImportPolicy.isEditable(rule)) {
+                toastOnUi(R.string.large_config_read_only)
+                finish()
+                return@launch
+            }
             bindRule()
         }
     }

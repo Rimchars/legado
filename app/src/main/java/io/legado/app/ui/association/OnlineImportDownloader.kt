@@ -28,7 +28,7 @@ enum class OnlineImportPayloadType(
     val maxDownloadBytes: Long,
     val fileSuffix: String
 ) {
-    PARAGRAPH_RULES(4L * 1024L * 1024L, ".json"),
+    PARAGRAPH_RULES(ParagraphRuleImportPolicy.MAX_PACKAGE_BYTES, ".json"),
     BUBBLE_PACKAGE(32L * 1024L * 1024L, ".zip")
 }
 

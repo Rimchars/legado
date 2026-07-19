@@ -36,15 +36,16 @@ import io.legado.app.lib.theme.themeMutedColorOrDefault
 import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.file.HandleFileContract
+import io.legado.app.ui.association.ParagraphRuleImportPolicy
+import io.legado.app.ui.association.ParagraphRulePackageParser
+import io.legado.app.ui.association.readLimitedImportText
 import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.widget.compose.showComposeChoiceListDialog
 import io.legado.app.ui.widget.compose.showComposeConfirmDialog
 import io.legado.app.ui.widget.compose.showComposeTextInputDialog
 import io.legado.app.ui.widget.recycler.ItemTouchCallback
 import io.legado.app.utils.GSON
-import io.legado.app.utils.fromJsonArray
-import io.legado.app.utils.fromJsonObject
-import io.legado.app.utils.readText
+import io.legado.app.utils.readBytes
 import io.legado.app.utils.sendToClip
 import io.legado.app.utils.showHelp
 import io.legado.app.utils.startActivity
@@ -68,7 +69,11 @@ class ParagraphRuleManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
         result.uri?.let { uri ->
             lifecycleScope.launch {
                 kotlin.runCatching {
-                    parseImportedRules(uri.readText(this@ParagraphRuleManageActivity))
+                    val bytes = uri.readBytes(
+                        this@ParagraphRuleManageActivity,
+                        ParagraphRuleImportPolicy.MAX_PACKAGE_BYTES
+                    )
+                    parseImportedRules(bytes.toString(Charsets.UTF_8))
                 }.onSuccess { rules ->
                     if (rules.isEmpty()) {
                         toastOnUi(R.string.wrong_format)
@@ -203,7 +208,9 @@ class ParagraphRuleManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
         lifecycleScope.launch {
             kotlin.runCatching {
                 val text = withContext(Dispatchers.IO) {
-                    okHttpClient.newCallResponseBody { url(url) }.use { it.string() }
+                    okHttpClient.newCallResponseBody { url(url) }.use {
+                        it.readLimitedImportText(ParagraphRuleImportPolicy.MAX_PACKAGE_BYTES)
+                    }
                 }
                 parseImportedRules(text)
             }.onSuccess { rules ->
@@ -275,14 +282,18 @@ class ParagraphRuleManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
     }
 
     private fun showActions(rule: ParagraphRule) {
-        val actions = listOf(
-            Action.EDIT,
-            Action.EXPORT,
-            Action.COPY,
-            Action.VARS,
-            Action.DELETE
-        )
-        showComposeChoiceListDialog(rule.displayName(), actions.map { getString(it.titleRes) }) { index ->
+        val editable = ParagraphRuleImportPolicy.isEditable(rule)
+        val actions = buildList {
+            if (editable) add(Action.EDIT)
+            add(Action.EXPORT)
+            if (editable) {
+                add(Action.COPY)
+                add(Action.VARS)
+            }
+            add(Action.DELETE)
+        }
+        val title = if (editable) rule.displayName() else "${rule.displayName()} · ${getString(R.string.read_only)}"
+        showComposeChoiceListDialog(title, actions.map { getString(it.titleRes) }) { index ->
             when (actions.getOrNull(index)) {
                 Action.EDIT -> openEditRule(rule.id)
                 Action.EXPORT -> exportRule(rule)
@@ -329,11 +340,7 @@ class ParagraphRuleManageActivity : BaseActivity<ActivityThemeManageBinding>(), 
     }
 
     private fun parseImportedRules(raw: String): List<ParagraphRule> {
-        val text = raw.trim()
-        if (text.isBlank()) return emptyList()
-        GSON.fromJsonArray<ParagraphRule>(text).getOrNull()?.let { return it }
-        GSON.fromJsonObject<ParagraphRule>(text).getOrNull()?.let { return listOf(it) }
-        return emptyList()
+        return ParagraphRulePackageParser.parse(raw).entries.map { it.rule }
     }
 
     private fun insertImportedRules(rules: List<ParagraphRule>) {
