@@ -15,6 +15,8 @@ import io.legado.app.lib.cloud.S3CapacityFullException
 import io.legado.app.lib.cloud.S3ContainerManager
 import io.legado.app.lib.cloud.CloudStorageType
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.AdvancedTitlePackageManager
+import io.legado.app.help.config.BubblePackageManager
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig
@@ -70,6 +72,8 @@ object Backup {
     internal const val bookCharactersFileName = "bookCharacters.json"
     internal const val bookCharacterRelationsFileName = "bookCharacterRelations.json"
     internal const val bookCharacterAvatarsDirName = "bookCharacterAvatars"
+    internal const val advancedTitlePackagesDirName = "advancedTitlePackages"
+    internal const val bubblePackagesDirName = "bubblePackages"
 
     private const val TAG = "Backup"
 
@@ -184,6 +188,7 @@ object Backup {
         writeListToJson(appDb.bookCharacterDao.allCharacters(), bookCharactersFileName, backupPath)
         writeListToJson(appDb.bookCharacterDao.allRelations(), bookCharacterRelationsFileName, backupPath)
         exportBookCharacterAvatars()
+        exportVisualResourcePackages()
         GSON.toJson(appDb.serverDao.all).let { json ->
             aes.runCatching {
                 encryptBase64(json)
@@ -272,6 +277,8 @@ object Backup {
             paths[i] = backupPath + File.separator + paths[i]
         }
         File(backupPath, bookCharacterAvatarsDirName).takeIf { it.exists() }?.let { paths.add(it.absolutePath) }
+        File(backupPath, advancedTitlePackagesDirName).takeIf { it.exists() }?.let { paths.add(it.absolutePath) }
+        File(backupPath, bubblePackagesDirName).takeIf { it.exists() }?.let { paths.add(it.absolutePath) }
         FileUtils.delete(zipFilePath)
         FileUtils.delete(zipFilePath.replace("tmp_", ""))
         val backupFileName = if (AppConfig.onlyLatestBackup) {
@@ -387,6 +394,30 @@ object Backup {
         }.onFailure {
             AppLog.put("备份角色头像出错\n${it.localizedMessage}", it)
         }
+    }
+
+    private fun exportVisualResourcePackages() {
+        copyPackageDirectories(
+            AdvancedTitlePackageManager.rootDir,
+            File(backupPath, advancedTitlePackagesDirName)
+        ) { name -> !name.startsWith('.') }
+        copyPackageDirectories(
+            BubblePackageManager.rootDir,
+            File(backupPath, bubblePackagesDirName)
+        ) { name -> name !in setOf("temp", "remote_cache", BubblePackageManager.BUILTIN_DIR_NAME) }
+    }
+
+    private fun copyPackageDirectories(
+        sourceRoot: File,
+        targetRoot: File,
+        include: (String) -> Boolean
+    ) {
+        sourceRoot.listFiles()
+            ?.filter { it.isDirectory && include(it.name) }
+            .orEmpty()
+            .forEach { directory ->
+                copyDir(directory, File(targetRoot, directory.name))
+            }
     }
 
     private fun copyDir(source: File, target: File) {

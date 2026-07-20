@@ -1,6 +1,8 @@
 package io.legado.app.ui.config
 
 import android.graphics.Color as AndroidColor
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,10 +43,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.airbnb.lottie.LottieAnimationView
+import com.airbnb.lottie.ImageAssetDelegate
+import com.airbnb.lottie.LottieImageAsset
 import com.airbnb.lottie.RenderMode
 import io.legado.app.R
 import io.legado.app.help.config.AdvancedTitlePackageManager
 import io.legado.app.help.config.AdvancedTitleFontAssetDelegate
+import io.legado.app.help.config.PackageResourcePolicy
+import io.legado.app.help.config.PackageSvgResourceResolver
 import io.legado.app.lib.theme.composeActionRadius
 import io.legado.app.ui.widget.compose.AppListSpacing
 import io.legado.app.ui.widget.compose.AppManagementCard
@@ -54,6 +60,9 @@ import io.legado.app.ui.widget.compose.AppManagementPalette
 import io.legado.app.ui.widget.compose.LegadoMiuixActionButton
 import io.legado.app.ui.widget.compose.LegadoMiuixPalette
 import io.legado.app.ui.widget.compose.rememberAppManagementPalette
+import io.legado.app.utils.SvgUtils
+import io.legado.app.utils.decodeBase64DataUrlBytes
+import java.io.ByteArrayInputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -215,6 +224,15 @@ private fun AdvancedTitlePreview(
     val json by produceState<String?>(null, entry.id, entry.updatedAt) {
         value = previewProvider(entry)
     }
+    val resourceContext = AdvancedTitlePackageManager.resourceContext(entry)
+    val packageResolver = resourceContext?.let {
+        PackageSvgResourceResolver(
+            root = it.root,
+            resources = it.resources,
+            targetWidth = PREVIEW_ASSET_EDGE,
+            targetHeight = PREVIEW_ASSET_EDGE
+        )
+    }
     Surface(
         modifier = Modifier.size(width = 112.dp, height = 72.dp),
         shape = RoundedCornerShape(10.dp),
@@ -231,13 +249,31 @@ private fun AdvancedTitlePreview(
                     LottieAnimationView(context).apply {
                         setBackgroundColor(AndroidColor.TRANSPARENT)
                         setCacheComposition(false)
-                        setFontAssetDelegate(AdvancedTitleFontAssetDelegate())
                         repeatCount = 0
                         renderMode = RenderMode.SOFTWARE
                     }
                 },
                 update = { view ->
-                    val key = value.hashCode()
+                    view.setImageAssetDelegate(
+                        ImageAssetDelegate { asset -> resolvePreviewImage(asset, packageResolver) }
+                    )
+                    view.setFontAssetDelegate(
+                        AdvancedTitleFontAssetDelegate(
+                            packagedTypeface = { family, style, name ->
+                                val reference = sequenceOf(family, name).firstOrNull {
+                                    it.startsWith(PackageResourcePolicy.ALIAS_PREFIX, ignoreCase = true)
+                                }
+                                reference?.let {
+                                    packageResolver?.resolveFont(
+                                        it,
+                                        if (style.contains("bold", true)) 700 else 400,
+                                        style
+                                    )
+                                }
+                            }
+                        )
+                    )
+                    val key = 31 * value.hashCode() + resourceContext?.cacheKey.orEmpty().hashCode()
                     if (view.tag != key) {
                         view.cancelAnimation()
                         view.clearAnimation()
@@ -259,6 +295,51 @@ private fun AdvancedTitlePreview(
         }
     }
 }
+
+private fun resolvePreviewImage(
+    asset: LottieImageAsset,
+    packageResolver: PackageSvgResourceResolver?
+): Bitmap? {
+    val candidates = buildList {
+        asset.fileName?.let(::add)
+        if (!asset.dirName.isNullOrBlank() && !asset.fileName.isNullOrBlank()) {
+            add(asset.dirName + asset.fileName)
+        }
+    }
+    candidates.firstOrNull { it.startsWith("data:image", ignoreCase = true) }?.let { source ->
+        val bytes = source.decodeBase64DataUrlBytes() ?: return null
+        if (source.contains("image/svg+xml", ignoreCase = true)) {
+            return ByteArrayInputStream(bytes).use {
+                SvgUtils.createBitmap(it, PREVIEW_ASSET_EDGE, PREVIEW_ASSET_EDGE)
+            }
+        }
+        return decodePreviewBitmap(bytes)
+    }
+    candidates.forEach { candidate ->
+        packageResolver?.resolveImage(candidate)?.let { return it }
+    }
+    return null
+}
+
+private fun decodePreviewBitmap(bytes: ByteArray): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (bounds.outWidth / (sample * 2) >= PREVIEW_ASSET_EDGE &&
+        bounds.outHeight / (sample * 2) >= PREVIEW_ASSET_EDGE
+    ) {
+        sample *= 2
+    }
+    return BitmapFactory.decodeByteArray(
+        bytes,
+        0,
+        bytes.size,
+        BitmapFactory.Options().apply { inSampleSize = sample }
+    )
+}
+
+private const val PREVIEW_ASSET_EDGE = 256
 
 @Composable
 private fun AdvancedTitleActionButton(

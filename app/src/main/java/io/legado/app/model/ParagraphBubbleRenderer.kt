@@ -7,6 +7,7 @@ import android.util.Size
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.BubblePackageManager
 import io.legado.app.help.config.PackageSvgResourceResolver
+import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.utils.SvgUtils
 import java.io.ByteArrayInputStream
 import kotlin.math.roundToInt
@@ -65,17 +66,19 @@ object ParagraphBubbleRenderer {
         val targetWidth = width.coerceAtLeast(1)
         val targetHeight = height ?: targetWidth
         val input = ByteArrayInputStream(svg.toByteArray())
-        val root = entry.localDir
-        return if (root != null) {
-            SvgUtils.createBitmap(
-                input,
+        return SvgUtils.createBitmap(
+            input,
+            targetWidth,
+            height,
+            PackageSvgResourceResolver(
+                entry.localDir,
+                config.resources,
                 targetWidth,
-                height,
-                PackageSvgResourceResolver(root, config.resources, targetWidth, targetHeight)
-            )
-        } else {
-            SvgUtils.createBitmap(input, targetWidth, height)
-        }
+                targetHeight
+            ) {
+                ChapterProvider.contentPaint.typeface ?: ChapterProvider.typeface
+            }
+        )
     }
 
     private fun resolveColor(

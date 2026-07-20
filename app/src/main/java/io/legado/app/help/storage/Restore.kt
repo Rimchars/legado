@@ -39,6 +39,8 @@ import io.legado.app.help.LauncherIconHelp
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.upType
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.AdvancedTitlePackageManager
+import io.legado.app.help.config.BubblePackageManager
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.config.NavigationBarIconConfig
@@ -294,6 +296,7 @@ object Restore {
         restoreNavigationIcons(path)
         restoreTopBarPackages(path)
         restoreCoverCollections(path)
+        restoreVisualResourcePackages(path)
         restoreSourceRuntime(path)
         appCtx.getSharedPreferences(path, "config")?.all?.let { map ->
             val edit = appCtx.defaultSharedPreferences.edit()
@@ -686,6 +689,36 @@ object Restore {
             copyDir(sourceDir, targetDir)
         }.onFailure {
             AppLog.put("恢复顶栏包出错\n${it.localizedMessage}", it)
+        }
+    }
+
+    private fun restoreVisualResourcePackages(path: String) {
+        restorePackageDirectory(
+            sourceDir = File(path, Backup.advancedTitlePackagesDirName),
+            targetDir = AdvancedTitlePackageManager.rootDir
+        ) {
+            AdvancedTitlePackageManager.invalidate()
+        }
+        restorePackageDirectory(
+            sourceDir = File(path, Backup.bubblePackagesDirName),
+            targetDir = BubblePackageManager.rootDir
+        ) {
+            BubblePackageManager.invalidateCurrentEntry()
+        }
+    }
+
+    private fun restorePackageDirectory(
+        sourceDir: File,
+        targetDir: File,
+        afterRestore: () -> Unit
+    ) {
+        if (!sourceDir.isDirectory) return
+        kotlin.runCatching {
+            FileUtils.delete(targetDir, deleteRootDir = true)
+            copyDir(sourceDir, targetDir)
+            afterRestore()
+        }.onFailure {
+            AppLog.put("Restore visual resource packages failed: ${it.localizedMessage}", it)
         }
     }
 

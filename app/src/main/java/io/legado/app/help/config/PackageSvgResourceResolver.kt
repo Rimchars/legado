@@ -9,16 +9,18 @@ import java.io.File
 import java.io.FileInputStream
 
 internal class PackageSvgResourceResolver(
-    private val root: File,
+    private val root: File?,
     private val resources: List<PackageResource>,
     private val targetWidth: Int,
-    private val targetHeight: Int
+    private val targetHeight: Int,
+    private val fallbackTypeface: () -> Typeface? = { null }
 ) : SVGExternalFileResolver() {
 
     override fun resolveImage(filename: String): Bitmap? {
+        val resourceRoot = root ?: return null
         val file = runCatching {
             PackageResourcePolicy.resolve(
-                root,
+                resourceRoot,
                 resources,
                 filename,
                 PackageResourcePolicy.TYPE_IMAGE
@@ -47,15 +49,17 @@ internal class PackageSvgResourceResolver(
     }
 
     override fun resolveFont(fontName: String, fontWeight: Int, fontStyle: String): Typeface? {
-        val file = runCatching {
+        val file = root?.let { resourceRoot -> runCatching {
             PackageResourcePolicy.resolve(
-                root,
+                resourceRoot,
                 resources,
                 fontName,
                 PackageResourcePolicy.TYPE_FONT
             )
-        }.getOrNull() ?: return null
-        val base = runCatching { Typeface.createFromFile(file) }.getOrNull() ?: return null
+        }.getOrNull() }
+        val base = file?.let { runCatching { Typeface.createFromFile(it) }.getOrNull() }
+            ?: runCatching { fallbackTypeface() }.getOrNull()
+            ?: return null
         val bold = fontWeight >= 600
         val italic = fontStyle.contains("italic", ignoreCase = true) ||
             fontStyle.contains("oblique", ignoreCase = true)
