@@ -5,10 +5,12 @@ import io.legado.app.R
 import io.legado.app.constant.PreferKey
 import io.legado.app.utils.GSON
 import io.legado.app.utils.externalFiles
+import io.legado.app.utils.externalCache
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getFile
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.putPrefString
+import io.legado.app.utils.compress.ZipUtils
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 import splitties.init.appCtx
@@ -22,6 +24,7 @@ object AdvancedTitlePackageManager {
     const val BUILTIN_ID = "builtin_default"
     const val MAX_EDITABLE_JSON_BYTES = 2L * 1024L * 1024L
     const val MAX_JSON_BYTES = 16L * 1024L * 1024L
+    const val MAX_PACKAGE_BYTES = 256L * 1024L * 1024L
     private const val MAX_PACKAGES = 64
     private const val MANIFEST_FILE = "package.json"
     private const val LOTTIE_FILE = "title.json"
@@ -64,8 +67,18 @@ object AdvancedTitlePackageManager {
         val updatedAt: Long get() = config.updatedAt
     }
 
+    data class ResourceContext(
+        val packageId: String,
+        val root: File,
+        val resources: List<PackageResource>,
+        val cacheKey: String
+    )
+
     val rootDir: File
         get() = appCtx.externalFiles.getFile("advancedTitlePackages")
+
+    private val tempDir: File
+        get() = appCtx.externalCache.getFile("advancedTitlePackages").apply { mkdirs() }
 
     @Volatile
     private var cachedId: String? = null
@@ -144,6 +157,28 @@ object AdvancedTitlePackageManager {
         }
     }
 
+    fun resourceContext(entry: Entry): ResourceContext? {
+        if (entry.isBuiltin) return null
+        val directory = entry.directory ?: return null
+        val resources = runCatching { PackageResourcePolicy.normalize(entry.config.resources) }
+            .getOrDefault(emptyList())
+        return ResourceContext(
+            packageId = entry.id,
+            root = directory,
+            resources = resources,
+            cacheKey = "${entry.id}:${entry.updatedAt}:${resources.hashCode()}"
+        )
+    }
+
+    fun currentResourceContext(): ResourceContext? {
+        val id = activeId().takeUnless { it == BUILTIN_ID } ?: return null
+        return runCatching {
+            val directory = localDir(id).canonicalFile
+            val config = readManifest(directory, expectedId = id)
+            resourceContext(Entry(config, directory))
+        }.getOrNull()
+    }
+
     fun templateSize(entry: Entry): Long {
         if (entry.isBuiltin) return 0L
         val directory = entry.directory ?: return 0L
@@ -206,6 +241,7 @@ object AdvancedTitlePackageManager {
         )
         try {
             staging.mkdirs()
+            editableOld?.directory?.let { copyResourceDirectories(it, staging) }
             File(staging, MANIFEST_FILE).writeText(GSON.toJson(config))
             lottieFile(staging).writeText(json)
             verifyInstalledDirectory(
@@ -226,6 +262,75 @@ object AdvancedTitlePackageManager {
         } finally {
             AdvancedTitlePackageStorage.deleteStagingDirectory(parent, staging)
         }
+    }
+
+    fun importPackage(file: File, fallbackName: String): Entry = synchronized(mutationLock) {
+        if (!AdvancedTitlePackageArchive.isZip(file)) {
+            val json = readJsonFile(file)
+            return@synchronized addOrUpdate(fallbackName, json)
+        }
+        val unzipDir = tempDir.getFile("import_${UUID.randomUUID()}")
+        try {
+            val extracted = AdvancedTitlePackageArchive.extract(file, unzipDir)
+            val json = readJsonFile(extracted.titleFile)
+            validateJson(json)
+            val importedConfig = extracted.manifestFile?.let { manifest ->
+                require(manifest.length() in 1..64L * 1024L) { "advanced title manifest is too large" }
+                GSON.fromJsonObject<Config>(manifest.readText()).getOrThrow()
+            }
+            val resources = PackageResourcePolicy.validateFiles(
+                extracted.packageRoot,
+                importedConfig?.resources.orEmpty()
+            )
+            val normalizedName = normalizeName(importedConfig?.name ?: fallbackName)
+            val id = "title_${UUID.randomUUID().toString().replace("-", "")}".take(38)
+            val parent = rootDir.apply { mkdirs() }.canonicalFile
+            val target = File(parent, id).canonicalFile
+            val staging = File(parent, ".$id.staging-${UUID.randomUUID()}")
+            val backup = File(parent, ".$id.backup-${UUID.randomUUID()}")
+            val next = Config(
+                id = id,
+                name = normalizedName,
+                updatedAt = System.currentTimeMillis(),
+                splitMode = importedConfig?.splitMode,
+                delimiter = importedConfig?.delimiter,
+                regex = importedConfig?.regex,
+                heightFactor = importedConfig?.heightFactor,
+                formatVersion = if (resources.isEmpty() && !hasResourceDirectories(extracted.packageRoot)) 1 else 2,
+                resources = resources
+            )
+            try {
+                staging.mkdirs()
+                copyResourceDirectories(extracted.packageRoot, staging)
+                File(staging, MANIFEST_FILE).writeText(GSON.toJson(next))
+                lottieFile(staging).writeText(json)
+                verifyInstalledDirectory(staging, expectedId = id, requireDirectoryIdMatch = false)
+                BubbleDirectoryTransaction().install(target, staging, backup) { installedDir ->
+                    val verified = verifyInstalledDirectory(installedDir, expectedId = id)
+                    Entry(verified, installedDir)
+                }.also { invalidate() }
+            } finally {
+                AdvancedTitlePackageStorage.deleteStagingDirectory(parent, staging)
+            }
+        } finally {
+            unzipDir.deleteRecursively()
+        }
+    }
+
+    fun exportPackage(entry: Entry): File = synchronized(mutationLock) {
+        require(!entry.isBuiltin) { "built-in advanced title cannot be exported as a package" }
+        val directory = requireNotNull(entry.directory) { "Missing advanced title directory" }
+        val output = tempDir.getFile("${entry.id}.zip")
+        if (output.exists()) output.delete()
+        check(ZipUtils.zipFile(directory, output) && output.isFile && output.length() > 0L) {
+            "advanced title package export failed"
+        }
+        output
+    }
+
+    fun hasExternalResources(entry: Entry): Boolean {
+        val directory = entry.directory ?: return false
+        return entry.config.resources.isNotEmpty() || hasResourceDirectories(directory)
     }
 
     fun apply(entry: Entry) = synchronized(mutationLock) {
@@ -322,6 +427,23 @@ object AdvancedTitlePackageManager {
         expectedId: String? = null,
         requireDirectoryIdMatch: Boolean = true
     ): Config {
+        val config = readManifest(directory, expectedId)
+        AdvancedTitlePackageStorage.requireDirectoryMatchesId(
+            directoryName = directory.name,
+            configId = config.id,
+            requireMatch = requireDirectoryIdMatch
+        )
+        require(config.name.isNotBlank() && config.name.length <= 100) { "Advanced title name is invalid" }
+        require(config.formatVersion in 1..2) { "Unsupported advanced title package version" }
+        val resources = PackageResourcePolicy.validateFiles(directory, config.resources)
+        val json = readJsonFile(lottieFile(directory))
+        require(AdvancedTitleConfig.hasRenderableLayers(json)) {
+            appCtx.getString(R.string.advanced_title_invalid_json)
+        }
+        return config.copy(name = config.name.trim(), resources = resources)
+    }
+
+    private fun readManifest(directory: File, expectedId: String? = null): Config {
         val manifest = File(directory, MANIFEST_FILE)
         require(manifest.isFile && manifest.length() in 1..64L * 1024L) {
             "Advanced title manifest is invalid"
@@ -329,17 +451,24 @@ object AdvancedTitlePackageManager {
         val config = GSON.fromJsonObject<Config>(manifest.readText()).getOrThrow()
         require(isValidId(config.id)) { "Advanced title id is invalid" }
         require(expectedId == null || config.id == expectedId) { "Advanced title id changed" }
-        AdvancedTitlePackageStorage.requireDirectoryMatchesId(
-            directoryName = directory.name,
-            configId = config.id,
-            requireMatch = requireDirectoryIdMatch
-        )
-        require(config.name.isNotBlank() && config.name.length <= 100) { "Advanced title name is invalid" }
-        val json = readJsonFile(lottieFile(directory))
-        require(AdvancedTitleConfig.hasRenderableLayers(json)) {
-            appCtx.getString(R.string.advanced_title_invalid_json)
+        return config
+    }
+
+    private fun copyResourceDirectories(source: File, target: File) {
+        listOf("assets", "images").forEach { name ->
+            val sourceDir = File(source, name)
+            if (!sourceDir.isDirectory) return@forEach
+            val targetDir = File(target, name)
+            check(sourceDir.copyRecursively(targetDir, overwrite = false)) {
+                "failed to copy advanced title resources"
+            }
         }
-        return config.copy(name = config.name.trim())
+    }
+
+    private fun hasResourceDirectories(directory: File): Boolean {
+        return listOf("assets", "images").any { name ->
+            File(directory, name).walkTopDown().any { it.isFile }
+        }
     }
 
     private fun migrateLegacyIfNeeded() {

@@ -26,8 +26,8 @@ import io.legado.app.ui.widget.compose.AppManagementMenuAction
 import io.legado.app.ui.widget.compose.ComposeConfirmDialog
 import io.legado.app.ui.widget.compose.ComposeTextInputDialog
 import io.legado.app.utils.postEvent
-import io.legado.app.utils.readBytes
-import io.legado.app.utils.readBytesLimited
+import io.legado.app.utils.externalCache
+import io.legado.app.utils.getFile
 import io.legado.app.utils.sendToClip
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.toastOnUi
@@ -37,6 +37,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.IOException
+import java.util.UUID
 
 class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     AdvancedTitleConfigDialog.Host {
@@ -171,7 +176,7 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         importJson.launch {
             mode = HandleFileContract.FILE
             title = getString(R.string.advanced_title_import_title)
-            allowExtensions = arrayOf("json")
+            allowExtensions = arrayOf("json", "zip", "lottie")
             otherActions = arrayListOf(SelectItem(importFromNet, -1))
         }
     }
@@ -179,16 +184,21 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private fun importUri(uri: Uri) {
         lifecycleScope.launch {
             runCatching {
-                val bytes = withContext(Dispatchers.IO) {
-                    uri.readBytes(this@AdvancedTitleManageActivity, AdvancedTitlePackageManager.MAX_JSON_BYTES)
-                }
                 val name = uri.lastPathSegment
                     ?.substringAfterLast('/')
                     ?.substringBeforeLast('.')
                     ?.takeIf { it.isNotBlank() }
                     ?: getString(R.string.advanced_title_unnamed)
                 withContext(Dispatchers.IO) {
-                    AdvancedTitlePackageManager.addOrUpdate(name, bytes.toString(Charsets.UTF_8))
+                    val file = temporaryImportFile()
+                    try {
+                        contentResolver.openInputStream(uri)?.use { input ->
+                            input.copyToFileLimited(file, AdvancedTitlePackageManager.MAX_PACKAGE_BYTES)
+                        } ?: throw IOException("Unable to open advanced title package")
+                        AdvancedTitlePackageManager.importPackage(file, name)
+                    } finally {
+                        file.delete()
+                    }
                 }
             }.onSuccess {
                 toastOnUi(R.string.success)
@@ -215,21 +225,27 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private fun importNetwork(url: String) {
         lifecycleScope.launch {
             runCatching {
-                val bytes = withContext(Dispatchers.IO) {
-                    okHttpClient.newCallResponseBody { url(url) }.use { body ->
-                        val declared = body.contentLength()
-                        require(declared <= AdvancedTitlePackageManager.MAX_JSON_BYTES || declared < 0L) {
-                            getString(R.string.advanced_title_too_large)
-                        }
-                        body.byteStream().readBytesLimited(AdvancedTitlePackageManager.MAX_JSON_BYTES)
-                    }
-                }
                 val name = Uri.parse(url).lastPathSegment
                     ?.substringBeforeLast('.')
                     ?.takeIf { it.isNotBlank() }
                     ?: getString(R.string.advanced_title_unnamed)
                 withContext(Dispatchers.IO) {
-                    AdvancedTitlePackageManager.addOrUpdate(name, bytes.toString(Charsets.UTF_8))
+                    val file = temporaryImportFile()
+                    try {
+                        okHttpClient.newCallResponseBody { url(url) }.use { body ->
+                            val declared = body.contentLength()
+                            require(declared <= AdvancedTitlePackageManager.MAX_PACKAGE_BYTES || declared < 0L) {
+                                getString(R.string.advanced_title_too_large)
+                            }
+                            body.byteStream().copyToFileLimited(
+                                file,
+                                AdvancedTitlePackageManager.MAX_PACKAGE_BYTES
+                            )
+                        }
+                        AdvancedTitlePackageManager.importPackage(file, name)
+                    } finally {
+                        file.delete()
+                    }
                 }
             }.onSuccess {
                 toastOnUi(R.string.success)
@@ -315,20 +331,50 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private fun exportEntry(entry: AdvancedTitlePackageManager.Entry) {
         lifecycleScope.launch {
             runCatching {
-                withContext(Dispatchers.IO) { AdvancedTitlePackageManager.readTemplate(entry) }
-            }.onSuccess { json ->
                 val safeName = entry.name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
                     .ifBlank { "advancedTitle" }
+                withContext(Dispatchers.IO) {
+                    if (AdvancedTitlePackageManager.hasExternalResources(entry)) {
+                        val zip = AdvancedTitlePackageManager.exportPackage(entry)
+                        HandleFileContract.FileData("$safeName.zip", zip, "application/zip")
+                    } else {
+                        val json = AdvancedTitlePackageManager.readTemplate(entry)
+                        HandleFileContract.FileData(
+                            "$safeName.json",
+                            json.toByteArray(Charsets.UTF_8),
+                            "application/json"
+                        )
+                    }
+                }
+            }.onSuccess { data ->
                 exportJson.launch {
                     mode = HandleFileContract.EXPORT
-                    fileData = HandleFileContract.FileData(
-                        "$safeName.json",
-                        json.toByteArray(Charsets.UTF_8),
-                        "application/json"
-                    )
+                    fileData = data
                 }
             }.onFailure { toastOnUi(it.localizedMessage) }
         }
+    }
+
+    private fun temporaryImportFile(): File {
+        return externalCache.getFile(
+            "advancedTitleImports",
+            "import_${UUID.randomUUID()}"
+        ).also { it.parentFile?.mkdirs() }
+    }
+
+    private fun InputStream.copyToFileLimited(target: File, maxBytes: Long): Long {
+        var total = 0L
+        FileOutputStream(target).use { output ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = read(buffer)
+                if (count < 0) break
+                total += count.toLong()
+                if (total > maxBytes) throw IOException("Advanced title package is too large")
+                output.write(buffer, 0, count)
+            }
+        }
+        return total
     }
 
     private fun confirmDelete(entry: AdvancedTitlePackageManager.Entry) {

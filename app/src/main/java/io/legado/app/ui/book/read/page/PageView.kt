@@ -33,6 +33,8 @@ import io.legado.app.databinding.ViewBookPageBinding
 import io.legado.app.help.book.isEpub
 import io.legado.app.help.config.AdvancedTitleConfig
 import io.legado.app.help.config.AdvancedTitleFontAssetDelegate
+import io.legado.app.help.config.AdvancedTitlePackageManager
+import io.legado.app.help.config.PackageResourcePolicy
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
@@ -55,6 +57,8 @@ import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.setTextIfNotEqual
 import splitties.views.backgroundColor
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileInputStream
 import java.util.Date
 import org.json.JSONObject
 
@@ -744,7 +748,17 @@ class PageView(context: Context) : FrameLayout(context) {
         lottieView.translationX = resolveTitleTranslationX(block, targetWidth)
         lottieView.translationY = resolveTitleTranslationY(block, targetHeight)
         lottieView.repeatCount = LottieDrawable.INFINITE
-        lottieView.setFontAssetDelegate(defaultFontAssetDelegate)
+        val resourceContext = AdvancedTitlePackageManager.currentResourceContext()
+        lottieView.setFontAssetDelegate(
+            AdvancedTitleFontAssetDelegate(
+                preferredTypeface = {
+                    ChapterProvider.titlePaint.typeface ?: ChapterProvider.typeface ?: Typeface.DEFAULT
+                },
+                packagedTypeface = { family, style, name ->
+                    resolvePackagedTypeface(resourceContext, family, style, name)
+                }
+            )
+        )
         val json = block.payload?.takeIf { it.isNotBlank() }
         val resolvedJson = json?.let { applyLottieTextFallbackStyle(it, advancedTitleTextLayerScale(block, pageWidth)) }
         lottieView.setMaintainOriginalImageBounds(true)
@@ -753,12 +767,13 @@ class PageView(context: Context) : FrameLayout(context) {
                 viewWidth = targetWidth,
                 viewHeight = targetHeight,
                 compositionWidth = targetWidth,
-                compositionHeight = targetHeight
+                compositionHeight = targetHeight,
+                resourceContext = resourceContext
             )
         )
         lottieView.setCacheComposition(resolvedJson == null)
         val nextKey = resolvedJson?.let {
-            "advanced_title:${it.hashCode()}:$targetWidth:$targetHeight"
+            "advanced_title:${resourceContext?.cacheKey.orEmpty()}:${it.hashCode()}:$targetWidth:$targetHeight"
         } ?: "advanced_title:raw:$targetWidth:$targetHeight"
 
         fun showComposition() {
@@ -995,9 +1010,10 @@ class PageView(context: Context) : FrameLayout(context) {
         viewWidth: Int,
         viewHeight: Int,
         compositionWidth: Int,
-        compositionHeight: Int
+        compositionHeight: Int,
+        resourceContext: AdvancedTitlePackageManager.ResourceContext?
     ) = ImageAssetDelegate { asset: LottieImageAsset ->
-        val source = resolveLottieAssetSource(asset) ?: return@ImageAssetDelegate null
+        val source = resolveLottieAssetSource(asset, resourceContext) ?: return@ImageAssetDelegate null
         val decodeSize = LottieImageMemoryPolicy.decodeSize(
             assetWidth = asset.width.takeIf { it > 0 } ?: compositionWidth.coerceAtLeast(viewWidth),
             assetHeight = asset.height.takeIf { it > 0 } ?: compositionHeight.coerceAtLeast(viewHeight),
@@ -1007,7 +1023,7 @@ class PageView(context: Context) : FrameLayout(context) {
             compositionHeight = compositionHeight
         ) ?: return@ImageAssetDelegate null
         val cacheKey = LottieImageCacheKey(
-            sourceSha256 = LottieImageMemoryPolicy.sourceSha256(source),
+            sourceSha256 = LottieImageMemoryPolicy.sourceSha256(source.identity),
             width = decodeSize.width,
             height = decodeSize.height
         )
@@ -1017,22 +1033,107 @@ class PageView(context: Context) : FrameLayout(context) {
         }
     }
 
-    private fun resolveLottieAssetSource(asset: LottieImageAsset): String? {
+    private fun resolveLottieAssetSource(
+        asset: LottieImageAsset,
+        resourceContext: AdvancedTitlePackageManager.ResourceContext?
+    ): LottieAssetSource? {
         val candidates = arrayListOf<String>()
         asset.fileName?.let { candidates.add(it) }
         if (!asset.dirName.isNullOrBlank() && !asset.fileName.isNullOrBlank()) {
             candidates.add(asset.dirName + asset.fileName)
         }
-        return candidates.firstOrNull { candidate ->
+        candidates.firstOrNull { candidate ->
             candidate.startsWith("data:image", ignoreCase = true)
+        }?.let { return LottieAssetSource.DataUrl(it) }
+        val context = resourceContext ?: return null
+        candidates.forEach { candidate ->
+            PackageResourcePolicy.resolve(
+                root = context.root,
+                resources = context.resources,
+                reference = candidate,
+                expectedType = PackageResourcePolicy.TYPE_IMAGE
+            )?.let { file ->
+                return LottieAssetSource.LocalFile(
+                    file = file,
+                    identity = "${context.cacheKey}:${file.absolutePath}:${file.length()}:${file.lastModified()}"
+                )
+            }
+        }
+        return null
+    }
+
+    private fun loadLottieAssetBitmap(
+        source: LottieAssetSource,
+        decodeSize: LottieDecodeSize
+    ): android.graphics.Bitmap? {
+        return when (source) {
+            is LottieAssetSource.DataUrl -> runCatching {
+                val bytes = source.value.decodeBase64DataUrlBytes() ?: return@runCatching null
+                decodeBitmapByType(source.value, bytes, decodeSize)
+            }.getOrNull()
+            is LottieAssetSource.LocalFile -> decodeLocalLottieAsset(source.file, decodeSize)
         }
     }
 
-    private fun loadLottieAssetBitmap(source: String, decodeSize: LottieDecodeSize): android.graphics.Bitmap? {
-        return runCatching {
-            val bytes = source.decodeBase64DataUrlBytes() ?: return@runCatching null
-            decodeBitmapByType(source, bytes, decodeSize)
-        }.getOrNull()
+    private fun decodeLocalLottieAsset(
+        file: File,
+        decodeSize: LottieDecodeSize
+    ): android.graphics.Bitmap? = runCatching {
+        if (file.extension.equals("svg", ignoreCase = true)) {
+            FileInputStream(file).use { input ->
+                SvgUtils.createBitmap(input, decodeSize.width, decodeSize.height)
+            }
+        } else {
+            decodeRasterFile(file, decodeSize)
+        }
+    }.getOrNull()
+
+    private fun decodeRasterFile(file: File, decodeSize: LottieDecodeSize): android.graphics.Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val target = LottieImageMemoryPolicy.fitSourceInto(bounds.outWidth, bounds.outHeight, decodeSize)
+            ?: return null
+        var sampleSize = 1
+        while (bounds.outWidth / (sampleSize * 2) >= target.width &&
+            bounds.outHeight / (sampleSize * 2) >= target.height
+        ) {
+            sampleSize *= 2
+        }
+        val decoded = BitmapFactory.decodeFile(
+            file.absolutePath,
+            BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        ) ?: return null
+        if (decoded.width == target.width && decoded.height == target.height) return decoded
+        return android.graphics.Bitmap.createScaledBitmap(decoded, target.width, target.height, true).also {
+            if (it !== decoded) decoded.recycle()
+        }
+    }
+
+    private fun resolvePackagedTypeface(
+        context: AdvancedTitlePackageManager.ResourceContext?,
+        fontFamily: String,
+        fontStyle: String,
+        fontName: String
+    ): Typeface? {
+        val resourceContext = context ?: return null
+        val reference = sequenceOf(fontFamily, fontName)
+            .firstOrNull { it.startsWith(PackageResourcePolicy.ALIAS_PREFIX, ignoreCase = true) }
+            ?: return null
+        val file = PackageResourcePolicy.resolve(
+            root = resourceContext.root,
+            resources = resourceContext.resources,
+            reference = reference,
+            expectedType = PackageResourcePolicy.TYPE_FONT
+        ) ?: return null
+        val base = runCatching { Typeface.createFromFile(file) }.getOrNull() ?: return null
+        val style = when {
+            fontStyle.contains("bold", ignoreCase = true) &&
+                fontStyle.contains("italic", ignoreCase = true) -> Typeface.BOLD_ITALIC
+            fontStyle.contains("bold", ignoreCase = true) -> Typeface.BOLD
+            fontStyle.contains("italic", ignoreCase = true) -> Typeface.ITALIC
+            else -> Typeface.NORMAL
+        }
+        return Typeface.create(base, style)
     }
 
     private fun decodeBitmapByType(
@@ -1071,8 +1172,17 @@ class PageView(context: Context) : FrameLayout(context) {
         }
     }
 
-    private val defaultFontAssetDelegate = AdvancedTitleFontAssetDelegate {
-        ChapterProvider.titlePaint.typeface ?: ChapterProvider.typeface ?: Typeface.DEFAULT
+    private sealed interface LottieAssetSource {
+        val identity: String
+
+        data class DataUrl(val value: String) : LottieAssetSource {
+            override val identity: String get() = value
+        }
+
+        data class LocalFile(
+            val file: File,
+            override val identity: String
+        ) : LottieAssetSource
     }
 
     val textPage get() = binding.contentTextView.textPage
