@@ -55,6 +55,7 @@ object WebViewPool {
     private const val IDLE_TIME_OUT_LAST: Long = 30 * 60 * 1000 // 最后一个闲置30分钟后销毁
     private const val SCOPED_WEB_VIEW_MAX_NUM = 2
     private const val SCOPED_IDLE_TIME_OUT: Long = 30 * 1000
+    private const val RESET_TIME_OUT: Long = 10 * 1000
     private val cleanupScope by lazy { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
     private val pools = mutableMapOf<Scope, ScopePool>()
 
@@ -88,6 +89,7 @@ object WebViewPool {
             createNewWebView(scope) // 创建新实例
         }
         pooledWebView.upContext(context).apply {
+            resetToken++
             realWebView.settings.setDarkeningAllowed(AppConfig.isNightTheme) //设置是否夜间
             if (scopePool.inUsePool.isEmpty()) {
                 realWebView.resumeTimers()
@@ -112,6 +114,7 @@ object WebViewPool {
             return
         }
         scopePool.resettingPool[pooledWebView.id] = pooledWebView
+        val resetToken = ++pooledWebView.resetToken
         // 重置WebView状态
         pooledWebView.realWebView.run {
             (parent as? ViewGroup)?.removeView(this)
@@ -148,34 +151,74 @@ object WebViewPool {
             webViewClient = object: WebViewClient() {
                 @SuppressLint("SetJavaScriptEnabled")
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    if (url != BLANK_HTML) return
-                    view?.let{ webview ->
-                        webview.settings.apply {
-                            javaScriptEnabled = false
-                            javaScriptEnabled = true // 禁用再启用来重置js环境，注意需要禁用的订阅源需要再次执行
-                            blockNetworkImage = false // 确保允许加载网络图片
-                            cacheMode = WebSettings.LOAD_DEFAULT // 重置缓存模式
-                            useWideViewPort = false // 恢复默认关闭宽视模式
-                            loadWithOverviewMode = false // 恢复默认
-                            textZoom = 100
-                        }
-                        if (scopePool.inUsePool.isEmpty()) {
-                            webview.pauseTimers()
-                        }
-                        webview.onPause()
+                    if (url != BLANK_HTML || pooledWebView.resetToken != resetToken ||
+                        pooledWebView.isDestroyed
+                    ) return
+                    val webview = view ?: return
+                    webview.settings.apply {
+                        javaScriptEnabled = false
+                        javaScriptEnabled = true // 禁用再启用来重置js环境，注意需要禁用的订阅源需要再次执行
+                        blockNetworkImage = false // 确保允许加载网络图片
+                        cacheMode = WebSettings.LOAD_DEFAULT // 重置缓存模式
+                        useWideViewPort = false // 恢复默认关闭宽视模式
+                        loadWithOverviewMode = false // 恢复默认
+                        textZoom = 100
                     }
-                    pooledWebView.isInUse = false
-                    pooledWebView.lastUseTime = System.currentTimeMillis()
+                    if (scopePool.inUsePool.isEmpty()) {
+                        webview.pauseTimers()
+                    }
+                    webview.onPause()
                     synchronized(this@WebViewPool) {
-                        scopePool.resettingPool.remove(pooledWebView.id)
-                        if (!pooledWebView.isDestroyed) {
+                        val resetting = scopePool.resettingPool[pooledWebView.id]
+                        if (resetting === pooledWebView &&
+                            pooledWebView.resetToken == resetToken &&
+                            !pooledWebView.isDestroyed
+                        ) {
+                            scopePool.resettingPool.remove(pooledWebView.id)
+                            pooledWebView.isInUse = false
+                            pooledWebView.lastUseTime = System.currentTimeMillis()
                             scopePool.idlePool.push(pooledWebView)
                             startCleanupTimer(scopePool)
                         }
                     }
                 }
             }
-            loadUrl(BLANK_HTML)
+            try {
+                loadUrl(BLANK_HTML)
+                scheduleResetTimeout(scopePool, pooledWebView, resetToken)
+            } catch (error: Throwable) {
+                synchronized(this@WebViewPool) {
+                    scopePool.resettingPool.remove(pooledWebView.id)
+                }
+                AppLog.put("WebView reset failed: ${error.localizedMessage}", error)
+                destroyNow(pooledWebView)
+            }
+        }
+    }
+
+    private fun scheduleResetTimeout(
+        scopePool: ScopePool,
+        pooledWebView: PooledWebView,
+        resetToken: Int
+    ) {
+        cleanupScope.launch {
+            delay(RESET_TIME_OUT)
+            val timedOut = synchronized(this@WebViewPool) {
+                val resetting = scopePool.resettingPool[pooledWebView.id]
+                if (resetting === pooledWebView &&
+                    pooledWebView.resetToken == resetToken &&
+                    !pooledWebView.isDestroyed
+                ) {
+                    scopePool.resettingPool.remove(pooledWebView.id)
+                    true
+                } else {
+                    false
+                }
+            }
+            if (timedOut) {
+                AppLog.put("WebView reset timed out and was destroyed: scope=${scopePool.scope.name}")
+                destroyNow(pooledWebView)
+            }
         }
     }
 
