@@ -1,5 +1,6 @@
 package io.legado.app.help.config
 
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class BubbleSvgPolicyTest {
@@ -8,6 +9,18 @@ class BubbleSvgPolicyTest {
     fun allowsLocalFragmentReferences() {
         BubbleSvgPolicy.validate(
             """<svg><defs><linearGradient id="g"/></defs><path fill="url(#g)"/><use href="#g"/></svg>"""
+        )
+    }
+
+    @Test
+    fun allowsPackageAliasesAndRelativeAssets() {
+        val svg = """<svg><image href="asset://background"/><image href="assets/icon.webp"/></svg>"""
+
+        BubbleSvgPolicy.validate(svg)
+
+        assertEquals(
+            setOf("asset://background", "assets/icon.webp"),
+            BubbleSvgPolicy.packageReferences(svg)
         )
     }
 

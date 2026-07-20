@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Size
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.BubblePackageManager
+import io.legado.app.help.config.PackageSvgResourceResolver
 import io.legado.app.utils.SvgUtils
 import java.io.ByteArrayInputStream
 import kotlin.math.roundToInt
@@ -54,13 +55,27 @@ object ParagraphBubbleRenderer {
     }
 
     fun render(src: String, width: Int, height: Int?): Bitmap? {
-        val config = BubblePackageManager.currentEntry().config
+        val entry = BubblePackageManager.currentEntry()
+        val config = entry.config
         val color = resolveColor(config, status(src), displayColor(src))
         val text = displayText(src)
         val svg = config.svgTemplate
             .replaceBubbleValue(listOf("displayText", "num"), text)
             .replaceBubbleValue(listOf("displayColor", "color"), color)
-        return SvgUtils.createBitmap(ByteArrayInputStream(svg.toByteArray()), width.coerceAtLeast(1), height)
+        val targetWidth = width.coerceAtLeast(1)
+        val targetHeight = height ?: targetWidth
+        val input = ByteArrayInputStream(svg.toByteArray())
+        val root = entry.localDir
+        return if (root != null) {
+            SvgUtils.createBitmap(
+                input,
+                targetWidth,
+                height,
+                PackageSvgResourceResolver(root, config.resources, targetWidth, targetHeight)
+            )
+        } else {
+            SvgUtils.createBitmap(input, targetWidth, height)
+        }
     }
 
     private fun resolveColor(

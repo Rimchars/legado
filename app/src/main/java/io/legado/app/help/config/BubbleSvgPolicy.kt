@@ -28,9 +28,32 @@ internal object BubbleSvgPolicy {
         }
     }
 
+    fun packageReferences(svg: String): Set<String> {
+        return buildSet {
+            hrefPattern.findAll(svg).forEach { match ->
+                match.groupValues[2].trim().takeIf(::isPackageReference)?.let(::add)
+            }
+            urlPattern.findAll(svg).forEach { match ->
+                match.groupValues[1].trim().trim('"', '\'')
+                    .takeIf(::isPackageReference)
+                    ?.let(::add)
+            }
+        }
+    }
+
     private fun requireSafeReference(value: String, description: String) {
-        require(value.startsWith("#") || value.startsWith("data:image/", ignoreCase = true)) {
+        require(
+            value.startsWith("#") ||
+                value.startsWith("data:image/", ignoreCase = true) ||
+                PackageResourcePolicy.isSafeReference(value)
+        ) {
             "bubble SVG contains an $description"
         }
+    }
+
+    private fun isPackageReference(value: String): Boolean {
+        return !value.startsWith("#") &&
+            !value.startsWith("data:image/", ignoreCase = true) &&
+            PackageResourcePolicy.isSafeReference(value)
     }
 }

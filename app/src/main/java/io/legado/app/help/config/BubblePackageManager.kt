@@ -264,7 +264,7 @@ object BubblePackageManager {
         try {
             val extracted = BubblePackageArchive.extract(zipFile, unzipDir)
             val packageFile = extracted.manifestFile
-            val config = readImportedConfig(packageFile)
+            val config = readImportedConfig(packageFile, packageFile.parentFile)
             val baseDirName = safeImportedDirName(config)
             val dirName = if (overwrite) baseDirName else uniqueDirName(baseDirName)
             val parentDir = rootDir.apply { mkdirs() }.canonicalFile
@@ -283,7 +283,7 @@ object BubblePackageManager {
                     updatedAt = if (remoteUpdatedAt > 0L) config.updatedAt else System.currentTimeMillis()
                 )
                 File(stagingDir, packageFileName).writeText(GSON.toJson(next))
-                val verified = readImportedConfig(File(stagingDir, packageFileName))
+                val verified = readImportedConfig(File(stagingDir, packageFileName), stagingDir)
                 require(verified.dirName == dirName) { "staged bubble package identity mismatch" }
 
                 val installed = BubbleDirectoryTransaction().install(
@@ -291,7 +291,7 @@ object BubblePackageManager {
                     stagingDir,
                     backupDir
                 ) { installedDir ->
-                    val installedConfig = readImportedConfig(File(installedDir, packageFileName))
+                    val installedConfig = readImportedConfig(File(installedDir, packageFileName), installedDir)
                     require(installedConfig.dirName == dirName) { "installed bubble package identity mismatch" }
                     Entry(
                         installedConfig,
@@ -311,19 +311,51 @@ object BubblePackageManager {
         }
     }
 
-    private fun readImportedConfig(file: File): Config {
+    private fun readImportedConfig(file: File, resourceRoot: File? = null): Config {
         require(file.isFile) { "bubble package manifest is missing" }
         require(file.length() in 1..512L * 1024L) { "bubble package manifest is empty or too large" }
         val raw = GSON.fromJsonObject<Config>(file.readText()).getOrThrow()
-        return validateImportedConfig(raw)
+        return validateImportedConfig(raw, resourceRoot)
     }
 
-    private fun validateImportedConfig(config: Config): Config {
+    private fun validateImportedConfig(config: Config, resourceRoot: File? = null): Config {
         val normalized = normalizeConfig(config)
         require(normalized.name.length <= 200) { "bubble package name is too long" }
         require(normalized.svgTemplate.length <= 512 * 1024) { "bubble SVG template is too large" }
         BubbleSvgPolicy.validate(normalized.svgTemplate)
-        return normalized
+        if (resourceRoot == null) return normalized
+        val resources = PackageResourcePolicy.validateFiles(resourceRoot, normalized.resources)
+        BubbleSvgPolicy.packageReferences(normalized.svgTemplate).forEach { reference ->
+            val image = runCatching {
+                PackageResourcePolicy.resolve(
+                    resourceRoot,
+                    resources,
+                    reference,
+                    PackageResourcePolicy.TYPE_IMAGE
+                )
+            }.getOrNull()
+            val font = if (image == null) runCatching {
+                PackageResourcePolicy.resolve(
+                    resourceRoot,
+                    resources,
+                    reference,
+                    PackageResourcePolicy.TYPE_FONT
+                )
+            }.getOrNull() else null
+            val file = image ?: font
+            requireNotNull(file) { "bubble package resource is missing: $reference" }
+            PackageResourcePolicy.validateResolvedFile(
+                file,
+                if (image != null) PackageResourcePolicy.TYPE_IMAGE else PackageResourcePolicy.TYPE_FONT,
+                reference
+            )
+        }
+        val hasPackageResources = resources.isNotEmpty() ||
+            BubbleSvgPolicy.packageReferences(normalized.svgTemplate).isNotEmpty()
+        return normalized.copy(
+            formatVersion = if (hasPackageResources) 2 else normalized.formatVersion.coerceIn(1, 2),
+            resources = resources
+        )
     }
 
     private fun safeImportedDirName(config: Config): String {
@@ -422,18 +454,23 @@ object BubblePackageManager {
     private fun readEntry(dir: File): Entry? {
         val file = File(dir, packageFileName)
         if (!file.exists()) return null
-        val config = GSON.fromJsonObject<Config>(file.readText()).getOrNull()
-            ?.let(::normalizeConfig)
-            ?: return null
+        val config = runCatching {
+            GSON.fromJsonObject<Config>(file.readText()).getOrThrow()
+                .let(::normalizeConfig)
+        }.getOrNull() ?: return null
         val dirName = config.dirName.ifBlank { dir.name }
         return Entry(config.copy(dirName = dirName), Source.LOCAL, dirName, localDir = dir)
     }
 
     private fun normalizeConfig(config: Config): Config {
+        require(config.formatVersion in 1..2) { "unsupported bubble package version" }
         val size = config.sizeScale.takeIf { it.isFinite() } ?: 1f
+        val resources = PackageResourcePolicy.normalize(config.resources)
         return config.copy(
             name = config.name.trim().ifBlank { "段评气泡" },
             svgTemplate = config.svgTemplate.ifBlank { defaultSvgTemplate() },
+            formatVersion = config.formatVersion,
+            resources = resources,
             sizeScale = size.coerceIn(MIN_SIZE_SCALE, MAX_SIZE_SCALE),
             dayNormalColor = normalizeColorOrBlank(config.dayNormalColor),
             dayEmphasisColor = normalizeColorOrBlank(config.dayEmphasisColor),

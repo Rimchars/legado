@@ -360,9 +360,12 @@ class BubbleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 config = config,
                 isAdd = isAdd,
                 onSaved = { name, updatedConfig ->
+                    val resourceConfig = editingConfig ?: config
                     val next = updatedConfig.copy(
                         name = name.trim().ifBlank { updatedConfig.name },
-                        dirName = entry?.dirName.orEmpty()
+                        dirName = entry?.dirName.orEmpty(),
+                        formatVersion = resourceConfig.formatVersion,
+                        resources = resourceConfig.resources
                     )
                     editingConfig = next
                     runAction(

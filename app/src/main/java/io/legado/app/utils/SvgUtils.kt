@@ -8,9 +8,12 @@ import android.util.Size
 import java.io.FileInputStream
 import java.io.InputStream
 import com.caverock.androidsvg.SVG
+import com.caverock.androidsvg.SVGExternalFileResolver
 
 @Suppress("WeakerAccess", "MemberVisibilityCanBePrivate")
 object SvgUtils {
+
+    private val externalResolverLock = Any()
 
     /**
      * 从Svg中解码bitmap
@@ -29,17 +32,40 @@ object SvgUtils {
         }.getOrNull()
     }
 
-    internal fun createBitmapOrThrow(inputStream: InputStream, width: Int, height: Int? = null): Bitmap {
-        val svg = SVG.getFromInputStream(inputStream)
-        return createBitmap(svg, width, height)
+    fun createBitmap(
+        inputStream: InputStream,
+        width: Int,
+        height: Int? = null,
+        resolver: SVGExternalFileResolver
+    ): Bitmap? {
+        return kotlin.runCatching {
+            createBitmapOrThrow(inputStream, width, height, resolver)
+        }.getOrNull()
+    }
+
+    internal fun createBitmapOrThrow(
+        inputStream: InputStream,
+        width: Int,
+        height: Int? = null,
+        resolver: SVGExternalFileResolver? = null
+    ): Bitmap = synchronized(externalResolverLock) {
+        if (resolver != null) SVG.registerExternalFileResolver(resolver)
+        try {
+            val svg = SVG.getFromInputStream(inputStream)
+            createBitmap(svg, width, height)
+        } finally {
+            if (resolver != null) SVG.deregisterExternalFileResolver()
+        }
     }
 
     fun createDrawable(inputStream: InputStream): Pair<PictureDrawable, Size>? {
         return kotlin.runCatching {
-            val svg = SVG.getFromInputStream(inputStream)
-            val size = getSize(svg)
-            val picture = svg.renderToPicture()
-            Pair(PictureDrawable(picture), size)
+            synchronized(externalResolverLock) {
+                val svg = SVG.getFromInputStream(inputStream)
+                val size = getSize(svg)
+                val picture = svg.renderToPicture()
+                Pair(PictureDrawable(picture), size)
+            }
         }.getOrNull()
     }
 
@@ -53,8 +79,10 @@ object SvgUtils {
 
     fun getSize(inputStream: InputStream): Size? {
         return kotlin.runCatching {
-            val svg = SVG.getFromInputStream(inputStream)
-            getSize(svg)
+            synchronized(externalResolverLock) {
+                val svg = SVG.getFromInputStream(inputStream)
+                getSize(svg)
+            }
         }.getOrNull()
     }
 

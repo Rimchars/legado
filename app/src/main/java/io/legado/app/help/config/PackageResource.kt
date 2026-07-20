@@ -54,17 +54,18 @@ internal object PackageResourcePolicy {
         normalized.forEach { resource ->
             val file = resolveRelativeFile(root, resource.path)
             require(file.isFile) { "package resource is missing: ${resource.path}" }
-            val maxBytes = when (resource.type) {
-                TYPE_FONT -> MAX_FONT_BYTES
-                else -> MAX_IMAGE_BYTES
-            }
-            require(file.length() in 1..maxBytes) {
-                "package resource is empty or too large: ${resource.path}"
-            }
+            validateResolvedFile(file, resource.type, resource.path)
             totalBytes += file.length()
             require(totalBytes <= MAX_TOTAL_BYTES) { "package resources exceed the safety limit" }
         }
         return normalized
+    }
+
+    fun validateResolvedFile(file: File, type: String, label: String = file.name) {
+        val maxBytes = if (type == TYPE_FONT) MAX_FONT_BYTES else MAX_IMAGE_BYTES
+        require(file.isFile && file.length() in 1..maxBytes) {
+            "package resource is empty or too large: $label"
+        }
     }
 
     fun resolve(
@@ -92,6 +93,14 @@ internal object PackageResourcePolicy {
 
     fun normalizePath(value: String): String {
         return requireNotNull(normalizePathOrNull(value)) { "invalid package resource path" }
+    }
+
+    fun isSafeReference(value: String): Boolean {
+        val reference = value.trim()
+        if (reference.startsWith(ALIAS_PREFIX, ignoreCase = true)) {
+            return aliasRegex.matches(reference.substring(ALIAS_PREFIX.length))
+        }
+        return normalizePathOrNull(reference) != null
     }
 
     private fun normalizePathOrNull(value: String): String? {
