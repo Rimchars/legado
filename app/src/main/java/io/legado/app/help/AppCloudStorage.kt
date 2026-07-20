@@ -23,11 +23,10 @@ import io.legado.app.lib.cloud.WebDavCloudStorageBackend
 import io.legado.app.lib.webdav.ObjectNotFoundException
 import io.legado.app.model.remote.RemoteBookWebDav
 import io.legado.app.utils.AlphanumComparator
-import io.legado.app.utils.FileUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.NetworkUtils
 import io.legado.app.utils.UrlUtil
-import io.legado.app.utils.compress.ZipUtils
+import io.legado.app.help.storage.BackupArchiveExtractor
 import io.legado.app.utils.externalFiles
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getFile
@@ -93,8 +92,7 @@ object AppCloudStorage {
         } else {
             storage(S3ContainerScope.MAIN_BACKUP).downloadTo(name, File(Backup.zipFilePath), true)
         }
-        FileUtils.delete(Backup.backupPath)
-        ZipUtils.unZipToPath(File(Backup.zipFilePath), Backup.backupPath)
+        BackupArchiveExtractor.extract(File(Backup.zipFilePath), File(Backup.backupPath))
         Restore.restoreLocked(Backup.backupPath)
     }
 

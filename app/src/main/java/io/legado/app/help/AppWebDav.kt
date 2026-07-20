@@ -19,11 +19,10 @@ import io.legado.app.lib.webdav.WebDavException
 import io.legado.app.lib.webdav.WebDavFile
 import io.legado.app.model.remote.RemoteBookWebDav
 import io.legado.app.utils.AlphanumComparator
-import io.legado.app.utils.FileUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.NetworkUtils
 import io.legado.app.utils.UrlUtil
-import io.legado.app.utils.compress.ZipUtils
+import io.legado.app.help.storage.BackupArchiveExtractor
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.isJson
@@ -133,8 +132,7 @@ object AppWebDav {
         authorization?.let {
             val webDav = WebDav(rootWebDavUrl + name, it)
             webDav.downloadTo(Backup.zipFilePath, true)
-            FileUtils.delete(Backup.backupPath)
-            ZipUtils.unZipToPath(File(Backup.zipFilePath), Backup.backupPath)
+            BackupArchiveExtractor.extract(File(Backup.zipFilePath), File(Backup.backupPath))
             Restore.restoreLocked(Backup.backupPath)
         }
     }

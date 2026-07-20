@@ -54,7 +54,6 @@ import io.legado.app.model.localBook.LocalBook
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.LogUtils
-import io.legado.app.utils.compress.ZipUtils
 import io.legado.app.utils.defaultSharedPreferences
 import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.fromJsonObject
@@ -77,6 +76,7 @@ import kotlinx.coroutines.withContext
 import splitties.init.appCtx
 import java.io.File
 import java.io.FileInputStream
+import java.util.UUID
 
 /**
  * 恢复
@@ -100,13 +100,18 @@ object Restore {
     suspend fun restore(context: Context, uri: Uri) {
         LogUtils.d(TAG, "开始恢复备份 uri:$uri")
         kotlin.runCatching {
-            FileUtils.delete(Backup.backupPath)
             if (uri.isContentScheme()) {
-                DocumentFile.fromSingleUri(context, uri)!!.openInputStream()!!.use {
-                    ZipUtils.unZipToPath(it, Backup.backupPath)
+                val tempArchive = File(context.cacheDir, "restore_${UUID.randomUUID()}.zip")
+                try {
+                    DocumentFile.fromSingleUri(context, uri)!!.openInputStream()!!.use { input ->
+                        BackupArchiveExtractor.copyToTemporaryFile(input, tempArchive)
+                    }
+                    BackupArchiveExtractor.extract(tempArchive, File(Backup.backupPath))
+                } finally {
+                    tempArchive.delete()
                 }
             } else {
-                ZipUtils.unZipToPath(File(uri.path!!), Backup.backupPath)
+                BackupArchiveExtractor.extract(File(uri.path!!), File(Backup.backupPath))
             }
         }.onFailure {
             AppLog.put("复制解压文件出错\n${it.localizedMessage}", it)
