@@ -42,6 +42,12 @@ import androidx.core.graphics.drawable.toDrawable
 object ReadBookConfig {
     const val configFileName = "readConfig.json"
     const val shareConfigFileName = "shareReadConfig.json"
+    const val defaultUnderlineStrokeWidth = 1f
+    const val minUnderlineStrokeWidth = 0.5f
+    const val maxUnderlineStrokeWidth = 4f
+    const val defaultUnderlineDashLength = 6f
+    const val minUnderlineDashLength = 2f
+    const val maxUnderlineDashLength = 30f
     val configFilePath = FileUtils.getPath(appCtx.filesDir, configFileName)
     val shareConfigFilePath = FileUtils.getPath(appCtx.filesDir, shareConfigFileName)
     val configList: ArrayList<Config> = arrayListOf()
@@ -49,6 +55,7 @@ object ReadBookConfig {
     var durConfig
         get() = getConfig(styleSelect)
         set(value) {
+            value.normalizeUnderlineStyle()
             configList[styleSelect] = value
             if (shareLayout) {
                 shareConfig = value
@@ -88,7 +95,7 @@ object ReadBookConfig {
         }
         (configs ?: DefaultData.readConfigs).let {
             configList.clear()
-            configList.addAll(it)
+            configList.addAll(it.map(Config::normalizeUnderlineStyle))
         }
     }
 
@@ -103,7 +110,7 @@ object ReadBookConfig {
                 e.printOnDebug()
             }
         }
-        shareConfig = c ?: configList.getOrNull(5) ?: Config()
+        shareConfig = (c ?: configList.getOrNull(5) ?: Config()).normalizeUnderlineStyle()
     }
 
     fun upBg(width: Int, height: Int) {
@@ -355,6 +362,18 @@ object ReadBookConfig {
             config.underlineMode = value
         }
 
+    var underlineStrokeWidth: Float
+        get() = normalizeUnderlineStrokeWidth(config.underlineStrokeWidth)
+        set(value) {
+            config.underlineStrokeWidth = normalizeUnderlineStrokeWidth(value)
+        }
+
+    var underlineDashLength: Float
+        get() = normalizeUnderlineDashLength(config.underlineDashLength)
+        set(value) {
+            config.underlineDashLength = normalizeUnderlineDashLength(value)
+        }
+
     var paddingBottom: Int
         get() = config.paddingBottom
         set(value) {
@@ -454,6 +473,10 @@ object ReadBookConfig {
             exportConfig.titleSize = shareConfig.titleSize
             exportConfig.titleTopSpacing = shareConfig.titleTopSpacing
             exportConfig.titleBottomSpacing = shareConfig.titleBottomSpacing
+            exportConfig.paragraphIndent = shareConfig.paragraphIndent
+            exportConfig.underlineMode = shareConfig.underlineMode
+            exportConfig.underlineStrokeWidth = shareConfig.normalizedUnderlineStrokeWidth()
+            exportConfig.underlineDashLength = shareConfig.normalizedUnderlineDashLength()
             exportConfig.paddingBottom = shareConfig.paddingBottom
             exportConfig.paddingLeft = shareConfig.paddingLeft
             exportConfig.paddingRight = shareConfig.paddingRight
@@ -549,8 +572,22 @@ object ReadBookConfig {
         }
         config.curTextColor()
         config.curTextAccentColor()
-        return config
+        return config.normalizeUnderlineStyle()
     }
+
+    fun normalizeUnderlineStrokeWidth(value: Float): Float =
+        if (value.isFinite() && value > 0f) {
+            value.coerceIn(minUnderlineStrokeWidth, maxUnderlineStrokeWidth)
+        } else {
+            defaultUnderlineStrokeWidth
+        }
+
+    fun normalizeUnderlineDashLength(value: Float): Float =
+        if (value.isFinite() && value > 0f) {
+            value.coerceIn(minUnderlineDashLength, maxUnderlineDashLength)
+        } else {
+            defaultUnderlineDashLength
+        }
 
     @Keep
     data class Config(
@@ -590,6 +627,8 @@ object ReadBookConfig {
         var titleBottomSpacing: Int = 0,
         var paragraphIndent: String = "　　",//段落缩进
         var underlineMode: Int = 0, //下划线
+        var underlineStrokeWidth: Float = defaultUnderlineStrokeWidth,
+        var underlineDashLength: Float = defaultUnderlineDashLength,
         var paddingBottom: Int = 6,
         var paddingLeft: Int = 16,
         var paddingRight: Int = 16,
@@ -615,6 +654,17 @@ object ReadBookConfig {
         var headerMode: Int = 0,
         var footerMode: Int = 0
     ) {
+
+        fun normalizedUnderlineStrokeWidth(): Float =
+            normalizeUnderlineStrokeWidth(underlineStrokeWidth)
+
+        fun normalizedUnderlineDashLength(): Float =
+            normalizeUnderlineDashLength(underlineDashLength)
+
+        fun normalizeUnderlineStyle(): Config = apply {
+            underlineStrokeWidth = normalizedUnderlineStrokeWidth()
+            underlineDashLength = normalizedUnderlineDashLength()
+        }
 
         @Transient
         private var textColorIntEInk = -1
@@ -904,6 +954,8 @@ object ReadBookConfig {
             "titleBottomSpacing" to titleBottomSpacing,
             "paragraphIndent" to paragraphIndent,
             "underlineMode" to underlineMode,
+            "underlineStrokeWidth" to normalizedUnderlineStrokeWidth(),
+            "underlineDashLength" to normalizedUnderlineDashLength(),
             "paddingBottom" to paddingBottom,
             "paddingLeft" to paddingLeft,
             "paddingRight" to paddingRight,

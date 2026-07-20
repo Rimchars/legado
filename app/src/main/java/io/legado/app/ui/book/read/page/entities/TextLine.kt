@@ -3,9 +3,9 @@ package io.legado.app.ui.book.read.page.entities
 import android.annotation.SuppressLint
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
+import android.graphics.Paint
 import android.graphics.Paint.FontMetrics
 import android.os.Build
-import android.text.TextPaint
 import androidx.annotation.Keep
 import io.legado.app.help.PaintPool
 import io.legado.app.help.book.isImage
@@ -238,10 +238,21 @@ data class TextLine(
      * 绘制下划线
      */
     private fun drawUnderline(canvas: Canvas, underlineMode: Int) {
-        val paint = ChapterProvider.contentPaint
+        if (underlineMode !in 1..2) return
         val distance = (ChapterProvider.lineSpacingExtra * 10 - 11).coerceIn(-1f, 10f)
         val lineY = height + distance.dpToPx()
-        if (underlineMode == 1) {
+        val paint = PaintPool.obtain()
+        paint.isAntiAlias = true
+        paint.color = ReadBookConfig.textAccentColor
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.BUTT
+        paint.strokeWidth = ReadBookConfig.underlineStrokeWidth.dpToPx()
+        if (underlineMode == 2) {
+            paint.pathEffect = underlineDashPathEffect(
+                ReadBookConfig.underlineDashLength.dpToPx()
+            )
+        }
+        try {
             canvas.drawLine(
                 lineStart + indentWidth,
                 lineY,
@@ -249,17 +260,8 @@ data class TextLine(
                 lineY,
                 paint
             )
-        } else if (underlineMode == 2) { // 虚线
-            val dashPathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
-            val dashPath = TextPaint(paint)
-            dashPath.pathEffect = dashPathEffect
-            canvas.drawLine(
-                lineStart + indentWidth,
-                lineY,
-                lineEnd,
-                lineY,
-                dashPath
-            )
+        } finally {
+            PaintPool.recycle(paint)
         }
     }
 
@@ -292,6 +294,20 @@ data class TextLine(
         private val atLeastApi26 = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
         val atLeastApi28 = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
         private val atLeastApi35 = Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
+        private var cachedUnderlineDashLengthPx = Float.NaN
+        private var cachedUnderlineDashPathEffect: DashPathEffect? = null
+
+        private fun underlineDashPathEffect(dashLengthPx: Float): DashPathEffect {
+            if (cachedUnderlineDashLengthPx != dashLengthPx || cachedUnderlineDashPathEffect == null) {
+                cachedUnderlineDashLengthPx = dashLengthPx
+                cachedUnderlineDashPathEffect = DashPathEffect(
+                    floatArrayOf(dashLengthPx, dashLengthPx),
+                    0f
+                )
+            }
+            return checkNotNull(cachedUnderlineDashPathEffect)
+        }
+
         private val wordSpacingWorking by lazy {
             // issue 3785 3846
             val paint = PaintPool.obtain()
