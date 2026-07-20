@@ -2,6 +2,8 @@ package io.legado.app.help.storage
 
 import io.legado.app.constant.AppLog
 import io.legado.app.help.DirectLinkUpload
+import io.legado.app.help.config.AdvancedTitlePackageManager
+import io.legado.app.help.config.BubblePackageManager
 import io.legado.app.help.config.NavigationBarIconConfig
 import io.legado.app.help.config.CoverCollectionManager
 import io.legado.app.help.config.ReadBookConfig
@@ -78,6 +80,12 @@ object RestoreJournal {
         }
         if (File(path, "coverCollections").isDirectory) {
             targets.add(CoverCollectionManager.rootDir)
+        }
+        if (File(path, Backup.advancedTitlePackagesDirName).isDirectory) {
+            targets.add(AdvancedTitlePackageManager.rootDir)
+        }
+        if (File(path, Backup.bubblePackagesDirName).isDirectory) {
+            targets.add(BubblePackageManager.rootDir)
         }
         return targets.distinctBy { it.absolutePath }
     }

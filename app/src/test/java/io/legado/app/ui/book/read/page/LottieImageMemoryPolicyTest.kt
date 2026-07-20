@@ -67,4 +67,25 @@ class LottieImageMemoryPolicyTest {
             LottieImageCacheKey(firstDigest, 200, 100)
         )
     }
+
+    @Test
+    fun sampleSizeHandlesExtremeAspectRatiosWithoutHugeIntermediateBitmap() {
+        val target = LottieImageMemoryPolicy.fitSourceInto(
+            100_000,
+            1_000,
+            LottieDecodeSize(256, 256)
+        )!!
+
+        assertEquals(LottieDecodeSize(256, 2), target)
+        assertEquals(256, LottieImageMemoryPolicy.sampleSize(100_000, 1_000, target))
+    }
+
+    @Test
+    fun digestDoesNotReuseKnownStringHashCollision() {
+        assertEquals("FB".hashCode(), "Ea".hashCode())
+        assertNotEquals(
+            LottieImageMemoryPolicy.sourceSha256("FB"),
+            LottieImageMemoryPolicy.sourceSha256("Ea")
+        )
+    }
 }

@@ -52,6 +52,8 @@ import io.legado.app.help.config.AdvancedTitleFontAssetDelegate
 import io.legado.app.help.config.PackageResourcePolicy
 import io.legado.app.help.config.PackageSvgResourceResolver
 import io.legado.app.lib.theme.composeActionRadius
+import io.legado.app.ui.book.read.page.LottieDecodeSize
+import io.legado.app.ui.book.read.page.LottieImageMemoryPolicy
 import io.legado.app.ui.widget.compose.AppListSpacing
 import io.legado.app.ui.widget.compose.AppManagementCard
 import io.legado.app.ui.widget.compose.AppManagementMenuAction
@@ -273,7 +275,8 @@ private fun AdvancedTitlePreview(
                             }
                         )
                     )
-                    val key = 31 * value.hashCode() + resourceContext?.cacheKey.orEmpty().hashCode()
+                    val key = LottieImageMemoryPolicy.sourceSha256(value) + ":" +
+                        resourceContext?.cacheKey.orEmpty()
                     if (view.tag != key) {
                         view.cancelAnimation()
                         view.clearAnimation()
@@ -324,19 +327,22 @@ private fun resolvePreviewImage(
 private fun decodePreviewBitmap(bytes: ByteArray): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-    var sample = 1
-    while (bounds.outWidth / (sample * 2) >= PREVIEW_ASSET_EDGE &&
-        bounds.outHeight / (sample * 2) >= PREVIEW_ASSET_EDGE
-    ) {
-        sample *= 2
-    }
-    return BitmapFactory.decodeByteArray(
+    val target = LottieImageMemoryPolicy.fitSourceInto(
+        bounds.outWidth,
+        bounds.outHeight,
+        LottieDecodeSize(PREVIEW_ASSET_EDGE, PREVIEW_ASSET_EDGE)
+    ) ?: return null
+    val sample = LottieImageMemoryPolicy.sampleSize(bounds.outWidth, bounds.outHeight, target)
+    val decoded = BitmapFactory.decodeByteArray(
         bytes,
         0,
         bytes.size,
         BitmapFactory.Options().apply { inSampleSize = sample }
-    )
+    ) ?: return null
+    if (decoded.width == target.width && decoded.height == target.height) return decoded
+    return Bitmap.createScaledBitmap(decoded, target.width, target.height, true).also {
+        if (it !== decoded) decoded.recycle()
+    }
 }
 
 private const val PREVIEW_ASSET_EDGE = 256

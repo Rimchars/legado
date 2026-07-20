@@ -773,7 +773,8 @@ class PageView(context: Context) : FrameLayout(context) {
         )
         lottieView.setCacheComposition(resolvedJson == null)
         val nextKey = resolvedJson?.let {
-            "advanced_title:${resourceContext?.cacheKey.orEmpty()}:${it.hashCode()}:$targetWidth:$targetHeight"
+            "advanced_title:${resourceContext?.cacheKey.orEmpty()}:" +
+                "${LottieImageMemoryPolicy.sourceSha256(it)}:$targetWidth:$targetHeight"
         } ?: "advanced_title:raw:$targetWidth:$targetHeight"
 
         fun showComposition() {
@@ -883,7 +884,8 @@ class PageView(context: Context) : FrameLayout(context) {
         // templates occupy all six LRU slots; the active Lottie view/composition remains cached by
         // Lottie itself, while this auxiliary cache is reserved for small templates.
         val cacheKey = if (rawJson.length <= MAX_STYLED_LOTTIE_CACHE_SOURCE_CHARS) {
-            "${rawJson.hashCode()}:$fallbackHex:${"%.3f".format(normalizedTextScale)}"
+            "${LottieImageMemoryPolicy.sourceSha256(rawJson)}:$fallbackHex:" +
+                "${"%.3f".format(normalizedTextScale)}"
         } else {
             null
         }
@@ -1093,12 +1095,7 @@ class PageView(context: Context) : FrameLayout(context) {
         BitmapFactory.decodeFile(file.absolutePath, bounds)
         val target = LottieImageMemoryPolicy.fitSourceInto(bounds.outWidth, bounds.outHeight, decodeSize)
             ?: return null
-        var sampleSize = 1
-        while (bounds.outWidth / (sampleSize * 2) >= target.width &&
-            bounds.outHeight / (sampleSize * 2) >= target.height
-        ) {
-            sampleSize *= 2
-        }
+        val sampleSize = LottieImageMemoryPolicy.sampleSize(bounds.outWidth, bounds.outHeight, target)
         val decoded = BitmapFactory.decodeFile(
             file.absolutePath,
             BitmapFactory.Options().apply { inSampleSize = sampleSize }
@@ -1154,12 +1151,7 @@ class PageView(context: Context) : FrameLayout(context) {
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         val target = LottieImageMemoryPolicy.fitSourceInto(bounds.outWidth, bounds.outHeight, decodeSize)
             ?: return null
-        var sampleSize = 1
-        while (bounds.outWidth / (sampleSize * 2) >= target.width &&
-            bounds.outHeight / (sampleSize * 2) >= target.height
-        ) {
-            sampleSize *= 2
-        }
+        val sampleSize = LottieImageMemoryPolicy.sampleSize(bounds.outWidth, bounds.outHeight, target)
         val decoded = BitmapFactory.decodeByteArray(
             bytes,
             0,
