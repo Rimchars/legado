@@ -440,6 +440,7 @@ object AdvancedTitlePackageManager {
         require(AdvancedTitleConfig.hasRenderableLayers(json)) {
             appCtx.getString(R.string.advanced_title_invalid_json)
         }
+        AdvancedTitleResourcePolicy.validate(directory, resources, json)
         return config.copy(name = config.name.trim(), resources = resources)
     }
 

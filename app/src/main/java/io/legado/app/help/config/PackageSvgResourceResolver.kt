@@ -4,7 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import com.caverock.androidsvg.SVGExternalFileResolver
+import io.legado.app.utils.SvgUtils
 import java.io.File
+import java.io.FileInputStream
 
 internal class PackageSvgResourceResolver(
     private val root: File,
@@ -22,7 +24,11 @@ internal class PackageSvgResourceResolver(
                 PackageResourcePolicy.TYPE_IMAGE
             )
         }.getOrNull() ?: return null
-        if (file.extension.equals("svg", ignoreCase = true)) return null
+        if (file.extension.equals("svg", ignoreCase = true)) {
+            return FileInputStream(file).use { input ->
+                SvgUtils.createBitmap(input, targetWidth.coerceAtLeast(1), targetHeight.coerceAtLeast(1))
+            }
+        }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
