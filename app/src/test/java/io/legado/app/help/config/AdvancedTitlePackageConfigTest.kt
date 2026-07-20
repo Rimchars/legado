@@ -60,7 +60,35 @@ class AdvancedTitlePackageConfigTest {
     @Test
     fun largeTemplatesHaveSeparateEditableAndSafetyLimits() {
         assertEquals(2L * 1024L * 1024L, AdvancedTitlePackageManager.MAX_EDITABLE_JSON_BYTES)
-        assertEquals(16L * 1024L * 1024L, AdvancedTitlePackageManager.MAX_JSON_BYTES)
+        assertEquals(64L * 1024L * 1024L, AdvancedTitlePackageManager.MAX_JSON_BYTES)
+    }
+
+    @Test
+    fun rejectedLegacyTemplateWinsOverAccidentalBuiltinSelection() {
+        assertEquals(
+            "legacy-large-title",
+            AdvancedTitlePackageManager.preferLegacyOverBuiltin(
+                builtin = "builtin-title",
+                legacy = "legacy-large-title",
+                legacyRenderable = true
+            )
+        )
+        assertEquals(
+            "builtin-title",
+            AdvancedTitlePackageManager.preferLegacyOverBuiltin(
+                builtin = "builtin-title",
+                legacy = "builtin-title",
+                legacyRenderable = true
+            )
+        )
+        assertEquals(
+            "builtin-title",
+            AdvancedTitlePackageManager.preferLegacyOverBuiltin(
+                builtin = "builtin-title",
+                legacy = "broken-title",
+                legacyRenderable = false
+            )
+        )
     }
 
     @Test

@@ -731,15 +731,20 @@ class ReadView(context: Context, attrs: AttributeSet) :
     }
 
     fun invalidateTextPage() {
-        if (!AppConfig.optimizeRender) {
-            return
+        if (AppConfig.optimizeRender) {
+            pageFactory.run {
+                prevPage.invalidateAll()
+                curPage.invalidateAll()
+                nextPage.invalidateAll()
+                nextPlusPage.invalidateAll()
+            }
         }
-        pageFactory.run {
-            prevPage.invalidateAll()
-            curPage.invalidateAll()
-            nextPage.invalidateAll()
-            nextPlusPage.invalidateAll()
-        }
+        // Style-only changes such as underline width/dash length must repaint even when the
+        // recorder optimization is disabled. Previously this method returned before invalidating
+        // any View, so the new values appeared only after recreating the reader.
+        prevPage.invalidateContentView()
+        curPage.invalidateContentView()
+        nextPage.invalidateContentView()
     }
 
     fun onScrollAnimStart() {

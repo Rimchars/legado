@@ -264,11 +264,17 @@ class TextChapterLayout(
         if (!book.isEpub && (titleMode != 2 || bookChapter.isVolume || contents.isEmpty())) {
             var firstLine = true
             //标题非隐藏
-            val advancedTitleHandled = titleMode == AdvancedTitleConfig.TITLE_MODE_ADVANCED &&
-                !bookChapter.isVolume &&
+            val advancedTitleRequested = titleMode == ADVANCED_TITLE_MODE && !bookChapter.isVolume
+            val advancedTitleHandled = advancedTitleRequested && runCatching {
                 setTypeAdvancedTitle(book, displayTitle)
-            val advancedTitleFallback = titleMode == AdvancedTitleConfig.TITLE_MODE_ADVANCED &&
-                !advancedTitleHandled
+            }.onFailure { error ->
+                AppLog.put(
+                    "Advanced title unavailable, falling back to the normal chapter title: " +
+                        (error.localizedMessage ?: error::class.java.simpleName),
+                    error
+                )
+            }.getOrDefault(false)
+            val advancedTitleFallback = advancedTitleRequested && !advancedTitleHandled
             val titleLines: Array<String> = if (advancedTitleHandled) {
                 emptyArray()
             } else {
@@ -2368,6 +2374,7 @@ class TextChapterLayout(
     )
 
     private companion object {
+        private const val ADVANCED_TITLE_MODE = 3
         const val PARAGRAPH_BUBBLE_PREFIX = "dp:"
         const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
         const val ADVANCED_TITLE_WIDTH_FACTOR = 0.86f

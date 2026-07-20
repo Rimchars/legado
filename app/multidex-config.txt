@@ -1,0 +1,3 @@
+io/legado/app/help/config/AdvancedTitleConfig.class
+io/legado/app/help/config/AdvancedTitleConfig$SplitRule.class
+io/legado/app/help/config/AdvancedTitleConfig$Parts.class

@@ -62,6 +62,8 @@ android {
         applicationId "io.legado.app"
         minSdk 21
         targetSdk 36
+        multiDexEnabled true
+        multiDexKeepFile file('multidex-config.txt')
         versionCode buildVersionCode
         versionName version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

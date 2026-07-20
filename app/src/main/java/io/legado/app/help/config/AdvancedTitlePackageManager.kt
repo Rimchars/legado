@@ -23,7 +23,10 @@ object AdvancedTitlePackageManager {
 
     const val BUILTIN_ID = "builtin_default"
     const val MAX_EDITABLE_JSON_BYTES = 2L * 1024L * 1024L
-    const val MAX_JSON_BYTES = 16L * 1024L * 1024L
+    // Lottie still needs the complete JSON while composing, so this remains a runtime safety
+    // ceiling rather than an edit limit. Keep it aligned with the archive single-file limit so
+    // legacy read-only titles that were valid before package support are not rejected at 16 MiB.
+    const val MAX_JSON_BYTES = 64L * 1024L * 1024L
     const val MAX_PACKAGE_BYTES = 256L * 1024L * 1024L
     private const val MAX_PACKAGES = 64
     private const val MANIFEST_FILE = "package.json"
@@ -141,7 +144,16 @@ object AdvancedTitlePackageManager {
         }
         val id = explicitId ?: BUILTIN_ID
         return if (id == BUILTIN_ID) {
-            builtinJson()
+            val builtin = builtinJson()
+            // A previous migration could select the built-in entry after rejecting an old title
+            // only because it exceeded the newer package limit. The legacy value was intentionally
+            // left in preferences, so prefer it when it is not actually the built-in template.
+            val legacy = legacyTemplate()
+            preferLegacyOverBuiltin(
+                builtin = builtin,
+                legacy = legacy,
+                legacyRenderable = legacy?.let(AdvancedTitleConfig::hasRenderableLayers) == true
+            )
         } else {
             val file = lottieFile(localDir(id))
             readCached(id, file) ?: legacyTemplate() ?: builtinJson()
@@ -484,18 +496,26 @@ object AdvancedTitlePackageManager {
     }
 
     private fun migrateLegacyIfNeeded() {
-        if (!appCtx.getPrefString(PreferKey.advancedTitlePackage).isNullOrBlank()) return
+        val selectedId = appCtx.getPrefString(PreferKey.advancedTitlePackage)
         val legacy = legacyTemplate()
-            ?.takeIf { runCatching { validateJson(it) }.isSuccess }
+        val builtin = builtinJson()
+        val shouldRecoverRejectedLegacy = selectedId == BUILTIN_ID &&
+            legacy != null && legacy != builtin
+        if (!selectedId.isNullOrBlank() && !shouldRecoverRejectedLegacy) return
         if (legacy == null) {
             appCtx.putPrefString(PreferKey.advancedTitlePackage, BUILTIN_ID)
             return
         }
-        val builtin = builtinJson()
         if (legacy == builtin) {
             appCtx.putPrefString(PreferKey.advancedTitlePackage, BUILTIN_ID)
             AdvancedTitleConfig.lottieJson = builtin
             AdvancedTitleConfig.lottiePath = null
+        } else if (!AdvancedTitleConfig.hasRenderableLayers(legacy)) {
+            appCtx.putPrefString(PreferKey.advancedTitlePackage, BUILTIN_ID)
+        } else if (utf8SizeUpTo(legacy, MAX_JSON_BYTES) > MAX_JSON_BYTES) {
+            // Preserve oversized legacy data instead of silently replacing it. currentTemplate()
+            // can still render it through the old path, while new packages remain file-backed.
+            appCtx.putPrefString(PreferKey.advancedTitlePackage, null)
         } else {
             val migrated = addOrUpdate(appCtx.getString(R.string.advanced_title_migrated), legacy)
             AdvancedTitleConfig.lottiePath = lottieFile(
@@ -579,6 +599,14 @@ object AdvancedTitlePackageManager {
             index++
         }
         return size
+    }
+
+    internal fun preferLegacyOverBuiltin(
+        builtin: String,
+        legacy: String?,
+        legacyRenderable: Boolean
+    ): String {
+        return legacy?.takeIf { legacyRenderable && it != builtin } ?: builtin
     }
 
     private fun isValidId(value: String): Boolean = value.matches(Regex("^[A-Za-z0-9_-]{1,64}$"))
