@@ -463,13 +463,14 @@ object BubblePackageManager {
     }
 
     private fun normalizeConfig(config: Config): Config {
-        require(config.formatVersion in 1..2) { "unsupported bubble package version" }
+        val version = config.formatVersion.takeIf { it > 0 } ?: 1
+        require(version in 1..2) { "unsupported bubble package version" }
         val size = config.sizeScale.takeIf { it.isFinite() } ?: 1f
-        val resources = PackageResourcePolicy.normalize(config.resources)
+        val resources = PackageResourcePolicy.normalize(config.resources.orEmpty())
         return config.copy(
             name = config.name.trim().ifBlank { "段评气泡" },
             svgTemplate = config.svgTemplate.ifBlank { defaultSvgTemplate() },
-            formatVersion = config.formatVersion,
+            formatVersion = version,
             resources = resources,
             sizeScale = size.coerceIn(MIN_SIZE_SCALE, MAX_SIZE_SCALE),
             dayNormalColor = normalizeColorOrBlank(config.dayNormalColor),
@@ -478,6 +479,8 @@ object BubblePackageManager {
             nightEmphasisColor = normalizeColorOrBlank(config.nightEmphasisColor)
         )
     }
+
+    internal fun normalizeStoredConfig(config: Config): Config = normalizeConfig(config)
 
     private fun normalizeColorOrBlank(value: String?): String? {
         val color = value?.trim().orEmpty()

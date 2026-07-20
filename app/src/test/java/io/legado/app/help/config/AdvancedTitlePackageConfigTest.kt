@@ -10,12 +10,16 @@ class AdvancedTitlePackageConfigTest {
 
     @Test
     fun legacyManifestWithoutRuleFieldsRemainsReadable() {
-        val config = GSON.fromJsonObject<AdvancedTitlePackageManager.Config>(
-            """{"id":"legacy","name":"Legacy","updatedAt":1}"""
-        ).getOrThrow()
+        val config = AdvancedTitlePackageManager.normalizeStoredConfig(
+            GSON.fromJsonObject<AdvancedTitlePackageManager.Config>(
+                """{"id":"legacy","name":"Legacy","updatedAt":1}"""
+            ).getOrThrow()
+        )
 
         assertNull(config.splitRuleOrNull())
         assertNull(config.normalizedHeightFactorOrNull())
+        assertEquals(1, config.formatVersion)
+        assertEquals(emptyList<PackageResource>(), config.resources)
     }
 
     @Test

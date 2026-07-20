@@ -449,10 +449,21 @@ object AdvancedTitlePackageManager {
         require(manifest.isFile && manifest.length() in 1..64L * 1024L) {
             "Advanced title manifest is invalid"
         }
-        val config = GSON.fromJsonObject<Config>(manifest.readText()).getOrThrow()
+        val config = normalizeStoredConfig(
+            GSON.fromJsonObject<Config>(manifest.readText()).getOrThrow()
+        )
         require(isValidId(config.id)) { "Advanced title id is invalid" }
         require(expectedId == null || config.id == expectedId) { "Advanced title id changed" }
         return config
+    }
+
+    internal fun normalizeStoredConfig(config: Config): Config {
+        val version = config.formatVersion.takeIf { it > 0 } ?: 1
+        require(version in 1..2) { "Unsupported advanced title package version" }
+        return config.copy(
+            formatVersion = version,
+            resources = config.resources.orEmpty()
+        )
     }
 
     private fun copyResourceDirectories(source: File, target: File) {

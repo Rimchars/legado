@@ -16,6 +16,8 @@ internal class PackageSvgResourceResolver(
     private val fallbackTypeface: () -> Typeface? = { null }
 ) : SVGExternalFileResolver() {
 
+    private val resolvingImages = ThreadLocal.withInitial { hashSetOf<String>() }
+
     override fun resolveImage(filename: String): Bitmap? {
         val resourceRoot = root ?: return null
         val file = runCatching {
@@ -26,11 +28,24 @@ internal class PackageSvgResourceResolver(
                 PackageResourcePolicy.TYPE_IMAGE
             )
         }.getOrNull() ?: return null
-        if (file.extension.equals("svg", ignoreCase = true)) {
-            return FileInputStream(file).use { input ->
-                SvgUtils.createBitmap(input, targetWidth.coerceAtLeast(1), targetHeight.coerceAtLeast(1))
+        val identity = file.canonicalPath
+        val resolving = requireNotNull(resolvingImages.get())
+        if (!resolving.add(identity)) return null
+        return try {
+            if (file.extension.equals("svg", ignoreCase = true)) {
+                FileInputStream(file).use { input ->
+                    SvgUtils.createBitmap(input, targetWidth.coerceAtLeast(1), targetHeight.coerceAtLeast(1))
+                }
+            } else {
+                decodeRaster(file)
             }
+        } finally {
+            resolving.remove(identity)
+            if (resolving.isEmpty()) resolvingImages.remove()
         }
+    }
+
+    private fun decodeRaster(file: File): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
