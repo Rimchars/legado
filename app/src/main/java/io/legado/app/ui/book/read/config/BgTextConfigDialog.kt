@@ -110,6 +110,7 @@ import io.legado.app.utils.stackTraceStr
 import io.legado.app.utils.toastOnUi
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.roundToInt
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import splitties.init.appCtx
@@ -315,7 +316,13 @@ class BgTextConfigDialog : BaseDialogFragment(0) {
             contentPadding = PaddingValues(8.dp)
         ) {
             var underlineMode by rememberSaveable(refreshTick) {
-                mutableIntStateOf(ReadBookConfig.durConfig.underlineMode)
+                mutableIntStateOf(ReadBookConfig.underlineMode)
+            }
+            var strokeWidthStep by rememberSaveable(refreshTick) {
+                mutableIntStateOf((ReadBookConfig.underlineStrokeWidth * 2f).roundToInt())
+            }
+            var dashLength by rememberSaveable(refreshTick) {
+                mutableIntStateOf(ReadBookConfig.underlineDashLength.roundToInt())
             }
             ReaderSegmentedOptions(
                 options = listOf(
@@ -330,8 +337,34 @@ class BgTextConfigDialog : BaseDialogFragment(0) {
                 val next = value.toIntOrNull() ?: return@ReaderSegmentedOptions
                 if (next == underlineMode) return@ReaderSegmentedOptions
                 underlineMode = next
-                ReadBookConfig.durConfig.underlineMode = next
-                postReadConfigChanged(6, 9, 11)
+                ReadBookConfig.underlineMode = next
+                postReadConfigChanged(9, 11)
+            }
+            if (underlineMode != 0) {
+                SliderRow(
+                    title = stringResource(R.string.underline_stroke_width),
+                    value = strokeWidthStep,
+                    range = 1..8,
+                    style = style,
+                    valueText = "${strokeWidthStep / 2f} dp"
+                ) {
+                    strokeWidthStep = it
+                    ReadBookConfig.underlineStrokeWidth = it / 2f
+                    postReadConfigChanged(9, 11)
+                }
+            }
+            if (underlineMode == 2) {
+                SliderRow(
+                    title = stringResource(R.string.underline_dash_length),
+                    value = dashLength,
+                    range = 2..30,
+                    style = style,
+                    valueText = "$dashLength dp"
+                ) {
+                    dashLength = it
+                    ReadBookConfig.underlineDashLength = it.toFloat()
+                    postReadConfigChanged(9, 11)
+                }
             }
         }
     }
@@ -448,9 +481,8 @@ class BgTextConfigDialog : BaseDialogFragment(0) {
         onClick: () -> Unit
     ) {
         Surface(
-            modifier = modifier
-                .heightIn(min = 42.dp)
-                .clickable(onClick = onClick),
+            onClick = onClick,
+            modifier = modifier.heightIn(min = 42.dp),
             shape = RoundedCornerShape(style.actionRadius),
             color = if (danger) style.danger.copy(alpha = 0.11f) else style.fieldSurface,
             contentColor = if (danger) style.danger else style.primaryText,
