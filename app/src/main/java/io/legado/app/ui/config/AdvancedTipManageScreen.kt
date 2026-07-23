@@ -43,7 +43,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.airbnb.lottie.LottieAnimationView
 import com.airbnb.lottie.RenderMode
 import io.legado.app.R
-import io.legado.app.help.config.AdvancedTitlePackageManager
+import io.legado.app.help.config.AdvancedTipPackageManager
 import io.legado.app.help.config.AdvancedTitleFontAssetDelegate
 import io.legado.app.lib.theme.composeActionRadius
 import io.legado.app.ui.widget.compose.AppListSpacing
@@ -58,17 +58,17 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val advancedTitleDateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+private val advancedTipDateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
 @Composable
-internal fun AdvancedTitleManageScreen(
-    entries: List<AdvancedTitlePackageManager.Entry>,
+internal fun AdvancedTipManageScreen(
+    entries: List<AdvancedTipPackageManager.Entry>,
     activeId: String,
     loading: Boolean,
-    previewProvider: suspend (AdvancedTitlePackageManager.Entry) -> String?,
-    onApply: (AdvancedTitlePackageManager.Entry) -> Unit,
-    onEdit: (AdvancedTitlePackageManager.Entry) -> Unit,
-    onMoreActions: (AdvancedTitlePackageManager.Entry) -> List<AppManagementMenuAction>,
+    summaryRes: Int,
+    previewProvider: suspend (AdvancedTipPackageManager.Entry) -> String?,
+    onApply: (AdvancedTipPackageManager.Entry) -> Unit,
+    onMoreActions: (AdvancedTipPackageManager.Entry) -> List<AppManagementMenuAction>,
     onImport: () -> Unit
 ) {
     val palette = rememberAppManagementPalette()
@@ -86,7 +86,7 @@ internal fun AdvancedTitleManageScreen(
                 text = if (loading) {
                     LocalContext.current.getString(R.string.loading)
                 } else {
-                    LocalContext.current.getString(R.string.advanced_title_manage_summary)
+                    LocalContext.current.getString(summaryRes)
                 },
                 color = palette.settings.secondaryText,
                 fontSize = 13.sp,
@@ -102,13 +102,12 @@ internal fun AdvancedTitleManageScreen(
                 verticalArrangement = Arrangement.spacedBy(AppListSpacing.Normal)
             ) {
                 items(entries, key = { it.id }) { entry ->
-                    AdvancedTitleItem(
+                    AdvancedTipItem(
                         entry = entry,
                         active = entry.id == activeId,
                         palette = palette,
                         previewProvider = previewProvider,
                         onApply = { onApply(entry) },
-                        onEdit = { onEdit(entry) },
                         moreActions = onMoreActions(entry)
                     )
                 }
@@ -130,16 +129,14 @@ internal fun AdvancedTitleManageScreen(
 }
 
 @Composable
-private fun AdvancedTitleItem(
-    entry: AdvancedTitlePackageManager.Entry,
+private fun AdvancedTipItem(
+    entry: AdvancedTipPackageManager.Entry,
     active: Boolean,
     palette: AppManagementPalette,
-    previewProvider: suspend (AdvancedTitlePackageManager.Entry) -> String?,
+    previewProvider: suspend (AdvancedTipPackageManager.Entry) -> String?,
     onApply: () -> Unit,
-    onEdit: () -> Unit,
     moreActions: List<AppManagementMenuAction>
 ) {
-    val editable = AdvancedTitlePackageManager.isEditable(entry)
     AppManagementCard(
         palette = palette,
         modifier = Modifier.fillMaxWidth(),
@@ -151,7 +148,7 @@ private fun AdvancedTitleItem(
                 .heightIn(min = 92.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AdvancedTitlePreview(entry, previewProvider, palette)
+            AdvancedTipPreview(entry, previewProvider, palette)
             Spacer(modifier = Modifier.width(12.dp))
             Column(
                 modifier = Modifier.weight(1f),
@@ -175,7 +172,7 @@ private fun AdvancedTitleItem(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AdvancedTitleActionButton(
+                    AdvancedTipActionButton(
                         text = LocalContext.current.getString(
                             if (active) R.string.advanced_title_applied else R.string.advanced_title_apply
                         ),
@@ -184,17 +181,7 @@ private fun AdvancedTitleItem(
                         enabled = !active,
                         onClick = onApply
                     )
-                    if (!entry.isBuiltin) {
-                        AdvancedTitleActionButton(
-                            text = LocalContext.current.getString(
-                                if (editable) R.string.edit else R.string.read_only
-                            ),
-                            palette = palette.miuix,
-                            accent = false,
-                            enabled = editable,
-                            onClick = onEdit
-                        )
-                    }
+
                     AppManagementMoreActionButton(
                         actionsProvider = { moreActions },
                         palette = palette,
@@ -207,9 +194,9 @@ private fun AdvancedTitleItem(
 }
 
 @Composable
-private fun AdvancedTitlePreview(
-    entry: AdvancedTitlePackageManager.Entry,
-    previewProvider: suspend (AdvancedTitlePackageManager.Entry) -> String?,
+private fun AdvancedTipPreview(
+    entry: AdvancedTipPackageManager.Entry,
+    previewProvider: suspend (AdvancedTipPackageManager.Entry) -> String?,
     palette: AppManagementPalette
 ) {
     val json by produceState<String?>(null, entry.id, entry.updatedAt) {
@@ -261,7 +248,7 @@ private fun AdvancedTitlePreview(
 }
 
 @Composable
-private fun AdvancedTitleActionButton(
+private fun AdvancedTipActionButton(
     text: String,
     palette: LegadoMiuixPalette,
     accent: Boolean,
@@ -301,7 +288,7 @@ private fun AdvancedTitleActionButton(
 
 @Composable
 private fun buildEntryInfo(
-    entry: AdvancedTitlePackageManager.Entry,
+    entry: AdvancedTipPackageManager.Entry,
     active: Boolean
 ): String = buildString {
     if (active) {
@@ -316,6 +303,6 @@ private fun buildEntryInfo(
     )
     if (entry.updatedAt > 0L) {
         append(" · ")
-        append(advancedTitleDateFormat.format(Date(entry.updatedAt)))
+        append(advancedTipDateFormat.format(Date(entry.updatedAt)))
     }
 }

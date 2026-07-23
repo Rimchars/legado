@@ -228,6 +228,13 @@ abstract class PageDelegate(protected val readView: ReadView) {
         readView.postInvalidateOnAnimation()
     }
 
+    /**
+     * Idle pre-capture for page-turn bitmaps (cover/slide/simulation).
+     * step: 0=cur, 1=next, 2=prev, 3=all dirty pages.
+     * Scroll mode no-ops.
+     */
+    open fun prewarmPageSnapshots(step: Int = 3) = Unit
+
     open fun onDestroy() {
         // run on destroy
     }

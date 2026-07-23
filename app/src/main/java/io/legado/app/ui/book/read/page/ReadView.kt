@@ -118,6 +118,19 @@ class ReadView(context: Context, attrs: AttributeSet) :
     private var selectionMagnifier: Magnifier? = null
     val autoPager = AutoPager(this)
     val isAutoPage get() = autoPager.isRunning
+    private var pageTurnPrewarmGeneration = 0L
+    private val pageTurnPrewarmCurRunnable = Runnable { runPageTurnPrewarmStep(0) }
+    private val pageTurnPrewarmNextRunnable = Runnable { runPageTurnPrewarmStep(1) }
+    private val pageTurnPrewarmPrevRunnable = Runnable { runPageTurnPrewarmStep(2) }
+    private val pageTurnPrewarmAllRunnable = Runnable { runPageTurnPrewarmStep(3) }
+
+    private fun runPageTurnPrewarmStep(step: Int) {
+        if (isScroll) return
+        val delegate = pageDelegate ?: return
+        if (delegate.isRunning || delegate.isStarted) return
+        // One page per frame-ish step: avoids multi-page screenshot hitch on open.
+        delegate.prewarmPageSnapshots(step)
+    }
 
     init {
         if (!isInEditMode) {
@@ -607,6 +620,39 @@ class ReadView(context: Context, attrs: AttributeSet) :
      * @param relativePosition 相对位置 -1 上一页 0 当前页 1 下一页
      * @param resetPageOffset 滚动阅读是是否重置位置
      */
+    /**
+     * Pre-capture cover/slide/simulation page bitmaps after Lottie binds, so the first
+     * finger flip does not stall on full-page Lottie hierarchy draw.
+     */
+    fun schedulePageTurnPrewarm() {
+        if (isScroll) return
+        pageTurnPrewarmGeneration++
+        // Cancel prior staggered work; restart for latest content generation.
+        removeCallbacks(pageTurnPrewarmCurRunnable)
+        removeCallbacks(pageTurnPrewarmNextRunnable)
+        removeCallbacks(pageTurnPrewarmPrevRunnable)
+        removeCallbacks(pageTurnPrewarmAllRunnable)
+        // Spread captures across frames so open/chapter-switch never pays 3 full screenshots at once.
+        post(pageTurnPrewarmCurRunnable)
+        postDelayed(pageTurnPrewarmNextRunnable, 16)
+        postDelayed(pageTurnPrewarmPrevRunnable, 32)
+        // After Lottie async composition settles, refresh any dirty pages once more.
+        postDelayed(pageTurnPrewarmAllRunnable, 120)
+        postDelayed(pageTurnPrewarmAllRunnable, 280)
+    }
+
+    /**
+     * Touch-down opportunistic warm: only no-ops if already snapped.
+     * Prefer hitch on DOWN (if any) over MOVE/page-turn animation start.
+     */
+    fun ensurePageTurnSnapshotsForGesture() {
+        if (isScroll) return
+        val delegate = pageDelegate ?: return
+        if (delegate.isRunning || delegate.isStarted) return
+        delegate.prewarmPageSnapshots(0)
+        delegate.prewarmPageSnapshots(1)
+    }
+
     override fun upContent(relativePosition: Int, resetPageOffset: Boolean) {
         post {
             curPage.setContentDescription(pageFactory.curPage.text)
@@ -622,12 +668,16 @@ class ReadView(context: Context, attrs: AttributeSet) :
                 -1 -> prevPage.setContent(pageFactory.prevPage, pageFactory.prevPairPage)
                 1 -> nextPage.setContent(pageFactory.nextPage, pageFactory.nextPairPage)
                 else -> {
+                    // Main first for body text paint; advanced Lottie binds idle on each PageView.
                     curPage.setContent(pageFactory.curPage, pageFactory.curPairPage, resetPageOffset)
                     nextPage.setContent(pageFactory.nextPage, pageFactory.nextPairPage)
                     prevPage.setContent(pageFactory.prevPage, pageFactory.prevPairPage)
                 }
             }
         }
+        // Body text prerender on background thread — never blocks first paint.
+        submitRenderTask()
+        schedulePageTurnPrewarm()
         callBack.screenOffTimerStart()
     }
 

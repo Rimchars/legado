@@ -7,6 +7,14 @@ import splitties.init.appCtx
 @Suppress("ConstPropertyName")
 object ReadTipConfig {
 
+    const val HEADER_MODE_STATUS = 0
+    const val HEADER_MODE_SHOW = 1
+    const val HEADER_MODE_HIDE = 2
+    const val HEADER_MODE_ADVANCED = 3
+    const val FOOTER_MODE_SHOW = 0
+    const val FOOTER_MODE_HIDE = 1
+    const val FOOTER_MODE_ADVANCED = 2
+
     const val none = 0
     const val chapterTitle = 1
     const val time = 2
@@ -92,16 +100,21 @@ object ReadTipConfig {
 
     fun getHeaderModes(context: Context): LinkedHashMap<Int, String> {
         return linkedMapOf(
-            Pair(0, context.getString(R.string.hide_when_status_bar_show)),
-            Pair(1, context.getString(R.string.show)),
-            Pair(2, context.getString(R.string.hide))
+            Pair(HEADER_MODE_STATUS, context.getString(R.string.hide_when_status_bar_show)),
+            Pair(HEADER_MODE_SHOW, context.getString(R.string.show)),
+            Pair(HEADER_MODE_HIDE, context.getString(R.string.hide)),
+            Pair(HEADER_MODE_ADVANCED, context.getString(R.string.advanced_tip_mode)),
         )
     }
 
     fun getFooterModes(context: Context): LinkedHashMap<Int, String> {
         return linkedMapOf(
-            Pair(0, context.getString(R.string.show)),
-            Pair(1, context.getString(R.string.hide))
+            Pair(FOOTER_MODE_SHOW, context.getString(R.string.show)),
+            Pair(FOOTER_MODE_HIDE, context.getString(R.string.hide)),
+            Pair(FOOTER_MODE_ADVANCED, context.getString(R.string.advanced_tip_mode)),
         )
     }
+
+    fun isHeaderAdvanced(): Boolean = headerMode == HEADER_MODE_ADVANCED
+    fun isFooterAdvanced(): Boolean = footerMode == FOOTER_MODE_ADVANCED
 }

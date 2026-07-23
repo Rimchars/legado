@@ -933,31 +933,6 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
             return modelLabel(AppConfig.aiModelConfigList.firstOrNull { it.id == modelId })
         }
 
-        private fun showAiRoleModelDialog() {
-            val models = AppConfig.aiModelConfigList
-            if (models.isEmpty()) {
-                toastOnUi(R.string.ai_no_models)
-                return
-            }
-            val providerNameMap = AppConfig.aiProviderList.associateBy({ it.id }, { it.name })
-            val labels = models.map { model ->
-                val label = providerNameMap[model.providerId]?.takeIf { it.isNotBlank() }
-                    ?.let { "${model.modelId} - $it" }
-                    ?: model.modelId
-                if (model.id == AppConfig.aiReadAloudRoleModelId) "$label ✓" else label
-            }
-            showComposeChoiceListDialog(
-                title = "多角色模型",
-                labels = labels,
-                selectedIndex = models.indexOfFirst { it.id == AppConfig.aiReadAloudRoleModelId }
-            ) { index ->
-                models.getOrNull(index)?.let { model ->
-                    AppConfig.aiReadAloudRoleModelId = model.id
-                    updateAiRolePreferences()
-                    selectGroup(selectedGroup)
-                }
-            }
-        }
 
         private fun modelLabel(model: io.legado.app.ui.main.ai.AiModelConfig?): String {
             model ?: return "未配置"
@@ -1373,9 +1348,6 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
                 .toList()
         }
 
-        private fun showAiRolePromptDialog() {
-            showMultiRolePromptDialog()
-        }
 
     }
 }

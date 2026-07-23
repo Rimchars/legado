@@ -7,6 +7,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.google.gson.stream.JsonReader
 import io.legado.app.BuildConfig
 import io.legado.app.R
 import io.legado.app.constant.AppConst.androidId
@@ -141,32 +142,7 @@ object Restore {
 
     private suspend fun restore(path: String) {
         val aes = BackupAES()
-        fileToBookList(path)?.let {
-            it.forEach { book ->
-                book.upType()
-            }
-            it.filter { book -> book.isLocal }
-                .forEach { book ->
-                    book.coverUrl = LocalBook.getCoverPath(book)
-                }
-            val newBooks = arrayListOf<Book>()
-            val ignoreLocalBook = BackupConfig.ignoreLocalBook
-            it.forEach { book ->
-                if (ignoreLocalBook && book.isLocal) {
-                    return@forEach
-                }
-                if (appDb.bookDao.has(book.bookUrl)) {
-                    try {
-                        appDb.bookDao.update(book)
-                    } catch (_: SQLiteConstraintException) {
-                        appDb.bookDao.insert(book)
-                    }
-                } else {
-                    newBooks.add(book)
-                }
-            }
-            insertRestored(newBooks) { appDb.bookDao.insert(*it) }
-        }
+        restoreBooks(path)
         fileToListT<Bookmark>(path, "bookmark.json")?.let {
             insertRestored(it) { items -> appDb.bookmarkDao.insert(*items) }
         }
@@ -499,31 +475,42 @@ object Restore {
         return null
     }
 
-    private fun fileToBookList(path: String): List<Book>? {
+    private fun restoreBooks(path: String) {
         val fileName = "bookshelf.json"
         try {
             val file = File(path, fileName)
             if (file.exists()) {
                 LogUtils.d(TAG, "阅读恢复备份 $fileName 文件大小 ${file.length()}")
-                val list = arrayListOf<Book>()
-                file.reader().use { reader ->
-                    val jsonArray = JsonParser.parseReader(reader).asJsonArray
-                    jsonArray.forEachIndexed { index, element ->
-                        val bookJson = element.deepCopy()
-                        sanitizeBookJson(bookJson)
-                        runCatching {
-                            GSON.fromJson(bookJson, Book::class.java)
-                        }.onSuccess { book ->
-                            if (book != null) {
-                                list.add(book)
-                            }
-                        }.onFailure {
-                            AppLog.put("$fileName 第${index + 1}项读取失败\n${it.localizedMessage}", it)
+                val pendingNewBooks = ArrayList<Book>(RESTORE_INSERT_BATCH_SIZE)
+                val ignoreLocalBook = BackupConfig.ignoreLocalBook
+                var restoredCount = 0
+                fun flushNewBooks() {
+                    if (pendingNewBooks.isEmpty()) return
+                    appDb.bookDao.insert(*pendingNewBooks.toTypedArray())
+                    pendingNewBooks.clear()
+                }
+                forEachBookBackup(file) { index, book ->
+                    book.upType()
+                    if (book.isLocal) {
+                        book.coverUrl = LocalBook.getCoverPath(book)
+                        if (ignoreLocalBook) return@forEachBookBackup
+                    }
+                    if (appDb.bookDao.has(book.bookUrl)) {
+                        try {
+                            appDb.bookDao.update(book)
+                        } catch (_: SQLiteConstraintException) {
+                            appDb.bookDao.insert(book)
+                        }
+                    } else {
+                        pendingNewBooks.add(book)
+                        if (pendingNewBooks.size >= RESTORE_INSERT_BATCH_SIZE) {
+                            flushNewBooks()
                         }
                     }
+                    restoredCount++
                 }
-                LogUtils.d(TAG, "阅读恢复备份 $fileName 列表大小 ${list.size}")
-                return list
+                flushNewBooks()
+                LogUtils.d(TAG, "阅读恢复备份 $fileName 列表大小 $restoredCount")
             } else {
                 LogUtils.d(TAG, "阅读恢复备份 $fileName 文件不存在")
             }
@@ -531,7 +518,38 @@ object Restore {
             AppLog.put("$fileName\n读取解析出错\n${e.localizedMessage}", e)
             appCtx.toastOnUi("$fileName\n读取文件出错\n${e.localizedMessage}")
         }
-        return null
+    }
+
+    internal fun forEachBookBackup(
+        file: File,
+        onError: (Int, Throwable) -> Unit = { index, error ->
+            AppLog.put(
+                "bookshelf.json 第${index + 1}项读取失败\n${error.localizedMessage}",
+                error
+            )
+        },
+        onBook: (Int, Book) -> Unit
+    ) {
+        file.reader(Charsets.UTF_8).buffered().use { input ->
+            JsonReader(input).use { reader ->
+                reader.beginArray()
+                var index = 0
+                while (reader.hasNext()) {
+                    val currentIndex = index++
+                    val element = JsonParser.parseReader(reader)
+                    val bookJson = element.deepCopy()
+                    sanitizeBookJson(bookJson)
+                    runCatching {
+                        GSON.fromJson(bookJson, Book::class.java)
+                    }.onSuccess { book ->
+                        if (book != null) onBook(currentIndex, book)
+                    }.onFailure { error ->
+                        onError(currentIndex, error)
+                    }
+                }
+                reader.endArray()
+            }
+        }
     }
 
     private fun sanitizeBookJson(element: JsonElement) {

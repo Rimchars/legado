@@ -103,6 +103,9 @@ class SimulationPageDelegate(readView: ReadView) : HorizontalPageDelegate(readVi
     private var curBitmap: Bitmap? = null
     private var prevBitmap: Bitmap? = null
     private var nextBitmap: Bitmap? = null
+    private var curBmpRev = -1L
+    private var prevBmpRev = -1L
+    private var nextBmpRev = -1L
     private var canvas: Canvas = Canvas()
 
     init {
@@ -141,16 +144,81 @@ class SimulationPageDelegate(readView: ReadView) : HorizontalPageDelegate(readVi
         mFrontShadowDrawableHBT.gradientType = GradientDrawable.LINEAR_GRADIENT
     }
 
+    override fun prewarmPageSnapshots(step: Int) {
+        if (isRunning || isStarted) return
+        when (step) {
+            0 -> ensureBmp(curPage, curBitmap, curBmpRev) { bmp, rev ->
+                curBitmap = bmp
+                curBmpRev = rev
+            }
+            1 -> ensureBmp(nextPage, nextBitmap, nextBmpRev) { bmp, rev ->
+                nextBitmap = bmp
+                nextBmpRev = rev
+            }
+            2 -> ensureBmp(prevPage, prevBitmap, prevBmpRev) { bmp, rev ->
+                prevBitmap = bmp
+                prevBmpRev = rev
+            }
+            else -> {
+                ensureBmp(curPage, curBitmap, curBmpRev) { bmp, rev ->
+                    curBitmap = bmp
+                    curBmpRev = rev
+                }
+                ensureBmp(nextPage, nextBitmap, nextBmpRev) { bmp, rev ->
+                    nextBitmap = bmp
+                    nextBmpRev = rev
+                }
+                ensureBmp(prevPage, prevBitmap, prevBmpRev) { bmp, rev ->
+                    prevBitmap = bmp
+                    prevBmpRev = rev
+                }
+            }
+        }
+    }
+
+    private fun ensureBmp(
+        page: io.legado.app.ui.book.read.page.PageView,
+        current: Bitmap?,
+        cachedRev: Long,
+        commit: (Bitmap?, Long) -> Unit,
+    ) {
+        if (page.width <= 0 || page.height <= 0) return
+        val rev = page.snapRevision
+        if (cachedRev == rev &&
+            current != null &&
+            !current.isRecycled &&
+            current.width == page.width &&
+            current.height == page.height
+        ) {
+            return
+        }
+        runCatching {
+            commit(page.screenshot(current, canvas), rev)
+        }
+    }
+
     override fun setBitmap() {
         when (mDirection) {
             PageDirection.PREV -> {
-                prevBitmap = prevPage.screenshot(prevBitmap, canvas)
-                curBitmap = curPage.screenshot(curBitmap, canvas)
+                ensureBmp(prevPage, prevBitmap, prevBmpRev) { bmp, rev ->
+                    prevBitmap = bmp
+                    prevBmpRev = rev
+                }
+                ensureBmp(curPage, curBitmap, curBmpRev) { bmp, rev ->
+                    curBitmap = bmp
+                    curBmpRev = rev
+                }
             }
 
             PageDirection.NEXT -> {
-                nextBitmap = nextPage.screenshot(nextBitmap, canvas)
-                curBitmap = curPage.screenshot(curBitmap, canvas)
+                ensureBmp(nextPage, nextBitmap, nextBmpRev) { bmp, rev ->
+                    nextBitmap = bmp
+                    nextBmpRev = rev
+                }
+                ensureBmp(curPage, curBitmap, curBmpRev) { bmp, rev ->
+                    curBitmap = bmp
+                    curBmpRev = rev
+                }
             }
 
             else -> Unit

@@ -7,20 +7,25 @@ import android.view.ViewGroup
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import android.app.Activity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
+import io.legado.app.help.CacheManager
+import io.legado.app.ui.code.CodeEditActivity
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.BaseActivity
 import io.legado.app.constant.EventBus
 import io.legado.app.databinding.ActivityThemeManageBinding
-import io.legado.app.help.config.AdvancedTitleConfig
-import io.legado.app.help.config.AdvancedTitlePackageManager
-import io.legado.app.help.config.ReadBookConfig
+import io.legado.app.help.config.AdvancedTipSlot
+import io.legado.app.help.config.ReadTipConfig
+import io.legado.app.help.config.AdvancedTipPackageManager
 import io.legado.app.help.http.newCallResponseBody
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.lib.dialogs.alert
-import io.legado.app.ui.book.read.config.AdvancedTitleConfigDialog
 import io.legado.app.ui.book.read.page.LottieImageBitmapCache
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.widget.compose.AppManagementMenuAction
@@ -39,16 +44,54 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
-    AdvancedTitleConfigDialog.Host {
+class AdvancedTipManageActivity : BaseActivity<ActivityThemeManageBinding>() {
+
+    companion object {
+        const val EXTRA_SLOT = "slot"
+
+        fun start(context: Context, slot: AdvancedTipSlot) {
+            context.startActivity(
+                Intent(context, AdvancedTipManageActivity::class.java)
+                    .putExtra(EXTRA_SLOT, slot.name)
+            )
+        }
+    }
+
+    private val slot: AdvancedTipSlot by lazy {
+        val raw = intent.getStringExtra(EXTRA_SLOT).orEmpty()
+        runCatching { AdvancedTipSlot.valueOf(raw) }.getOrDefault(AdvancedTipSlot.HEADER)
+    }
+    private val manager: AdvancedTipPackageManager by lazy { AdvancedTipPackageManager.of(slot) }
 
     override val binding by viewBinding(ActivityThemeManageBinding::inflate)
 
-    private val entriesState = mutableStateOf<List<AdvancedTitlePackageManager.Entry>>(emptyList())
-    private val activeIdState = mutableStateOf(AdvancedTitlePackageManager.activeId())
+    private val entriesState = mutableStateOf<List<AdvancedTipPackageManager.Entry>>(emptyList())
+    private val activeIdState = mutableStateOf(AdvancedTipPackageManager.BUILTIN_ID)
     private val loadingState = mutableStateOf(false)
     private var loadJob: Job? = null
     private var loadVersion: Int = 0
+
+    private var editingEntryId: String? = null
+
+    private val jsonEditor = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            editingEntryId = null
+            return@registerForActivityResult
+        }
+        val data = result.data
+        val entryId = editingEntryId
+        editingEntryId = null
+        if (entryId == null || data == null) return@registerForActivityResult
+        val cacheKey = data.getStringExtra("cacheKey")
+        val text = if (cacheKey != null) {
+            CacheManager.getFromMemory(cacheKey) as? String
+        } else {
+            data.getStringExtra("text")
+        } ?: return@registerForActivityResult
+        saveEditedJson(entryId, text)
+    }
     private val importFromNet by lazy { getString(R.string.advanced_title_import_from_net) }
 
     private val importJson = registerForActivityResult(HandleFileContract()) { result ->
@@ -84,7 +127,8 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
-        binding.titleBar.title = getString(R.string.advanced_title_manage)
+        binding.titleBar.title = getString(slot.manageTitleRes)
+        activeIdState.value = manager.activeId()
         initComposeContent()
         loadEntries()
     }
@@ -109,17 +153,17 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
                 setContent {
-                    AdvancedTitleManageScreen(
+                    AdvancedTipManageScreen(
                         entries = entriesState.value,
                         activeId = activeIdState.value,
                         loading = loadingState.value,
+                        summaryRes = slot.manageSummaryRes,
                         previewProvider = { entry ->
                             withContext(Dispatchers.IO) {
-                                runCatching { AdvancedTitlePackageManager.readTemplate(entry) }.getOrNull()
+                                runCatching { manager.readTemplate(entry) }.getOrNull()
                             }
                         },
                         onApply = ::applyEntry,
-                        onEdit = ::editEntry,
                         onMoreActions = ::entryActions,
                         onImport = ::showAddMenu
                     )
@@ -135,10 +179,10 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         loadJob = lifecycleScope.launch {
             loadingState.value = true
             try {
-                val entries = AdvancedTitlePackageManager.loadEntries()
+                val entries = manager.loadEntries()
                 if (version == loadVersion) {
                     entriesState.value = entries
-                    activeIdState.value = AdvancedTitlePackageManager.activeId()
+                    activeIdState.value = manager.activeId()
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -151,8 +195,12 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     }
 
     private fun entryActions(
-        entry: AdvancedTitlePackageManager.Entry
+        entry: AdvancedTipPackageManager.Entry
     ): List<AppManagementMenuAction> = buildList {
+        if (!entry.isBuiltin) {
+            add(AppManagementMenuAction(getString(R.string.advanced_title_open_editor)) { editJsonEntry(entry) })
+            add(AppManagementMenuAction(getString(R.string.advanced_title_name)) { renameEntry(entry) })
+        }
         add(AppManagementMenuAction(getString(R.string.export_str)) { exportEntry(entry) })
         if (!entry.isBuiltin) {
             add(
@@ -195,9 +243,9 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         lifecycleScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val builtin = AdvancedTitlePackageManager.builtinEntry()
-                    val json = AdvancedTitlePackageManager.readTemplate(builtin)
-                    AdvancedTitlePackageManager.addOrUpdate(
+                    val builtin = manager.builtinEntry()
+                    val json = manager.readTemplate(builtin)
+                    manager.addOrUpdate(
                         name = getString(R.string.advanced_title_unnamed),
                         json = json
                     )
@@ -213,7 +261,7 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         lifecycleScope.launch {
             runCatching {
                 val bytes = withContext(Dispatchers.IO) {
-                    uri.readBytes(this@AdvancedTitleManageActivity, AdvancedTitlePackageManager.MAX_JSON_BYTES)
+                    uri.readBytes(this@AdvancedTipManageActivity, AdvancedTipPackageManager.MAX_JSON_BYTES)
                 }
                 val name = uri.lastPathSegment
                     ?.substringAfterLast('/')
@@ -221,7 +269,7 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     ?.takeIf { it.isNotBlank() }
                     ?: getString(R.string.advanced_title_unnamed)
                 withContext(Dispatchers.IO) {
-                    AdvancedTitlePackageManager.addOrUpdate(name, bytes.toString(Charsets.UTF_8))
+                    manager.addOrUpdate(name, bytes.toString(Charsets.UTF_8))
                 }
             }.onSuccess {
                 toastOnUi(R.string.success)
@@ -235,7 +283,7 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             ComposeTextInputDialog.create(
                 title = getString(R.string.advanced_title_input_url),
                 hint = "https://...",
-                initialValue = "",
+                initialValue = "https://skybook.qzz.io/file/json/19hMepHey95bDYaFXJfq89.json",
                 positiveText = getString(R.string.ok),
                 negativeText = getString(R.string.cancel),
                 onPositive = { value ->
@@ -251,10 +299,10 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 val bytes = withContext(Dispatchers.IO) {
                     okHttpClient.newCallResponseBody { url(url) }.use { body ->
                         val declared = body.contentLength()
-                        require(declared <= AdvancedTitlePackageManager.MAX_JSON_BYTES || declared < 0L) {
+                        require(declared <= AdvancedTipPackageManager.MAX_JSON_BYTES || declared < 0L) {
                             getString(R.string.advanced_title_too_large)
                         }
-                        body.byteStream().readBytesLimited(AdvancedTitlePackageManager.MAX_JSON_BYTES)
+                        body.byteStream().readBytesLimited(AdvancedTipPackageManager.MAX_JSON_BYTES)
                     }
                 }
                 val name = Uri.parse(url).lastPathSegment
@@ -262,9 +310,17 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     ?.takeIf { it.isNotBlank() }
                     ?: getString(R.string.advanced_title_unnamed)
                 withContext(Dispatchers.IO) {
-                    AdvancedTitlePackageManager.addOrUpdate(name, bytes.toString(Charsets.UTF_8))
+                    val entry = manager.addOrUpdate(name, bytes.toString(Charsets.UTF_8))
+                    manager.apply(entry)
+                    entry
                 }
-            }.onSuccess {
+            }.onSuccess { entry ->
+                activeIdState.value = entry.id
+                when (slot) {
+                    AdvancedTipSlot.HEADER -> ReadTipConfig.headerMode = ReadTipConfig.HEADER_MODE_ADVANCED
+                    AdvancedTipSlot.FOOTER -> ReadTipConfig.footerMode = ReadTipConfig.FOOTER_MODE_ADVANCED
+                }
+                notifyReader()
                 toastOnUi(R.string.success)
                 loadEntries()
             }.onFailure {
@@ -273,83 +329,107 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
     }
 
-    private fun editEntry(entry: AdvancedTitlePackageManager.Entry) {
+
+    private fun renameEntry(entry: AdvancedTipPackageManager.Entry) {
         if (entry.isBuiltin) return
-        if (!AdvancedTitlePackageManager.isEditable(entry)) {
-            toastOnUi(R.string.large_config_read_only)
+        showDialogFragment(
+            ComposeTextInputDialog.create(
+                title = getString(R.string.advanced_title_name),
+                hint = getString(R.string.advanced_title_name),
+                initialValue = entry.name,
+                positiveText = getString(R.string.ok),
+                negativeText = getString(R.string.cancel),
+                onPositive = rename@{ text ->
+                    val name = text.trim()
+                    if (name.isEmpty()) {
+                        toastOnUi(R.string.advanced_title_name_required)
+                        return@rename
+                    }
+                    lifecycleScope.launch {
+                        runCatching {
+                            withContext(Dispatchers.IO) {
+                                val json = manager.readTemplate(entry)
+                                val updated = manager.addOrUpdate(name, json, entry)
+                                if (manager.activeId() == updated.id) manager.apply(updated)
+                            }
+                        }.onSuccess {
+                            toastOnUi(R.string.success)
+                            loadEntries()
+                        }.onFailure { toastOnUi(it.localizedMessage) }
+                    }
+                }
+            )
+        )
+    }
+
+    private fun editJsonEntry(entry: AdvancedTipPackageManager.Entry) {
+        if (entry.isBuiltin) {
+            toastOnUi(R.string.read_only)
+            return
+        }
+        if (!manager.isEditable(entry)) {
+            toastOnUi(R.string.advanced_title_json_too_large_to_edit)
             return
         }
         lifecycleScope.launch {
             runCatching {
-                withContext(Dispatchers.IO) { AdvancedTitlePackageManager.readTemplate(entry) }
+                withContext(Dispatchers.IO) { manager.readTemplate(entry) }
             }.onSuccess { json ->
                 if (supportFragmentManager.isStateSaved ||
-                    !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) ||
-                    supportFragmentManager.findFragmentByTag("advancedTitleEdit") != null
+                    !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
                 ) return@onSuccess
-                AdvancedTitleConfigDialog.edit(
-                    entryId = entry.id,
-                    name = entry.name,
-                    json = json,
-                    splitRule = entry.config.splitRuleOrNull()
-                        ?: AdvancedTitleConfig.globalRule,
-                    heightFactor = entry.config.normalizedHeightFactorOrNull()
-                        ?: AdvancedTitleConfig.heightFactor
-                ).show(supportFragmentManager, "advancedTitleEdit")
+                val bytes = json.toByteArray(Charsets.UTF_8).size.toLong()
+                if (bytes > AdvancedTipPackageManager.MAX_EDITABLE_JSON_BYTES) {
+                    toastOnUi(R.string.advanced_title_json_too_large_to_edit)
+                    return@onSuccess
+                }
+                editingEntryId = entry.id
+                val key = "advanced_tip_edit_" + System.nanoTime()
+                CacheManager.putMemory(key, json)
+                jsonEditor.launch(
+                    Intent(this@AdvancedTipManageActivity, CodeEditActivity::class.java).apply {
+                        putExtra("cacheKey", key)
+                        putExtra("writable", true)
+                        putExtra("title", getString(R.string.advanced_title_json_label))
+                        putExtra("cursorPosition", 0)
+                    }
+                )
             }.onFailure { toastOnUi(it.localizedMessage) }
         }
     }
 
-    override fun onAdvancedTitleSaved(
-        entryId: String,
-        name: String,
-        json: String,
-        splitRule: AdvancedTitleConfig.SplitRule,
-        heightFactor: Int
-    ) {
+    private fun saveEditedJson(entryId: String, json: String) {
         val entry = entriesState.value.firstOrNull { it.id == entryId }
         if (entry == null || entry.isBuiltin) {
             toastOnUi(R.string.error)
             loadEntries()
             return
         }
-        saveEditedEntry(entry, name, json, splitRule, heightFactor)
-    }
-
-    private fun saveEditedEntry(
-        old: AdvancedTitlePackageManager.Entry,
-        name: String,
-        json: String,
-        splitRule: AdvancedTitleConfig.SplitRule,
-        heightFactor: Int
-    ) {
         lifecycleScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    AdvancedTitlePackageManager.validateEditableJson(json)
-                    val updated = AdvancedTitlePackageManager.addOrUpdate(
-                        name = name,
+                    manager.validateEditableJson(json)
+                    val updated = manager.addOrUpdate(
+                        name = entry.name,
                         json = json,
-                        oldEntry = old,
-                        splitRule = splitRule,
-                        heightFactor = heightFactor
+                        oldEntry = entry
                     )
-                    val active = AdvancedTitlePackageManager.activeId() == updated.id
-                    if (active) AdvancedTitlePackageManager.apply(updated)
-                    updated to active
+                    if (manager.activeId() == updated.id) manager.apply(updated)
+                    updated
                 }
-            }.onSuccess { (_, active) ->
-                if (active) notifyReader()
+            }.onSuccess {
+                activeIdState.value = manager.activeId()
+                notifyReader()
                 toastOnUi(R.string.success)
                 loadEntries()
             }.onFailure { toastOnUi(it.localizedMessage) }
         }
     }
 
-    private fun exportEntry(entry: AdvancedTitlePackageManager.Entry) {
+    private fun exportEntry(entry: AdvancedTipPackageManager.Entry) {
         lifecycleScope.launch {
             runCatching {
-                withContext(Dispatchers.IO) { AdvancedTitlePackageManager.readTemplate(entry) }
+                withContext(Dispatchers.IO) { manager.readTemplate(entry) }
             }.onSuccess { json ->
                 val safeName = entry.name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
                     .ifBlank { "advancedTitle" }
@@ -365,7 +445,7 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
     }
 
-    private fun confirmDelete(entry: AdvancedTitlePackageManager.Entry) {
+    private fun confirmDelete(entry: AdvancedTipPackageManager.Entry) {
         showDialogFragment(
             ComposeConfirmDialog.create(
                 title = getString(R.string.delete),
@@ -376,9 +456,9 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 onPositive = {
                     lifecycleScope.launch {
                         runCatching {
-                            withContext(Dispatchers.IO) { AdvancedTitlePackageManager.delete(entry) }
+                            withContext(Dispatchers.IO) { manager.delete(entry) }
                         }.onSuccess {
-                            activeIdState.value = AdvancedTitlePackageManager.activeId()
+                            activeIdState.value = manager.activeId()
                             notifyReader()
                             loadEntries()
                         }.onFailure { toastOnUi(it.localizedMessage) }
@@ -388,13 +468,16 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         )
     }
 
-    private fun applyEntry(entry: AdvancedTitlePackageManager.Entry) {
+    private fun applyEntry(entry: AdvancedTipPackageManager.Entry) {
         lifecycleScope.launch {
             runCatching {
-                withContext(Dispatchers.IO) { AdvancedTitlePackageManager.apply(entry) }
+                withContext(Dispatchers.IO) { manager.apply(entry) }
             }.onSuccess {
                 activeIdState.value = entry.id
-                ReadBookConfig.titleMode = AdvancedTitleConfig.TITLE_MODE_ADVANCED
+                when (slot) {
+                    AdvancedTipSlot.HEADER -> ReadTipConfig.headerMode = ReadTipConfig.HEADER_MODE_ADVANCED
+                    AdvancedTipSlot.FOOTER -> ReadTipConfig.footerMode = ReadTipConfig.FOOTER_MODE_ADVANCED
+                }
                 notifyReader()
                 toastOnUi(R.string.success)
             }.onFailure { toastOnUi(it.localizedMessage) }
@@ -403,6 +486,6 @@ class AdvancedTitleManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
     private fun notifyReader() {
         LottieImageBitmapCache.clear()
-        postEvent(EventBus.UP_CONFIG, arrayListOf(5, 8))
+        postEvent(EventBus.UP_CONFIG, arrayListOf(2, 6))
     }
 }

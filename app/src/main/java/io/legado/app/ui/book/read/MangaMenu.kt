@@ -53,7 +53,6 @@ class MangaMenu @JvmOverloads constructor(
         loadAnimation(context, R.anim.anim_readbook_bottom_out)
     }
     private var isMenuOutAnimating = false
-    private var bgColor = context.bottomBackground
 
     private val menuOutListener = object : Animation.AnimationListener {
         override fun onAnimationStart(animation: Animation) {

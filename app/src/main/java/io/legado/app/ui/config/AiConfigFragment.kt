@@ -610,24 +610,6 @@ class AiConfigFragment : ComposeSettingFragment() {
         )
     }
 
-    private fun showSystemPromptDialog() {
-        showComposeTextInputDialog(
-            title = getString(R.string.ai_system_prompt),
-            hint = getString(R.string.ai_system_prompt_hint),
-            initialValue = AppConfig.aiSystemPrompt,
-            minLines = 8,
-            maxLines = 16,
-            neutralText = getString(R.string.restore_default),
-            onPositive = { text ->
-                AppConfig.aiSystemPrompt = text
-                refreshUi()
-            },
-            onNeutral = {
-                AppConfig.aiSystemPrompt = AppConfig.DEFAULT_AI_SYSTEM_PROMPT
-                refreshUi()
-            }
-        )
-    }
 
     private fun showContextCompressionDialog() {
         val enabledText = if (AppConfig.aiContextCompressionEnabled) "关闭上下文压缩" else "启用上下文压缩"

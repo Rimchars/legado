@@ -1484,16 +1484,6 @@ class ReadBookActivity : BaseReadBookActivity(),
         )
     }
 
-    private fun showShareNoteTemplateDialog(selection: String) {
-        val text = selection.trim()
-        if (text.isBlank()) return
-        showDialogFragment(
-            ShareNoteTemplateSelectDialog.create(
-                onSelected = { entry -> shareSelectionAsNoteImage(text, entry) },
-                onManage = { startActivity<ShareNoteTemplateManageActivity>() }
-            )
-        )
-    }
 
     private fun showShareNotePreviewOverlay(selection: String) {
         val text = selection.trim()

@@ -11,6 +11,9 @@ abstract class HorizontalPageDelegate(readView: ReadView) : PageDelegate(readVie
     protected var curRecorder = CanvasRecorderFactory.create()
     protected var prevRecorder = CanvasRecorderFactory.create()
     protected var nextRecorder = CanvasRecorderFactory.create()
+    protected var curSnapRev = -1L
+    protected var prevSnapRev = -1L
+    protected var nextSnapRev = -1L
     private val slopSquare get() = readView.pageSlopSquare2
 
     override fun setDirection(direction: PageDirection) {
@@ -18,16 +21,53 @@ abstract class HorizontalPageDelegate(readView: ReadView) : PageDelegate(readVie
         setBitmap()
     }
 
+    /**
+     * Capture page-turn bitmaps while idle so the first finger swipe does not pay
+     * full Lottie hierarchy draw cost on the gesture thread.
+     * step 0/1/2 capture one page; 3 refreshes any still-dirty pages.
+     */
+    override fun prewarmPageSnapshots(step: Int) {
+        if (isRunning || isStarted) return
+        when (step) {
+            0 -> ensurePageSnap(curPage, curRecorder, curSnapRev) { curSnapRev = it }
+            1 -> ensurePageSnap(nextPage, nextRecorder, nextSnapRev) { nextSnapRev = it }
+            2 -> ensurePageSnap(prevPage, prevRecorder, prevSnapRev) { prevSnapRev = it }
+            else -> {
+                ensurePageSnap(curPage, curRecorder, curSnapRev) { curSnapRev = it }
+                ensurePageSnap(nextPage, nextRecorder, nextSnapRev) { nextSnapRev = it }
+                ensurePageSnap(prevPage, prevRecorder, prevSnapRev) { prevSnapRev = it }
+            }
+        }
+    }
+
+    protected fun ensurePageSnap(
+        page: io.legado.app.ui.book.read.page.PageView,
+        recorder: io.legado.app.utils.canvasrecorder.CanvasRecorder,
+        cachedRev: Long,
+        commitRev: (Long) -> Unit,
+    ) {
+        if (page.width <= 0 || page.height <= 0) return
+        val rev = page.snapRevision
+        if (cachedRev == rev && recorder.width == page.width && recorder.height == page.height && !recorder.isDirty()) {
+            return
+        }
+        // Safe on all API levels used by this app; never crash packaging path on exotic OEMs.
+        runCatching {
+            page.screenshot(recorder)
+            commitRev(rev)
+        }
+    }
+
     open fun setBitmap() {
         when (mDirection) {
             PageDirection.PREV -> {
-                prevPage.screenshot(prevRecorder)
-                curPage.screenshot(curRecorder)
+                ensurePageSnap(prevPage, prevRecorder, prevSnapRev) { prevSnapRev = it }
+                ensurePageSnap(curPage, curRecorder, curSnapRev) { curSnapRev = it }
             }
 
             PageDirection.NEXT -> {
-                nextPage.screenshot(nextRecorder)
-                curPage.screenshot(curRecorder)
+                ensurePageSnap(nextPage, nextRecorder, nextSnapRev) { nextSnapRev = it }
+                ensurePageSnap(curPage, curRecorder, curSnapRev) { curSnapRev = it }
             }
 
             else -> Unit
@@ -41,12 +81,17 @@ abstract class HorizontalPageDelegate(readView: ReadView) : PageDelegate(readVie
         curRecorder = CanvasRecorderFactory.create()
         prevRecorder = CanvasRecorderFactory.create()
         nextRecorder = CanvasRecorderFactory.create()
+        curSnapRev = -1L
+        prevSnapRev = -1L
+        nextSnapRev = -1L
     }
 
     override fun onTouch(event: MotionEvent) {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 abortAnim()
+                // Warm cur/next while finger is still down (no-op if already cached).
+                readView.ensurePageTurnSnapshotsForGesture()
             }
 
             MotionEvent.ACTION_MOVE -> {

@@ -294,6 +294,10 @@
             android:exported="false"
             android:launchMode="standard" />
         <activity
+            android:name=".ui.config.AdvancedTipManageActivity"
+            android:exported="false"
+            android:launchMode="standard" />
+        <activity
             android:name=".ui.config.ShareNoteTemplateManageActivity"
             android:launchMode="standard" />
         <activity

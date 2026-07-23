@@ -1866,12 +1866,17 @@
     <string name="advanced_title_rule_error">规则错误：%1$s</string>
     <string name="advanced_title_preview_template">s1: %1$s\ns2: %2$s</string>
     <string name="advanced_title_manage">&#39640;&#32423;&#26631;&#39064;&#31649;&#29702;</string>
-    <string name="advanced_title_manage_summary">&#31649;&#29702;&#22810;&#20010; Lottie &#26631;&#39064;&#65292;&#21487;&#39044;&#35272;&#12289;&#24212;&#29992;&#12289;&#32534;&#36753;&#12289;&#23548;&#20986;&#12289;&#37325;&#21629;&#21517;&#25110;&#21024;&#38500;&#12290;</string>
+    <string name="advanced_title_manage_summary">管理 Lottie 章节标题。点「添加」可从内置新建或导入 JSON。超过 2 MB 仅可读；硬上限 8 MB。</string>
+    <string name="advanced_title_json_too_large_to_edit">JSON 过大，无法在编辑器中打开（最多 2 MB）</string>
+    <string name="advanced_title_added">已从内置模板创建</string>
+    <string name="advanced_title_add">添加</string>
+    <string name="advanced_title_import_from_file">从文件导入</string>
+    <string name="advanced_title_add_from_builtin">从内置模板新建</string>
     <string name="advanced_title_builtin">&#20869;&#32622;&#39640;&#32423;&#26631;&#39064;</string>
     <string name="advanced_title_migrated">&#24050;&#36801;&#31227;&#39640;&#32423;&#26631;&#39064;</string>
     <string name="advanced_title_unnamed">&#26410;&#21629;&#21517;&#39640;&#32423;&#26631;&#39064;</string>
-    <string name="advanced_title_too_large">Lottie JSON &#36229;&#36807; 16 MB &#23433;&#20840;&#19978;&#38480;</string>
-    <string name="large_config_read_only">&#35813;&#37197;&#32622;&#36229;&#36807;&#21487;&#32534;&#36753;&#22823;&#23567;&#65292;&#24050;&#20197;&#21482;&#35835;&#27169;&#24335;&#21152;&#36733;</string>
+    <string name="advanced_title_too_large">高级标题 JSON 超过 8 MB 上限</string>
+    <string name="large_config_read_only">该标题超过 2 MB，应用内不可编辑 JSON。仍可应用、导出或重新导入。</string>
     <string name="large_package_read_only_notice">&#35813;&#21253;&#36229;&#36807;&#24120;&#35268;&#21487;&#32534;&#36753;&#22823;&#23567;&#65292;&#20854;&#20013;&#30340;&#22823;&#37197;&#32622;&#23558;&#20197;&#21482;&#35835;&#27169;&#24335;&#21152;&#36733;&#12290;</string>
     <string name="read_only">&#21482;&#35835;</string>
     <string name="advanced_title_package_limit">&#26368;&#22810;&#21487;&#20445;&#23384; 64 &#20010;&#39640;&#32423;&#26631;&#39064;</string>
@@ -2297,4 +2302,11 @@ bookUrl：%7$s
     <string name="shibboleth_invalid">口令格式无效</string>
     <string name="shibboleth_expired">口令已过期</string>
     <string name="shibboleth_import_confirm">口令将从网络下载配置，请确认来源可信后继续。</string>
+    <string name="advanced_tip_mode">高级</string>
+    <string name="advanced_header_manage">高级页眉</string>
+    <string name="advanced_footer_manage">高级页脚</string>
+    <string name="advanced_header_builtin">内置页眉</string>
+    <string name="advanced_footer_builtin">内置页脚</string>
+    <string name="advanced_footer_manage_summary">高级页脚独立包列表（与高级标题互不影响）。支持注入 ${book}/${title}/${page}/${pages}/${progress}/${time}/${battery}。点「添加」可从内置新建或导入 JSON。</string>
+    <string name="advanced_header_manage_summary">高级页眉独立包列表（与高级标题互不影响）。支持注入 ${book}/${title}/${page}/${pages}/${progress}/${time}/${battery}。点「添加」可从内置新建或导入 JSON。</string>
 </resources>

@@ -978,10 +978,6 @@ class ReadAloudPlayerPanel @JvmOverloads constructor(
         }
     }
 
-    private fun closeFromAction() {
-        dismissedForCurrentRun = BaseReadAloudService.isRun
-        hidePanel()
-    }
 
     private fun stopReadAloud() {
         ReadAloud.stop(context)
@@ -1057,26 +1053,6 @@ class ReadAloudPlayerPanel @JvmOverloads constructor(
         uiState = buildState(uiState.mode)
     }
 
-    private fun setSpeechRate(value: Int) {
-        val rate = value.coerceIn(0, 45)
-        AppConfig.ttsSpeechRate = rate
-        ReadAloud.upTtsSpeechRate(context)
-        if (!BaseReadAloudService.pause) {
-            ReadAloud.pause(context)
-            ReadAloud.resume(context)
-        }
-        uiState = buildState(uiState.mode)
-    }
-
-    private fun setFollowSystemSpeechRate(value: Boolean) {
-        AppConfig.ttsFlowSys = value
-        ReadAloud.upTtsSpeechRate(context)
-        if (!BaseReadAloudService.pause) {
-            ReadAloud.pause(context)
-            ReadAloud.resume(context)
-        }
-        uiState = buildState(uiState.mode)
-    }
 
     private fun setMode(mode: DisplayMode) {
         val targetMode = if (!AppConfig.aiReadAloudRoleEnabled && mode == DisplayMode.Scene) {
@@ -1683,93 +1659,6 @@ class ReadAloudPlayerPanel @JvmOverloads constructor(
         }
     }
 
-    private fun buildSceneSegments(
-        bookUrl: String?,
-        chapterIndex: Int,
-        cueIndex: Int,
-        cue: ReadAloudCue?,
-        chapterKey: String
-    ): List<SceneSegmentUi> {
-        val text = cue?.text?.cleanReadAloudText().orEmpty()
-        if (text.isBlank()) return emptyList()
-        val characters = runCatching {
-            appDb.bookCharacterDao.characters(bookUrl.orEmpty())
-        }.getOrDefault(emptyList())
-        val byId = characters.associateBy { it.id }
-        val byName = characters.associateBy { it.name }
-        val segments = AiReadAloudRoleService.segmentsForCue(bookUrl, chapterIndex, cueIndex, text)
-            .filter { it.start < text.length }
-            .map { it.copy(start = it.start.coerceIn(0, text.length), end = it.end.coerceIn(0, text.length)) }
-            .filter { it.start < it.end }
-        if (segments.isEmpty()) {
-            return listOf(
-                SceneSegmentUi(
-                    index = cueIndex,
-                    key = "$chapterKey:scene:$cueIndex:narrator",
-                    text = text,
-                    roleType = "narrator",
-                    characterId = 0L,
-                    characterName = "旁白",
-                    avatar = "",
-                    emotionName = "",
-                    leftSide = false,
-                    narrator = true,
-                    current = true,
-                    chapterPosition = cue?.chapterPosition ?: ReadBook.durChapterPos
-                )
-            )
-        }
-        val result = mutableListOf<SceneSegmentUi>()
-        var cursor = 0
-        fun addNarrator(start: Int, end: Int) {
-            val part = text.substring(start, end).cleanReadAloudText()
-            if (part.isBlank()) return
-            result += SceneSegmentUi(
-                index = result.size,
-                key = "$chapterKey:scene:$cueIndex:narrator:$start:$end",
-                text = part,
-                roleType = "narrator",
-                characterId = 0L,
-                characterName = "旁白",
-                avatar = "",
-                emotionName = "",
-                leftSide = false,
-                narrator = true,
-                current = false,
-                chapterPosition = (cue?.chapterPosition ?: 0) + start
-            )
-        }
-        segments.forEach { segment ->
-            if (segment.start > cursor) addNarrator(cursor, segment.start)
-            val part = text.substring(segment.start, segment.end).cleanReadAloudText()
-            val character = when {
-                segment.characterId > 0L -> byId[segment.characterId]
-                segment.characterName.isNotBlank() -> byName[segment.characterName]
-                else -> null
-            }
-            val name = character?.displayName()
-                ?: segment.characterName.takeIf { it.isNotBlank() }
-                ?: if (segment.roleType == "thought") "心理" else "角色"
-            val id = character?.id ?: segment.characterId
-            result += SceneSegmentUi(
-                index = result.size,
-                key = "$chapterKey:scene:$cueIndex:${segment.start}:${segment.end}:${name.hashCode()}",
-                text = part,
-                roleType = segment.roleType,
-                characterId = id,
-                characterName = name,
-                avatar = character?.avatar.orEmpty(),
-                emotionName = segment.emotionName,
-                leftSide = Math.floorMod((id.takeIf { it > 0 } ?: name.hashCode().toLong()).hashCode(), 2) == 0,
-                narrator = segment.roleType == "narrator" || name == "旁白",
-                current = true,
-                chapterPosition = (cue?.chapterPosition ?: 0) + segment.start
-            )
-            cursor = cursor.coerceAtLeast(segment.end)
-        }
-        if (cursor < text.length) addNarrator(cursor, text.length)
-        return result
-    }
 
     private fun BookCharacter.previewSummary(): String {
         return listOf(identity, skills, attributes, biography)
@@ -4608,88 +4497,6 @@ private fun LyricCueLine(
             .fillMaxWidth()
             .clickable(onClick = onClick)
     )
-}
-
-@Composable
-private fun LyricParagraphBody(
-    state: ReadAloudPlayerPanel.PlayerUiState,
-    colors: PlayerColors,
-    compact: Boolean,
-    maxParagraphs: Int,
-    currentMaxLines: Int,
-    animateTextChanges: Boolean,
-    modifier: Modifier = Modifier,
-    textAlign: TextAlign = TextAlign.Center
-) {
-    val paragraphs = state.nearbyParagraphs.ifEmpty {
-        listOf(
-            ReadAloudPlayerPanel.ParagraphUi(
-                index = state.paragraphIndex.coerceAtLeast(1),
-                text = state.paragraphText.ifBlank { "暂无当前段落" },
-                current = true,
-                key = state.paragraphKey.ifBlank { state.paragraphIndex.toString() },
-                sequence = state.paragraphSequence
-            )
-        )
-    }
-    val currentPosition = paragraphs.indexOfFirst { it.current }.let { if (it >= 0) it else 0 }
-    val half = maxParagraphs / 2
-    val start = (currentPosition - half).coerceAtLeast(0)
-    val end = (start + maxParagraphs - 1).coerceAtMost(paragraphs.lastIndex)
-    val visible = paragraphs.subList(start, end + 1)
-    val target = remember(state.paragraphKey, visible) {
-        LyricsTarget(
-            key = state.paragraphKey,
-            sequence = state.paragraphSequence,
-            paragraphs = visible
-        )
-    }
-    AnimatedContent(
-        targetState = target,
-        transitionSpec = {
-            val direction = if (targetState.sequence >= initialState.sequence) 1 else -1
-            if (animateTextChanges) {
-                ((slideInVertically(tween(300)) { height -> height * direction / 5 } +
-                        fadeIn(tween(220))) togetherWith
-                        (slideOutVertically(tween(240)) { height -> -height * direction / 6 } +
-                                fadeOut(tween(160))))
-                    .using(SizeTransform(clip = false))
-            } else {
-                (fadeIn(tween(1)) togetherWith fadeOut(tween(1)))
-                    .using(SizeTransform(clip = false))
-            }
-        },
-        modifier = modifier.fillMaxHeight(),
-        label = "readAloudLyrics"
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 720.dp),
-                horizontalAlignment = when (textAlign) {
-                    TextAlign.Start -> Alignment.Start
-                    TextAlign.End -> Alignment.End
-                    else -> Alignment.CenterHorizontally
-                },
-                verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp)
-            ) {
-                it.paragraphs.forEach { paragraph ->
-                    LyricParagraphLine(
-                        paragraph = paragraph,
-                        colors = colors,
-                        compact = compact,
-                        currentMaxLines = currentMaxLines,
-                        textAlign = textAlign,
-                        animate = animateTextChanges
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable

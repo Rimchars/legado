@@ -1,3 +1,12 @@
 io/legado/app/help/config/AdvancedTitleConfig.class
 io/legado/app/help/config/AdvancedTitleConfig$SplitRule.class
 io/legado/app/help/config/AdvancedTitleConfig$Parts.class
+io/legado/app/help/config/AdvancedTitlePackageManager.class
+io/legado/app/help/config/AdvancedTitlePackageManager$Config.class
+io/legado/app/help/config/AdvancedTitlePackageManager$Entry.class
+io/legado/app/help/config/AdvancedTitlePackageManager$ResourceContext.class
+io/legado/app/help/config/AdvancedTitlePackageArchive.class
+io/legado/app/help/config/AdvancedTitlePackageStorage.class
+io/legado/app/help/config/AdvancedTitleResourcePolicy.class
+io/legado/app/help/config/AdvancedTitleFontAssetDelegate.class
+io/legado/app/ui/book/read/page/provider/TextChapterLayout.class

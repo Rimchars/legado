@@ -472,14 +472,6 @@ private fun rememberSpeechGroups(httpTtsList: List<HttpTTS>): List<SpeechVoiceEn
     return SpeechVoiceCatalogRepository.allGroups(context, httpTtsList)
 }
 
-private fun selectedKeyFromEngine(ttsEngine: String?, httpTtsList: List<HttpTTS>): String {
-    val current = ttsEngine ?: return "system:"
-    if (current.isJsonObject()) {
-        val value = GSON.fromJsonObject<SelectItem<String>>(current).getOrNull()?.value.orEmpty()
-        return "system:$value"
-    }
-    return "http:$current".takeIf { httpTtsList.any { item -> item.id.toString() == current } } ?: "system:"
-}
 
 private fun httpTtsForGroup(group: SpeechVoiceEngineGroup, httpTtsList: List<HttpTTS>): HttpTTS? {
     val id = group.loginKey.toLongOrNull() ?: return null
@@ -620,49 +612,6 @@ private fun EngineGroupRow(
 }
 
 @Composable
-private fun EngineManagementActions(
-    compact: Boolean,
-    colors: SpeakEngineColors,
-    actions: SpeakEngineDialogActions,
-    modifier: Modifier = Modifier
-) {
-    if (!compact) {
-        Row(
-            modifier = modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            SmallEngineAction("新增", actions::addHttpTts, colors)
-            SmallEngineAction("默认规则", actions::importDefault, colors)
-            SmallEngineAction("本地导入", actions::importLocal, colors)
-            SmallEngineAction("在线导入", actions::importOnline, colors)
-            SmallEngineAction("导出全部", actions::exportAll, colors)
-            SmallEngineAction("导出当前", actions::exportSelected, colors)
-        }
-        return
-    }
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = colors.card,
-        shape = RoundedCornerShape(LocalContext.current.composePanelRadius()),
-        border = BorderStroke(1.dp, colors.stroke)
-    ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("管理", color = colors.subText, fontSize = 12.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CompactEngineAction("新增", colors, Modifier.weight(1f), actions::addHttpTts)
-                CompactEngineAction("默认", colors, Modifier.weight(1f), actions::importDefault)
-                CompactEngineAction("在线", colors, Modifier.weight(1f), actions::importOnline)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CompactEngineAction("本地", colors, Modifier.weight(1f), actions::importLocal)
-                CompactEngineAction("导出全部", colors, Modifier.weight(1f), actions::exportAll)
-                CompactEngineAction("导出当前", colors, Modifier.weight(1f), actions::exportSelected)
-            }
-        }
-    }
-}
-
-@Composable
 private fun CompactEngineAction(
     text: String,
     colors: SpeakEngineColors,
@@ -678,24 +627,6 @@ private fun CompactEngineAction(
         Box(contentAlignment = Alignment.Center) {
             Text(text, color = colors.text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-    }
-}
-
-@Composable
-private fun EngineDetailCard(
-    group: SpeechVoiceEngineGroup?,
-    httpTts: HttpTTS?,
-    colors: SpeakEngineColors,
-    actions: SpeakEngineDialogActions,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        color = colors.card,
-        shape = RoundedCornerShape(LocalContext.current.composePanelRadius()),
-        border = BorderStroke(1.dp, colors.stroke)
-    ) {
-        EngineDetail(group = group, httpTts = httpTts, colors = colors, actions = actions)
     }
 }
 

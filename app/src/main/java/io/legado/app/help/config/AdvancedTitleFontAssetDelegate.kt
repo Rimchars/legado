@@ -2,17 +2,18 @@ package io.legado.app.help.config
 
 import android.graphics.Typeface
 import com.airbnb.lottie.FontAssetDelegate
+import io.legado.app.help.AppFont
 
 /**
- * Prevents Lottie from falling back to a non-existent assets/fonts/<family>.ttf file.
+ * Resolves Lottie text fonts via [AppFont].
  *
- * Lottie 6 calls the three-argument overload first and only then the legacy overload,
- * so both must return a typeface to keep drawing safe across imported animations.
+ * You can put `@font:???` (or the bare file name) in the Lottie font fields.
+ * If the font is missing, falls back to [preferredTypeface], then reading title font, then system.
  */
 internal class AdvancedTitleFontAssetDelegate(
-    private val preferredTypeface: () -> Typeface? = { null },
     private val packagedTypeface: (fontFamily: String, fontStyle: String, fontName: String) -> Typeface? =
-        { _, _, _ -> null }
+        { _, _, _ -> null },
+    private val preferredTypeface: () -> Typeface? = { null },
 ) : FontAssetDelegate() {
 
     override fun fetchFont(fontFamily: String): Typeface = resolve(fontFamily, "", "")
@@ -20,17 +21,30 @@ internal class AdvancedTitleFontAssetDelegate(
     override fun fetchFont(
         fontFamily: String,
         fontStyle: String,
-        fontName: String
+        fontName: String,
     ): Typeface = resolve(fontFamily, fontStyle, fontName)
 
     private fun resolve(fontFamily: String, fontStyle: String, fontName: String): Typeface {
-        runCatching { packagedTypeface(fontFamily, fontStyle, fontName) }
-            .getOrNull()
+        val italic = fontStyle.contains("italic", true) || fontStyle.contains("oblique", true)
+        val bold = fontStyle.contains("bold", true)
+        val style = AppFont.Style(bold = bold, italic = italic)
+
+        runCatching { packagedTypeface(fontFamily, fontStyle, fontName) }.getOrNull()
             ?.let { return it }
-        runCatching { preferredTypeface() }.getOrNull()?.let { return it }
-        val systemFamily = fontFamily.trim().ifEmpty { "sans-serif" }
-        return runCatching { Typeface.create(systemFamily, Typeface.NORMAL) }
-            .getOrNull()
-            ?: Typeface.DEFAULT
+
+        val candidates = listOf(fontName, fontFamily)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .flatMap { listOf(it, if (it.startsWith("@font:", true)) it else "@font:$it") }
+            .distinct()
+
+        for (candidate in candidates) {
+            AppFont.tryTypeface(candidate, style)?.let { return it }
+        }
+
+        val preferred = runCatching { preferredTypeface() }.getOrNull()
+        return preferred
+            ?: AppFont.reader(title = true)
+            ?: AppFont.systemDefault()
     }
 }

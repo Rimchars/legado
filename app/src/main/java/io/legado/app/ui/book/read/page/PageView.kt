@@ -11,6 +11,7 @@ import android.graphics.drawable.LayerDrawable
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import com.airbnb.lottie.ImageAssetDelegate
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -18,6 +19,8 @@ import android.widget.TextView
 import com.airbnb.lottie.LottieImageAsset
 import com.airbnb.lottie.LottieDrawable
 import com.airbnb.lottie.LottieAnimationView
+import com.airbnb.lottie.LottieCompositionFactory
+import com.airbnb.lottie.TextDelegate
 import com.airbnb.lottie.LottieOnCompositionLoadedListener
 import com.airbnb.lottie.model.LottieCompositionCache
 import androidx.core.content.ContextCompat
@@ -32,9 +35,9 @@ import io.legado.app.data.entities.Bookmark
 import io.legado.app.databinding.ViewBookPageBinding
 import io.legado.app.help.book.isEpub
 import io.legado.app.help.config.AdvancedTitleConfig
+import io.legado.app.help.config.AdvancedTipConfig
+import io.legado.app.help.config.AdvancedTipSlot
 import io.legado.app.help.config.AdvancedTitleFontAssetDelegate
-import io.legado.app.help.config.AdvancedTitlePackageManager
-import io.legado.app.help.config.PackageResourcePolicy
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
@@ -57,8 +60,6 @@ import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.setTextIfNotEqual
 import splitties.views.backgroundColor
 import java.io.ByteArrayInputStream
-import java.io.File
-import java.io.FileInputStream
 import java.util.Date
 import org.json.JSONObject
 
@@ -82,10 +83,27 @@ class PageView(context: Context) : FrameLayout(context) {
     private var tvTimeBattery: BatteryView? = null
     private var tvTimeBatteryP: BatteryView? = null
     private var isMainView = false
+    /** Bumped when page-turn screenshot pixels may change (content / tip / lottie). */
+    var snapRevision: Long = 1L
+        private set
+    private var overlayBindToken: Long = 0L
+    private var overlayBindScheduledToken: Long = 0L
+    private val overlayBindRunnable = Runnable {
+        if (overlayBindScheduledToken != overlayBindToken) return@Runnable
+        bindAdvancedOverlaysIdle()
+    }
     private var currentTextPage: TextPage? = null
     private var pairedTextPage: TextPage? = null
     private var advancedTitleLottieKey: String? = null
     private var advancedTitlePairLottieKey: String? = null
+    private var scrollTitleLinger: List<ScrollAdvTitle> = emptyList()
+    private var lastScrollPageOffsetForTitle: Int = Int.MIN_VALUE
+    private var boundScrollTitleIds: Array<String?> = arrayOf(null, null)
+    private var advancedHeaderLottieKey: String? = null
+    private var advancedFooterLottieKey: String? = null
+    private var headerTipTextDelegate: TipFieldTextDelegate? = null
+    private var footerTipTextDelegate: TipFieldTextDelegate? = null
+    private var lastTipContext: AdvancedTipConfig.TipContext = AdvancedTipConfig.TipContext()
     private val styledLottieJsonCache = object : LinkedHashMap<String, String>(8, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
             return size > MAX_STYLED_LOTTIE_CACHE_SIZE
@@ -106,6 +124,14 @@ class PageView(context: Context) : FrameLayout(context) {
 
     init {
         if (!isInEditMode) {
+            // Hard-clip title to content band so it cannot paint through the (transparent) header.
+            binding.advancedTitleOverlay.clipChildren = true
+            binding.advancedTitleOverlay.clipToPadding = true
+            binding.advancedTitleOverlay.clipToOutline = true
+            binding.advancedTitleOverlay.outlineProvider = ViewOutlineProvider.BOUNDS
+            binding.advancedTitleOverlay.elevation = 0f
+            binding.advancedTitleLottie.setRenderMode(com.airbnb.lottie.RenderMode.SOFTWARE)
+            binding.advancedTitleLottiePair.setRenderMode(com.airbnb.lottie.RenderMode.SOFTWARE)
             upStyle()
             binding.vwStatusBar.applyStatusBarPadding()
             binding.vwNavigationBar.applyNavigationBarPadding()
@@ -134,6 +160,7 @@ class PageView(context: Context) : FrameLayout(context) {
 
     fun upStyle() = binding.run {
         upTipStyle()
+        warmAdvancedTipCompositions()
         ReadBookConfig.let {
             val textColor = it.textColor
             val tipColor = with(ReadTipConfig) {
@@ -241,8 +268,9 @@ class PageView(context: Context) : FrameLayout(context) {
             true
         } else {
             when (ReadTipConfig.headerMode) {
-                1 -> false
-                2 -> true
+                ReadTipConfig.HEADER_MODE_SHOW,
+                ReadTipConfig.HEADER_MODE_ADVANCED -> false
+                ReadTipConfig.HEADER_MODE_HIDE -> true
                 else -> !ReadBookConfig.hideStatusBar
             }
         }
@@ -250,7 +278,7 @@ class PageView(context: Context) : FrameLayout(context) {
             true
         } else {
             when (ReadTipConfig.footerMode) {
-                1 -> true
+                ReadTipConfig.FOOTER_MODE_HIDE -> true
                 else -> false
             }
         }
@@ -327,6 +355,7 @@ class PageView(context: Context) : FrameLayout(context) {
             typeface = ChapterProvider.typeface
             textSize = 12f
         }
+        applyAdvancedTipChromeVisibility()
     }
 
     /**
@@ -357,21 +386,36 @@ class PageView(context: Context) : FrameLayout(context) {
                 bgDrawable is BitmapDrawable &&
                 !bgDrawable.bitmap.isRecycled
         val bgAlpha = (ReadBookConfig.bgAlpha / 100f * 255).toInt()
-        val foregroundDrawable = if (followScrollBackground) {
-            binding.contentTextView.setScrollFollowBackground(bgDrawable.bitmap, bgAlpha)
-            null
-        } else {
+        if (followScrollBackground) {
+            // Draw scrolling wallpaper on the whole page so header/footer are not solid mean-color bars.
+            // Content no longer paints its own copy (avoids double-darkening).
             binding.contentTextView.setScrollFollowBackground(null, bgAlpha)
-            bgDrawable
-        }
-        binding.vwRoot.background = foregroundDrawable?.let {
-            LayerDrawable(
+            val follow = ScrollFollowBackgroundDrawable(
+                bitmap = bgDrawable.bitmap,
+                offsetProvider = { binding.contentTextView.getBackgroundOffset() },
+                yBiasProvider = { binding.contentTextView.top.toFloat() }
+            ).apply { alpha = bgAlpha }
+            binding.vwRoot.background = LayerDrawable(
                 arrayOf(
                     ReadBookConfig.bgMeanColor.toDrawable(),
-                    it
+                    follow
                 )
             )
-        } ?: ReadBookConfig.bgMeanColor.toDrawable()
+            binding.llHeader.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            binding.llFooter.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        } else {
+            binding.contentTextView.setScrollFollowBackground(null, bgAlpha)
+            binding.vwRoot.background = bgDrawable?.let {
+                LayerDrawable(
+                    arrayOf(
+                        ReadBookConfig.bgMeanColor.toDrawable(),
+                        it
+                    )
+                )
+            } ?: ReadBookConfig.bgMeanColor.toDrawable()
+            binding.llHeader.background = null
+            binding.llFooter.background = null
+        }
         upBgAlpha()
     }
 
@@ -407,6 +451,13 @@ class PageView(context: Context) : FrameLayout(context) {
     fun upTime() {
         tvTime?.text = timeFormat.format(Date(System.currentTimeMillis()))
         upTimeBattery()
+        if (ReadTipConfig.isHeaderAdvanced() || ReadTipConfig.isFooterAdvanced()) {
+            lastTipContext = lastTipContext.copy(time = AdvancedTipConfig.currentTimeText())
+            refreshAdvancedTipFieldsIfBound()
+            markSnapDirty()
+            // Debounced: time ticks must not force multi full-page screenshots every minute.
+            schedulePageTurnPrewarm()
+        }
     }
 
     /**
@@ -418,6 +469,12 @@ class PageView(context: Context) : FrameLayout(context) {
         tvBattery?.setBattery(battery)
         tvBatteryP?.text = "$battery%"
         upTimeBattery()
+        if (ReadTipConfig.isHeaderAdvanced() || ReadTipConfig.isFooterAdvanced()) {
+            lastTipContext = lastTipContext.copy(battery = battery.toString())
+            refreshAdvancedTipFieldsIfBound()
+            markSnapDirty()
+            schedulePageTurnPrewarm()
+        }
     }
 
     /**
@@ -433,6 +490,19 @@ class PageView(context: Context) : FrameLayout(context) {
     /**
      * 设置内容
      */
+    private fun markSnapDirty() {
+        snapRevision++
+    }
+
+    private fun schedulePageTurnPrewarm() {
+        (parent as? ReadView)?.schedulePageTurnPrewarm()
+    }
+
+    /**
+     * Critical path: body text + classic tip labels only.
+     * Advanced title/header/footer Lottie always binds on the next frame (idle),
+     * so first open / chapter switch never stalls on setComposition or Lottie draw.
+     */
     fun setContent(
         textPage: TextPage,
         pairedTextPage: TextPage? = null,
@@ -440,19 +510,114 @@ class PageView(context: Context) : FrameLayout(context) {
     ) {
         currentTextPage = textPage
         this.pairedTextPage = pairedTextPage
+        markSnapDirty()
         upTipStyle(textPage)
-        upAdvancedTitleLotties(textPage, pairedTextPage)
-        if (isMainView && !isScroll) {
-            setProgress(textPage)
-        } else {
-            post {
-                setProgress(textPage)
-            }
-        }
         if (resetPageOffset) {
             resetPageOffset()
         }
+        // Body text first and only on the hot path.
         binding.contentTextView.setContent(textPage, pairedTextPage, resetPageOffset)
+        // Classic tip TextViews are cheap; keep them in sync for non-advanced chrome.
+        applyProgressTexts(textPage)
+        // If tip Lottie already composed, only refresh TextDelegate variables (no re-parse).
+        refreshAdvancedTipFieldsIfBound()
+        // Kick async composition parse early without setComposition on this frame.
+        warmAdvancedTipCompositions()
+        prewarmAdvancedTitleFromPage(textPage)
+        prewarmAdvancedTitleFromPage(pairedTextPage)
+        scheduleOverlayBind()
+    }
+
+    private fun scheduleOverlayBind() {
+        overlayBindToken++
+        overlayBindScheduledToken = overlayBindToken
+        removeCallbacks(overlayBindRunnable)
+        // One frame later: never compete with body text layout/draw of this frame.
+        post(overlayBindRunnable)
+    }
+
+    private fun bindAdvancedOverlaysIdle() {
+        val textPage = currentTextPage ?: return
+        // Titles first (visible in content band), then chrome tips.
+        upAdvancedTitleLotties(textPage, pairedTextPage)
+        if (ReadTipConfig.isHeaderAdvanced() || ReadTipConfig.isFooterAdvanced()) {
+            upAdvancedTipLotties(textPage)
+        }
+        // Snapshots after overlays start binding; multi-pass covers async composition.
+        markSnapDirty()
+        schedulePageTurnPrewarm()
+    }
+
+    /** Update classic tip labels without touching Lottie. */
+    @SuppressLint("SetTextI18n")
+    private fun applyProgressTexts(textPage: TextPage) = textPage.apply {
+        tvBookName?.setTextIfNotEqual(ReadBook.book?.name)
+        tvTitle?.setTextIfNotEqual(textPage.title)
+        val readProgress = readProgress
+        tvTotalProgress?.setTextIfNotEqual(readProgress)
+        tvTotalProgress1?.setTextIfNotEqual("${chapterIndex.plus(1)}/${chapterSize}")
+        if (textChapter.isCompleted) {
+            tvPageAndTotal?.setTextIfNotEqual("${index.plus(1)}/$pageSize  $readProgress")
+            tvPage?.setTextIfNotEqual("${index.plus(1)}/$pageSize")
+        } else {
+            val pageSizeInt = pageSize
+            val pageSizeText = if (pageSizeInt <= 0) "-" else "~$pageSizeInt"
+            tvPageAndTotal?.setTextIfNotEqual("${index.plus(1)}/$pageSizeText  $readProgress")
+            tvPage?.setTextIfNotEqual("${index.plus(1)}/$pageSizeText")
+        }
+        lastTipContext = AdvancedTipConfig.TipContext(
+            book = ReadBook.book?.name.orEmpty(),
+            title = textPage.title,
+            page = (index + 1).toString(),
+            pages = if (textChapter.isCompleted) pageSize.toString() else if (pageSize <= 0) "-" else "~${pageSize}",
+            progress = readProgress,
+            time = AdvancedTipConfig.currentTimeText(),
+            battery = battery.toString(),
+            author = ReadBook.book?.author.orEmpty()
+        )
+    }
+
+    /**
+     * Cheap path: tip Lottie already on-screen for this package — only swap text fields.
+     * Avoids setComposition / parse on page turns and minute ticks.
+     */
+    private fun refreshAdvancedTipFieldsIfBound() {
+        if (!(ReadTipConfig.isHeaderAdvanced() || ReadTipConfig.isFooterAdvanced())) return
+        val vars = AdvancedTipConfig.variables(lastTipContext)
+        if (ReadTipConfig.isHeaderAdvanced()) {
+            val key = AdvancedTipConfig.compositionCacheKey(AdvancedTipSlot.HEADER)
+            if (advancedHeaderLottieKey == key && binding.advancedHeaderLottie.composition != null) {
+                headerTipTextDelegate?.let {
+                    it.variables = vars
+                    binding.advancedHeaderLottie.invalidate()
+                }
+            }
+        }
+        if (ReadTipConfig.isFooterAdvanced()) {
+            val key = AdvancedTipConfig.compositionCacheKey(AdvancedTipSlot.FOOTER)
+            if (advancedFooterLottieKey == key && binding.advancedFooterLottie.composition != null) {
+                footerTipTextDelegate?.let {
+                    it.variables = vars
+                    binding.advancedFooterLottie.invalidate()
+                }
+            }
+        }
+    }
+
+    /** Best-effort: parse title payload of an adjacent page into Lottie cache off the hot path. */
+    private fun prewarmAdvancedTitleFromPage(textPage: TextPage?) {
+        if (ReadBookConfig.titleMode != AdvancedTitleConfig.TITLE_MODE_ADVANCED) return
+        val block = textPage?.epubEmbeddedBlocks?.firstOrNull {
+            it.role == AdvancedTitleConfig.LOTTIE_BLOCK_ROLE
+        } ?: return
+        val json = block.payload?.takeIf { it.isNotBlank() } ?: return
+        val pageWidth = binding.contentTextView.width.toFloat().coerceAtLeast(1f)
+        val styled = applyLottieTextFallbackStyle(json, advancedTitleTextLayerScale(block, pageWidth))
+        val tw = block.width.toInt().coerceAtLeast(1)
+        val th = block.height.toInt().coerceAtLeast(1)
+        val key = "advanced_title:" + styled.hashCode() + ":" + tw + ":" + th
+        if (LottieCompositionCache.getInstance().get(key) != null) return
+        LottieCompositionFactory.fromJsonString(styled, key)
     }
 
     fun invalidateContentView() {
@@ -477,21 +642,31 @@ class PageView(context: Context) : FrameLayout(context) {
      * 设置进度
      */
     @SuppressLint("SetTextI18n")
-    fun setProgress(textPage: TextPage) = textPage.apply {
-        tvBookName?.setTextIfNotEqual(ReadBook.book?.name)
-        tvTitle?.setTextIfNotEqual(textPage.title)
-        val readProgress = readProgress
-        tvTotalProgress?.setTextIfNotEqual(readProgress)
-        tvTotalProgress1?.setTextIfNotEqual("${chapterIndex.plus(1)}/${chapterSize}")
-        if (textChapter.isCompleted) {
-            tvPageAndTotal?.setTextIfNotEqual("${index.plus(1)}/$pageSize  $readProgress")
-            tvPage?.setTextIfNotEqual("${index.plus(1)}/$pageSize")
-        } else {
-            val pageSizeInt = pageSize
-            val pageSize = if (pageSizeInt <= 0) "-" else "~$pageSizeInt"
-            tvPageAndTotal?.setTextIfNotEqual("${index.plus(1)}/$pageSize  $readProgress")
-            tvPage?.setTextIfNotEqual("${index.plus(1)}/$pageSize")
+    fun setProgress(textPage: TextPage) {
+        applyProgressTexts(textPage)
+        // Prefer field-only refresh; full tip bind stays on idle overlay path.
+        refreshAdvancedTipFieldsIfBound()
+        if ((ReadTipConfig.isHeaderAdvanced() || ReadTipConfig.isFooterAdvanced()) &&
+            !advancedTipViewsBound()
+        ) {
+            scheduleOverlayBind()
         }
+    }
+
+    private fun advancedTipViewsBound(): Boolean {
+        if (ReadTipConfig.isHeaderAdvanced()) {
+            val key = AdvancedTipConfig.compositionCacheKey(AdvancedTipSlot.HEADER)
+            if (advancedHeaderLottieKey != key || binding.advancedHeaderLottie.composition == null) {
+                return false
+            }
+        }
+        if (ReadTipConfig.isFooterAdvanced()) {
+            val key = AdvancedTipConfig.compositionCacheKey(AdvancedTipSlot.FOOTER)
+            if (advancedFooterLottieKey != key || binding.advancedFooterLottie.composition == null) {
+                return false
+            }
+        }
+        return true
     }
 
     fun setAutoPager(autoPager: AutoPager?) {
@@ -505,6 +680,12 @@ class PageView(context: Context) : FrameLayout(context) {
     fun setIsScroll(value: Boolean) {
         val changed = isScroll != value
         isScroll = value
+        if (changed && !value) {
+            scrollTitleLinger = emptyList()
+            lastScrollPageOffsetForTitle = Int.MIN_VALUE
+            boundScrollTitleIds[0] = null
+            boundScrollTitleIds[1] = null
+        }
         binding.contentTextView.setIsScroll(value)
         if (value) {
             binding.advancedTitleLottie.pauseAnimation()
@@ -521,6 +702,14 @@ class PageView(context: Context) : FrameLayout(context) {
      */
     fun scroll(offset: Int) {
         binding.contentTextView.scroll(offset)
+        if (isScroll) {
+            // Position-only sync: never reparse/reload Lottie during finger scroll (avoids jitter).
+            syncScrollAdvancedTitlePositions()
+            // Root wallpaper is driven by backgroundScrollOffset; invalidate for follow-bg.
+            if (AppConfig.readScrollFollowBackground) {
+                binding.vwRoot.invalidate()
+            }
+        }
     }
 
     /**
@@ -631,13 +820,32 @@ class PageView(context: Context) : FrameLayout(context) {
     }
 
     private fun upAdvancedTitleLotties(textPage: TextPage, pairedTextPage: TextPage?) {
-        val contentWidth = binding.contentTextView.width.takeIf { it > 0 } ?: width
-        val useDoublePage = ChapterProvider.doublePage && !isScroll
-        val pairOffsetX = if (useDoublePage) {
-            contentWidth / 2f
-        } else {
-            0f
+        val contentWidth = binding.contentTextView.width
+        if (isScroll) {
+            val pageWidth = contentWidth.toFloat().coerceAtLeast(1f)
+            val titles = collectScrollAdvancedTitles(pageWidth)
+            advancedTitleLottieKey = bindScrollAdvancedTitle(
+                title = titles.getOrNull(0),
+                lottieView = binding.advancedTitleLottie,
+                fallbackView = binding.advancedTitleFallback,
+                currentKey = advancedTitleLottieKey,
+                pageWidth = pageWidth,
+                slotIndex = 0
+            )
+            advancedTitlePairLottieKey = bindScrollAdvancedTitle(
+                title = titles.getOrNull(1),
+                lottieView = binding.advancedTitleLottiePair,
+                fallbackView = binding.advancedTitleFallbackPair,
+                currentKey = advancedTitlePairLottieKey,
+                pageWidth = pageWidth,
+                slotIndex = 1
+            )
+            boundScrollTitleIds[0] = titles.getOrNull(0)?.id
+            boundScrollTitleIds[1] = titles.getOrNull(1)?.id
+            return
         }
+        val useDoublePage = ChapterProvider.doublePage
+        val pairOffsetX = if (useDoublePage) contentWidth / 2f else 0f
         val pageWidth = if (useDoublePage) {
             contentWidth / 2f
         } else {
@@ -649,7 +857,8 @@ class PageView(context: Context) : FrameLayout(context) {
             fallbackView = binding.advancedTitleFallback,
             currentKey = advancedTitleLottieKey,
             pageOffsetX = 0f,
-            pageWidth = pageWidth
+            pageWidth = pageWidth,
+            scrollBaseY = 0f
         )
         advancedTitlePairLottieKey = upAdvancedTitleLottie(
             textPage = pairedTextPage,
@@ -657,17 +866,185 @@ class PageView(context: Context) : FrameLayout(context) {
             fallbackView = binding.advancedTitleFallbackPair,
             currentKey = advancedTitlePairLottieKey,
             pageOffsetX = pairOffsetX,
-            pageWidth = pageWidth
+            pageWidth = pageWidth,
+            scrollBaseY = 0f
         )
     }
+    private data class ScrollAdvTitle(
+        val id: String,
+        val textPage: TextPage,
+        val block: TextPage.EpubEmbeddedBlock,
+        val x: Float,
+        val y: Float,
+        val width: Int,
+        val height: Int,
+        val json: String?
+    )
 
+    /**
+     * Gather advanced titles still intersecting the reading viewport.
+     * Titles stay mounted until fully outside (top or bottom), like normal painted titles.
+     */
+    private fun collectScrollAdvancedTitles(pageWidth: Float): List<ScrollAdvTitle> {
+        val content = binding.contentTextView
+        // Overlay is content-sized: same coordinate space as painted text pages.
+        val contentHeight = content.height.toFloat().coerceAtLeast(1f)
+        val contentWidth = content.width.toFloat().coerceAtLeast(1f)
+        val live = ArrayList<ScrollAdvTitle>(3)
+        for (pos in 0..2) {
+            if (!content.hasScrollRelativePage(pos)) continue
+            val page = content.scrollRelativePage(pos)
+            val block = page.epubEmbeddedBlocks.firstOrNull {
+                it.role == AdvancedTitleConfig.LOTTIE_BLOCK_ROLE
+            } ?: continue
+            val width = block.width.toInt().coerceAtLeast(1)
+            val height = block.height.toInt().coerceAtLeast(1)
+            // Identical to text: relativeOffset(pos) + in-page offsetY.
+            val y = content.scrollRelativeOffset(pos) + block.offsetY
+            val x = block.offsetX - (contentWidth - width) / 2f
+            // Keep while any pixel still intersects the content viewport (like normal text).
+            if (y + height <= 0f || y >= contentHeight) continue
+            val json = block.payload?.takeIf { it.isNotBlank() }?.let {
+                applyLottieTextFallbackStyle(it, advancedTitleTextLayerScale(block, pageWidth))
+            }
+            val id = "${page.chapterIndex}:${page.index}:${page.title}"
+            live.add(ScrollAdvTitle(id, page, block, x, y, width, height, json))
+        }
+        live.sortBy { it.y }
+        scrollTitleLinger = live.take(2)
+        return scrollTitleLinger
+    }
+
+    /**
+     * Finger-scroll path: only move overlays. Reload happens in setContent via full bind.
+     */
+    private fun syncScrollAdvancedTitlePositions() {
+        if (!isScroll) return
+        if (ReadBookConfig.titleMode != AdvancedTitleConfig.TITLE_MODE_ADVANCED) return
+        val pageWidth = binding.contentTextView.width.toFloat().coerceAtLeast(1f)
+        val titles = collectScrollAdvancedTitles(pageWidth)
+        val id0 = titles.getOrNull(0)?.id
+        val id1 = titles.getOrNull(1)?.id
+        val sameBinding =
+            boundScrollTitleIds[0] == id0 &&
+                boundScrollTitleIds[1] == id1 &&
+                (id0 == null || binding.advancedTitleLottie.composition != null || binding.advancedTitleFallback.visibility == VISIBLE) &&
+                (id1 == null || binding.advancedTitleLottiePair.composition != null || binding.advancedTitleFallbackPair.visibility == VISIBLE)
+        if (!sameBinding) {
+            // Chapter/page set changed: full bind (may load composition once).
+            currentTextPage?.let { upAdvancedTitleLotties(it, pairedTextPage) }
+            return
+        }
+        applyScrollTitlePosition(binding.advancedTitleLottie, binding.advancedTitleFallback, titles.getOrNull(0))
+        applyScrollTitlePosition(binding.advancedTitleLottiePair, binding.advancedTitleFallbackPair, titles.getOrNull(1))
+    }
+
+    private fun applyTitleContentClip(view: android.view.View, y: Float, width: Int, height: Int) {
+        if (y >= 0f) {
+            view.clipBounds = null
+            return
+        }
+        val top = (-y).toInt().coerceIn(0, height)
+        view.clipBounds = if (top >= height) {
+            android.graphics.Rect(0, 0, 0, 0)
+        } else {
+            android.graphics.Rect(0, top, width.coerceAtLeast(1), height.coerceAtLeast(1))
+        }
+    }
+
+    private fun applyScrollTitlePosition(
+        lottieView: LottieAnimationView,
+        fallbackView: TextView,
+        title: ScrollAdvTitle?
+    ) {
+        if (title == null) {
+            lottieView.visibility = GONE
+            fallbackView.visibility = GONE
+            return
+        }
+        val params = lottieView.layoutParams
+        if (params.width != title.width || params.height != title.height) {
+            params.width = title.width
+            params.height = title.height
+            lottieView.layoutParams = params
+        }
+        lottieView.translationX = title.x
+        lottieView.translationY = title.y
+        applyTitleContentClip(lottieView, title.y, title.width, title.height)
+        if (lottieView.composition != null) {
+            lottieView.visibility = VISIBLE
+            lottieView.pauseAnimation()
+            lottieView.progress = 0f
+            fallbackView.visibility = GONE
+        } else if (fallbackView.visibility == VISIBLE) {
+            val fp = fallbackView.layoutParams
+            if (fp.width != title.width || fp.height != title.height) {
+                fp.width = title.width
+                fp.height = title.height
+                fallbackView.layoutParams = fp
+            }
+            fallbackView.translationX = title.x
+            fallbackView.translationY = title.y
+        }
+        val fparams = fallbackView.layoutParams
+        if (fallbackView.visibility == VISIBLE) {
+            if (fparams.width != title.width || fparams.height != title.height) {
+                fparams.width = title.width
+                fparams.height = title.height
+                fallbackView.layoutParams = fparams
+            }
+            fallbackView.translationX = title.x
+            fallbackView.translationY = title.y
+        }
+    }
+    private fun bindScrollAdvancedTitle(
+        title: ScrollAdvTitle?,
+        lottieView: LottieAnimationView,
+        fallbackView: TextView,
+        currentKey: String?,
+        pageWidth: Float,
+        slotIndex: Int
+    ): String? {
+        if (title == null) {
+            boundScrollTitleIds[slotIndex] = null
+            clearAdvancedTitleLoadingState(lottieView)
+            lottieView.cancelAnimation()
+            lottieView.visibility = GONE
+            fallbackView.visibility = GONE
+            return null
+        }
+        boundScrollTitleIds[slotIndex] = title.id
+        // Absolute content coordinates: scrollBaseY carries full Y (contentOrigin=0 for content overlay).
+        val key = upAdvancedTitleLottie(
+            textPage = title.textPage,
+            lottieView = lottieView,
+            fallbackView = fallbackView,
+            currentKey = currentKey,
+            pageOffsetX = 0f,
+            pageWidth = pageWidth,
+            scrollBaseY = title.y - title.block.offsetY,
+            forceVisibleInScroll = true
+        )
+        // Force exact position after bind (avoid recomputation drift).
+        lottieView.translationX = title.x
+        lottieView.translationY = title.y
+        applyTitleContentClip(lottieView, title.y, title.width, title.height)
+        if (fallbackView.visibility == VISIBLE) {
+            fallbackView.translationX = title.x
+            fallbackView.translationY = title.y
+            applyTitleContentClip(fallbackView, title.y, title.width, title.height)
+        }
+        return key
+    }
     private fun upAdvancedTitleLottie(
         textPage: TextPage?,
         lottieView: LottieAnimationView,
         fallbackView: TextView,
         currentKey: String?,
         pageOffsetX: Float,
-        pageWidth: Float
+        pageWidth: Float,
+        scrollBaseY: Float = 0f,
+        forceVisibleInScroll: Boolean = false
     ): String? {
         fun clear(): String? {
             clearAdvancedTitleLoadingState(lottieView)
@@ -703,6 +1080,10 @@ class PageView(context: Context) : FrameLayout(context) {
         }
 
         fun resolveTitleTranslationY(block: TextPage.EpubEmbeddedBlock, targetHeight: Int): Float {
+            if (isScroll) {
+                // Overlay matches ContentTextView; same Y space as painted text.
+                return scrollBaseY + block.offsetY
+            }
             val contentHeight = binding.contentTextView.height
             if (contentHeight <= 0) return block.offsetY
             val maxTranslation = (contentHeight - targetHeight).toFloat().coerceAtLeast(0f)
@@ -734,9 +1115,7 @@ class PageView(context: Context) : FrameLayout(context) {
         val block = textPage?.epubEmbeddedBlocks?.firstOrNull {
             it.role == AdvancedTitleConfig.LOTTIE_BLOCK_ROLE
         } ?: return hideLoadedComposition()
-        if (isScroll) {
-            return showFallback(block)
-        }
+        // Scroll: still show Lottie, but freeze on keyframe (progress=0) and follow pageOffset.
         val (targetWidth, targetHeight) = resolveTitleViewSize(block)
         val params = lottieView.layoutParams as ViewGroup.LayoutParams
         if (params.width != targetWidth || params.height != targetHeight) {
@@ -747,34 +1126,38 @@ class PageView(context: Context) : FrameLayout(context) {
         lottieView.scaleType = ImageView.ScaleType.FIT_CENTER
         lottieView.translationX = resolveTitleTranslationX(block, targetWidth)
         lottieView.translationY = resolveTitleTranslationY(block, targetHeight)
-        lottieView.repeatCount = LottieDrawable.INFINITE
-        val resourceContext = AdvancedTitlePackageManager.currentResourceContext()
-        lottieView.setFontAssetDelegate(
-            AdvancedTitleFontAssetDelegate(
-                preferredTypeface = {
-                    ChapterProvider.titlePaint.typeface ?: ChapterProvider.typeface ?: Typeface.DEFAULT
-                },
-                packagedTypeface = { family, style, name ->
-                    resolvePackagedTypeface(resourceContext, family, style, name)
-                }
-            )
-        )
+        if (isScroll && !forceVisibleInScroll) {
+            val overlayHeight = binding.advancedTitleOverlay.height.toFloat()
+                .takeIf { it > 0f }
+                ?: (binding.llHeader.height + binding.contentTextView.height).toFloat().coerceAtLeast(1f)
+            val y = lottieView.translationY
+            // Fully outside the reading overlay (top or bottom edge) — same as normal painted titles.
+            val offScreen = y + targetHeight <= 0f || y >= overlayHeight
+            if (offScreen) {
+                lottieView.pauseAnimation()
+                lottieView.visibility = GONE
+                fallbackView.visibility = GONE
+                return currentKey
+            }
+        }
+        // Non-scroll may loop; scroll freezes on keyframe (progress 0).
+        lottieView.repeatCount = if (isScroll) 0 else LottieDrawable.INFINITE
+        lottieView.setFontAssetDelegate(defaultFontAssetDelegate)
         val json = block.payload?.takeIf { it.isNotBlank() }
         val resolvedJson = json?.let { applyLottieTextFallbackStyle(it, advancedTitleTextLayerScale(block, pageWidth)) }
+        val compositionSize = resolvedJson?.let(::lottieCompositionSize)
         lottieView.setMaintainOriginalImageBounds(true)
         lottieView.setImageAssetDelegate(
             dataUriImageAssetDelegate(
                 viewWidth = targetWidth,
                 viewHeight = targetHeight,
-                compositionWidth = targetWidth,
-                compositionHeight = targetHeight,
-                resourceContext = resourceContext
+                compositionWidth = compositionSize?.first ?: targetWidth,
+                compositionHeight = compositionSize?.second ?: targetHeight
             )
         )
         lottieView.setCacheComposition(resolvedJson == null)
         val nextKey = resolvedJson?.let {
-            "advanced_title:${resourceContext?.cacheKey.orEmpty()}:" +
-                "${LottieImageMemoryPolicy.sourceSha256(it)}:$targetWidth:$targetHeight"
+            "advanced_title:${it.hashCode()}:$targetWidth:$targetHeight"
         } ?: "advanced_title:raw:$targetWidth:$targetHeight"
 
         fun showComposition() {
@@ -788,40 +1171,53 @@ class PageView(context: Context) : FrameLayout(context) {
             } else {
                 lottieView.pauseAnimation()
             }
+            markSnapDirty()
+            schedulePageTurnPrewarm()
         }
 
         if (currentKey != nextKey) {
+            // Do not clear the current composition first; swap only when the next one is ready.
             lottieView.animate().cancel()
-            lottieView.cancelAnimation()
             lottieView.removeAllLottieOnCompositionLoadedListener()
+            lottieView.setFailureListener(null)
             lottieView.tag = nextKey
             lottieView.alpha = 1f
-            lottieView.visibility = INVISIBLE
-            fallbackView.visibility = GONE
-            lottieView.setFailureListener {
-                if (lottieView.tag == nextKey) showFallback(block)
+            val hasOld = lottieView.composition != null && lottieView.visibility == VISIBLE
+            if (!hasOld) {
+                lottieView.visibility = INVISIBLE
+                fallbackView.visibility = GONE
+            }
+            fun applyLoaded(composition: com.airbnb.lottie.LottieComposition) {
+                if (lottieView.tag != nextKey) return
+                lottieView.setComposition(composition)
+                showComposition()
             }
             if (resolvedJson != null) {
                 LottieCompositionCache.getInstance().get(nextKey)?.let { composition ->
-                    lottieView.setComposition(composition)
-                    showComposition()
+                    applyLoaded(composition)
                     return nextKey
                 }
-            }
-            lottieView.addLottieOnCompositionLoadedListener(
-                LottieOnCompositionLoadedListener {
-                    if (lottieView.tag == nextKey) showComposition()
+                LottieCompositionFactory.fromJsonString(resolvedJson, nextKey)
+                    .addListener { composition ->
+                        composition?.let(::applyLoaded)
+                    }
+                    .addFailureListener {
+                        if (lottieView.tag == nextKey) showFallback(block)
+                    }
+            } else {
+                lottieView.setFailureListener {
+                    if (lottieView.tag == nextKey) showFallback(block)
                 }
-            )
-            runCatching {
-                if (resolvedJson != null) {
-                    lottieView.setCacheComposition(true)
-                    lottieView.setAnimationFromJson(resolvedJson, nextKey)
-                } else {
+                lottieView.addLottieOnCompositionLoadedListener(
+                    LottieOnCompositionLoadedListener {
+                        if (lottieView.tag == nextKey) showComposition()
+                    }
+                )
+                runCatching {
                     lottieView.setAnimation(R.raw.advanced_title_lottie)
+                }.onFailure {
+                    return showFallback(block)
                 }
-            }.onFailure {
-                return showFallback(block)
             }
             return nextKey
         }
@@ -844,6 +1240,200 @@ class PageView(context: Context) : FrameLayout(context) {
             return showFallback(block)
         }
         return nextKey
+    }
+
+
+    private fun applyAdvancedTipChromeVisibility() = binding.run {
+        val headerAdvanced = !isEpubBook() && ReadTipConfig.isHeaderAdvanced()
+        val footerAdvanced = !isEpubBook() && ReadTipConfig.isFooterAdvanced()
+        if (headerAdvanced) {
+            tvHeaderLeft.isGone = true
+            tvHeaderMiddle.isGone = true
+            tvHeaderRight.isGone = true
+        }
+        if (footerAdvanced) {
+            tvFooterLeft.isInvisible = true
+            tvFooterMiddle.isGone = true
+            tvFooterRight.isGone = true
+        }
+        if (!headerAdvanced) {
+            advancedHeaderLottie.visibility = GONE
+            advancedHeaderLottieKey = null
+        }
+        if (!footerAdvanced) {
+            advancedFooterLottie.visibility = GONE
+            advancedFooterLottieKey = null
+        }
+    }
+
+    private fun isEpubBook(): Boolean = ReadBook.book?.isEpub == true
+
+    private fun upAdvancedTipLotties(textPage: TextPage?) {
+        advancedHeaderLottieKey = upAdvancedTipLottie(
+            slot = AdvancedTipSlot.HEADER,
+            textPage = textPage,
+            lottieView = binding.advancedHeaderLottie,
+            currentKey = advancedHeaderLottieKey
+        )
+        advancedFooterLottieKey = upAdvancedTipLottie(
+            slot = AdvancedTipSlot.FOOTER,
+            textPage = textPage,
+            lottieView = binding.advancedFooterLottie,
+            currentKey = advancedFooterLottieKey
+        )
+    }
+
+    private fun upAdvancedTipLottie(
+        slot: AdvancedTipSlot,
+        textPage: TextPage?,
+        lottieView: LottieAnimationView,
+        currentKey: String?
+    ): String? {
+        val enabled = when (slot) {
+            AdvancedTipSlot.HEADER -> !isEpubBook() && ReadTipConfig.isHeaderAdvanced()
+            AdvancedTipSlot.FOOTER -> !isEpubBook() && ReadTipConfig.isFooterAdvanced()
+        }
+        if (!enabled) {
+            clearAdvancedTitleLoadingState(lottieView)
+            lottieView.cancelAnimation()
+            lottieView.setTextDelegate(null)
+            when (slot) {
+                AdvancedTipSlot.HEADER -> headerTipTextDelegate = null
+                AdvancedTipSlot.FOOTER -> footerTipTextDelegate = null
+            }
+            lottieView.visibility = GONE
+            return null
+        }
+        val page = textPage ?: currentTextPage
+        val context = lastTipContext.copy(
+            book = lastTipContext.book.ifBlank { ReadBook.book?.name.orEmpty() },
+            title = page?.title?.takeIf { it.isNotBlank() } ?: lastTipContext.title,
+            time = AdvancedTipConfig.currentTimeText(),
+            battery = battery.toString(),
+            author = ReadBook.book?.author.orEmpty()
+        )
+        lastTipContext = context
+        val vars = AdvancedTipConfig.variables(context)
+        val raw = AdvancedTipConfig.rawTemplate(slot)
+        if (raw.isNullOrBlank() || !AdvancedTitleConfig.hasRenderableLayers(raw)) {
+            clearAdvancedTitleLoadingState(lottieView)
+            lottieView.cancelAnimation()
+            lottieView.visibility = GONE
+            return null
+        }
+        // Key by package identity only. Page/title/time updates use TextDelegate (no re-parse).
+        val nextKey = AdvancedTipConfig.compositionCacheKey(slot)
+        lottieView.scaleType = ImageView.ScaleType.FIT_CENTER
+        lottieView.repeatCount = LottieDrawable.INFINITE
+        lottieView.setFontAssetDelegate(defaultFontAssetDelegate)
+
+        fun ensureDelegate() {
+            val existing = when (slot) {
+                AdvancedTipSlot.HEADER -> headerTipTextDelegate
+                AdvancedTipSlot.FOOTER -> footerTipTextDelegate
+            }
+            if (existing != null) {
+                existing.variables = vars
+                lottieView.invalidate()
+                return
+            }
+            val created = TipFieldTextDelegate(lottieView).also { it.variables = vars }
+            lottieView.setTextDelegate(created)
+            when (slot) {
+                AdvancedTipSlot.HEADER -> headerTipTextDelegate = created
+                AdvancedTipSlot.FOOTER -> footerTipTextDelegate = created
+            }
+        }
+
+        fun showLoaded(composition: com.airbnb.lottie.LottieComposition) {
+            if (lottieView.tag != nextKey) return
+            lottieView.setComposition(composition)
+            ensureDelegate()
+            lottieView.alpha = 1f
+            lottieView.visibility = VISIBLE
+            if (isMainView) {
+                if (!lottieView.isAnimating) lottieView.playAnimation()
+            } else {
+                lottieView.pauseAnimation()
+            }
+            // Composition just became drawable — pre-capture page-turn bitmaps while idle.
+            markSnapDirty()
+            schedulePageTurnPrewarm()
+        }
+
+        if (currentKey == nextKey && lottieView.composition != null) {
+            ensureDelegate()
+            lottieView.visibility = VISIBLE
+            if (isMainView && !lottieView.isAnimating) lottieView.playAnimation()
+            return nextKey
+        }
+
+        lottieView.animate().cancel()
+        lottieView.removeAllLottieOnCompositionLoadedListener()
+        lottieView.setFailureListener(null)
+        lottieView.tag = nextKey
+        lottieView.alpha = 1f
+        if (!(lottieView.composition != null && lottieView.visibility == VISIBLE)) {
+            lottieView.visibility = INVISIBLE
+        }
+
+        LottieCompositionCache.getInstance().get(nextKey)?.let { composition ->
+            showLoaded(composition)
+            return nextKey
+        }
+        if (!isMainView) {
+            // Do not compete with main page on first parse; retry when cache is ready.
+            lottieView.visibility = INVISIBLE
+            lottieView.post {
+                LottieCompositionCache.getInstance().get(nextKey)?.let { composition ->
+                    if (lottieView.tag == nextKey) showLoaded(composition)
+                }
+            }
+            LottieCompositionFactory.fromJsonString(raw, nextKey)
+            return nextKey
+        }
+        // Main page: parse once per package; later flips only refresh TextDelegate.
+        LottieCompositionFactory.fromJsonString(raw, nextKey)
+            .addListener { composition -> composition?.let(::showLoaded) }
+            .addFailureListener {
+                if (lottieView.tag == nextKey) lottieView.visibility = GONE
+            }
+        return nextKey
+    }
+
+    private class TipFieldTextDelegate(
+        animationView: LottieAnimationView
+    ) : TextDelegate(animationView) {
+        @Volatile
+        var variables: Map<String, String> = emptyMap()
+
+        init {
+            setCacheText(false)
+        }
+
+        override fun getText(input: String): String {
+            return AdvancedTipConfig.substituteText(input, variables)
+        }
+    }
+
+
+    private fun warmAdvancedTipCompositions() {
+        if (isEpubBook()) return
+        // Always ensure raw package compositions are parsing/cached before the first flip.
+        if (ReadTipConfig.isHeaderAdvanced()) {
+            val raw = AdvancedTipConfig.rawTemplate(AdvancedTipSlot.HEADER)
+            if (!raw.isNullOrBlank()) {
+                val key = AdvancedTipConfig.compositionCacheKey(AdvancedTipSlot.HEADER)
+                LottieCompositionFactory.fromJsonString(raw, key)
+            }
+        }
+        if (ReadTipConfig.isFooterAdvanced()) {
+            val raw = AdvancedTipConfig.rawTemplate(AdvancedTipSlot.FOOTER)
+            if (!raw.isNullOrBlank()) {
+                val key = AdvancedTipConfig.compositionCacheKey(AdvancedTipSlot.FOOTER)
+                LottieCompositionFactory.fromJsonString(raw, key)
+            }
+        }
     }
 
     private fun clearAdvancedTitleLoadingState(view: LottieAnimationView) {
@@ -880,19 +1470,9 @@ class PageView(context: Context) : FrameLayout(context) {
         val fallbackHex = String.format("#%06X", 0xFFFFFF and fallbackColor)
         val fallbackFont = "legado_default_font"
         val normalizedTextScale = textScale.coerceIn(1f, 2.5f)
-        // A styled JSON is another complete copy of the Lottie document. Do not let image-heavy
-        // templates occupy all six LRU slots; the active Lottie view/composition remains cached by
-        // Lottie itself, while this auxiliary cache is reserved for small templates.
-        val cacheKey = if (rawJson.length <= MAX_STYLED_LOTTIE_CACHE_SOURCE_CHARS) {
-            "${LottieImageMemoryPolicy.sourceSha256(rawJson)}:$fallbackHex:" +
-                "${"%.3f".format(normalizedTextScale)}"
-        } else {
-            null
-        }
-        if (cacheKey != null) {
-            synchronized(styledLottieJsonCache) {
-                styledLottieJsonCache[cacheKey]?.let { return it }
-            }
+        val cacheKey = "${rawJson.hashCode()}:$fallbackHex:${"%.3f".format(normalizedTextScale)}"
+        synchronized(styledLottieJsonCache) {
+            styledLottieJsonCache[cacheKey]?.let { return it }
         }
         return runCatching {
             val root = JSONObject(rawJson)
@@ -938,10 +1518,8 @@ class PageView(context: Context) : FrameLayout(context) {
             }
             root.toString()
         }.getOrDefault(rawJson).also { styledJson ->
-            if (cacheKey != null) {
-                synchronized(styledLottieJsonCache) {
-                    styledLottieJsonCache[cacheKey] = styledJson
-                }
+            synchronized(styledLottieJsonCache) {
+                styledLottieJsonCache[cacheKey] = styledJson
             }
         }
     }
@@ -1008,14 +1586,22 @@ class PageView(context: Context) : FrameLayout(context) {
         }
     }
 
+    private fun lottieCompositionSize(json: String): Pair<Int, Int>? {
+        return runCatching {
+            val root = JSONObject(json)
+            val width = root.optInt("w")
+            val height = root.optInt("h")
+            if (width > 0 && height > 0) width to height else null
+        }.getOrNull()
+    }
+
     private fun dataUriImageAssetDelegate(
         viewWidth: Int,
         viewHeight: Int,
         compositionWidth: Int,
-        compositionHeight: Int,
-        resourceContext: AdvancedTitlePackageManager.ResourceContext?
+        compositionHeight: Int
     ) = ImageAssetDelegate { asset: LottieImageAsset ->
-        val source = resolveLottieAssetSource(asset, resourceContext) ?: return@ImageAssetDelegate null
+        val source = resolveLottieAssetSource(asset) ?: return@ImageAssetDelegate null
         val decodeSize = LottieImageMemoryPolicy.decodeSize(
             assetWidth = asset.width.takeIf { it > 0 } ?: compositionWidth.coerceAtLeast(viewWidth),
             assetHeight = asset.height.takeIf { it > 0 } ?: compositionHeight.coerceAtLeast(viewHeight),
@@ -1025,7 +1611,7 @@ class PageView(context: Context) : FrameLayout(context) {
             compositionHeight = compositionHeight
         ) ?: return@ImageAssetDelegate null
         val cacheKey = LottieImageCacheKey(
-            sourceSha256 = LottieImageMemoryPolicy.sourceSha256(source.identity),
+            sourceSha256 = LottieImageMemoryPolicy.sourceSha256(source),
             width = decodeSize.width,
             height = decodeSize.height
         )
@@ -1035,102 +1621,22 @@ class PageView(context: Context) : FrameLayout(context) {
         }
     }
 
-    private fun resolveLottieAssetSource(
-        asset: LottieImageAsset,
-        resourceContext: AdvancedTitlePackageManager.ResourceContext?
-    ): LottieAssetSource? {
+    private fun resolveLottieAssetSource(asset: LottieImageAsset): String? {
         val candidates = arrayListOf<String>()
         asset.fileName?.let { candidates.add(it) }
         if (!asset.dirName.isNullOrBlank() && !asset.fileName.isNullOrBlank()) {
             candidates.add(asset.dirName + asset.fileName)
         }
-        candidates.firstOrNull { candidate ->
+        return candidates.firstOrNull { candidate ->
             candidate.startsWith("data:image", ignoreCase = true)
-        }?.let { return LottieAssetSource.DataUrl(it) }
-        val context = resourceContext ?: return null
-        candidates.forEach { candidate ->
-            PackageResourcePolicy.resolve(
-                root = context.root,
-                resources = context.resources,
-                reference = candidate,
-                expectedType = PackageResourcePolicy.TYPE_IMAGE
-            )?.let { file ->
-                return LottieAssetSource.LocalFile(
-                    file = file,
-                    identity = "${context.cacheKey}:${file.absolutePath}:${file.length()}:${file.lastModified()}"
-                )
-            }
-        }
-        return null
-    }
-
-    private fun loadLottieAssetBitmap(
-        source: LottieAssetSource,
-        decodeSize: LottieDecodeSize
-    ): android.graphics.Bitmap? {
-        return when (source) {
-            is LottieAssetSource.DataUrl -> runCatching {
-                val bytes = source.value.decodeBase64DataUrlBytes() ?: return@runCatching null
-                decodeBitmapByType(source.value, bytes, decodeSize)
-            }.getOrNull()
-            is LottieAssetSource.LocalFile -> decodeLocalLottieAsset(source.file, decodeSize)
         }
     }
 
-    private fun decodeLocalLottieAsset(
-        file: File,
-        decodeSize: LottieDecodeSize
-    ): android.graphics.Bitmap? = runCatching {
-        if (file.extension.equals("svg", ignoreCase = true)) {
-            FileInputStream(file).use { input ->
-                SvgUtils.createBitmap(input, decodeSize.width, decodeSize.height)
-            }
-        } else {
-            decodeRasterFile(file, decodeSize)
-        }
-    }.getOrNull()
-
-    private fun decodeRasterFile(file: File, decodeSize: LottieDecodeSize): android.graphics.Bitmap? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.absolutePath, bounds)
-        val target = LottieImageMemoryPolicy.fitSourceInto(bounds.outWidth, bounds.outHeight, decodeSize)
-            ?: return null
-        val sampleSize = LottieImageMemoryPolicy.sampleSize(bounds.outWidth, bounds.outHeight, target)
-        val decoded = BitmapFactory.decodeFile(
-            file.absolutePath,
-            BitmapFactory.Options().apply { inSampleSize = sampleSize }
-        ) ?: return null
-        if (decoded.width == target.width && decoded.height == target.height) return decoded
-        return android.graphics.Bitmap.createScaledBitmap(decoded, target.width, target.height, true).also {
-            if (it !== decoded) decoded.recycle()
-        }
-    }
-
-    private fun resolvePackagedTypeface(
-        context: AdvancedTitlePackageManager.ResourceContext?,
-        fontFamily: String,
-        fontStyle: String,
-        fontName: String
-    ): Typeface? {
-        val resourceContext = context ?: return null
-        val reference = sequenceOf(fontFamily, fontName)
-            .firstOrNull { it.startsWith(PackageResourcePolicy.ALIAS_PREFIX, ignoreCase = true) }
-            ?: return null
-        val file = PackageResourcePolicy.resolve(
-            root = resourceContext.root,
-            resources = resourceContext.resources,
-            reference = reference,
-            expectedType = PackageResourcePolicy.TYPE_FONT
-        ) ?: return null
-        val base = runCatching { Typeface.createFromFile(file) }.getOrNull() ?: return null
-        val style = when {
-            fontStyle.contains("bold", ignoreCase = true) &&
-                fontStyle.contains("italic", ignoreCase = true) -> Typeface.BOLD_ITALIC
-            fontStyle.contains("bold", ignoreCase = true) -> Typeface.BOLD
-            fontStyle.contains("italic", ignoreCase = true) -> Typeface.ITALIC
-            else -> Typeface.NORMAL
-        }
-        return Typeface.create(base, style)
+    private fun loadLottieAssetBitmap(source: String, decodeSize: LottieDecodeSize): android.graphics.Bitmap? {
+        return runCatching {
+            val bytes = source.decodeBase64DataUrlBytes() ?: return@runCatching null
+            decodeBitmapByType(source, bytes, decodeSize)
+        }.getOrNull()
     }
 
     private fun decodeBitmapByType(
@@ -1151,7 +1657,12 @@ class PageView(context: Context) : FrameLayout(context) {
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         val target = LottieImageMemoryPolicy.fitSourceInto(bounds.outWidth, bounds.outHeight, decodeSize)
             ?: return null
-        val sampleSize = LottieImageMemoryPolicy.sampleSize(bounds.outWidth, bounds.outHeight, target)
+        var sampleSize = 1
+        while (bounds.outWidth / (sampleSize * 2) >= target.width &&
+            bounds.outHeight / (sampleSize * 2) >= target.height
+        ) {
+            sampleSize *= 2
+        }
         val decoded = BitmapFactory.decodeByteArray(
             bytes,
             0,
@@ -1164,17 +1675,8 @@ class PageView(context: Context) : FrameLayout(context) {
         }
     }
 
-    private sealed interface LottieAssetSource {
-        val identity: String
-
-        data class DataUrl(val value: String) : LottieAssetSource {
-            override val identity: String get() = value
-        }
-
-        data class LocalFile(
-            val file: File,
-            override val identity: String
-        ) : LottieAssetSource
+    private val defaultFontAssetDelegate = AdvancedTitleFontAssetDelegate {
+        ChapterProvider.titlePaint.typeface ?: ChapterProvider.typeface ?: Typeface.DEFAULT
     }
 
     val textPage get() = binding.contentTextView.textPage
@@ -1194,7 +1696,5 @@ class PageView(context: Context) : FrameLayout(context) {
         const val ADVANCED_TITLE_SIZE_FACTOR = 1.25f
         const val ADVANCED_TITLE_WIDTH_FACTOR = 0.86f
         const val MAX_STYLED_LOTTIE_CACHE_SIZE = 6
-        // About 2 MiB as a UTF-16 String, matching the editable-template working-set budget.
-        const val MAX_STYLED_LOTTIE_CACHE_SOURCE_CHARS = 1024 * 1024
     }
 }

@@ -543,20 +543,6 @@ data class TextPage(
         }
     }
 
-    private fun drawDebugInfo(canvas: Canvas) {
-        ChapterProvider.run {
-            val paint = PaintPool.obtain()
-            paint.style = Paint.Style.STROKE
-            canvas.drawRect(
-                paddingLeft.toFloat(),
-                0f,
-                (paddingLeft + visibleWidth).toFloat(),
-                height - 1.dpToPx(),
-                paint
-            )
-            PaintPool.recycle(paint)
-        }
-    }
 
     private fun drawPage(view: ContentTextView, canvas: Canvas) {
         drawEpubBackground(view, canvas)

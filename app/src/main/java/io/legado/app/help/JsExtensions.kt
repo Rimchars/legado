@@ -795,6 +795,32 @@ interface JsExtensions : JsEncodeUtils {
         return WebSettings.getDefaultUserAgent(appCtx)
     }
 
+    /**
+     * 获取 App 字体库列表（字体管理中的 ttf/otf）。
+     * @return JSON 数组字符串，元素形如：
+     *   {"ref":"@font:仓耳今楷.ttf","displayName":"仓耳今楷.ttf","pathOrUri":"..."}
+     * 无字体时返回 "[]"。
+     */
+    @JavascriptInterface
+    fun getFontList(): String {
+        return getFontList(true)
+    }
+
+    /**
+     * @param withAtFontPrefix true 时 ref 带 @font: 前缀；false 时 ref 仅为文件名
+     */
+    @JavascriptInterface
+    fun getFontList(withAtFontPrefix: Boolean): String {
+        val list = AppFont.list().map { item ->
+            mapOf(
+                "ref" to if (withAtFontPrefix) item.ref else item.displayName,
+                "displayName" to item.displayName,
+                "pathOrUri" to item.pathOrUri,
+            )
+        }
+        return GSON.toJson(list)
+    }
+
 //****************文件操作******************//
 
     /**

@@ -16,41 +16,76 @@ import java.io.File
 import java.io.IOException
 import java.util.UUID
 
-object AdvancedTitlePackageManager {
+enum class AdvancedTipSlot {
+    HEADER,
+    FOOTER;
 
-    const val BUILTIN_ID = "builtin_default"
-    const val MAX_EDITABLE_JSON_BYTES = 2L * 1024L * 1024L
-    // Import/apply ceiling. In-app JSON editor stays at 2 MiB (Intent/OOM safety).
-    const val MAX_JSON_BYTES = 8L * 1024L * 1024L
-    private const val MAX_PACKAGES = 64
-    private const val MANIFEST_FILE = "package.json"
-    private const val LOTTIE_FILE = "title.json"
+    val preferKey: String
+        get() = when (this) {
+            HEADER -> PreferKey.advancedHeaderPackage
+            FOOTER -> PreferKey.advancedFooterPackage
+        }
+
+    val rootName: String
+        get() = when (this) {
+            HEADER -> "advancedHeaderPackages"
+            FOOTER -> "advancedFooterPackages"
+        }
+
+    val manageTitleRes: Int
+        get() = when (this) {
+            HEADER -> R.string.advanced_header_manage
+            FOOTER -> R.string.advanced_footer_manage
+        }
+
+    val builtinNameRes: Int
+        get() = when (this) {
+            HEADER -> R.string.advanced_header_builtin
+            FOOTER -> R.string.advanced_footer_builtin
+        }
+
+    val manageSummaryRes: Int
+        get() = when (this) {
+            HEADER -> R.string.advanced_header_manage_summary
+            FOOTER -> R.string.advanced_footer_manage_summary
+        }
+
+    val idPrefix: String
+        get() = when (this) {
+            HEADER -> "header_"
+            FOOTER -> "footer_"
+        }
+}
+
+/**
+ * Independent package lists for advanced header / footer Lottie tips.
+ * Storage is fully isolated from advanced title packages.
+ */
+class AdvancedTipPackageManager private constructor(val slot: AdvancedTipSlot) {
+
+    companion object {
+        const val BUILTIN_ID = "builtin_default"
+        const val MAX_EDITABLE_JSON_BYTES = 2L * 1024L * 1024L
+        const val MAX_JSON_BYTES = 8L * 1024L * 1024L
+        private const val MAX_PACKAGES = 64
+        private const val MANIFEST_FILE = "package.json"
+        private const val LOTTIE_FILE = "tip.json"
+
+        val header by lazy { AdvancedTipPackageManager(AdvancedTipSlot.HEADER) }
+        val footer by lazy { AdvancedTipPackageManager(AdvancedTipSlot.FOOTER) }
+
+        fun of(slot: AdvancedTipSlot): AdvancedTipPackageManager = when (slot) {
+            AdvancedTipSlot.HEADER -> header
+            AdvancedTipSlot.FOOTER -> footer
+        }
+    }
 
     @Keep
     data class Config(
         val id: String,
         val name: String,
-        val updatedAt: Long = System.currentTimeMillis(),
-        val splitMode: Int? = null,
-        val delimiter: String? = null,
-        val regex: String? = null,
-        val heightFactor: Int? = null
-    ) {
-        fun splitRuleOrNull(): AdvancedTitleConfig.SplitRule? {
-            if (splitMode == null && delimiter == null && regex == null) return null
-            return AdvancedTitleConfig.SplitRule(
-                mode = if (splitMode == AdvancedTitleConfig.SPLIT_REGEX) {
-                    AdvancedTitleConfig.SPLIT_REGEX
-                } else {
-                    AdvancedTitleConfig.SPLIT_DELIMITER
-                },
-                delimiter = delimiter ?: " ",
-                regex = regex ?: AdvancedTitleConfig.DEFAULT_REGEX
-            )
-        }
-
-        fun normalizedHeightFactorOrNull(): Int? = heightFactor?.coerceIn(30, 120)
-    }
+        val updatedAt: Long = System.currentTimeMillis()
+    )
 
     data class Entry(
         val config: Config,
@@ -63,32 +98,24 @@ object AdvancedTitlePackageManager {
     }
 
     val rootDir: File
-        get() = appCtx.externalFiles.getFile("advancedTitlePackages")
+        get() = appCtx.externalFiles.getFile(slot.rootName)
 
-    @Volatile
-    private var cachedId: String? = null
-    @Volatile
-    private var cachedStamp: Long = Long.MIN_VALUE
-    @Volatile
-    private var cachedJson: String? = null
-    @Volatile
-    private var builtinJsonCache: String? = null
+    @Volatile private var cachedId: String? = null
+    @Volatile private var cachedStamp: Long = Long.MIN_VALUE
+    @Volatile private var cachedJson: String? = null
+    @Volatile private var builtinJsonCache: String? = null
     private val mutationLock = Any()
 
     fun builtinEntry(): Entry = Entry(
         config = Config(
             id = BUILTIN_ID,
-            name = appCtx.getString(R.string.advanced_title_builtin),
-            updatedAt = 0L,
-            splitMode = AdvancedTitleConfig.SPLIT_DELIMITER,
-            delimiter = " ",
-            regex = AdvancedTitleConfig.DEFAULT_REGEX,
-            heightFactor = AdvancedTitleConfig.DEFAULT_HEIGHT_FACTOR
+            name = appCtx.getString(slot.builtinNameRes),
+            updatedAt = 0L
         ),
         isBuiltin = true
     )
 
-    fun activeId(): String = appCtx.getPrefString(PreferKey.advancedTitlePackage)
+    fun activeId(): String = appCtx.getPrefString(slot.preferKey)
         ?.takeIf(::isValidId)
         ?: BUILTIN_ID
 
@@ -96,18 +123,11 @@ object AdvancedTitlePackageManager {
         synchronized(mutationLock) {
             rootDir.mkdirs()
             AdvancedTitlePackageStorage.cleanupStaleStagingDirectories(rootDir)
-            migrateLegacyIfNeeded()
-            var local = loadLocalEntries()
+            ensureActivePref()
+            val local = loadLocalEntries()
             val validIds = local.asSequence().map { it.id }.toSet() + BUILTIN_ID
             if (activeId() !in validIds) {
-                val recovery = legacyTemplate()
-                    ?.takeIf { runCatching { validateJson(it) }.isSuccess }
-                    ?.let { addOrUpdate(appCtx.getString(R.string.advanced_title_migrated), it) }
-                appCtx.putPrefString(
-                    PreferKey.advancedTitlePackage,
-                    recovery?.id ?: BUILTIN_ID
-                )
-                if (recovery != null) local = loadLocalEntries()
+                appCtx.putPrefString(slot.preferKey, BUILTIN_ID)
                 invalidate()
             }
             listOf(builtinEntry()) + local.sortedWith(
@@ -116,18 +136,21 @@ object AdvancedTitlePackageManager {
         }
     }
 
-    fun currentTemplate(): String? {
-        val explicitId = appCtx.getPrefString(PreferKey.advancedTitlePackage)
-            ?.takeIf(::isValidId)
-        if (explicitId == null) {
-            legacyTemplate()?.let { return it }
-        }
-        val id = explicitId ?: BUILTIN_ID
+    fun templateStamp(): Long {
+        val id = activeId()
+        if (id == BUILTIN_ID) return builtinJson().length.toLong()
+        val file = lottieFile(localDir(id))
+        if (!file.isFile) return 0L
+        return file.lastModified() xor file.length()
+    }
+
+    fun currentTemplate(): String {
+        val id = activeId()
         return if (id == BUILTIN_ID) {
             builtinJson()
         } else {
             val file = lottieFile(localDir(id))
-            readCached(id, file) ?: legacyTemplate() ?: builtinJson()
+            readCached(id, file) ?: builtinJson()
         }
     }
 
@@ -135,19 +158,9 @@ object AdvancedTitlePackageManager {
         return if (entry.isBuiltin) {
             builtinJson()
         } else {
-            val directory = requireNotNull(entry.directory) { "Missing advanced title directory" }
+            val directory = requireNotNull(entry.directory) { "Missing advanced tip directory" }
             readJsonFile(lottieFile(directory))
         }
-    }
-
-    fun readTemplate(id: String): String {
-        if (id == BUILTIN_ID) return builtinJson()
-        require(isValidId(id)) { "Invalid advanced title id" }
-        val parent = rootDir.apply { mkdirs() }.canonicalFile
-        val directory = File(parent, id).canonicalFile
-        require(directory.parentFile == parent) { "Advanced title directory escaped its root" }
-        val config = verifyInstalledDirectory(directory, expectedId = id)
-        return readTemplate(Entry(config, directory))
     }
 
     fun templateSize(entry: Entry): Long {
@@ -164,13 +177,8 @@ object AdvancedTitlePackageManager {
     fun addOrUpdate(
         name: String,
         json: String,
-        oldEntry: Entry? = null,
-        splitRule: AdvancedTitleConfig.SplitRule? = oldEntry?.config?.splitRuleOrNull()
-            ?: AdvancedTitleConfig.globalRule,
-        heightFactor: Int? = oldEntry?.config?.normalizedHeightFactorOrNull()
-            ?: AdvancedTitleConfig.heightFactor
-    ): Entry =
-        synchronized(mutationLock) {
+        oldEntry: Entry? = null
+    ): Entry = synchronized(mutationLock) {
         val normalizedName = normalizeName(name)
         validateJson(json)
         val editableOld = oldEntry?.takeUnless { it.isBuiltin }
@@ -182,21 +190,18 @@ object AdvancedTitlePackageManager {
                 appCtx.getString(R.string.advanced_title_package_limit)
             }
         }
-        val id = editableOld?.id ?: "title_${UUID.randomUUID().toString().replace("-", "")}".take(38)
-        require(isValidId(id)) { "Invalid advanced title id" }
+        val id = editableOld?.id
+            ?: (slot.idPrefix + UUID.randomUUID().toString().replace("-", "")).take(38)
+        require(isValidId(id)) { "Invalid advanced tip id" }
         val parent = rootDir.apply { mkdirs() }.canonicalFile
         val target = File(parent, id).canonicalFile
-        require(target.parentFile == parent) { "Advanced title directory escaped its root" }
-        val staging = File(parent, ".$id.staging-${UUID.randomUUID()}")
-        val backup = File(parent, ".$id.backup-${UUID.randomUUID()}")
+        require(target.parentFile == parent) { "Advanced tip directory escaped its root" }
+        val staging = File(parent, ".$id.staging-" + UUID.randomUUID())
+        val backup = File(parent, ".$id.backup-" + UUID.randomUUID())
         val config = Config(
             id = id,
             name = normalizedName,
-            updatedAt = System.currentTimeMillis(),
-            splitMode = splitRule?.mode,
-            delimiter = splitRule?.delimiter,
-            regex = splitRule?.regex,
-            heightFactor = heightFactor?.coerceIn(30, 120)
+            updatedAt = System.currentTimeMillis()
         )
         try {
             staging.mkdirs()
@@ -225,13 +230,7 @@ object AdvancedTitlePackageManager {
     fun apply(entry: Entry) = synchronized(mutationLock) {
         val json = readTemplate(entry)
         validateJson(json)
-        appCtx.putPrefString(PreferKey.advancedTitlePackage, entry.id)
-        // Keep the active JSON in the legacy backup field as a recovery copy. Rendering still
-        // uses the bounded file cache above, so chapter changes do not repeatedly parse prefs.
-        AdvancedTitleConfig.lottieJson = json
-        AdvancedTitleConfig.lottiePath = null
-        entry.config.splitRuleOrNull()?.let { AdvancedTitleConfig.globalRule = it }
-        entry.config.normalizedHeightFactorOrNull()?.let { AdvancedTitleConfig.heightFactor = it }
+        appCtx.putPrefString(slot.preferKey, entry.id)
         invalidate()
     }
 
@@ -240,19 +239,12 @@ object AdvancedTitlePackageManager {
             if (entry.isBuiltin || entry.id == BUILTIN_ID) return@synchronized
             val parent = rootDir.canonicalFile
             val target = (entry.directory ?: localDir(entry.id)).canonicalFile
-            require(target.parentFile == parent) { "Advanced title directory escaped its root" }
+            require(target.parentFile == parent) { "Advanced tip directory escaped its root" }
             if (target.exists() && !target.deleteRecursively() && target.exists()) {
-                throw IOException("Unable to delete advanced title")
+                throw IOException("Unable to delete advanced tip")
             }
             if (activeId() == entry.id) {
-                appCtx.putPrefString(PreferKey.advancedTitlePackage, BUILTIN_ID)
-                AdvancedTitleConfig.lottieJson = builtinJson()
-                AdvancedTitleConfig.lottiePath = null
-                val builtin = builtinEntry().config
-                builtin.splitRuleOrNull()?.let { AdvancedTitleConfig.globalRule = it }
-                builtin.normalizedHeightFactorOrNull()?.let {
-                    AdvancedTitleConfig.heightFactor = it
-                }
+                appCtx.putPrefString(slot.preferKey, BUILTIN_ID)
             }
             invalidate()
         }
@@ -278,32 +270,16 @@ object AdvancedTitlePackageManager {
         }
     }
 
-    fun utf8SizeUpTo(value: String, limit: Long): Long {
-        var size = 0L
-        var index = 0
-        while (index < value.length) {
-            val char = value[index]
-            size += when {
-                char.code <= 0x7f -> 1L
-                char.code <= 0x7ff -> 2L
-                Character.isHighSurrogate(char) &&
-                    index + 1 < value.length &&
-                    Character.isLowSurrogate(value[index + 1]) -> {
-                    index++
-                    4L
-                }
-                else -> 3L
-            }
-            if (size > limit) return limit + 1L
-            index++
-        }
-        return size
-    }
-
     fun invalidate() {
         cachedId = null
         cachedStamp = Long.MIN_VALUE
         cachedJson = null
+    }
+
+    private fun ensureActivePref() {
+        if (appCtx.getPrefString(slot.preferKey).isNullOrBlank()) {
+            appCtx.putPrefString(slot.preferKey, BUILTIN_ID)
+        }
     }
 
     private fun loadLocalEntries(): List<Entry> {
@@ -332,51 +308,22 @@ object AdvancedTitlePackageManager {
     ): Config {
         val manifest = File(directory, MANIFEST_FILE)
         require(manifest.isFile && manifest.length() in 1..64L * 1024L) {
-            "Advanced title manifest is invalid"
+            "Advanced tip manifest is invalid"
         }
         val config = GSON.fromJsonObject<Config>(manifest.readText()).getOrThrow()
-        require(isValidId(config.id)) { "Advanced title id is invalid" }
-        require(expectedId == null || config.id == expectedId) { "Advanced title id changed" }
+        require(isValidId(config.id)) { "Advanced tip id is invalid" }
+        require(expectedId == null || config.id == expectedId) { "Advanced tip id changed" }
         AdvancedTitlePackageStorage.requireDirectoryMatchesId(
             directoryName = directory.name,
             configId = config.id,
             requireMatch = requireDirectoryIdMatch
         )
-        require(config.name.isNotBlank() && config.name.length <= 100) { "Advanced title name is invalid" }
+        require(config.name.isNotBlank() && config.name.length <= 100) { "Advanced tip name is invalid" }
         val json = readJsonFile(lottieFile(directory))
         require(AdvancedTitleConfig.hasRenderableLayers(json)) {
             appCtx.getString(R.string.advanced_title_invalid_json)
         }
         return config.copy(name = config.name.trim())
-    }
-
-    private fun migrateLegacyIfNeeded() {
-        if (!appCtx.getPrefString(PreferKey.advancedTitlePackage).isNullOrBlank()) return
-        val legacy = legacyTemplate()
-            ?.takeIf { runCatching { validateJson(it) }.isSuccess }
-        if (legacy == null) {
-            appCtx.putPrefString(PreferKey.advancedTitlePackage, BUILTIN_ID)
-            return
-        }
-        val builtin = builtinJson()
-        val activeJson: String
-        if (legacy == builtin) {
-            appCtx.putPrefString(PreferKey.advancedTitlePackage, BUILTIN_ID)
-            activeJson = builtin
-        } else {
-            val migrated = addOrUpdate(appCtx.getString(R.string.advanced_title_migrated), legacy)
-            appCtx.putPrefString(PreferKey.advancedTitlePackage, migrated.id)
-            activeJson = legacy
-        }
-        AdvancedTitleConfig.lottieJson = activeJson
-        AdvancedTitleConfig.lottiePath = null
-        invalidate()
-    }
-
-    private fun legacyTemplate(): String? {
-        AdvancedTitleConfig.lottieJson?.takeIf { it.isNotBlank() }?.let { return it }
-        val path = AdvancedTitleConfig.lottiePath?.takeIf { it.isNotBlank() } ?: return null
-        return runCatching { readJsonFile(File(path)) }.getOrNull()
     }
 
     private fun readCached(id: String, file: File): String? {
@@ -392,14 +339,14 @@ object AdvancedTitlePackageManager {
 
     private fun builtinJson(): String {
         builtinJsonCache?.let { return it }
-        return appCtx.resources.openRawResource(R.raw.advanced_title_lottie)
+        return appCtx.resources.openRawResource(R.raw.advanced_tip_lottie)
             .bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
             .also { builtinJsonCache = it }
     }
 
     private fun readJsonFile(file: File): String {
-        require(file.isFile) { "Advanced title file is missing" }
+        require(file.isFile) { "Advanced tip file is missing" }
         require(file.length() in 1..MAX_JSON_BYTES) {
             appCtx.getString(R.string.advanced_title_too_large)
         }

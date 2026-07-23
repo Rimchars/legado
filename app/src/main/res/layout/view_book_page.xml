@@ -6,6 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background"
+    android:clipChildren="false"
     android:orientation="vertical">
 
     <FrameLayout
@@ -18,6 +19,7 @@
         android:id="@+id/ll_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:elevation="8dp"
         android:gravity="center_vertical"
         app:layout_constraintTop_toBottomOf="@id/vw_status_bar">
 
@@ -60,6 +62,21 @@
             app:layout_constraintTop_toTopOf="parent"
             tools:ignore="RtlHardcoded,RtlSymmetry" />
 
+        <com.airbnb.lottie.LottieAnimationView
+            android:id="@+id/advanced_header_lottie"
+            android:layout_width="0dp"
+            android:layout_height="72dp"
+            android:visibility="gone"
+            android:clickable="false"
+            android:focusable="false"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:lottie_autoPlay="false"
+            app:lottie_loop="true"
+            app:lottie_renderMode="hardware" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <View
@@ -78,60 +95,69 @@
         app:layout_constraintBottom_toTopOf="@id/vw_bottom_divider"
         app:layout_constraintTop_toBottomOf="@id/vw_top_divider" />
 
-    <com.airbnb.lottie.LottieAnimationView
-        android:id="@+id/advanced_title_lottie"
-        android:layout_width="220dp"
-        android:layout_height="48dp"
-        android:visibility="gone"
-        android:clickable="false"
-        android:focusable="false"
-        app:layout_constraintTop_toTopOf="@id/content_text_view"
-        app:layout_constraintStart_toStartOf="@id/content_text_view"
-        app:layout_constraintEnd_toEndOf="@id/content_text_view"
-        app:lottie_autoPlay="false"
-        app:lottie_loop="true"
-        app:lottie_renderMode="hardware" />
-
-    <TextView
-        android:id="@+id/advanced_title_fallback"
+    <!-- Title overlay spans header+content: titles can scroll under header and be occluded by it. -->
+    <FrameLayout
+        android:id="@+id/advanced_title_overlay"
         android:layout_width="0dp"
-        android:layout_height="48dp"
-        android:gravity="center"
-        android:includeFontPadding="false"
-        android:visibility="gone"
+        android:layout_height="0dp"
         android:clickable="false"
+        android:clipChildren="true"
+        android:clipToPadding="true"
+        android:elevation="0dp"
         android:focusable="false"
-        app:layout_constraintTop_toTopOf="@id/content_text_view"
-        app:layout_constraintStart_toStartOf="@id/content_text_view"
+        app:layout_constraintBottom_toBottomOf="@id/content_text_view"
         app:layout_constraintEnd_toEndOf="@id/content_text_view"
-        tools:text="第一章 接生" />
-    <com.airbnb.lottie.LottieAnimationView
-        android:id="@+id/advanced_title_lottie_pair"
-        android:layout_width="220dp"
-        android:layout_height="48dp"
-        android:visibility="gone"
-        android:clickable="false"
-        android:focusable="false"
-        app:layout_constraintTop_toTopOf="@id/content_text_view"
         app:layout_constraintStart_toStartOf="@id/content_text_view"
-        app:layout_constraintEnd_toEndOf="@id/content_text_view"
-        app:lottie_autoPlay="false"
-        app:lottie_loop="true"
-        app:lottie_renderMode="hardware" />
+        app:layout_constraintTop_toTopOf="@id/content_text_view">
 
-    <TextView
-        android:id="@+id/advanced_title_fallback_pair"
-        android:layout_width="0dp"
-        android:layout_height="48dp"
-        android:gravity="center"
-        android:includeFontPadding="false"
-        android:visibility="gone"
-        android:clickable="false"
-        android:focusable="false"
-        app:layout_constraintTop_toTopOf="@id/content_text_view"
-        app:layout_constraintStart_toStartOf="@id/content_text_view"
-        app:layout_constraintEnd_toEndOf="@id/content_text_view"
-        tools:text="第一章 接生" />
+        <com.airbnb.lottie.LottieAnimationView
+            android:id="@+id/advanced_title_lottie"
+            android:layout_width="220dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|center_horizontal"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone"
+            app:lottie_autoPlay="false"
+            app:lottie_loop="true"
+            app:lottie_renderMode="software" />
+
+        <TextView
+            android:id="@+id/advanced_title_fallback"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_gravity="top|center_horizontal"
+            android:clickable="false"
+            android:focusable="false"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:visibility="gone"
+            tools:text="第一章 接生" />
+
+        <com.airbnb.lottie.LottieAnimationView
+            android:id="@+id/advanced_title_lottie_pair"
+            android:layout_width="220dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|center_horizontal"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone"
+            app:lottie_autoPlay="false"
+            app:lottie_loop="true"
+            app:lottie_renderMode="software" />
+
+        <TextView
+            android:id="@+id/advanced_title_fallback_pair"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_gravity="top|center_horizontal"
+            android:clickable="false"
+            android:focusable="false"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:visibility="gone"
+            tools:text="第一章 接生" />
+    </FrameLayout>
 
     <View
         android:id="@+id/vw_bottom_divider"
@@ -145,6 +171,7 @@
         android:id="@+id/ll_footer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:elevation="8dp"
         android:gravity="center_vertical"
         app:layout_constraintBottom_toTopOf="@id/vw_navigation_bar">
 
@@ -186,6 +213,21 @@
             app:layout_constraintRight_toRightOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             tools:ignore="RtlHardcoded,RtlSymmetry,SmallSp" />
+
+        <com.airbnb.lottie.LottieAnimationView
+            android:id="@+id/advanced_footer_lottie"
+            android:layout_width="0dp"
+            android:layout_height="72dp"
+            android:visibility="gone"
+            android:clickable="false"
+            android:focusable="false"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:lottie_autoPlay="false"
+            app:lottie_loop="true"
+            app:lottie_renderMode="hardware" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

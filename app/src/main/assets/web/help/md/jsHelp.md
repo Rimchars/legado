@@ -157,6 +157,8 @@ java.toURL(url: String, baseUrl: String? = null): JsURL
 * 获取SystemWebView User-Agent
 ```js
 java.getWebViewUA(): String
+java.getFontList(): String  // JSON 数组 [{ref,displayName,pathOrUri}]
+java.getFontList(withAtFontPrefix: Boolean): String
 ```
 * 网络请求
 ```js

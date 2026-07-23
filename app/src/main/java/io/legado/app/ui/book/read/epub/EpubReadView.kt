@@ -1285,19 +1285,6 @@ class EpubReadView @JvmOverloads constructor(
         canvas.restoreToCount(saveCount)
     }
 
-    private fun drawLoading(canvas: Canvas, message: String) {
-        val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = renderer.backgroundColor
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
-        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = renderer.textColor
-            textSize = renderer.textPaint.textSize
-            textAlign = android.graphics.Paint.Align.CENTER
-        }
-        val centerY = height / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText(message, width / 2f, centerY, textPaint)
-    }
 
     private fun scrollByContent(deltaY: Float) {
         if (pages.isEmpty() || height <= 0) return
@@ -1355,19 +1342,6 @@ class EpubReadView @JvmOverloads constructor(
         postInvalidateOnAnimation()
     }
 
-    private fun startProgrammaticScroll(direction: Int) {
-        if (direction > 0 && pageIndex >= pages.lastIndex) return
-        if (direction < 0 && pageIndex <= 0) return
-        abortScrollerOnly()
-        gestureMode = GestureMode.VerticalScroll
-        horizontalAnimating = false
-        verticalAnimating = true
-        showVerticalSlots()
-        lastScrollerY = 0f
-        val distance = if (direction > 0) -height else height
-        verticalScroller.startScroll(0, 0, 0, distance, 300)
-        postInvalidateOnAnimation()
-    }
 
     private fun commitPageIndex(index: Int, resetScroll: Boolean) {
         abortAnimation(resetSlots = false)

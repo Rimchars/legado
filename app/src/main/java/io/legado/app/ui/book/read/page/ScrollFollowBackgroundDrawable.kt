@@ -12,7 +12,8 @@ import android.graphics.drawable.Drawable
 
 class ScrollFollowBackgroundDrawable(
     private val bitmap: Bitmap,
-    private val offsetProvider: () -> Int
+    private val offsetProvider: () -> Int,
+    private val yBiasProvider: () -> Float = { 0f }
 ) : Drawable() {
 
     private val matrix = Matrix()
@@ -38,7 +39,10 @@ class ScrollFollowBackgroundDrawable(
         }
         matrix.reset()
         matrix.setScale(scale, scale)
-        matrix.postTranslate(bounds.left.toFloat(), bounds.top.toFloat() + translateY)
+        matrix.postTranslate(
+            bounds.left.toFloat(),
+            bounds.top.toFloat() + translateY + yBiasProvider()
+        )
         shader.setLocalMatrix(matrix)
         paint.alpha = drawableAlpha
         canvas.drawRect(bounds, paint)
@@ -49,16 +53,12 @@ class ScrollFollowBackgroundDrawable(
         invalidateSelf()
     }
 
-    override fun getAlpha(): Int {
-        return drawableAlpha
-    }
+    override fun getAlpha(): Int = drawableAlpha
 
     override fun setColorFilter(colorFilter: ColorFilter?) {
         paint.colorFilter = colorFilter
         invalidateSelf()
     }
 
-    override fun getOpacity(): Int {
-        return PixelFormat.TRANSLUCENT
-    }
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }

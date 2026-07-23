@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
 import io.legado.app.R
+import io.legado.app.help.CacheManager
 import io.legado.app.help.config.AdvancedTitleConfig
 import io.legado.app.help.config.AdvancedTitlePackageManager
 import io.legado.app.lib.theme.applyUiBodyTypefaceDeep
@@ -80,9 +81,15 @@ class AdvancedTitleConfigDialog : DialogFragment() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode != RESULT_OK) return@registerForActivityResult
-        val text = result.data?.getStringExtra("text") ?: return@registerForActivityResult
+        val data = result.data ?: return@registerForActivityResult
+        val cacheKey = data.getStringExtra("cacheKey")
+        val text = if (cacheKey != null) {
+            CacheManager.getFromMemory(cacheKey) as? String
+        } else {
+            data.getStringExtra("text")
+        } ?: return@registerForActivityResult
         currentJson = text
-        jsonCursorPosition = result.data?.getIntExtra("cursorPosition", text.length) ?: text.length
+        jsonCursorPosition = data.getIntExtra("cursorPosition", text.length)
     }
 
     override fun onStart() {
@@ -326,8 +333,20 @@ class AdvancedTitleConfigDialog : DialogFragment() {
     }
 
     private fun openJsonEditor() {
+        val bytes = AdvancedTitlePackageManager.utf8SizeUpTo(
+            currentJson,
+            AdvancedTitlePackageManager.MAX_EDITABLE_JSON_BYTES
+        )
+        if (bytes > AdvancedTitlePackageManager.MAX_EDITABLE_JSON_BYTES) {
+            context?.toastOnUi(R.string.advanced_title_json_too_large_to_edit)
+            return
+        }
+        // ~300KB+ JSON already crashes many devices if stuffed into Intent extras.
         jsonEditor.launch(Intent(requireContext(), CodeEditActivity::class.java).apply {
-            putExtra("text", currentJson)
+            val key = "advanced_title_edit_" + System.nanoTime()
+            CacheManager.putMemory(key, currentJson)
+            putExtra("cacheKey", key)
+            putExtra("writable", true)
             putExtra("title", getString(R.string.advanced_title_json_label))
             putExtra("cursorPosition", jsonCursorPosition.coerceIn(0, currentJson.length))
         })

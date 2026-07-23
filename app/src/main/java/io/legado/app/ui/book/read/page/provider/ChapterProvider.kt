@@ -13,6 +13,7 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.help.book.BookContent
 import io.legado.app.help.book.isEpub
+import io.legado.app.help.AppFont
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReaderFontWeight
@@ -176,6 +177,7 @@ object ChapterProvider {
      * 更新样式
      */
     fun upStyle() {
+        AppFont.onReaderFontChanged()
         typeface = getTypeface(ReadBookConfig.textFont)
         getPaints(typeface).let {
             titlePaint = it.first

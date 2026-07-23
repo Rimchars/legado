@@ -657,15 +657,4 @@ class EpubPageRenderer {
         return RectF(left, top, right.coerceAtLeast(left), bottom.coerceAtLeast(top))
     }
 
-    private fun drawPageNumber(canvas: Canvas, viewport: RectF, pageIndex: Int, pageCount: Int) {
-        if (pageCount <= 0) return
-        pageNumberPaint.reset()
-        pageNumberPaint.isAntiAlias = true
-        pageNumberPaint.color = pageNumberColor
-        pageNumberPaint.textSize = 24f
-        pageNumberPaint.textAlign = Paint.Align.CENTER
-        val label = "${pageIndex + 1}/$pageCount"
-        val baseline = viewport.bottom - 20f - pageNumberPaint.descent()
-        canvas.drawText(label, viewport.centerX(), baseline, pageNumberPaint)
-    }
 }

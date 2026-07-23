@@ -10,10 +10,9 @@ import io.legado.app.utils.getPrefInt
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.putPrefInt
 import io.legado.app.utils.putPrefString
-import com.google.gson.stream.JsonReader
+import org.json.JSONObject
 import splitties.init.appCtx
 import java.io.File
-import java.io.StringReader
 
 object AdvancedTitleConfig {
 
@@ -23,8 +22,6 @@ object AdvancedTitleConfig {
     const val LOTTIE_BLOCK_ROLE = "advanced_title_lottie"
     const val DEFAULT_HEIGHT_FACTOR = 55
     private const val BOOK_RULE_KEY = "advancedTitleRule"
-    private val TEMPLATE_VARIABLE_REGEX =
-        Regex("""\$\{([A-Za-z][A-Za-z0-9_]*)}|\{\{([A-Za-z][A-Za-z0-9_]*)}}""")
 
     data class SplitRule(
         val mode: Int = SPLIT_DELIMITER,
@@ -106,46 +103,21 @@ object AdvancedTitleConfig {
 
     fun isValidLottieJson(json: String): Boolean {
         return runCatching {
-            if (!hasRenderableLayers(json)) return@runCatching false
-            LottieCompositionFactory.fromJsonStringSync(json, null).value != null
+            val obj = JSONObject(json)
+            obj.has("layers") &&
+                obj.optJSONArray("layers") != null &&
+                LottieCompositionFactory.fromJsonStringSync(
+                    json,
+                    null
+                ).value != null
         }.getOrDefault(false)
     }
 
     fun hasRenderableLayers(json: String): Boolean {
         return runCatching {
-            JsonReader(StringReader(json)).use { reader ->
-                reader.beginObject()
-                while (reader.hasNext()) {
-                    if (reader.nextName() == "layers") {
-                        reader.beginArray()
-                        return@use reader.hasNext()
-                    }
-                    reader.skipValue()
-                }
-                false
-            }
+            val obj = JSONObject(json)
+            obj.optJSONArray("layers")?.length()?.let { it > 0 } == true
         }.getOrDefault(false)
-    }
-
-    internal fun lottieDimensions(json: String): Pair<Double, Double>? {
-        return runCatching {
-            JsonReader(StringReader(json)).use { reader ->
-                var width: Double? = null
-                var height: Double? = null
-                reader.beginObject()
-                while (reader.hasNext()) {
-                    when (reader.nextName()) {
-                        "w" -> width = reader.nextDouble()
-                        "h" -> height = reader.nextDouble()
-                        else -> reader.skipValue()
-                    }
-                    if (width != null && height != null) break
-                }
-                val resolvedWidth = width?.takeIf { it > 0.0 } ?: return@use null
-                val resolvedHeight = height?.takeIf { it > 0.0 } ?: return@use null
-                resolvedWidth to resolvedHeight
-            }
-        }.getOrNull()
     }
 
     fun preview(title: String, book: Book? = null): String {
@@ -213,20 +185,17 @@ object AdvancedTitleConfig {
         source: String,
         variables: Map<String, String>
     ): String {
-        if (variables.isEmpty()) return source
-        val replacements = variables.mapValues { entry ->
-            GSON.toJson(entry.value).let { encoded ->
+        return variables.entries.fold(source) { value, entry ->
+            val replacement = GSON.toJson(entry.value).let { encoded ->
                 if (encoded.length >= 2 && encoded.first() == '"' && encoded.last() == '"') {
                     encoded.substring(1, encoded.lastIndex)
                 } else {
                     entry.value
                 }
             }
-        }
-        if (!TEMPLATE_VARIABLE_REGEX.containsMatchIn(source)) return source
-        return TEMPLATE_VARIABLE_REGEX.replace(source) { match ->
-            val key = match.groups[1]?.value ?: match.groups[2]?.value
-            replacements[key] ?: match.value
+            value
+                .replace("\${${entry.key}}", replacement)
+                .replace("{{${entry.key}}}", replacement)
         }
     }
 

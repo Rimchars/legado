@@ -50,6 +50,8 @@ import io.legado.app.ui.widget.compose.ComposeActionListDialog
 import io.legado.app.ui.widget.compose.LegadoMiuixChoiceRow
 import io.legado.app.ui.widget.compose.toMiuixPalette
 import io.legado.app.ui.config.AdvancedTitleManageActivity
+import io.legado.app.ui.config.AdvancedTipManageActivity
+import io.legado.app.help.config.AdvancedTipSlot
 import io.legado.app.utils.hexString
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.postEvent
@@ -261,11 +263,20 @@ private fun TipConfigContent(
                     headerMode = keys.getOrElse(index) { 0 }
                     ReadTipConfig.headerMode = headerMode
                     postEvent(EventBus.UP_CONFIG, arrayListOf(2))
+                    if (headerMode == ReadTipConfig.HEADER_MODE_ADVANCED) {
+                        AdvancedTipManageActivity.start(context, AdvancedTipSlot.HEADER)
+                    }
                 }
             },
             onLeftClick = { chooseTip(context.getString(R.string.left)) { headerLeft = it; ReadTipConfig.tipHeaderLeft = it } },
             onMiddleClick = { chooseTip(context.getString(R.string.middle)) { headerMiddle = it; ReadTipConfig.tipHeaderMiddle = it } },
-            onRightClick = { chooseTip(context.getString(R.string.right)) { headerRight = it; ReadTipConfig.tipHeaderRight = it } }
+            onRightClick = { chooseTip(context.getString(R.string.right)) { headerRight = it; ReadTipConfig.tipHeaderRight = it } },
+            manageLabel = if (headerMode == ReadTipConfig.HEADER_MODE_ADVANCED) {
+                stringResource(R.string.advanced_header_manage)
+            } else null,
+            onManageClick = if (headerMode == ReadTipConfig.HEADER_MODE_ADVANCED) {
+                { AdvancedTipManageActivity.start(context, AdvancedTipSlot.HEADER) }
+            } else null
         )
         // 页脚
         TipPlacementSection(
@@ -281,11 +292,20 @@ private fun TipConfigContent(
                     footerMode = keys.getOrElse(index) { 0 }
                     ReadTipConfig.footerMode = footerMode
                     postEvent(EventBus.UP_CONFIG, arrayListOf(2))
+                    if (footerMode == ReadTipConfig.FOOTER_MODE_ADVANCED) {
+                        AdvancedTipManageActivity.start(context, AdvancedTipSlot.FOOTER)
+                    }
                 }
             },
             onLeftClick = { chooseTip(context.getString(R.string.left)) { footerLeft = it; ReadTipConfig.tipFooterLeft = it } },
             onMiddleClick = { chooseTip(context.getString(R.string.middle)) { footerMiddle = it; ReadTipConfig.tipFooterMiddle = it } },
-            onRightClick = { chooseTip(context.getString(R.string.right)) { footerRight = it; ReadTipConfig.tipFooterRight = it } }
+            onRightClick = { chooseTip(context.getString(R.string.right)) { footerRight = it; ReadTipConfig.tipFooterRight = it } },
+            manageLabel = if (footerMode == ReadTipConfig.FOOTER_MODE_ADVANCED) {
+                stringResource(R.string.advanced_footer_manage)
+            } else null,
+            onManageClick = if (footerMode == ReadTipConfig.FOOTER_MODE_ADVANCED) {
+                { AdvancedTipManageActivity.start(context, AdvancedTipSlot.FOOTER) }
+            } else null
         )
         // 颜色
         TipColorSection(
@@ -377,7 +397,9 @@ private fun TipPlacementSection(
     onShowClick: () -> Unit,
     onLeftClick: () -> Unit,
     onMiddleClick: () -> Unit,
-    onRightClick: () -> Unit
+    onRightClick: () -> Unit,
+    manageLabel: String? = null,
+    onManageClick: (() -> Unit)? = null
 ) {
     TipSection(style = style) {
         TipValueRow(
@@ -386,6 +408,14 @@ private fun TipPlacementSection(
             style = style,
             onClick = onShowClick
         )
+        if (manageLabel != null && onManageClick != null) {
+            TipValueRow(
+                title = manageLabel,
+                value = stringResource(R.string.advanced_title_manage),
+                style = style,
+                onClick = onManageClick
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(5.dp)

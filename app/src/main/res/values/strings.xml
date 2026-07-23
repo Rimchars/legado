@@ -2115,12 +2115,17 @@ function login() {
     <string name="advanced_title_rule_error">Rule error: %1$s</string>
     <string name="advanced_title_preview_template">s1: %1$s\ns2: %2$s</string>
     <string name="advanced_title_manage">Advanced title management</string>
-    <string name="advanced_title_manage_summary">Manage multiple Lottie titles. Imported items are stored separately and can be previewed, applied, edited, exported, renamed, or deleted.</string>
+    <string name="advanced_title_manage_summary">Manage Lottie chapter titles. Tap Add to create from built-in or import JSON. Titles over 2 MB are read-only; hard limit is 8 MB.</string>
+    <string name="advanced_title_json_too_large_to_edit">JSON is too large to open in the editor (2 MB max)</string>
+    <string name="advanced_title_added">Created from built-in template</string>
+    <string name="advanced_title_add">Add</string>
+    <string name="advanced_title_import_from_file">Import from file</string>
+    <string name="advanced_title_add_from_builtin">Create from built-in</string>
     <string name="advanced_title_builtin">Built-in advanced title</string>
     <string name="advanced_title_migrated">Migrated advanced title</string>
     <string name="advanced_title_unnamed">Unnamed advanced title</string>
-    <string name="advanced_title_too_large">Lottie JSON exceeds the 16 MB safety limit</string>
-    <string name="large_config_read_only">This configuration exceeds the editable size and is available in read-only mode</string>
+    <string name="advanced_title_too_large">Advanced title JSON exceeds the 8 MB limit</string>
+    <string name="large_config_read_only">This title exceeds 2 MB and is read-only in-app. You can still apply, export, or re-import it.</string>
     <string name="large_package_read_only_notice">This package exceeds the normal editable size. Large configurations will use read-only mode.</string>
     <string name="read_only">Read only</string>
     <string name="advanced_title_package_limit">Up to 64 advanced titles can be stored</string>
@@ -2483,4 +2488,11 @@ Selected text or question:
     <string name="shibboleth_invalid">Invalid import code</string>
     <string name="shibboleth_expired">This import code has expired</string>
     <string name="shibboleth_import_confirm">The import code will download configuration from the Internet. Continue only if you trust its source.</string>
+    <string name="advanced_tip_mode">Advanced</string>
+    <string name="advanced_header_manage">Advanced header</string>
+    <string name="advanced_footer_manage">Advanced footer</string>
+    <string name="advanced_header_builtin">Built-in header</string>
+    <string name="advanced_footer_builtin">Built-in footer</string>
+    <string name="advanced_footer_manage_summary">Independent Lottie packages for the reading footer. Supports ${book}/${title}/${page}/${pages}/${progress}/${time}/${battery}.</string>
+    <string name="advanced_header_manage_summary">Independent Lottie packages for the reading header. Supports ${book}/${title}/${page}/${pages}/${progress}/${time}/${battery}.</string>
 </resources>

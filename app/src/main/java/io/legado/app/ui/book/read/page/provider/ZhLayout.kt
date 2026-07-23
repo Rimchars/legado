@@ -206,18 +206,7 @@ class ZhLayout(
     }
 
     private val gap = (cnCharWidth / 12.75).toFloat()
-    private fun getPostPancOffset(string: String): Float {
-        val textRect = Rect()
-        curPaint.getTextBounds(string, 0, 1, textRect)
-        return max(textRect.left.toFloat() - gap, 0f)
-    }
 
-    private fun getPrePancOffset(string: String): Float {
-        val textRect = Rect()
-        curPaint.getTextBounds(string, 0, 1, textRect)
-        val d = max(cnCharWidth - textRect.right.toFloat() - gap, 0f)
-        return cnCharWidth / 2 - d
-    }
 
     fun getDesiredWidth(string: String, paint: TextPaint): Float {
         var width = paint.measureText(string)

@@ -25,8 +25,18 @@ object BookTagManagement {
         }
     }
 
-    /** Returns null when the stored value does not need an update. */
-    fun updateTag(customTag: String?, tag: String, selected: Boolean): String? {
+    /**
+     * Result of a tag mutation.
+     * - null: no database write needed
+     * - non-null: write [customTag] (which may be null to clear all tags)
+     */
+    data class TagWrite(val customTag: String?)
+
+    /**
+     * @return null when the stored value does not need an update; otherwise a [TagWrite]
+     * whose [TagWrite.customTag] may be null after removing the last tag.
+     */
+    fun updateTag(customTag: String?, tag: String, selected: Boolean): TagWrite? {
         val tags = BookTagHelper.parse(customTag).toMutableList()
         val hasTag = tags.any { it.equals(tag, ignoreCase = true) }
         if (hasTag == selected) return null
@@ -35,6 +45,6 @@ object BookTagManagement {
         } else {
             tags.removeAll { it.equals(tag, ignoreCase = true) }
         }
-        return BookTagHelper.join(tags)
+        return TagWrite(BookTagHelper.join(tags))
     }
 }

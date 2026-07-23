@@ -23,6 +23,7 @@ import io.github.rosemoe.sora.widget.EditorSearcher
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
+import io.legado.app.help.CacheManager
 import io.legado.app.constant.PreferKey
 import io.legado.app.databinding.ActivityCodeEditBinding
 import io.legado.app.help.config.AppConfig
@@ -138,7 +139,15 @@ class CodeEditActivity :
             }
             else -> {
                 val result = Intent().apply {
-                    putExtra("text", text)
+                    // Keep large payloads out of Binder; some ROMs fail well under 1MB.
+                    val bytes = text.toByteArray(Charsets.UTF_8).size
+                    if (bytes > 100_000) {
+                        val key = "code_edit_result_" + System.nanoTime()
+                        CacheManager.putMemory(key, text)
+                        putExtra("cacheKey", key)
+                    } else {
+                        putExtra("text", text)
+                    }
                     putExtra("cursorPosition", cursorPos)
                 }
                 setResult(RESULT_OK, result)

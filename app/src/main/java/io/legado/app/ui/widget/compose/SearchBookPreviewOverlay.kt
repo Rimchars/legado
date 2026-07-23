@@ -46,14 +46,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.ColorUtils as AndroidColorUtils
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import io.legado.app.R
+import io.legado.app.help.config.AppConfig
+import io.legado.app.lib.theme.bottomBackground
+import io.legado.app.lib.theme.rememberThemeUiPalette
 import io.legado.app.data.entities.SearchBook
 import io.legado.app.ui.main.bookshelf.compose.BookshelfListRenderConfig
 import io.legado.app.ui.widget.image.CoverImageView
 import io.legado.app.utils.BookIntroUtils
+import io.legado.app.utils.ColorUtils
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -127,7 +130,8 @@ fun SearchBookPreviewOverlay(
         val height = lerpFloat(origin.height, targetHeightPx, p)
         val radius = lerpFloat(7f, with(density) { renderConfig.palette.panelRadius.toPx() }, p)
         val contentAlpha = ((p - 0.16f) / 0.84f).coerceIn(0f, 1f)
-        val previewPanelColor = previewPanelSurfaceColor(renderConfig.palette.rowColor)
+        // Match AppDialogFrame surface: bottomBackground / custom card + dialogAlpha (not list row glass alpha).
+        val previewPanelColor = rememberDialogLikePanelColor()
 
         Box(modifier = Modifier.fillMaxSize()) {
             Box(
@@ -360,8 +364,24 @@ private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float {
     return start + (stop - start) * fraction
 }
 
-private fun previewPanelSurfaceColor(color: Int): Int {
-    val alpha = android.graphics.Color.alpha(color)
-    val minAlpha = (255 * 0.45f).roundToInt()
-    return AndroidColorUtils.setAlphaComponent(color, alpha.coerceAtLeast(minAlpha))
+@Composable
+private fun rememberDialogLikePanelColor(): Int {
+    val context = LocalContext.current
+    val themeUiPalette = rememberThemeUiPalette()
+    val dialogAlpha = AppConfig.dialogAlpha
+    val eInk = AppConfig.isEInkMode
+    val surfaceBase = if (themeUiPalette.hasCustomCardColor) {
+        themeUiPalette.cardColor
+    } else {
+        context.bottomBackground
+    }
+    return remember(surfaceBase, dialogAlpha, eInk, themeUiPalette.signature) {
+        val alpha = if (eInk) {
+            1f
+        } else {
+            dialogAlpha.coerceIn(0, 100) / 100f
+        }
+        ColorUtils.withAlpha(surfaceBase, alpha)
+    }
 }
+

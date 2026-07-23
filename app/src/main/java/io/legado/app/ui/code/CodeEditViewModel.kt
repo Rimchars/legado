@@ -55,11 +55,14 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
         execute {
             val cacheKey = intent.getStringExtra("cacheKey")
             if (cacheKey != null) {
-                val cacheText = CacheManager.getFromMemory(cacheKey) as? String ?: throw Exception("未获取到查看文本")
-                writable = false
+                val cacheText = CacheManager.getFromMemory(cacheKey) as? String
+                    ?: throw Exception("????????")
+                // Default false keeps TextDialog previews read-only. Large editors pass writable=true
+                // so content can bypass Intent extras (TransactionTooLargeException).
+                writable = intent.getBooleanExtra("writable", false)
                 initialText = cacheText
             } else {
-                initialText = intent.getStringExtra("text") ?: throw Exception("未获取到待编辑文本")
+                initialText = intent.getStringExtra("text") ?: throw Exception("?????????")
             }
             if (isHtmlStr(initialText)) {
                 languageName = "text.html.basic"

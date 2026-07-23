@@ -140,12 +140,12 @@ class BookshelfTagManageActivity : BaseActivity<ActivityBookshelfTagManageBindin
                 appDb.withTransaction {
                     assignment.books.forEach { book ->
                         val shouldHaveTag = book.bookUrl in selectedUrls
-                        val updated = BookTagManagement.updateTag(
+                        val write = BookTagManagement.updateTag(
                             customTag = book.customTag,
                             tag = assignment.tag,
                             selected = shouldHaveTag
                         ) ?: return@forEach
-                        appDb.bookDao.updateCustomTag(book.bookUrl, updated)
+                        appDb.bookDao.updateCustomTag(book.bookUrl, write.customTag)
                     }
                 }
             }
@@ -181,12 +181,13 @@ class BookshelfTagManageActivity : BaseActivity<ActivityBookshelfTagManageBindin
                     withContext(IO) {
                         appDb.withTransaction {
                             group.books.forEach { book ->
-                                val updated = BookTagManagement.updateTag(
+                                val write = BookTagManagement.updateTag(
                                     customTag = book.customTag,
                                     tag = tag,
                                     selected = false
                                 ) ?: return@forEach
-                                appDb.bookDao.updateCustomTag(book.bookUrl, updated)
+                                // write.customTag may be null when the last tag was removed.
+                                appDb.bookDao.updateCustomTag(book.bookUrl, write.customTag)
                             }
                         }
                         val hiddenMap = AppConfig.bookshelfHiddenTags.toMutableMap()

@@ -439,41 +439,6 @@ private fun KitSection(
 }
 
 @Composable
-private fun PanelRows(
-    title: String,
-    palette: AppManagementPalette,
-    rows: List<Triple<String, String, () -> Unit>>
-) {
-    val context = LocalContext.current
-    val radiusPx = palette.settings.panelRadiusPx
-    val panelImage = remember(context, radiusPx, palette.settings.themeSignature) {
-        UiCorner.panelImageDrawable(context, radiusPx)
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .appSettingPanelBackground(
-                normalColor = palette.settings.row,
-                panelImage = panelImage,
-                borderColor = palette.settings.border,
-                radiusPx = radiusPx
-            )
-    ) {
-        AppSettingSectionTitle(title = title, palette = palette.settings)
-        rows.forEachIndexed { index, row ->
-            ActionRow(
-                title = row.first,
-                summary = row.second,
-                trailing = "",
-                palette = palette.settings,
-                isLast = index == rows.lastIndex,
-                onClick = row.third
-            )
-        }
-    }
-}
-
-@Composable
 private fun stringResourceCompat(id: Int): String {
     return androidx.compose.ui.res.stringResource(id)
 }
