@@ -702,6 +702,18 @@ class ReadBookActivity : BaseReadBookActivity(),
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onResume() {
         super.onResume()
+        // 后台冻结时可能错过系统明暗模式切换，回到前台若当前明暗模式与上次渲染不同则补刷阅读页
+        val readerNightMode = AppConfig.isNightTheme
+        if (readerNightMode != lastReaderNightMode) {
+            lastReaderNightMode = readerNightMode
+            upSystemUiVisibility()
+            binding.readView.upStatusBar()
+            if (epubCoreActive) {
+                refreshEpubCoreAfterConfigurationChange()
+            } else {
+                binding.readView.refreshVisualStyle()
+            }
+        }
         ReadBook.readStartTime = System.currentTimeMillis()
         if (bookChanged) {
             bookChanged = false
