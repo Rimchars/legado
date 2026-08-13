@@ -156,6 +156,10 @@ class App : Application() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        //记录框架投递的夜间模式，供 AppConfig.isNightTheme 在跟随系统模式下读取
+        AppConfig.updateFollowSystemNight(
+            (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        )
         //只处理真正的亮暗切换，忽略车载/底座等 uiMode 类型变化，避免无谓重建
         val nightChanged = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) !=
             (oldConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK)

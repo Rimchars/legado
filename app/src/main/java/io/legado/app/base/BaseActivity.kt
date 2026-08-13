@@ -154,6 +154,10 @@ abstract class BaseActivity<VB : ViewBinding>(
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        //记录框架投递的夜间模式，供 AppConfig.isNightTheme 在跟随系统模式下读取
+        AppConfig.updateFollowSystemNight(
+            (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        )
         val isNightMode = AppConfig.isNightTheme
         val nightModeChanged = isNightMode != lastNightMode
         lastNightMode = isNightMode

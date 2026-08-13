@@ -219,12 +219,16 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
                 ?.getOrNull()
         }
 
+    //跟随系统模式下，记录最近一次框架投递的夜间模式（onConfigurationChanged 用 newConfig 更新，避免读系统全局快照滞后）
+    @Volatile
+    private var followSystemNight = sysConfiguration.isNightMode
+
     var isNightTheme: Boolean
         get() = when (themeMode) {
             "1" -> false
             "2" -> true
             "3" -> false
-            else -> sysConfiguration.isNightMode
+            else -> followSystemNight
         }
         set(value) {
             if (isNightTheme != value) {
@@ -235,6 +239,11 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
                 }
             }
         }
+
+    //用框架投递的配置更新跟随系统的夜间模式（App/BaseActivity 的 onConfigurationChanged 调用）
+    fun updateFollowSystemNight(night: Boolean) {
+        followSystemNight = night
+    }
     var showBookname: Int
         get() = appCtx.getPrefInt(PreferKey.showBooknameLayout, 0)
         set(value) {
