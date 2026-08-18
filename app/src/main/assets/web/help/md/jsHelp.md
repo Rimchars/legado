@@ -294,6 +294,12 @@ java.hexEncodeToString(utf8: String)
 java.randomUUID()
 java.androidId()
 ```
+* 应用版本
+```js
+java.getAppVersionName(): String
+java.getAppVersionCode(): Long
+java.getAppVariant(): String
+```
 * 繁简转换
 ```js
 将文本转换为简体

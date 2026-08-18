@@ -107,6 +107,10 @@
     <string name="ps_auto_download">Tự động tải các chương mới nhất khi cập nhật sách</string>
     <string name="backup_restore">Sao lưu và khôi phục</string>
     <string name="web_dav_set">Cài đặt WebDav</string>
+    <string name="directory">Directory</string>
+    <string name="password_label">Password</string>
+    <string name="account">Account</string>
+    <string name="address">Address</string>
     <string name="web_dav_set_import_old">Cài đặt WebDav/Nhập dữ liệu cũ</string>
     <string name="backup">Sao lưu</string>
     <string name="restore">Khôi phục</string>

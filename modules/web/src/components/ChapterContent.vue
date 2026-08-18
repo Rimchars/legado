@@ -6,15 +6,27 @@
     ref="paragraphRef"
     :data-chapterpos="chapterPos[index]"
   >
-    <p :style="{ fontFamily, fontSize }" v-html="sanitizeContent(para)" />
+    <img
+      class="full"
+      v-if="/^\s*<img[^>]*src[^>]+>$/.test(String(para))"
+      :src="getImageSrc(para)"
+      @error.once="proxyImage"
+      loading="lazy"
+    />
+    <p v-else :style="{ fontFamily, fontSize }" v-html="replaceImage(para)" @error.capture="handleImgLoadError" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { lazyRegex } from '@/utils/utils'
+import { isLegadoUrl, lazyRegex } from '@/utils/utils'
+import API from '@api'
 import jump from '@/plugins/jump'
 import type { webReadConfig } from '@/web'
-import DOMPurify from 'dompurify'
+
+const store = useBookStore()
+const readWidth = computed(() => store.config.readWidth)
+const lineImgWidth = computed(() => store.config.fontSize * 2)
+const bookUrl = computed(() => store.readingBook.bookUrl)
 
 const props = defineProps<{
   chapterIndex: number
@@ -25,41 +37,85 @@ const props = defineProps<{
   fontSize: string
 }>()
 
-const imgPatternAll = lazyRegex('<img\\b[^>]*>', 'gi')
-const paragraphBubblePatternAll = lazyRegex(
-  '<span[^>]*class=[\'\"][^\'\"]*legado-paragraph-bubble[^\'\"]*[\'\"][^>]*>.*?</span>',
-  'gi',
-)
+const imgPatternStr = '<img[^>]*src=[\'"]([^\'"]*(?:[\'"][^>]+\\})?)[\'"][^>]*>'
+const imgPattern = lazyRegex(imgPatternStr)
+const imgPatternAll = lazyRegex(imgPatternStr, 'g')
+const imgDataUrlPattern = lazyRegex('data:image[^;]+;base64,[^,]{39,}')
 
-const removeHiddenContent = (content: string) =>
-  content
-    .replace(imgPatternAll(), '')
-    .replace(paragraphBubblePatternAll(), '')
+const replaceImage = (content: string) => {
+  return content.replace(imgPatternAll(), (match, src) => {
+    const dataUrl = src.match(imgDataUrlPattern())
+    if (dataUrl) {
+      return dataUrl[0]
+    }
+    if (isLegadoUrl(src)) {
+      const proxySrc = API.getProxyImageUrl(
+        bookUrl.value,
+        src,
+        lineImgWidth.value,
+      )
+      return match.replace(src, proxySrc)
+    }
+    return match
+  })
+}
 
-const sanitizeContent = (content: string) =>
-  String(
-    DOMPurify.sanitize(removeHiddenContent(content), {
-      ALLOWED_TAGS: [
-        'br',
-        'b',
-        'strong',
-        'i',
-        'em',
-        'u',
-        's',
-        'del',
-        'span',
-        'ruby',
-        'rt',
-        'rp',
-      ],
-      ALLOWED_ATTR: ['class'],
-      ALLOW_DATA_ATTR: false,
-    }),
-  )
+const getImageSrc = (content: string) => {
+  const src = content.match(imgPattern())![1] //reg tested in template
+  const dataUrl = src.match(imgDataUrlPattern())
+  if (dataUrl) {
+      return dataUrl[0] //现成的base64图片，去掉阅读格式后缀
+  }
+  if (isLegadoUrl(src))
+    return API.getProxyImageUrl(
+      bookUrl.value,
+      src,
+      readWidth.value,
+    )
+  return src
+}
+const proxyImage = (event: Event) => {
+  /* 获取IMG标签原始的src
+    <img src="/test" />
+    假设location.href = http://example.com
+    event.target.src 返回 http://example.com/test
+    (event.target as HTMLImageElement)?.getAttribute("src")  返回/test
+  */
+  const src = (event.target as HTMLImageElement)?.getAttribute("src")
+  if (src != null && src.length > 0) {
+    (event.target as HTMLImageElement).src = API.getProxyImageUrl(
+      bookUrl.value,
+      src,
+      readWidth.value,
+    )
+  }
+}
+
+/**
+ * 处理传入的IMG标签错误事件，自动替换图片的代理链接
+ */
+const handleImgLoadError = (event: Event) => {
+  const target = event.target
+  if (target instanceof HTMLImageElement) {
+    const srcUrl = target.getAttribute("src")
+    console.log(
+      "[ChapterContent]: IMG Load Error, replace src:",
+      srcUrl,
+      "=>",
+      API.getProxyImageUrl(
+        bookUrl.value,
+        srcUrl ?? "",
+        readWidth.value,
+      )
+    )
+    proxyImage(event)
+  }
+}
 
 const calculateWordCount = (paragraph: string) => {
-  return removeHiddenContent(paragraph).length
+  //内嵌图片文字为1
+  const imagePlaceHolder = ' '
+  return paragraph.replace(imgPatternAll(), imagePlaceHolder).length
 }
 const chapterPos = computed(() => {
   let pos = -1
@@ -135,5 +191,14 @@ p {
   letter-spacing: calc(v-bind('props.spacing.letter') * 1em);
   line-height: calc(1 + v-bind('props.spacing.line'));
   margin: calc(v-bind('props.spacing.paragraph') * 1em) 0;
+
+  :deep(img) {
+    height: 1em;
+  }
+}
+
+.full {
+  display: block;
+  width: 100%;
 }
 </style>

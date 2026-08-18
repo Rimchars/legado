@@ -27,6 +27,9 @@ object AppPattern {
     //提取标题中的段评
     val imgRegex = Regex("(.*)((?:data|https?):[\\s\\S]+)$", RegexOption.IGNORE_CASE)
 
+    //压缩包漫画图片文件名
+    val imageFileRegex = Regex(".*\\.(jpg|jpeg|png|gif|webp|bmp|avif|heic|heif)$", RegexOption.IGNORE_CASE)
+
     fun splitTitleImage(title: String): Pair<String, String>? {
         val paragraphBubbleStart = findTitleParagraphBubbleStart(title)
         val imageStart = findTitleImageStart(title)

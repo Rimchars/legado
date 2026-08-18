@@ -18,6 +18,13 @@ import io.legado.app.exception.NoBooksDirException
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.exception.TocEmptyException
 import io.legado.app.help.AppWebDav
+import io.legado.app.help.glide.ArchiveImageLoader
+import io.legado.app.lib.webdav.Authorization
+import io.legado.app.lib.smb.Smb
+import io.legado.app.lib.smb.SmbZipReader
+import io.legado.app.lib.webdav.WebDavZipReader
+import io.legado.app.utils.AlphanumComparator
+import io.legado.app.utils.MD5Utils
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
 import io.legado.app.help.book.addType
@@ -26,6 +33,7 @@ import io.legado.app.help.book.getArchiveUri
 import io.legado.app.help.book.getLocalUri
 import io.legado.app.help.book.getRemoteUrl
 import io.legado.app.help.book.isArchive
+import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isEpub
 import io.legado.app.help.book.isMobi
 import io.legado.app.help.book.isPdf
@@ -36,12 +44,12 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.webdav.WebDav
 import io.legado.app.lib.webdav.WebDavException
 import io.legado.app.model.analyzeRule.AnalyzeUrl
+import io.legado.app.model.analyzeRule.CustomUrl
 import io.legado.app.model.localBook.epubcore.cache.EpubCoreDiskCache
 import io.legado.app.utils.ArchiveUtils
 import io.legado.app.utils.FileDoc
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.GSON
-import io.legado.app.utils.MD5Utils
 import io.legado.app.utils.externalFiles
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getFile
@@ -68,6 +76,11 @@ import kotlinx.coroutines.currentCoroutineContext
  * 支持在线文件(txt epub umd 压缩文件 本地文件
  */
 object LocalBook {
+
+    /**
+     * 远程书未下载占位符前缀(与RemoteBookViewModel.addArchiveToBookshelfDirect一致)
+     */
+    const val REMOTE_PLACEHOLDER_PREFIX = "/remote/"
 
     private const val LARGE_EPUB_FAST_IMPORT_BYTES = 100L * 1024L * 1024L
 
@@ -119,8 +132,105 @@ object LocalBook {
         }
     }
 
+    /**
+     * 图片压缩包生成漫画章节
+     * webdav远程压缩包免下载直接读取,其余远程先下载
+     * @return 章节列表和章节内容,非图片压缩包返回null
+     */
+    fun getImageArchiveToc(book: Book): Pair<ArrayList<BookChapter>, String>? {
+        if (!book.isArchive) return null
+        val remoteUrl = book.getRemoteUrl()
+        val isSmb = remoteUrl?.startsWith("smb://", true) == true
+        val isWebDav = remoteUrl?.startsWith("http://", true) == true ||
+            remoteUrl?.startsWith("https://", true) == true ||
+            remoteUrl?.startsWith("dav://", true) == true ||
+            remoteUrl?.startsWith("davs://", true) == true
+        //本地已有文件则用本地,否则远程免下载直读(安静检查,不产生日志)
+        val localExists = kotlin.runCatching {
+            when {
+                book.bookUrl.startsWith(REMOTE_PLACEHOLDER_PREFIX) -> false
+                book.bookUrl.isContentScheme() ->
+                    DocumentFile.fromSingleUri(appCtx, book.bookUrl.toUri())?.exists() == true
+                else -> File(book.bookUrl).exists()
+            }
+        }.getOrDefault(false)
+        val (zipUri, images) = when {
+            localExists -> {
+                val list = ArchiveUtils.getArchiveFilesName(book.bookUrl.toUri()) {
+                    it.matches(AppPattern.imageFileRegex)
+                }
+                book.bookUrl to list
+            }
+
+            isSmb -> {
+                //SMB远程直读,失败直接抛出,避免降级为文本解析污染书籍
+                val entries = SmbZipReader.getEntries(remoteUrl)
+                val list = entries.map { it.name }
+                    .filter { it.matches(AppPattern.imageFileRegex) }
+                remoteUrl to list
+            }
+
+            isWebDav -> {
+                //webdav远程直读(Range请求),失败直接抛出,避免降级为文本解析污染书籍
+                val serverID = AnalyzeUrl(remoteUrl).serverID
+                    ?: throw NoStackTraceException("webdav服务器不存在")
+                val entries = kotlin.runCatching {
+                    WebDavZipReader.getEntries(remoteUrl, Authorization(serverID))
+                }.onFailure {
+                    AppLog.put("webdav zip直读失败\n$remoteUrl\n${it.localizedMessage}", it)
+                }.getOrThrow()
+                if (entries.isEmpty()) {
+                    AppLog.put("webdav zip直读为空(可能zip结构异常)\n$remoteUrl")
+                }
+                val list = entries.map { it.name }
+                    .filter { it.matches(AppPattern.imageFileRegex) }
+                remoteUrl to list
+            }
+
+            else -> {
+                //webdav等远程:先下载到本地
+                getBookInputStream(book).close()
+                val list = ArchiveUtils.getArchiveFilesName(book.bookUrl.toUri()) {
+                    it.matches(AppPattern.imageFileRegex)
+                }
+                book.bookUrl to list
+            }
+        }
+        if (images.isEmpty()) {
+            AppLog.put(
+                "漫画检测未通过:${book.name}\n" +
+                    "来源:${if (localExists) "本地文件" else if (isWebDav) "webdav直读" else "远程下载"},压缩包内无图片"
+            )
+            return null
+        }
+        val sortedImages = images.sortedWith(AlphanumComparator)
+        val chapter = BookChapter(
+            url = MD5Utils.md5Encode16(zipUri + "manga"),
+            title = book.name,
+            bookUrl = book.bookUrl,
+            index = 0,
+            baseUrl = zipUri
+        )
+        val content = sortedImages.joinToString("\n") { image ->
+            "<img src=\"${ArchiveImageLoader.buildUrl(zipUri, image)}\">"
+        }
+        book.addType(BookType.image)
+        book.tocUrl = zipUri
+        book.totalChapterNum = 1
+        book.latestChapterTitle = book.name
+        book.save()
+        BookHelp.saveText(book, chapter, content)
+        return arrayListOf(chapter) to content
+    }
+
     @Throws(TocEmptyException::class)
     fun getChapterList(book: Book): ArrayList<BookChapter> {
+        if (book.isArchive) {
+            //图片压缩包一律按漫画章节处理,避免被按文本解析出乱码
+            getImageArchiveToc(book)?.let { (toc, _) ->
+                return toc
+            }
+        }
         val chapters = when {
             book.isEpub -> {
                 EpubFile.getChapterList(book)
@@ -173,6 +283,10 @@ object LocalBook {
     }
 
     fun getContent(book: Book, chapter: BookChapter): String? {
+        if (book.isImage) {
+            //图片压缩包章节内容已由getImageArchiveToc经saveText缓存,丢失时重新生成
+            return getImageArchiveToc(book)?.second
+        }
         var content = try {
             when {
                 book.isEpub -> {
@@ -365,22 +479,74 @@ object LocalBook {
         }
     }
 
-    /* 批量导入 支持自动导入压缩包的支持书籍 */
+     /* 批量导入 支持自动导入压缩包的支持书籍 */
     fun importFiles(uri: Uri, onStage: ((String) -> Unit)? = null): List<Book> {
         val books = mutableListOf<Book>()
         onStage?.invoke("读取文件信息")
         val fileDoc = FileDoc.fromUri(uri, false)
         if (ArchiveUtils.isArchive(fileDoc.name)) {
             onStage?.invoke("解压压缩包")
-            books.addAll(
+            //压缩包内无匹配书籍文件(或没有支持的文件)时,尝试以图片漫画导入
+            val innerBooks = kotlin.runCatching {
                 importArchiveFile(uri) {
                     it.matches(AppPattern.bookFileRegex)
                 }
-            )
+            }.recoverCatching {
+                if (it is NoStackTraceException) {
+                    emptyList()
+                } else {
+                    throw it
+                }
+            }.getOrThrow()
+            if (innerBooks.isEmpty()) {
+                //压缩包内没有书籍文件,尝试以图片漫画导入
+                kotlin.runCatching {
+                    importImageArchive(fileDoc)
+                }.onSuccess {
+                    books.add(it)
+                }.onFailure {
+                    throw NoStackTraceException(appCtx.getString(R.string.unsupport_archivefile_entry))
+                }
+            } else {
+                books.addAll(innerBooks)
+            }
         } else {
             books.add(importFile(uri, onStage))
         }
         return books
+    }
+
+    /**
+     * 图片压缩包(zip)以漫画方式导入,压缩包本身作为书籍
+     * 首次打开阅读时生成漫画章节
+     */
+    fun importImageArchive(fileDoc: FileDoc): Book {
+        val bookUrl = fileDoc.toString()
+        val images = ArchiveUtils.getArchiveFilesName(fileDoc) {
+            it.matches(AppPattern.imageFileRegex)
+        }
+        if (images.isEmpty()) {
+            AppLog.put("漫画导入失败:压缩包内无图片 ${fileDoc.name}")
+            throw NoStackTraceException(appCtx.getString(R.string.unsupport_archivefile_entry))
+        }
+        val nameAuthor = analyzeNameAuthor(fileDoc.name)
+        return appDb.bookDao.getBook(bookUrl)?.let {
+            it.origin = BookType.localTag
+            it.addType(BookType.image)
+            it.save()
+            it
+        } ?: Book(
+            type = BookType.text or BookType.local or BookType.archive or BookType.image,
+            bookUrl = bookUrl,
+            name = nameAuthor.first,
+            author = nameAuthor.second,
+            originName = fileDoc.name,
+            latestChapterTime = fileDoc.lastModified,
+            order = appDb.bookDao.minOrder - 1,
+            origin = BookType.localTag
+        ).apply {
+            appDb.bookDao.insert(this)
+        }
     }
 
     fun importFiles(uris: List<Uri>) {
@@ -429,7 +595,7 @@ object LocalBook {
     /**
      * 从文件分析书籍必要信息（书名 作者等）
      */
-    private fun analyzeNameAuthor(fileName: String): Pair<String, String> {
+    fun analyzeNameAuthor(fileName: String): Pair<String, String> {
         val tempFileName = fileName.substringBeforeLast(".")
         var name = ""
         var author = ""
@@ -576,25 +742,54 @@ object LocalBook {
         try {
             AppConfig.defaultBookTreeUri
                 ?: throw NoBooksDirException()
-            // 兼容旧版链接
-            val webdav: WebDav = kotlin.runCatching {
-                WebDav.fromPath(webDavUrl)
-            }.getOrElse {
-                AppWebDav.authorization?.let { WebDav(webDavUrl, it) }
-                    ?: throw WebDavException("Unexpected defaultBookWebDav")
-            }
             val inputStream = runBlocking {
-                webdav.downloadInputStream()
+                if (webDavUrl.startsWith("smb://", true)) {
+                    // SMB远程书籍
+                    Smb.fromPath(webDavUrl).downloadInputStream()
+                } else {
+                    // 兼容旧版链接
+                    val webdav: WebDav = kotlin.runCatching {
+                        WebDav.fromPath(webDavUrl)
+                    }.getOrElse {
+                        AppWebDav.authorization?.let { WebDav(webDavUrl, it) }
+                            ?: throw WebDavException("Unexpected defaultBookWebDav")
+                    }
+                    webdav.downloadInputStream()
+                }
             }
             inputStream.use {
                 if (localBook.isArchive) {
                     // 压缩包
-                    val archiveUri = saveBookFile(it, localBook.archiveName)
-                    val newBook = importArchiveFile(archiveUri, localBook.originName) { name ->
-                        name.contains(localBook.originName)
-                    }.first()
-                    localBook.origin = newBook.origin
-                    localBook.bookUrl = newBook.bookUrl
+                    val remoteUrl = localBook.getRemoteUrl()
+                    val archiveName = remoteUrl?.let { CustomUrl(it).getUrl().substringAfterLast("/") }
+                        ?: localBook.archiveName
+                    val archiveUri = saveBookFile(it, archiveName)
+                    //直接加入的压缩包(originName为压缩包本身)时,导入其中符合书籍格式的文件
+                    val isArchiveItself = localBook.originName == archiveName
+                    val innerBooks = kotlin.runCatching {
+                        importArchiveFile(archiveUri, localBook.originName) { name ->
+                            if (isArchiveItself) {
+                                name.matches(AppPattern.bookFileRegex)
+                            } else {
+                                name.contains(localBook.originName)
+                            }
+                        }
+                    }.getOrNull()
+                    if (innerBooks != null && innerBooks.isNotEmpty()) {
+                        val newBook = innerBooks.first()
+                        localBook.origin = if (isArchiveItself) localBook.origin else newBook.origin
+                        localBook.bookUrl = newBook.bookUrl
+                    } else {
+                        //压缩包内没有书籍文件,若为图片压缩包则标记为漫画保留压缩包本身
+                        localBook.bookUrl = FileDoc.fromUri(archiveUri, false).toString()
+                        val hasImages = ArchiveUtils.getArchiveFilesName(archiveUri) {
+                            it.matches(AppPattern.imageFileRegex)
+                        }.isNotEmpty()
+                        if (hasImages) {
+                            localBook.addType(BookType.image)
+                        }
+                    }
+                    localBook.save()
                 } else {
                     // txt epub pdf umd
                     val fileUri = saveBookFile(it, localBook.originName)

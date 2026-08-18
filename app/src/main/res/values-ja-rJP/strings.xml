@@ -112,6 +112,10 @@
     <string name="ps_auto_download">Download the latest chapters automatically  when updating books</string>
     <string name="backup_restore">Backup and restore</string>
     <string name="web_dav_set">WebDav settings</string>
+    <string name="directory">Directory</string>
+    <string name="password_label">Password</string>
+    <string name="account">Account</string>
+    <string name="address">Address</string>
     <string name="web_dav_set_import_old">WebDav settings/Import legacy data</string>
     <string name="backup">Backup</string>
     <string name="restore">Restore</string>

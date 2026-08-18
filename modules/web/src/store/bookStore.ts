@@ -5,16 +5,18 @@ import type {
   Book,
   BookChapter,
   BookProgress,
+  SeachBook,
 } from '@/book'
 import type { webReadConfig } from '@/web'
 import { ElMessage } from 'element-plus/es'
 
 const default_config: webReadConfig = {
-  theme: 0,
+  theme: 7,
   font: 0,
   fontSize: 18,
   readWidth: 800,
   infiniteLoading: false,
+  readMode: 0,
   customFontName: '',
   jumpDuration: 1000,
   spacing: {
@@ -24,10 +26,12 @@ const default_config: webReadConfig = {
   },
 }
 let webReadConfigLoadedDate: Date | undefined
+let systemThemeListenerBound = false
 
 export const useBookStore = defineStore('book', {
   state: () => {
     return {
+      searchBooks: [] as SeachBook[],
       shelf: [] as Book[],
       catalog: [] as BookChapter[],
       readingBook: { chapterPos: 0, chapterIndex: 0 } as BaseBook & {
@@ -35,12 +39,14 @@ export const useBookStore = defineStore('book', {
         chapterIndex: number
         isSeachBook?: boolean
       },
+      bookType: 0,
       popCataVisible: false,
       contentLoading: true,
       showContent: false,
       config: default_config,
       miniInterface: false,
       readSettingsVisible: false,
+      systemDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
     }
   },
   getters: {
@@ -61,9 +67,24 @@ export const useBookStore = defineStore('book', {
     theme: state => {
       return state.config.theme
     },
-    isNight: state => state.config.theme == 6,
+    isNight: state => {
+      // 7 为自动模式,跟随浏览器/系统深浅色
+      if (state.config.theme == 6) return true
+      if (state.config.theme == 7) return state.systemDark
+      return false
+    },
   },
   actions: {
+    /** 监听浏览器/系统深浅色变化,供自动主题使用 */
+    initSystemTheme() {
+      if (systemThemeListenerBound) return
+      systemThemeListenerBound = true
+      const media = window.matchMedia('(prefers-color-scheme: dark)')
+      const update = (event: MediaQueryListEvent) => {
+        this.systemDark = event.matches
+      }
+      media.addEventListener('change', update)
+    },
     /** 从后端加载书架书籍，优先返回内存缓存 */
     async loadBookShelf(): Promise<Book[]> {
       const fetchBookshellf_promise = API.getBookShelf().then(resp => {
@@ -148,6 +169,9 @@ export const useBookStore = defineStore('book', {
     setReadingBook(readingBook: typeof this.readingBook) {
       this.readingBook = readingBook
     },
+    setBookType(bookType: number) {
+      this.bookType = bookType
+    },
     /** 只从从后端加载一次web阅读配置 */
     async loadWebConfig() {
       if (webReadConfigLoadedDate === undefined) {
@@ -173,6 +197,19 @@ export const useBookStore = defineStore('book', {
     },
     setMiniInterface(mini: boolean) {
       this.miniInterface = mini
+    },
+    async setSearchBooks(books: SeachBook[]) {
+      books.forEach(book => {
+        const isSeachBook = this.shelf.every(
+          item => item.bookUrl !== book.bookUrl,
+        )
+        if (isSeachBook === true) {
+          this.searchBooks.push(book)
+        }
+      })
+    },
+    clearSearchBooks() {
+      this.searchBooks = []
     },
     /** 1.保存进度到app 2.修改内存中的数据*/
     async saveBookProgress() {

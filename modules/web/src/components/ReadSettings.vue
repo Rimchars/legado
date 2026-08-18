@@ -10,6 +10,12 @@
         <li class="theme-list">
           <i>阅读主题</i>
           <span
+            class="theme-item auto-theme-item"
+            :class="{ selected: theme == 7 }"
+            @click="setTheme(7)"
+            >自动</span
+          >
+          <span
             class="theme-item"
             v-for="(themeColor, index) in themeColors"
             :key="index"
@@ -21,7 +27,7 @@
             ><em v-else class="moon-icon">{{ moonIcon }}</em></span
           >
         </li>
-        <li class="font-list">
+        <li class="font-list" v-if="!isComic">
           <i>正文字体</i>
           <span
             class="font-item"
@@ -32,7 +38,7 @@
             >{{ font }}</span
           >
         </li>
-        <li class="font-list">
+        <li class="font-list" v-if="!isComic">
           <i>自定字体</i>
           <el-tooltip effect="dark" content="自定义的字体名称" placement="top">
             <input
@@ -71,7 +77,7 @@
             </template>
           </el-popover>
         </li>
-        <li class="font-size">
+        <li class="font-size" v-if="!isComic">
           <i>字体大小</i>
           <div class="resize">
             <span class="less" @click="lessFontSize"
@@ -83,7 +89,7 @@
             >
           </div>
         </li>
-        <li class="letter-spacing">
+        <li class="letter-spacing" v-if="!isComic">
           <i>字距</i>
           <div class="resize">
             <span class="less" @click="lessLetterSpacing"
@@ -95,7 +101,7 @@
             >
           </div>
         </li>
-        <li class="line-spacing">
+        <li class="line-spacing" v-if="!isComic">
           <i>行距</i>
           <div class="resize">
             <span class="less" @click="lessLineSpacing"
@@ -107,7 +113,7 @@
             >
           </div>
         </li>
-        <li class="paragraph-spacing">
+        <li class="paragraph-spacing" v-if="!isComic">
           <i>段距</i>
           <div class="resize">
             <div class="resize">
@@ -134,7 +140,22 @@
             >
           </div>
         </li>
-        <li class="paragraph-spacing">
+        <li class="infinite-loading">
+          <i>阅读方式</i>
+          <span
+            class="infinite-loading-item"
+            :class="{ selected: readMode === 0 }"
+            @click="setReadMode(0)"
+            >上下滚动</span
+          >
+          <span
+            class="infinite-loading-item"
+            :class="{ selected: readMode === 1 }"
+            @click="setReadMode(1)"
+            >左右翻页</span
+          >
+        </li>
+        <li class="paragraph-spacing" v-if="!isComic">
           <i>翻页速度</i>
           <div class="resize">
             <div class="resize">
@@ -149,7 +170,7 @@
             </div>
           </div>
         </li>
-        <li class="infinite-loading">
+        <li class="infinite-loading" v-if="!isComic">
           <i>无限加载</i>
           <span
             class="infinite-loading-item"
@@ -179,6 +200,7 @@ import API from '@api'
 import { useDebounceFn } from '@vueuse/shared'
 
 const store = useBookStore()
+const isComic = computed(() => (store.bookType & 64) !== 0)
 const saveConfigDebounce = useDebounceFn(
   () => API.saveReadConfig(store.config),
   500,
@@ -198,6 +220,8 @@ watch(
 const theme = computed(() => store.theme)
 const isNight = computed(() => store.isNight)
 const moonIcon = computed(() => (theme.value == 6 ? '' : ''))
+/** 自动主题(7)时按当前深浅色解析到具体主题色 */
+const resolvedTheme = computed(() => (theme.value == 7 ? (isNight.value ? 6 : 0) : theme.value))
 const themeColors = [
   {
     background: 'rgba(250, 245, 235, 0.8)',
@@ -223,7 +247,7 @@ const themeColors = [
 ]
 const popupTheme = computed(() => {
   return {
-    background: settings.themes[theme.value].popup,
+    background: settings.themes[resolvedTheme.value].popup,
   }
 })
 const setTheme = (theme: number) => {
@@ -354,6 +378,11 @@ const infiniteLoading = computed(() => {
 const setInfiniteLoading = (loading: boolean) => {
   store.config.infiniteLoading = loading
 }
+
+const readMode = computed(() => store.config.readMode)
+const setReadMode = (mode: number) => {
+  store.config.readMode = mode
+}
 </script>
 
 <style lang="scss" scoped>
@@ -423,6 +452,18 @@ const setInfiniteLoading = (loading: boolean) => {
           .iconfont {
             display: none;
           }
+        }
+
+        .auto-theme-item {
+          font-size: 12px;
+          line-height: 34px;
+          background: rgba(200, 200, 200, 0.35);
+          color: #666;
+        }
+
+        .auto-theme-item.selected {
+          color: #ed4259;
+          border: 1px solid #ed4259;
         }
 
         .selected {
@@ -588,9 +629,10 @@ const setInfiniteLoading = (loading: boolean) => {
 
 @media screen and (max-width: 500px) {
   .settings-wrapper i {
-    display: flex !important;
-    flex-wrap: wrap;
-    padding-bottom: 5px !important;
+    display: block !important;
+    width: auto;
+    margin-right: 0;
+    padding-bottom: 8px !important;
   }
 }
 </style>

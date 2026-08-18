@@ -119,7 +119,11 @@
     <string name="pt_auto_download">Auto-download</string>
     <string name="ps_auto_download">Download the latest chapters automatically  when updating books</string>
     <string name="backup_restore">Backup and restore</string>
-    <string name="web_dav_set">WebDav settings</string>
+    <string name="web_dav_set">Remote Settings</string>
+    <string name="directory">Directory</string>
+    <string name="password_label">Password</string>
+    <string name="account">Account</string>
+    <string name="address">Address</string>
     <string name="web_dav_set_import_old">WebDav settings/Import legacy data</string>
     <string name="backup">Backup</string>
     <string name="restore">Restore</string>
@@ -1038,6 +1042,7 @@
     <string name="auto_page_interval">Page turn interval</string>
     <string name="auto_read_mode_scroll">Smooth scroll</string>
     <string name="auto_read_mode_timed">Timed page turn</string>
+    <string name="auto_page_running">Auto paging · speed %s</string>
     <string name="sort_by_url">Sort by URL</string>
     <string name="backup_summary">Backup the local and WebDav simultaneously</string>
     <string name="restore_summary">Restore from WebDAV first, Restore form the local backup on long click</string>
@@ -1436,7 +1441,10 @@
     <string name="download_book_success">Download Success</string>
     <string name="download_book_fail">Download Fail</string>
     <string name="upload_to_remote">Upload</string>
-    <string name="add_remote_book">RemoteBook</string>
+    <string name="webdav_name">WebDAV</string>
+    <string name="smb_name">SMB</string>
+    <string name="smb_not_configured">No SMB server configured</string>
+    <string name="add_remote_book">Remote Books</string>
     <string name="bitmap_cache_size_summary">Current cache max size %1$s MB</string>
     <string name="bitmap_cache_size">bitmap cache size</string>
     <string name="image_retain_number_summary">Keep the number of chapters read %s</string>
@@ -1446,7 +1454,7 @@
     <string name="error_decode_bitmap">Fail to decode bitmap</string>
     <string name="error_image_url_empty">Image url is empty, check replacement rules</string>
     <string name="variable_comment">变量说明(variableComment)</string>
-    <string name="remote_book">Remote book</string>
+    <string name="remote_book">Remote Book</string>
     <string name="reading_time_sort">Sort by reading duration</string>
     <string name="last_read_time_sort">Sort by read time</string>
     <string name="reading_time_tag">Reading time:</string>

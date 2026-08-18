@@ -31,11 +31,15 @@ const store = useBookStore()
 const { catalog, popCataVisible, miniInterface } = storeToRefs(store)
 
 //主题
-const isNight = computed(() => store.theme)
+const isNight = computed(() => store.isNight)
 const theme = computed(() => store.theme)
+/** 自动主题(7)时按当前深浅色解析到具体主题色 */
+const resolvedTheme = computed(() =>
+  theme.value == 7 ? (isNight.value ? 6 : 0) : theme.value,
+)
 const popupTheme = computed(() => {
   return {
-    background: settings.themes[theme.value].popup,
+    background: settings.themes[resolvedTheme.value].popup,
   }
 })
 

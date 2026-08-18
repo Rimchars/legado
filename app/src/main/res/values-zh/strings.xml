@@ -118,7 +118,11 @@
     <string name="pt_auto_download">自动下载最新章节</string>
     <string name="ps_auto_download">更新书籍时自动下载最新章节</string>
     <string name="backup_restore">备份与恢复</string>
-    <string name="web_dav_set">WebDav 设置</string>
+    <string name="web_dav_set">远程设置</string>
+    <string name="directory">目录</string>
+    <string name="password_label">密码</string>
+    <string name="account">账号</string>
+    <string name="address">地址</string>
     <string name="web_dav_set_import_old">WebDav 设置/导入旧版本数据</string>
     <string name="backup">备份</string>
     <string name="restore">恢复</string>
@@ -808,6 +812,7 @@
     <string name="auto_page_interval">翻页间隔</string>
     <string name="auto_read_mode_scroll">连续滚动</string>
     <string name="auto_read_mode_timed">定时翻页</string>
+    <string name="auto_page_running">自动翻页中 · 速度 %s</string>
     <string name="sort_by_url">地址排序</string>
     <string name="backup_summary">本地和 WebDav 一起备份</string>
     <string name="restore_summary">优先从 WebDav 恢复，长按从本地恢复</string>
@@ -1201,7 +1206,10 @@
     <string name="download_book_success">下载成功</string>
     <string name="download_book_fail">下载失败</string>
     <string name="upload_to_remote">上传 WebDav</string>
-    <string name="add_remote_book">远程书籍</string>
+    <string name="webdav_name">WebDav</string>
+    <string name="smb_name">SMB</string>
+    <string name="smb_not_configured">没有配置SMB服务器</string>
+    <string name="add_remote_book">远程图书</string>
     <string name="bitmap_cache_size_summary">当前最大缓存 %1$s MB</string>
     <string name="bitmap_cache_size">图片绘制缓存</string>
     <string name="image_retain_number_summary">保留已读章节数量 %s</string>
@@ -1211,7 +1219,7 @@
     <string name="error_decode_bitmap">图片解码失败</string>
     <string name="error_image_url_empty">图片链接为空，检查替换净化规则</string>
     <string name="variable_comment">变量说明(variableComment)</string>
-    <string name="remote_book">远程书籍</string>
+    <string name="remote_book">远程图书</string>
     <string name="reading_time_sort">阅读时长排序</string>
     <string name="last_read_time_sort">阅读时间排序</string>
     <string name="reading_time_tag">阅读时长:</string>

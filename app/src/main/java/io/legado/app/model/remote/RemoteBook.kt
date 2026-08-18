@@ -1,6 +1,7 @@
 package io.legado.app.model.remote
 
 import androidx.annotation.Keep
+import io.legado.app.lib.smb.SmbFileInfo
 import io.legado.app.lib.webdav.WebDavFile
 import io.legado.app.model.localBook.LocalBook
 
@@ -25,6 +26,18 @@ data class RemoteBook(
         if (!webDavFile.isDir) {
             contentType = webDavFile.displayName.substringAfterLast(".")
             isOnBookShelf = LocalBook.isOnBookShelf(webDavFile.displayName)
+        }
+    }
+
+    constructor(smbFile: SmbFileInfo) : this(
+        smbFile.displayName,
+        smbFile.url,
+        smbFile.size,
+        smbFile.lastModify
+    ) {
+        if (!smbFile.isDir) {
+            contentType = smbFile.displayName.substringAfterLast(".")
+            isOnBookShelf = LocalBook.isOnBookShelf(smbFile.displayName)
         }
     }
 

@@ -80,7 +80,6 @@ class MangaColorFilterDialog : ComposeDialogFragment() {
 
     @Composable
     private fun MangaColorFilterContent(style: AppDialogStyle) {
-        var brightness by rememberSaveable { mutableIntStateOf(mConfig.l) }
         var red by rememberSaveable { mutableIntStateOf(mConfig.r) }
         var green by rememberSaveable { mutableIntStateOf(mConfig.g) }
         var blue by rememberSaveable { mutableIntStateOf(mConfig.b) }
@@ -93,7 +92,7 @@ class MangaColorFilterDialog : ComposeDialogFragment() {
                 g = green,
                 b = blue,
                 a = alpha,
-                l = brightness
+                l = mConfig.l
             )
         }
 
@@ -106,7 +105,7 @@ class MangaColorFilterDialog : ComposeDialogFragment() {
             latestConfig = currentConfig()
         }
 
-        LaunchedEffect(brightness, red, green, blue, alpha, hasUserChanges) {
+        LaunchedEffect(red, green, blue, alpha, hasUserChanges) {
             if (!hasUserChanges) {
                 return@LaunchedEffect
             }
@@ -141,15 +140,6 @@ class MangaColorFilterDialog : ComposeDialogFragment() {
                 )
                 AppDialogSliderGrid(
                     items = listOf(
-                        AppDialogSliderItem(
-                            title = stringResource(R.string.brightness),
-                            value = brightness,
-                            range = 0..255,
-                            onValueChange = { value ->
-                                brightness = value
-                                markChanged()
-                            }
-                        ),
                         AppDialogSliderItem(
                             title = "R",
                             value = red,

@@ -30,6 +30,8 @@ import io.legado.app.help.book.isSameNameAuthor
 import io.legado.app.help.book.isWebFile
 import io.legado.app.help.book.removeType
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.lib.smb.Smb
+import io.legado.app.model.remote.RemoteBook
 import io.legado.app.lib.webdav.ObjectNotFoundException
 import io.legado.app.model.AudioPlay
 import io.legado.app.model.BookCover
@@ -197,14 +199,26 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
         executeLazy(executeContext = IO) {
             if (book.isLocal) {
                 book.tocUrl = ""
-                book.getRemoteUrl()?.let {
-                    val bookWebDav = AppWebDav.defaultBookWebDav
-                        ?: throw NoStackTraceException("webDav没有配置")
-                    val remoteBook = bookWebDav.getRemoteBook(it)
+                book.getRemoteUrl()?.let { remoteUrl ->
+                    val isSmb = remoteUrl.startsWith("smb://", true)
+                    val smb = if (isSmb) Smb.fromPath(remoteUrl) else null
+                    val remoteBook = if (smb != null) {
+                        smb.getSmbFileInfo()?.let { RemoteBook(it) }
+                    } else {
+                        val bookWebDav = AppWebDav.defaultBookWebDav
+                            ?: throw NoStackTraceException("webDav没有配置")
+                        bookWebDav.getRemoteBook(remoteUrl)
+                    }
                     if (remoteBook == null) {
                         book.origin = BookType.localTag
                     } else if (remoteBook.lastModify > book.lastCheckTime) {
-                        val uri = bookWebDav.downloadRemoteBook(remoteBook)
+                        val uri = if (smb != null) {
+                            smb.downloadInputStream().let {
+                                LocalBook.saveBookFile(it, remoteBook.filename)
+                            }
+                        } else {
+                            AppWebDav.defaultBookWebDav!!.downloadRemoteBook(remoteBook)
+                        }
                         book.bookUrl = if (uri.isContentScheme()) uri.toString() else uri.path!!
                         book.lastCheckTime = remoteBook.lastModify
                     }

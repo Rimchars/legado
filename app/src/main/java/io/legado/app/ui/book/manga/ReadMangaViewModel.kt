@@ -14,6 +14,8 @@ import io.legado.app.data.entities.BookProgress
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.AppCloudStorage
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.isArchive
+import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isLocalModified
 import io.legado.app.help.book.removeType
@@ -82,7 +84,7 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
             return
         }
 
-        if (book.isLocal && !checkLocalBookFileExist(book)) {
+        if (book.isLocal && !(book.isArchive && book.isImage) && !checkLocalBookFileExist(book)) {
             return
         }
 
@@ -117,6 +119,23 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
     }
 
     private suspend fun loadChapterListAwait(book: Book): Boolean {
+        if (book.isArchive && book.isImage) {
+            //本地/远程图片压缩包漫画:直接生成章节(webdav免下载直读)
+            kotlin.runCatching {
+                LocalBook.getImageArchiveToc(book)?.first?.let { toc ->
+                    appDb.runInTransaction {
+                        appDb.bookChapterDao.delByBook(book.bookUrl)
+                        appDb.bookChapterDao.insert(*toc.toTypedArray())
+                        appDb.bookDao.update(book)
+                    }
+                    ReadManga.onChapterListUpdated(book)
+                }
+                return true
+            }.onFailure {
+                AppLog.put("LoadTocError:${it.localizedMessage}", it)
+                return false
+            }
+        }
         val bookSource = ReadManga.bookSource ?: return true
         val oldBook = book.copy()
         WebBook.getChapterListAwait(bookSource, book, true).onSuccess { cList ->
@@ -286,6 +305,25 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
     override fun onCleared() {
         super.onCleared()
         changeSourceCoroutine?.cancel()
+    }
+
+    fun disableSource() {
+        execute {
+            ReadManga.bookSource?.let {
+                it.enabled = false
+                appDb.bookSourceDao.update(it)
+            }
+        }
+    }
+
+    fun upBookSource(success: (() -> Unit)?) {
+        execute {
+            ReadManga.book?.let { book ->
+                ReadManga.bookSource = appDb.bookSourceDao.getBookSource(book.origin)
+            }
+        }.onSuccess {
+            success?.invoke()
+        }
     }
 
     fun refreshContentDur(book: Book) {

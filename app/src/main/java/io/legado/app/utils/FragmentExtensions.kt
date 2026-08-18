@@ -98,7 +98,7 @@ fun Fragment.startActivityForBook(
     val cls = when {
         book.isVideo -> VideoPlayerActivity::class.java
         book.isAudio -> AudioPlayActivity::class.java
-        !book.isLocal && book.isImage && AppConfig.showMangaUi -> ReadMangaActivity::class.java
+        book.isImage && AppConfig.showMangaUi -> ReadMangaActivity::class.java
         else -> ReadBookActivity::class.java
     }
     val intent = Intent(requireActivity(), cls)

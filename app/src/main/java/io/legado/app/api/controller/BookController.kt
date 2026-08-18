@@ -1,6 +1,8 @@
 package io.legado.app.api.controller
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import io.legado.app.help.glide.ArchiveImageLoader
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.drawable.toBitmap
 import com.bumptech.glide.Glide
@@ -113,6 +115,19 @@ object BookController {
         val src = parameters["path"]?.firstOrNull()
             ?: return returnData.setErrorMsg("图片链接为空")
         val width = parameters["width"]?.firstOrNull()?.toInt() ?: 640
+        //本地/远程压缩包漫画图片(archive://)直接按需读取
+        if (src.startsWith(ArchiveImageLoader.SCHEME)) {
+            val bitmap = runBlocking {
+                kotlin.runCatching {
+                    val bytes = ArchiveImageLoader.openArchiveImage(src).use { it.readBytes() }
+                    decodeBitmap(bytes, width)
+                }.getOrNull()
+            }
+            if (bitmap == null) {
+                return returnData.setErrorMsg("图片加载失败")
+            }
+            return returnData.setData(bitmap)
+        }
         if (this.bookUrl != bookUrl) {
             this.book = appDb.bookDao.getBook(bookUrl)
                 ?: return returnData.setErrorMsg("bookUrl不对")
@@ -124,6 +139,29 @@ object BookController {
             ImageProvider.getImage(book, src, width)
         }
         return returnData.setData(bitmap)
+    }
+
+    /**
+     * 按目标宽度解码图片,避免大图直接加载导致OOM
+     */
+    private fun decodeBitmap(bytes: ByteArray, width: Int): Bitmap? {
+        return runCatching {
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            var sampleSize = 1
+            val maxWidth = width * 2
+            while (options.outWidth / sampleSize > maxWidth) {
+                sampleSize *= 2
+            }
+            BitmapFactory.decodeByteArray(
+                bytes, 0, bytes.size,
+                BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                }
+            )
+        }.getOrNull()
     }
 
     /**
@@ -316,6 +354,17 @@ object BookController {
             }
         }
         return returnData.setData(true)
+    }
+
+    /**
+     * 获取书籍类型
+     */
+    fun getBookType(parameters: Map<String, List<String>>): ReturnData {
+        val returnData = ReturnData()
+        val bookUrl = parameters["url"]?.firstOrNull()
+            ?: return returnData.setErrorMsg("url不能为空")
+        val type = appDb.bookDao.getBook(bookUrl)?.type ?: 0
+        return returnData.setData(type)
     }
 
     /**

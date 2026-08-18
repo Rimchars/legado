@@ -12,6 +12,7 @@ import io.legado.app.data.entities.BookSource
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.ai.AiImageGalleryManager
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.glide.ArchiveImageLoader
 import io.legado.app.help.book.isEpub
 import io.legado.app.help.book.isMobi
 import io.legado.app.help.book.isPdf
@@ -159,6 +160,11 @@ object ImageProvider {
             val vFile = BookHelp.getImage(book, src)
             if (!BookHelp.isImageExist(book, src)) {
                 val inputStream = when {
+                    ArchiveImageLoader.isArchiveImage(src) -> kotlin.runCatching {
+                        ArchiveImageLoader.openArchiveImage(src)
+                    }.onFailure {
+                        handleDecodeFailure(null, it)
+                    }.getOrNull()
                     src.isDataUrl() -> kotlin.runCatching {
                         src.decodeBase64DataUrlBytes()?.let(::ByteArrayInputStream)
                     }.onFailure {

@@ -36,6 +36,11 @@ class LegadoGlideModule : AppGlideModule() {
             File::class.java,
             FilePathLoader.Factory()
         )
+        registry.prepend(
+            String::class.java,
+            InputStream::class.java,
+            ArchiveImageLoader.Factory()
+        )
     }
 
     override fun applyOptions(context: Context, builder: GlideBuilder) {

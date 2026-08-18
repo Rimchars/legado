@@ -42,9 +42,10 @@ import kotlinx.coroutines.withContext
 
 class BookmarkDialog() : ComposeDialogFragment() {
 
-    constructor(bookmark: Bookmark, editPos: Int = -1) : this() {
+    constructor(bookmark: Bookmark, editPos: Int = -1, contentOnly: Boolean = false) : this() {
         arguments = Bundle().apply {
             putInt("editPos", editPos)
+            putBoolean("contentOnly", contentOnly)
             putParcelable("bookmark", bookmark)
         }
     }
@@ -63,6 +64,7 @@ class BookmarkDialog() : ComposeDialogFragment() {
             return View(requireContext())
         }
         val editPos = arguments?.getInt("editPos", -1) ?: -1
+        val contentOnly = arguments?.getBoolean("contentOnly", false) ?: false
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
@@ -72,6 +74,7 @@ class BookmarkDialog() : ComposeDialogFragment() {
                         initialBookText = bookmark.bookText,
                         initialContent = bookmark.content,
                         showDelete = editPos >= 0,
+                        contentOnly = contentOnly,
                         onSave = { bookText, content ->
                             bookmark.bookText = bookText
                             bookmark.content = content
@@ -100,6 +103,7 @@ private fun BookmarkContent(
     initialBookText: String,
     initialContent: String,
     showDelete: Boolean,
+    contentOnly: Boolean = false,
     onSave: (String, String) -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit
@@ -112,13 +116,15 @@ private fun BookmarkContent(
         title = chapterName.ifBlank { stringResource(R.string.bookmark) },
         content = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                BookmarkField(
-                    label = stringResource(R.string.bookmark),
-                    value = bookText,
-                    onValueChange = { bookText = it },
-                    style = style
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+                if (!contentOnly) {
+                    BookmarkField(
+                        label = stringResource(R.string.bookmark),
+                        value = bookText,
+                        onValueChange = { bookText = it },
+                        style = style
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
                 BookmarkField(
                     label = stringResource(R.string.content),
                     value = content,

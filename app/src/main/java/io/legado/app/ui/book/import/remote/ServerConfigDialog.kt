@@ -4,7 +4,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,13 +24,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.fragment.app.viewModels
 import io.legado.app.R
 import io.legado.app.data.entities.Server
@@ -62,30 +69,40 @@ class ServerConfigDialog() : ComposeDialogFragment() {
             setContent {
                 LegadoComposeTheme {
                     var name by remember { mutableStateOf("") }
+                    var type by remember { mutableStateOf(Server.TYPE.WEBDAV) }
                     var url by remember { mutableStateOf("") }
                     var username by remember { mutableStateOf("") }
                     var password by remember { mutableStateOf("") }
+                    var path by remember { mutableStateOf("") }
                     LaunchedEffect(Unit) {
                         viewModel.init(arguments?.getLong("id")) {
                             val server = viewModel.mServer
                             name = server?.name.orEmpty()
+                            type = server?.type ?: Server.TYPE.WEBDAV
                             val config = server?.getConfigJsonObject()
                             url = config?.optString("url").orEmpty()
                             username = config?.optString("username").orEmpty()
                             password = config?.optString("password").orEmpty()
+                            path = config?.optString("path").orEmpty()
                         }
                     }
                     ServerConfigContent(
                         name = name,
+                        type = type,
                         url = url,
                         username = username,
                         password = password,
+                        path = path,
                         onNameChange = { name = it },
+                        onTypeChange = { type = it },
                         onUrlChange = { url = it },
                         onUsernameChange = { username = it },
                         onPasswordChange = { password = it },
+                        onPathChange = { path = it },
                         onSave = {
-                            viewModel.save(buildServer(name, url, username, password)) {
+                            viewModel.save(
+                                buildServer(name, type, url, username, password, path)
+                            ) {
                                 dismissAllowingStateLoss()
                             }
                         },
@@ -96,12 +113,24 @@ class ServerConfigDialog() : ComposeDialogFragment() {
         }
     }
 
-    private fun buildServer(name: String, url: String, username: String, password: String): Server {
+    private fun buildServer(
+        name: String,
+        type: Server.TYPE,
+        url: String,
+        username: String,
+        password: String,
+        path: String
+    ): Server {
         val server = viewModel.mServer?.copy() ?: Server()
         server.name = name
-        server.type = Server.TYPE.WEBDAV
+        server.type = type
         server.config = GSON.toJson(
-            hashMapOf("url" to url, "username" to username, "password" to password)
+            hashMapOf(
+                "url" to url,
+                "username" to username,
+                "password" to password,
+                "path" to path
+            )
         )
         return server
     }
@@ -110,13 +139,17 @@ class ServerConfigDialog() : ComposeDialogFragment() {
 @Composable
 private fun ServerConfigContent(
     name: String,
+    type: Server.TYPE,
     url: String,
     username: String,
     password: String,
+    path: String,
     onNameChange: (String) -> Unit,
+    onTypeChange: (Server.TYPE) -> Unit,
     onUrlChange: (String) -> Unit,
     onUsernameChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
+    onPathChange: (String) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -128,17 +161,40 @@ private fun ServerConfigContent(
             Column(modifier = Modifier.fillMaxWidth()) {
                 ServerField(stringResource(R.string.name), name, onNameChange, style)
                 Spacer(modifier = Modifier.height(10.dp))
-                ServerField("url", url, onUrlChange, style)
+                // 服务器类型(WebDAV/SMB)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TypeButton(
+                        text = "WebDAV",
+                        selected = type == Server.TYPE.WEBDAV,
+                        style = style,
+                        onClick = { onTypeChange(Server.TYPE.WEBDAV) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TypeButton(
+                        text = "SMB",
+                        selected = type == Server.TYPE.SMB,
+                        style = style,
+                        onClick = { onTypeChange(Server.TYPE.SMB) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 Spacer(modifier = Modifier.height(10.dp))
-                ServerField("username", username, onUsernameChange, style)
+                ServerField(stringResource(R.string.address), url, onUrlChange, style)
+                Spacer(modifier = Modifier.height(10.dp))
+                ServerField(stringResource(R.string.account), username, onUsernameChange, style)
                 Spacer(modifier = Modifier.height(10.dp))
                 ServerField(
-                    "password",
+                    stringResource(R.string.password_label),
                     password,
                     onPasswordChange,
                     style,
                     password = true
                 )
+                Spacer(modifier = Modifier.height(10.dp))
+                ServerField(stringResource(R.string.directory), path, onPathChange, style)
             }
         },
         actions = {
@@ -157,6 +213,31 @@ private fun ServerConfigContent(
             )
         }
     )
+}
+
+@Composable
+private fun TypeButton(
+    text: String,
+    selected: Boolean,
+    style: AppDialogStyle,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.foundation.layout.Box(
+        modifier = modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(style.actionRadius))
+            .background(if (selected) style.accent.copy(alpha = 0.18f) else style.fieldSurface)
+            .clickable(onClick = onClick),
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = if (selected) style.accent else style.primaryText,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+        )
+    }
 }
 
 @Composable

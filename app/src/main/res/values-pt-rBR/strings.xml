@@ -112,6 +112,10 @@
     <string name="ps_auto_download">Baixar automaticamente os últimos capítulos ao atualizar os livros</string>
     <string name="backup_restore">Backup e restauração</string>
     <string name="web_dav_set">Configurações de WebDav</string>
+    <string name="directory">Directory</string>
+    <string name="password_label">Password</string>
+    <string name="account">Account</string>
+    <string name="address">Address</string>
     <string name="web_dav_set_import_old">Configurações/importação WebDav de dados 阅读Archive </string>
     <string name="backup">Fazer Backup</string>
     <string name="restore">Restaurar</string>

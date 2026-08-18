@@ -12,7 +12,7 @@
             class="cover"
             :src="getCover(book)"
             :key="book.coverUrl"
-            @error.once="proxyImage($event, book)"
+            @error.once="proxyImage"
             alt=""
             loading="lazy"
           />
@@ -23,7 +23,15 @@
             <div class="author">
               {{ book.author }}
             </div>
-            <div class="update-info">
+            <div class="tags" v-if="isSearch">
+              <el-tag
+                v-for="tag in book.kind?.split(',').slice(0, 2)"
+                :key="tag"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
+            <div class="update-info" v-if="!isSearch">
               <div class="dot">•</div>
               <div class="size">共{{ (book as Book).totalChapterNum }}章</div>
               <div class="dot">•</div>
@@ -32,7 +40,9 @@
               </div>
             </div>
           </div>
-          <div class="dur-chapter">
+          <div class="intro" v-if="isSearch">{{ book.intro }}</div>
+
+          <div class="dur-chapter" v-if="!isSearch">
             已读：{{ (book as Book).durChapterTitle }}
           </div>
           <div class="last-chapter">最新：{{ book.latestChapterTitle }}</div>
@@ -42,26 +52,28 @@
   </div>
 </template>
 <script setup lang="ts">
-import type { Book } from '@/book'
+import type { Book, SeachBook } from '@/book'
 import { dateFormat, isLegadoUrl } from '../utils/utils'
 import API from '@api'
 const props = defineProps<{
-  books: Book[]
+  books: Array<Book | SeachBook>
+  isSearch: boolean
 }>()
 
 const emit = defineEmits(['bookClick'])
-const handleClick = (book: Book) => emit('bookClick', book)
-const getCover = ({ bookUrl, coverUrl }: Book) => {
-  if (coverUrl === undefined || isLegadoUrl(coverUrl)) {
-    return API.getBookCoverUrl(bookUrl)
-  }
-  return coverUrl
+const handleClick = (book: Book | SeachBook) => emit('bookClick', book)
+const getCover = ({ bookUrl, coverUrl }: Book | SeachBook) => {
+  if (coverUrl === undefined) return API.getProxyCoverUrl(bookUrl)
+  return isLegadoUrl(coverUrl) ? API.getProxyCoverUrl(coverUrl) : coverUrl
 }
-const proxyImage = (evt: Event, book: Book) => {
+const proxyImage = (evt: Event) => {
   const target = evt.target as HTMLImageElement
-  target.src = API.getBookCoverUrl(book.bookUrl)
+  target.src = API.getProxyCoverUrl(target.src)
 }
 
+const subJustify = computed(() =>
+  props.isSearch ? 'space-between' : 'flex-start',
+)
 </script>
 
 <style lang="scss" scoped>
@@ -115,10 +127,15 @@ const proxyImage = (evt: Event, book: Book) => {
           display: flex;
           flex-direction: row;
           align-items: baseline;
-          justify-content: flex-start;
+          justify-content: v-bind('subJustify');
           font-size: 12px;
           font-weight: 600;
           color: #6b6b6b;
+          .tags {
+            :deep(.el-tag) {
+              margin-right: 0.5em;
+            }
+          }
           .update-info {
             display: flex;
             .dot {
@@ -127,6 +144,7 @@ const proxyImage = (evt: Event, book: Book) => {
           }
         }
 
+        .intro,
         .dur-chapter,
         .last-chapter {
           color: #969ba3;

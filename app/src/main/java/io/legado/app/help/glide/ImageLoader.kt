@@ -31,6 +31,7 @@ object ImageLoader {
         }
         return when {
             path.isNullOrEmpty() -> Glide.with(context).load(path)
+            ArchiveImageLoader.isArchiveImage(path) -> Glide.with(context).load(path)
             path.isDataUrl() -> Glide.with(context).load(path)
             path.isAbsUrl() -> Glide.with(context).load(path)
             path.isContentScheme() -> Glide.with(context).load(path.toUri())
@@ -50,6 +51,7 @@ object ImageLoader {
         }
         return when {
             path.isNullOrEmpty() -> requestManager.load(path)
+            ArchiveImageLoader.isArchiveImage(path) -> requestManager.load(path)
             path.isDataUrl() -> requestManager.load(path)
             path.isAbsUrl() -> requestManager.load(path)
             path.isContentScheme() -> requestManager.load(path.toUri())

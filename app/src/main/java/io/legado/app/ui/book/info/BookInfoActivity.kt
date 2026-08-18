@@ -109,7 +109,10 @@ import io.legado.app.lib.theme.titleTextColor
 import io.legado.app.lib.theme.titleTypeface
 import io.legado.app.lib.theme.uiTypeface
 import io.legado.app.model.BookCover
+import io.legado.app.model.remote.RemoteBook
 import io.legado.app.model.remote.RemoteBookWebDav
+import io.legado.app.model.remote.RemoteBookSmb
+import io.legado.app.data.entities.Server
 import io.legado.app.ui.about.AppLogDialog
 import io.legado.app.ui.book.audio.AudioPlayActivity
 import io.legado.app.ui.book.cache.CacheBookItem
@@ -1667,18 +1670,70 @@ class BookInfoActivity :
             R.id.menu_delete_alert -> LocalConfig.bookInfoDeleteAlert = !item.isChecked
             R.id.menu_upload -> {
                 viewModel.getBook()?.let { book ->
-                    book.getRemoteUrl()?.let {
+                    showUploadServerDialog(book)
+                }
+            }
+        }
+        return super.onCompatOptionsItemSelected(item)
+    }
+
+    /**
+     * 选择上传到webdav或smb服务器
+     */
+    private fun showUploadServerDialog(book: Book) {
+        selector(
+            getString(R.string.upload_to_remote),
+            listOf(
+                getString(R.string.webdav_name),
+                getString(R.string.smb_name)
+            )
+        ) { _, which ->
+            when (which) {
+                0 -> {
+                    //webdav:已是远程书籍时提示重新上传
+                    if (book.getRemoteUrl() != null) {
                         alert(R.string.draw, R.string.sure_upload) {
                             okButton {
                                 upLoadBook(book)
                             }
                             cancelButton()
                         }
-                    } ?: upLoadBook(book)
+                    } else {
+                        upLoadBook(book)
+                    }
                 }
+
+                1 -> upLoadBookToSmb(book)
             }
         }
-        return super.onCompatOptionsItemSelected(item)
+    }
+
+    /**
+     * 上传到配置的SMB服务器
+     */
+    private fun upLoadBookToSmb(book: Book) {
+        val server = appDb.serverDao.get(AppConfig.remoteServerId)
+            ?.takeIf { it.type == Server.TYPE.SMB }
+            ?: appDb.serverDao.all.firstOrNull { it.type == Server.TYPE.SMB }
+        val config = server?.getSmbConfig()
+        if (config == null) {
+            toastOnUi(R.string.smb_not_configured)
+            return
+        }
+        lifecycleScope.launch {
+            waitDialog.setText(getString(R.string.book_info_uploading))
+            waitDialog.show()
+            try {
+                RemoteBookSmb(config.url, config, server.id).upload(book)
+                //更新书籍最后更新时间,使之比远程书籍的时间新
+                book.lastCheckTime = System.currentTimeMillis()
+                viewModel.saveBook(book)
+            } catch (e: Exception) {
+                toastOnUi(e.localizedMessage)
+            } finally {
+                waitDialog.dismiss()
+            }
+        }
     }
 
     private fun showBookCloudEntryModeSelector() {
@@ -3427,7 +3482,7 @@ class BookInfoActivity :
                 Intent(
                     this,
                     when {
-                        !book.isLocal && book.isImage && AppConfig.showMangaUi -> ReadMangaActivity::class.java
+                        book.isImage && AppConfig.showMangaUi -> ReadMangaActivity::class.java
                         else -> ReadBookActivity::class.java
                     }
                 )

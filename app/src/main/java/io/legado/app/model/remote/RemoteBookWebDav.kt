@@ -18,9 +18,9 @@ import io.legado.app.utils.isContentScheme
 import kotlinx.coroutines.runBlocking
 
 class RemoteBookWebDav(
-    val rootBookUrl: String,
+    override val rootBookUrl: String,
     val authorization: Authorization,
-    val serverID: Long? = null
+    override val serverID: Long? = null
 ) : RemoteBookManager() {
 
     init {

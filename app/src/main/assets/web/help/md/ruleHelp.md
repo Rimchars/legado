@@ -386,52 +386,5 @@ result = `<img src = "${url}">`;
 <button>点我@onclick:java.toast("Hello World")</button>
 </usehtml>
 ```
-> 书源正文也支持使用`<usehtml></usehtml>`包裹轻量HTML内容。阅读正文中的`usehtml`不是浏览器渲染, 会将HTML转换为阅读器可复制、可选择的正文行列。
-> 当前正文`usehtml`支持常见富文本标签, 如`p`、`div`、`span`、`b`、`strong`、`i`、`em`、`u`、`s`、`font`、`a`、`br`、`img`、`table`等。
-> 当前正文`usehtml`支持轻量盒模型文本块: `width`、`min-width`、`max-width`、`margin-left`、`margin-right`、`padding`、`box-sizing`、`text-align`。宽度支持数字、`px`、`%`、`em`、`rem`; 左右外边距支持`auto`。
-> 文本块可以设置容器样式, 用于对话气泡、提示块等效果。支持`background-color`、`background`中的颜色、`border`、`border-color`、`border-width`、`border-radius`。默认按标准`content-box`计算, 可使用`box-sizing:border-box`。
-> `text-align:center`会让每一行居中, `text-align:right/end`会让每一行右对齐。正文菜单-设置中的`文字两端对齐`只影响默认或左对齐正文行, 不会强制改变居中和右对齐行。
-> 如果需要“文本块居中, 但块内文字按正文设置两端对齐”, 可以使用`margin-left:auto;margin-right:auto;text-align:left`。
-```xml
-<usehtml>
-<p style="width:60%;text-align:left;">
-左对齐文本块
-</p>
-<p style="width:60%;margin-left:auto;margin-right:auto;text-align:center;">
-居中文本块
-</p>
-<p style="width:60%;margin-left:auto;margin-right:auto;text-align:left;">
-居中文本块, 块内文字跟随正文两端对齐设置
-</p>
-<p style="width:60%;margin-left:auto;text-align:right;">
-右对齐文本块
-</p>
-<div style="width:72%;padding:.7em .9em;background:rgba(68,150,211,.14);border-radius:12px;text-align:left;">
-左侧气泡文本
-</div>
-<div style="width:72%;padding:.1em .1em;background:rgba(68,150,211,.14);border-radius:12px;text-align:left;">
-极小内边距气泡文本
-</div>
-<div style="width:72%;padding:.1em .1em;background:rgba(68,150,211,.14);border-radius:12px;text-align:left;">
-容器内段评文本<img src="dp:5,{&quot;status&quot;:&quot;normal&quot;,&quot;pclick&quot;:&quot;rule:xxx&quot;}">
-</div>
-<div style="width:72%;margin-left:auto;padding:.7em .9em;background:#e8f3ff;border:1px solid rgba(68,150,211,.45);border-radius:12px;text-align:left;">
-右侧气泡文本
-</div>
-<div style="width:80%;margin-left:auto;margin-right:auto;padding:.8em;background:rgba(0,0,0,.08);border-radius:10px;text-align:center;">
-居中提示块
-</div>
-</usehtml>
-```
-> 也可以使用阅读专用属性明确启用文本块布局。
-```xml
-<usehtml>
-<p data-legado-layout="text-box" data-legado-width="60%" style="margin-left:auto;margin-right:auto;text-align:center;">
-明确启用的居中文本块
-</p>
-</usehtml>
-```
-> 正文`usehtml`支持图片标签。图片`src`可以附加`style`、`width`、`click`等参数, 具体写法参考上方图片链接控制样式。`dp:`段评图片可以放在文本容器内并按行内内容渲染; 普通大图仍建议按块级图片处理。
-> 正文`usehtml`不支持完整CSS盒模型和浏览器复杂布局, 不支持背景图、`float`、`flex`、`grid`、`position:absolute`、脚本执行、内嵌视频播放等。复杂图文布局建议使用阅读器支持的图片样式或后续专用布局属性。
 > 支持Markdown语法，需要用`<md></md>`包裹起来  
 > 支持使用浏览器渲染，需要用`<useweb></useweb>`包裹起来  

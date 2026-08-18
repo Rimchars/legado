@@ -12,6 +12,9 @@ import io.legado.app.help.AppCloudStorage
 import io.legado.app.help.ConcurrentRateLimiter
 import io.legado.app.help.ReadRecordDailyHelper
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.isArchive
+import io.legado.app.help.book.isImage
+import io.legado.app.model.localBook.LocalBook
 import io.legado.app.help.book.ContentProcessor
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isSameNameAuthor
@@ -464,7 +467,12 @@ object ReadManga : CoroutineScope by MainScope() {
                 contentLoadFinish(chapter, null, canceled = true)
             })
         } else {
-            contentLoadFinish(chapter, null, "加载内容失败 没有书源")
+            //本地图片压缩包漫画:重新生成章节内容
+            if (book.isArchive && book.isImage) {
+                contentLoadFinish(chapter, LocalBook.getImageArchiveToc(book)?.second)
+            } else {
+                contentLoadFinish(chapter, null, "加载内容失败 没有书源")
+            }
         }
     }
 

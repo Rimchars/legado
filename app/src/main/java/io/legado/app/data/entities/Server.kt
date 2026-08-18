@@ -23,7 +23,8 @@ data class Server(
 ) : Parcelable {
 
     enum class TYPE {
-        WEBDAV
+        WEBDAV,
+        SMB
     }
 
     override fun hashCode(): Int {
@@ -47,11 +48,46 @@ data class Server(
         return if (type == TYPE.WEBDAV) GSON.fromJsonObject<WebDavConfig>(config).getOrNull() else null
     }
 
+    fun getSmbConfig(): SmbConfig? {
+        return if (type == TYPE.SMB) GSON.fromJsonObject<SmbConfig>(config).getOrNull() else null
+    }
+
+    /**
+     * 拼接路径后的远程根目录
+     */
+    fun getSmbRootUrl(): String {
+        val config = getSmbConfig() ?: return ""
+        return joinRootUrl(config.url, config.path)
+    }
+
+    fun getWebDavRootUrl(): String {
+        val config = getWebDavConfig() ?: return ""
+        return joinRootUrl(config.url, config.path)
+    }
+
+    private fun joinRootUrl(baseUrl: String, path: String): String {
+        val p = path.replace("\\", "/").trim('/')
+        if (p.isBlank()) return baseUrl
+        return baseUrl.trimEnd('/') + "/" + p
+    }
+
     @Parcelize
     data class WebDavConfig(
         var url: String,
         var username: String,
-        var password: String
+        var password: String,
+        var path: String = ""
+    ) : Parcelable
+
+    /**
+     * SMB服务器配置,url格式: smb://host:port/share/path
+     */
+    @Parcelize
+    data class SmbConfig(
+        var url: String = "",
+        var username: String = "",
+        var password: String = "",
+        var path: String = ""
     ) : Parcelable
 
 }

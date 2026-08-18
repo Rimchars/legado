@@ -316,7 +316,7 @@ private fun AutoReadContent(
 }
 
 @Composable
-private fun AutoReadModeButton(
+internal fun AutoReadModeButton(
     text: String,
     selected: Boolean,
     palette: LegadoMiuixPalette,
@@ -347,7 +347,7 @@ private fun AutoReadModeButton(
 }
 
 @Composable
-private fun AutoReadAction(
+internal fun AutoReadAction(
     iconRes: Int,
     text: String,
     textColor: Color,

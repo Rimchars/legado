@@ -8,7 +8,6 @@ import API, {
 } from './api'
 import ajax from './axios'
 import { validatorHttpUrl } from '@/utils/utils'
-import { getRelayBootstrapForUrl } from './relay'
 
 import { createApp } from 'vue'
 import App from '@/App.vue'
@@ -76,10 +75,6 @@ export const parseLeagdoHttpUrlWithDefault = (
   let url = new URL(location.origin) //默认当前网址的origin部分
   if (validatorHttpUrl(http_url)) {
     url = new URL(http_url)
-  }
-  const relayBootstrap = getRelayBootstrapForUrl(url)
-  if (relayBootstrap) {
-    return [relayBootstrap.httpBase, relayBootstrap.websocketBase]
   }
   const { protocol, port } = url
   // websocket服务端口 为http服务端口 + 1

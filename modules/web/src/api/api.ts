@@ -8,9 +8,9 @@ import type {
   Book,
   BookChapter,
   BookProgress,
+  SeachBook,
 } from '@/book'
 import type { Source } from '@/source'
-import { getRelayAuthorization, getRelayBootstrap } from './relay'
 
 export type LeagdoApiResponse<T> = {
   isSuccess: boolean
@@ -62,18 +62,11 @@ const saveBookProgress = (bookProgress: BookProgress) =>
 /**主要在直接关闭浏览器情况下可靠发送书籍进度 */
 const saveBookProgressWithBeacon = (bookProgress: BookProgress) => {
   if (!bookProgress) return
-  const url = new URL('saveBookProgress', legado_http_entry_point)
-  const authorization = getRelayAuthorization(url)
-  void fetch(url, {
-    method: 'POST',
-    body: JSON.stringify(bookProgress),
-    keepalive: true,
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authorization ? { Authorization: authorization } : {}),
-    },
-  })
+  // 常规请求可能会被取消 使用Fetch keep-alive 或者 navigator.sendBeacon
+  navigator.sendBeacon(
+    new URL('saveBookProgress', legado_http_entry_point),
+    JSON.stringify(bookProgress),
+  )
 }
 
 const getBookShelf = () => ajax.get<LeagdoApiResponse<Book[]>>('getBookshelf')
@@ -86,16 +79,49 @@ const getChapterList = (/** @type {string} */ bookUrl: string) =>
 const getBookContent = (
   /** @type {string} */ bookUrl: string,
   /** @type {number} */ chapterIndex: number,
-) => {
-  const path = getRelayBootstrap() ? 'getBookContentEx' : 'getBookContent'
-  return ajax.get<LeagdoApiResponse<string>>(
-    path + '?url=' +
+) =>
+  ajax.get<LeagdoApiResponse<string>>(
+    'getBookContent?url=' +
       encodeURIComponent(bookUrl) +
       '&index=' +
       chapterIndex,
   )
+
+const getBookType = (bookUrl: string) =>
+  ajax.get<LeagdoApiResponse<number>>(
+    'getBookType?url=' + encodeURIComponent(bookUrl),
+  )
+
+// webSocket
+const search = (
+  searchKey: string,
+  onReceive: (data: SeachBook[]) => void,
+  onFinish: () => void,
+) => {
+  const socket = new WebSocket(
+    new URL('searchBook', legado_webSocket_entry_point),
+  )
+  socket.onerror = wsOnError
+
+  socket.onopen = () => {
+    socket.send(`{"key":"${searchKey}"}`)
+  }
+  socket.onmessage = event => {
+    try {
+      onReceive(JSON.parse(event.data))
+      wsOnMessage?.call(socket, event)
+    } catch {
+      onFinish()
+    }
+  }
+
+  socket.onclose = () => {
+    onFinish()
+  }
 }
 
+const saveBook = (book: BaseBook) =>
+  ajax.post<LeagdoApiResponse<string>>('saveBook', book)
 const deleteBook = (book: BaseBook) =>
   ajax.post<LeagdoApiResponse<string>>('deleteBook', book)
 
@@ -159,12 +185,6 @@ const getProxyCoverUrl = (coverUrl: string) => {
     legado_http_entry_point,
   ).toString()
 }
-
-const getBookCoverUrl = (bookUrl: string) =>
-  new URL(
-    'getBookCover?url=' + encodeURIComponent(bookUrl),
-    legado_http_entry_point,
-  ).toString()
 /**
  * 从阅读获取需要特定处理的图片
  * @param {string} bookUrl
@@ -196,6 +216,9 @@ export default {
   getBookShelf,
   getChapterList,
   getBookContent,
+  getBookType,
+  search,
+  saveBook,
   deleteBook,
 
   getSources,
@@ -205,6 +228,5 @@ export default {
   debug,
 
   getProxyCoverUrl,
-  getBookCoverUrl,
   getProxyImageUrl,
 }

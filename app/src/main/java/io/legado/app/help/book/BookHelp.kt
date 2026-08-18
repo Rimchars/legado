@@ -474,6 +474,10 @@ object BookHelp {
             return string
         }
         if (book.isLocal) {
+            //图片压缩包漫画:内容文件丢失时重新生成,避免被按文本解析
+            if (book.isArchive && book.isImage) {
+                return LocalBook.getImageArchiveToc(book)?.second
+            }
             val string = LocalBook.getContent(book, bookChapter)
             if (string != null && book.isEpub) {
                 saveText(book, bookChapter, string)

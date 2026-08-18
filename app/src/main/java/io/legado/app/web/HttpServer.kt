@@ -96,6 +96,7 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                         "/cover" -> BookController.getCover(parameters)
                         "/image" -> BookController.getImg(parameters)
                         "/getReadConfig" -> BookController.getWebReadConfig()
+                        "/getBookType" -> BookController.getBookType(parameters)
                         "/getRssSource" -> RssSourceController.getSource(parameters)
                         "/getRssSources" -> RssSourceController.sources
                         "/getReplaceRules" -> ReplaceRuleController.allRules

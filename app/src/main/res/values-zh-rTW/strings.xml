@@ -105,7 +105,11 @@
     <string name="pt_auto_download">自動下載最新章節</string>
     <string name="ps_auto_download">更新書籍時自動下載最新章節</string>
     <string name="backup_restore">備份與復原</string>
-    <string name="web_dav_set">WebDav設定</string>
+    <string name="web_dav_set">遠程設置</string>
+    <string name="directory">目錄</string>
+    <string name="password_label">密碼</string>
+    <string name="account">帳號</string>
+    <string name="address">地址</string>
     <string name="web_dav_set_import_old">WebDav設定/匯入舊版本資料</string>
     <string name="backup">備份</string>
     <string name="restore">復原</string>
@@ -1004,7 +1008,7 @@
     <string name="download_book_success">下載成功</string>
     <string name="download_book_fail">下載失敗</string>
     <string name="upload_to_remote">上傳</string>
-    <string name="add_remote_book">远程書籍</string>
+    <string name="add_remote_book">遠程圖書</string>
     <string name="bitmap_cache_size_summary">目前最大快取 %1$s MB</string>
     <string name="bitmap_cache_size">圖片繪製快取</string>
     <string name="image_retain_number_summary">保留已讀章節數量 %s</string>
@@ -1014,7 +1018,7 @@
     <string name="error_decode_bitmap">圖片解碼失敗</string>
     <string name="error_image_url_empty">圖片連結為空，檢查取代淨化規則</string>
     <string name="variable_comment">變數說明(variableComment)</string>
-    <string name="remote_book">遠端書籍</string>
+    <string name="remote_book">遠程圖書</string>
     <string name="reading_time_sort">閱讀時長排序</string>
     <string name="last_read_time_sort">閱讀時間排序</string>
     <string name="reading_time_tag">閱讀時長：</string>

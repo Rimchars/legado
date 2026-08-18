@@ -5,10 +5,10 @@
     :class="{ night: isNight, day: !isNight }"
     @click="showToolBar = !showToolBar"
   >
-    <div class="tool-bar" :style="leftBarTheme">
+    <div class="tool-bar" :style="leftBarTheme" @click.stop>
       <div class="tools">
         <el-popover
-          placement="right"
+          :placement="miniInterface ? 'bottom' : 'right'"
           :width="popupWidth"
           trigger="click"
           :show-arrow="false"
@@ -24,7 +24,7 @@
           </template>
         </el-popover>
         <el-popover
-          placement="right"
+          :placement="miniInterface ? 'bottom' : 'right'"
           :width="popupWidth"
           trigger="click"
           :show-arrow="false"
@@ -57,35 +57,54 @@
         </div>
       </div>
     </div>
-    <div class="read-bar" :style="rightBarTheme">
+    <div class="read-bar" :style="rightBarTheme" @click.stop>
       <div class="tools">
         <div
           class="tool-icon"
-          :class="{ 'no-point': noPoint }"
+          :class="{ 'no-point': noPoint, 'comic-nav': isComic }"
           @click="toPreChapter"
         >
-          <div class="iconfont">&#58920;</div>
-          <span v-if="miniInterface">上一章</span>
+          <template v-if="isComic">
+            <span class="nav-arrow">&lt;</span>
+          </template>
+          <template v-else>
+            <div class="iconfont">&#58920;</div>
+            <span v-if="miniInterface">上一章</span>
+          </template>
         </div>
         <div
           class="tool-icon"
-          :class="{ 'no-point': noPoint }"
+          :class="{ 'no-point': noPoint, 'comic-nav': isComic }"
           @click="toNextChapter"
         >
-          <span v-if="miniInterface">下一章</span>
-          <div class="iconfont">&#58913;</div>
+          <template v-if="isComic">
+            <span class="nav-arrow">&gt;</span>
+          </template>
+          <template v-else>
+            <span v-if="miniInterface">下一章</span>
+            <div class="iconfont">&#58913;</div>
+          </template>
         </div>
+      </div>
+    </div>
+    <div class="slide-nav" v-if="!isComic && isHorizontalMode && miniInterface" @click.stop>
+      <div class="tool-icon slide-nav-btn" @click="toPreChapter">
+        <span class="nav-arrow">&lt;</span>
+      </div>
+      <div class="tool-icon slide-nav-btn" @click="toNextChapter">
+        <span class="nav-arrow">&gt;</span>
       </div>
     </div>
     <div class="chapter-bar"></div>
     <div class="chapter" ref="content" :style="chapterTheme">
-      <div class="content">
+      <div class="content" ref="contentInner">
         <div class="top-bar" ref="top"></div>
         <div
           v-for="data in chapterData"
           :key="data.index"
           :chapterIndex="data.index"
           ref="chapter"
+          class="chapter"
         >
           <chapter-content
             ref="chapterRef"
@@ -114,7 +133,8 @@ import { useLoading } from '@/hooks/loading'
 import { useThrottleFn } from '@vueuse/shared'
 import { isNullOrBlank } from '@/utils/utils'
 
-const content = ref()
+const content = ref<HTMLElement>()
+const contentInner = ref<HTMLElement>()
 // loading spinner
 const { isLoading, loadingWrapper } = useLoading(content, '正在获取信息')
 const store = useBookStore()
@@ -129,6 +149,14 @@ const {
   theme,
   isNight,
 } = storeToRefs(store)
+
+const IMAGE_BOOK_TYPE = 64
+const isComic = computed(() => (store.bookType & IMAGE_BOOK_TYPE) !== 0)
+
+watchEffect(() => {
+  document.body.classList.toggle('manga-page', isComic.value)
+  document.body.classList.toggle('web-slide-mode', store.config.readMode === 1)
+})
 
 const chapterPos = computed({
   get: () => store.readingBook.chapterPos,
@@ -197,13 +225,17 @@ const fontSize = computed(() => {
 })
 
 // 主题部分
-const bodyColor = computed(() => settings.themes[theme.value].body)
-const chapterColor = computed(() => settings.themes[theme.value].content)
-const popupColor = computed(() => settings.themes[theme.value].popup)
+/** 自动主题(7)时按当前深浅色解析到具体主题色 */
+const resolvedTheme = computed(() =>
+  theme.value == 7 ? (isNight.value ? 6 : 0) : theme.value,
+)
+const bodyColor = computed(() => settings.themes[resolvedTheme.value].body)
+const chapterColor = computed(() => settings.themes[resolvedTheme.value].content)
+const popupColor = computed(() => settings.themes[resolvedTheme.value].popup)
 
 const readWidth = computed(() => {
   if (!miniInterface.value) {
-    return store.config.readWidth - 130 + 'px'
+    return store.config.readWidth - 120 + 'px'
   } else {
     return window.innerWidth + 'px'
   }
@@ -212,7 +244,7 @@ const popupWidth = computed(() => {
   if (!miniInterface.value) {
     return store.config.readWidth - 33
   } else {
-    return window.innerWidth - 33
+    return Math.max(0, window.innerWidth - 24)
   }
 })
 const bodyTheme = computed(() => {
@@ -228,11 +260,16 @@ const chapterTheme = computed(() => {
 })
 const showToolBar = ref(false)
 const leftBarTheme = computed(() => {
+  //漫画左右翻页模式:面板贴最左侧显示
+  const stickLeft = isComic.value && isHorizontalMode.value
   return {
     background: popupColor.value,
-    marginLeft: miniInterface.value
-      ? 0
-      : -(store.config.readWidth / 2 + 68) + 'px',
+    left: stickLeft ? '0' : '50%',
+    marginLeft: stickLeft
+      ? '0'
+      : miniInterface.value
+        ? 0
+        : -(store.config.readWidth / 2 + 68) + 'px',
     display: miniInterface.value && !showToolBar.value ? 'none' : 'block',
   }
 })
@@ -286,12 +323,22 @@ const chapterData = ref<{ index: number; content: string[]; title: string }[]>(
   [],
 )
 const noPoint = ref(true)
+const isImageLine = (line: string) =>
+  /^\s*<img[^>]*src[^>]+>$/.test(line)
+
+/** 章节加载中标记,防止连点"上一章/下一章"重复请求导致章节重复渲染 */
+let chapterLoading = false
+
 const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
+  if (reloadChapter && chapterLoading) return
+  if (reloadChapter) chapterLoading = true
   if (reloadChapter) {
     //展示进度条
     store.setShowContent(false)
     //强制滚回顶层
     jump(top.value, { duration: 0 })
+    //左右翻页模式回到第一屏
+    if (contentInner.value) contentInner.value.scrollLeft = 0
     //从目录，按钮切换章节时保存进度 预加载时不保存
     saveReadingBookProgressToBrowser(index, chapterPos)
     chapterData.value = []
@@ -305,6 +352,13 @@ const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
         if (res.data.isSuccess) {
           const data = res.data.data
           const content = data.split(/\n+/)
+          if (
+            store.bookType === 0 &&
+            content.length > 0 &&
+            content.filter(isImageLine).length * 2 >= content.length
+          ) {
+            store.setBookType(IMAGE_BOOK_TYPE)
+          }
           chapterData.value.push({ index, content, title })
           if (reloadChapter) toChapterPos(chapterPos)
         } else {
@@ -312,6 +366,7 @@ const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
           const content = [res.data.errorMsg]
           chapterData.value.push({ index, content, title })
         }
+        chapterLoading = false
         store.setContentLoading(true)
         noPoint.value = false
         store.setShowContent(true)
@@ -322,6 +377,7 @@ const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
       err => {
         const content = ['获取章节内容失败！']
         chapterData.value.push({ index, content, title })
+        chapterLoading = false
         store.setShowContent(true)
         throw err
       },
@@ -334,7 +390,7 @@ const chapter = ref()
 const chapterRef = ref()
 const toChapterPos = (pos: number) => {
   nextTick(() => {
-    if (chapterRef.value.length === 1)
+    if (chapterRef.value?.length === 1)
       chapterRef.value[0].scrollToReadedLength(pos)
   })
 }
@@ -379,7 +435,128 @@ const onVisibilityChange = () => {
 // 定时同步
 
 // 章节切换
+const getChapterImages = () =>
+  content.value
+    ? Array.from(content.value.querySelectorAll<HTMLImageElement>('img'))
+    : []
+
+/** 左右翻页模式:图片横向排列,按钮左右切换 */
+const isHorizontalMode = computed(() => store.config.readMode === 1)
+
+const getHorizontalContainer = () =>
+  contentInner.value as HTMLElement | undefined
+
+/** 横向翻页动画节流,防止连点导致动画排队/滚动与切章竞态 */
+let pageSwitching = false
+const lockPageSwitch = (ms = 400) => {
+  pageSwitching = true
+  setTimeout(() => (pageSwitching = false), ms)
+}
+
+const toNextImage = () => {
+  if (isHorizontalMode.value) {
+    const container = getHorizontalContainer()
+    if (container && !pageSwitching) {
+      container.scrollBy({
+        left: window.innerWidth,
+        behavior: 'smooth',
+      })
+      lockPageSwitch()
+      return
+    }
+  }
+  const images = getChapterImages()
+  if (images.length === 0) {
+    jump(bottom.value)
+    return
+  }
+  const scrollTop = document.documentElement.scrollTop + 4
+  let index = images.findIndex(image => image.offsetTop > scrollTop)
+  index = index < 0 ? images.length - 1 : Math.max(0, index - 1)
+  const target = images[Math.min(images.length - 1, index + 1)]
+  if (target) jump(target)
+}
+
+const toPreviousImage = () => {
+  if (isHorizontalMode.value) {
+    const container = getHorizontalContainer()
+    if (container && !pageSwitching) {
+      container.scrollBy({
+        left: -window.innerWidth,
+        behavior: 'smooth',
+      })
+      lockPageSwitch()
+      return
+    }
+  }
+  const images = getChapterImages()
+  if (images.length === 0) {
+    jump(top.value)
+    return
+  }
+  const scrollTop = document.documentElement.scrollTop + 4
+  let index = images.findIndex(image => image.offsetTop > scrollTop)
+  index = index < 0 ? images.length - 1 : Math.max(0, index - 1)
+  const target = images[Math.max(0, index - 1)]
+  if (target) jump(target)
+}
+
+/** 小说左右翻页:横向分屏翻页,返回 true 表示已翻页,false 表示到边界需切章 */
+const toNextNovelPage = (): boolean => {
+  const container = getHorizontalContainer()
+  if (!container || pageSwitching) return true
+  if (
+    container.scrollLeft + container.clientWidth < container.scrollWidth - 4
+  ) {
+    container.scrollBy({
+      left: container.clientWidth,
+      behavior: 'smooth',
+    })
+    lockPageSwitch()
+    return true
+  }
+  return false
+}
+
+const toPreviousNovelPage = (): boolean => {
+  const container = getHorizontalContainer()
+  if (!container || pageSwitching) return true
+  if (container.scrollLeft > 4) {
+    container.scrollBy({
+      left: -container.clientWidth,
+      behavior: 'smooth',
+    })
+    lockPageSwitch()
+    return true
+  }
+  return false
+}
+
+/**
+ * 左右翻页滑动吸附:columns 分栏不产生 scroll snap area,
+ * 滚动结束后自动对齐到最近的整屏,体验同漫画模式逐屏切换
+ */
+const onScrollEndSnap = () => {
+  if (!isHorizontalMode.value) return
+  const container = getHorizontalContainer()
+  if (!container) return
+  const target =
+    Math.round(container.scrollLeft / container.clientWidth) *
+    container.clientWidth
+  if (Math.abs(container.scrollLeft - target) > 1) {
+    container.scrollTo({ left: target, behavior: 'smooth' })
+  }
+}
+
 const toNextChapter = () => {
+  if (isComic.value) {
+    toNextImage()
+    return
+  }
+  if (isHorizontalMode.value) {
+    if (toNextNovelPage()) return
+  }
+  if (chapterLoading) return
   store.setContentLoading(true)
   const index = chapterIndex.value + 1
   if (typeof catalog.value[index] !== 'undefined') {
@@ -397,6 +574,14 @@ const toNextChapter = () => {
   }
 }
 const toPreChapter = () => {
+  if (isComic.value) {
+    toPreviousImage()
+    return
+  }
+  if (isHorizontalMode.value) {
+    if (toPreviousNovelPage()) return
+  }
+  if (chapterLoading) return
   store.setContentLoading(true)
   const index = chapterIndex.value - 1
   if (typeof catalog.value[index] !== 'undefined') {
@@ -471,6 +656,7 @@ const ignoreKeyPress = (event: KeyboardEvent) => {
 }
 
 onMounted(async () => {
+  store.initSystemTheme()
   await store.loadWebConfig()
   //获取书籍数据
   const bookUrl = sessionStorage.getItem('bookUrl')
@@ -479,23 +665,38 @@ onMounted(async () => {
   const chapterIndex = Number(sessionStorage.getItem('chapterIndex') || 0)
   const chapterPos = Number(sessionStorage.getItem('chapterPos') || 0)
   const isSeachBook = sessionStorage.getItem('isSeachBook') === 'true'
-  if (isNullOrBlank(bookUrl) || isNullOrBlank(name) || author === null) {
+  if (
+    bookUrl === null ||
+    isNullOrBlank(bookUrl) ||
+    isNullOrBlank(name) ||
+    author === null
+  ) {
     ElMessage.warning('书籍信息为空，即将自动返回书架页面...')
     return setTimeout(toShelf, 500)
   }
+  store.setBookType(0)
+  API.getBookType(bookUrl)
+    .then(response => {
+      if (response.data.isSuccess) {
+        const bookType = Number(response.data.data) || 0
+        if (bookType !== 0 || store.bookType === 0) {
+          store.setBookType(bookType)
+        }
+      }
+    })
+    .catch(() => {})
   const book: typeof store.readingBook = {
-    // @ts-expect-error: bookUrl name author is NON_Blank string here
-    bookUrl,
-    // @ts-expect-error: bookUrl name author is NON_Blank string here
-    name,
+    bookUrl: bookUrl as string,
+    name: name as string,
     author,
     chapterIndex,
     chapterPos,
     isSeachBook,
   }
-  onResize()
-  window.addEventListener('resize', onResize)
-  loadingWrapper(
+      onResize()
+      window.addEventListener('resize', onResize)
+      contentInner.value?.addEventListener('scrollend', onScrollEndSnap)
+      loadingWrapper(
     store.loadWebCatalog(book).then(chapters => {
       store.setReadingBook(book)
       getContent(chapterIndex, true, chapterPos)
@@ -519,10 +720,12 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyPress)
   window.removeEventListener('keydown', ignoreKeyPress)
   window.removeEventListener('resize', onResize)
+  contentInner.value?.removeEventListener('scrollend', onScrollEndSnap)
   // 兼容Safari < 14
   document.removeEventListener('visibilitychange', onVisibilityChange)
   readSettingsVisible.value = false
   popCataVisible.value = false
+  document.body.classList.remove('manga-page', 'web-slide-mode')
   scrollObserver?.disconnect()
   scrollObserver = null
 })
@@ -564,7 +767,6 @@ onBeforeRouteLeave(async (to, from, next) => {
 
 <style lang="scss" scoped>
 :deep(.pop-setting) {
-  margin-left: 68px;
   top: 0;
 }
 
@@ -653,7 +855,7 @@ onBeforeRouteLeave(async (to, from, next) => {
     text-align: left;
     padding: 0 65px;
     min-height: 100vh;
-    width: 670px;
+    width: 680px;
     margin: 0 auto;
 
     .content {
@@ -668,6 +870,14 @@ onBeforeRouteLeave(async (to, from, next) => {
       }
     }
   }
+}
+
+/* v-for 渲染的章节容器不该再套用阅读框的 padding/width/边框,否则正文整体向右偏移且出现内框 */
+.chapter .content .chapter {
+  width: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
 }
 
 .day {
@@ -766,5 +976,191 @@ onBeforeRouteLeave(async (to, from, next) => {
       box-sizing: border-box;
     }
   }
+}
+
+@media screen and (min-width: 777px) {
+  :deep(.pop-setting) {
+    margin-left: 68px;
+  }
+}
+
+@media screen and (max-width: 776px) {
+  :deep(.pop-setting) {
+    margin-left: 0;
+    max-width: calc(100vw - 24px) !important;
+  }
+}
+</style>
+
+<style lang="scss">
+/* 小说左右翻页:阅读框保持与垂直滚动一致的内边距,总宽与垂直滚动外框相同 */
+body.web-slide-mode:not(.manga-page) .chapter-wrapper .chapter {
+  margin: 0 auto;
+}
+
+/* 漫画左右翻页:整屏大图,每屏一张(电脑端也保持全屏,避免容器宽度与屏宽不一致导致SMB图加载异常) */
+body.web-slide-mode.manga-page .chapter-wrapper .chapter {
+  width: 100vw !important;
+  padding: 0;
+  margin: 0;
+  border: none !important;
+}
+
+/* 手机端左右翻页全屏 */
+@media (max-width: 776px) {
+  body.web-slide-mode .chapter-wrapper .chapter {
+    width: 100vw !important;
+    border: none !important;
+  }
+}
+
+/* 左右翻页保留顶部抬头框,隐藏底部与加载占位 */
+body.web-slide-mode .chapter-wrapper .chapter .content > .bottom-bar,
+body.web-slide-mode .chapter-wrapper .chapter .content > .loading {
+  display: none;
+}
+
+body.web-slide-mode .chapter-wrapper .chapter .content .chapter {
+  display: contents;
+}
+
+/* 漫画左右翻页:图片横向排列,每屏一张 */
+body.web-slide-mode.manga-page .chapter-wrapper .chapter .content {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  min-height: 100vh;
+  background: #333;
+}
+
+body.web-slide-mode.manga-page .chapter-wrapper .chapter .content .chapter > * {
+  flex: 0 0 100vw;
+  scroll-snap-align: start;
+  margin: 0;
+}
+
+body.web-slide-mode.manga-page .chapter-wrapper .chapter .content .title,
+body.web-slide-mode.manga-page .chapter-wrapper .chapter .content p {
+  display: none;
+}
+
+body.web-slide-mode.manga-page .chapter-wrapper .full {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+  display: block;
+  background: #333;
+}
+
+/* 小说左右翻页:多栏横向分屏,每屏一页,宽度跟随阅读背景框 */
+body.web-slide-mode:not(.manga-page) .chapter-wrapper .chapter .content {
+  columns: 1;
+  column-gap: 0;
+  height: 100vh;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  background: transparent;
+}
+
+body.web-slide-mode:not(.manga-page) .chapter-wrapper .chapter .content .title {
+  margin: 0 0 24px 0;
+  padding: 0 20px;
+}
+
+body.web-slide-mode:not(.manga-page) .chapter-wrapper .chapter .content p {
+  padding: 0 20px;
+}
+
+body.manga-page .chapter-wrapper .read-bar {
+  position: fixed;
+  top: 50%;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: 100vw !important;
+  transform: translateY(-50%);
+  background: transparent !important;
+  border: none;
+  display: flex !important;
+  margin: 0 !important;
+  padding: 0 12px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+body.manga-page .chapter-wrapper .read-bar .tools {
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  padding: 0;
+  pointer-events: none;
+}
+
+/* 优先级需高于 scoped 的 .read-bar .tools .tool-icon[data-v] 椭圆规则 */
+body.manga-page .chapter-wrapper .read-bar .tools .tool-icon {
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  pointer-events: auto;
+}
+
+body.manga-page .chapter-wrapper .read-bar .nav-arrow {
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* 小说左右翻页:手机端两侧圆形 < > 翻页按钮(同漫画模式样式) */
+body.web-slide-mode:not(.manga-page) .chapter-wrapper .slide-nav {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  right: 0;
+  width: 100vw !important;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 100;
+}
+
+body.web-slide-mode:not(.manga-page)
+  .chapter-wrapper
+  .slide-nav
+  .slide-nav-btn {
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  pointer-events: auto;
+}
+
+body.web-slide-mode:not(.manga-page)
+  .chapter-wrapper
+  .slide-nav
+  .slide-nav-btn
+  .nav-arrow {
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
 }
 </style>
