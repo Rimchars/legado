@@ -17,7 +17,7 @@
             ref="themes"
             @click="setTheme(index)"
             :class="{ selected: theme == index }"
-            ><em v-if="index < 6" class="iconfont">&#58980;</em
+            ><em v-if="index !== 6" class="iconfont">&#58980;</em
             ><em v-else class="moon-icon">{{ moonIcon }}</em></span
           >
         </li>
@@ -219,6 +219,9 @@ const themeColors = [
   },
   {
     background: 'rgba(0, 0, 0, 0.5)',
+  },
+  {
+    background: '#ffffff',
   },
 ]
 const popupTheme = computed(() => {
