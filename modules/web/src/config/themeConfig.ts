@@ -53,6 +53,11 @@ const settings = {
       content: '#ede7da url(' + content_6 + ') repeat',
       popup: '#ede7da url(' + popup_6 + ') repeat',
     },
+    {
+      body: '#ffffff',
+      content: '#ffffff',
+      popup: '#ffffff',
+    },
   ],
   fonts: [
     'Microsoft YaHei, PingFangSC-Regular, HelveticaNeue-Light, Helvetica Neue Light, sans-serif',
